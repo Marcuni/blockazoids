@@ -1,0 +1,1716 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Block-A-Zoids</title>
+    <style>
+        /* Reset default body styling and center game content */
+        body {
+            margin: 0;
+            padding: 0;
+            background: #111;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            overflow: hidden;
+            position: relative;
+            touch-action: none;
+            -webkit-user-select: none;
+            user-select: none;
+            -webkit-touch-callout: none;
+        }
+        
+        /* Game container with grid background */
+        #gameContainer {
+            width: 600px;
+            height: 600px;
+            background: #000;
+            position: relative;
+            overflow: hidden;
+            border: 2px solid #fff;
+            box-shadow: 0 0 calc(var(--default-glow) * 1px) #fff;
+            margin-left: 10px;
+            margin-right: 10px;
+            --default-glow: 10;
+            background-image: linear-gradient(rgba(255, 255, 255, 0.5) 0.67px, transparent 0.67px),
+                             linear-gradient(90deg, rgba(255, 255, 255, 0.5) 0.67px, transparent 0.67px);
+            background-size: 60px 60px;
+            touch-action: none;
+        }
+        
+        /* Player styling as a glowing white circle */
+        #player {
+            position: absolute;
+            background: #fff;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            box-shadow: 0 0 calc(var(--default-glow) * 0.8px) #fff;
+            border: 1px solid #fff;
+            z-index: 3;
+            display: none;
+        }
+        
+        /* Enemy styling with dynamic color and glow */
+        .enemy {
+            position: absolute;
+            box-shadow: 0 0 calc(var(--default-glow) * 0.8px) currentColor;
+            border: 1px solid #fff;
+            z-index: 4;
+            opacity: 0;
+            transition: opacity 0.5s ease-in, transform 0.3s ease-out;
+            --enemy-color: #fff;
+        }
+        
+        /* Explosion effect for player death or bomb detonation */
+        .explosion {
+            position: absolute;
+            background: #fff;
+            border-radius: 50%;
+            border: 2px solid #fff;
+            box-shadow: 0 0 calc(var(--default-glow) * 1.2px) #fff;
+            opacity: 0;
+            transition: all 0.6s ease-out;
+            z-index: 6;
+        }
+        
+        /* Base crystal (diamond-shaped) styling */
+        .crystal {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            transform: rotate(45deg);
+            z-index: 2;
+        }
+        
+        /* Crystal color variants using CSS variables */
+        .crystal.red { background-color: var(--red-color); }
+        .crystal.green { background-color: var(--green-color); }
+        .crystal.blue { background-color: var(--blue-color); }
+        
+        /* Highlighted crystal with twinkle animation */
+        .crystal.next {
+            box-shadow: 0 0 25px #FFF, 0 0 40px #FFF, 0 0 60px #FFF;
+            animation: twinkle .25s infinite alternate;
+            transform: rotate(45deg);
+        }
+        
+        /* Twinkle animation for next crystal */
+        @keyframes twinkle {
+            0% { background-color: inherit; }
+            100% { background-color: rgba(255, 255, 255, 0.7); }
+        }
+        
+        /* Connection lines between collected crystals */
+        .connection-line {
+            position: absolute;
+            background: #fff;
+            z-index: 1;
+        }
+        
+        /* Filled square styling for completed grid sections */
+        .filled-square {
+            position: absolute;
+            background: #fff;
+            width: 60px;
+            height: 60px;
+            z-index: 0;
+            opacity: 0.2;
+            transition: opacity 0.3s ease;
+        }
+        
+        /* Game over text styling */
+        #gameOver {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #fff;
+            font-family: 'Orbitron', 'Courier New', monospace;
+            font-size: 64px;
+            font-weight: bold;
+            text-shadow: 0 0 calc(var(--default-glow) * 2px) #fff;
+            opacity: 0;
+            transition: opacity 0.5s;
+            z-index: 1000;
+            pointer-events: none;
+            text-align: center;
+        }
+
+        /* Bonus text styling for end-of-level reward */
+        #bonusText {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #fff;
+            font-family: 'Orbitron', 'Courier New', monospace;
+            font-size: 48px;
+            font-weight: bold;
+            text-shadow: 0 0 calc(var(--default-glow) * 1.5px) #fff;
+            opacity: 0;
+            transition: opacity 0.5s ease-in-out;
+            z-index: 1001; /* Above game elements, below instructions */
+            pointer-events: none;
+            text-align: center;
+        }
+        
+        /* Instructions window for game start */
+        #instructionsWindow {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: min(300px, calc(100vw - 48px));
+            padding: 16px 18px;
+            background: #000;
+            border: 2px solid #fff;
+            box-shadow: 0 0 calc(var(--default-glow) * 1px) #fff;
+            z-index: 1002;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            gap: 14px;
+        }
+
+        /* Instructions title styling */
+        #instructionsTitle {
+            font-family: 'Orbitron', 'Courier New', monospace;
+            font-size: 36px;
+            line-height: 1;
+            color: #fff;
+            text-shadow: 0 0 calc(var(--default-glow) * 1px) #fff;
+            margin-bottom: 0;
+        }
+
+        /* Instructions text styling */
+        #instructionsText {
+            color: #fff;
+            font-family: 'Orbitron', 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.45;
+            text-shadow: 0 0 calc(var(--default-glow) * 0.6px) #fff;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        #instructionsText div {
+            margin: 0;
+        }
+
+        /* Start button styling */
+        #startButton {
+            padding: 10px 20px;
+            font-family: 'Orbitron', 'Courier New', monospace;
+            font-size: 24px;
+            color: #fff;
+            background: #000;
+            border: 2px solid #fff;
+            box-shadow: 0 0 calc(var(--default-glow) * 1px) #fff;
+            cursor: pointer;
+            transition: opacity 0.5s;
+        }
+
+        #startButton:hover {
+            background: #fff;
+            color: #000;
+        }
+        
+        /* Score display styling */
+        #score {
+            color: #fff;
+            font-family: 'Orbitron', 'Courier New', monospace;
+            text-align: center;
+            margin: 10px;
+            text-shadow: 0 0 calc(var(--default-glow) * 1px) #fff, 0 0 calc(var(--default-glow) * 2px) #fff;
+            letter-spacing: 3px;
+            font-size: 36px;
+            box-shadow: 0 0 calc(var(--default-glow) * 0.8px) #fff;
+        }
+        
+        /* Bomb indicators container */
+        #bombIndicators {
+            position: absolute;
+            top: 25px;
+            right: calc(100vw / 2 - 300px + 10px);
+            display: flex;
+            gap: 8px;
+            z-index: 1000;
+            box-shadow: 0 0 calc(var(--default-glow) * 0.8px) #fff;
+        }
+        
+        /* Individual bomb missile styling */
+        .bomb-missile {
+            width: 6px;
+            height: 20px;
+            background: #fff;
+            box-shadow: 0 0 calc(var(--default-glow) * 0.8px) #fff;
+            clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+        }
+        
+        /* Level indicators container */
+        #levelIndicators {
+            position: absolute;
+            top: 25px;
+            left: calc(100vw / 2 - 300px + 10px);
+            display: flex;
+            gap: 6px;
+            z-index: 1000;
+            box-shadow: 0 0 calc(var(--default-glow) * 0.8px) #fff;
+        }
+        
+        /* Level circle styling */
+        .level-circle {
+            width: 14px;
+            height: 14px;
+            border: 2px solid #fff;
+            border-radius: 50%;
+            box-shadow: 0 0 calc(var(--default-glow) * 0.5px) #fff;
+            background: transparent;
+        }
+        
+        .level-circle.completed {
+            background: #fff;
+        }
+        
+        /* Flash animation classes for UI feedback */
+        .flash {
+            animation: flashAnimation 0.3s 3;
+        }
+        
+        .enemyBorderFlash {
+            animation: enemyBorderFlashAnimation 0.3s 1;
+        }
+        
+        .borderFlash {
+            animation: borderFlashAnimation 0.5s 1;
+        }
+        
+        /* Flash animation for score or UI elements */
+        @keyframes flashAnimation {
+            0% { color: #fff; text-shadow: 0 0 calc(var(--default-glow) * 1px) #fff, 0 0 calc(var(--default-glow) * 2px) #fff; }
+            50% { color: #fff; text-shadow: 0 0 calc(var(--default-glow) * 1.5px) #fff, 0 0 calc(var(--default-glow) * 3px) #fff; font-size: 40px; }
+            100% { color: #fff; text-shadow: 0 0 calc(var(--default-glow) * 1px) #fff, 0 0 calc(var(--default-glow) * 2px) #fff; }
+        }
+        
+        /* Enemy border flash animation for collisions */
+        @keyframes enemyBorderFlashAnimation {
+            0% { border: 1px solid #fff; box-shadow: 0 0 calc(var(--default-glow) * 0.8px) currentColor; }
+            50% { border: 1px solid #fff; box-shadow: 0 0 calc(var(--default-glow) * 2px) #fff; }
+            100% { border: 1px solid #fff; box-shadow: 0 0 calc(var(--default-glow) * 0.8px) currentColor; }
+        }
+        
+        /* Container border flash animation */
+        @keyframes borderFlashAnimation {
+            0% { border-color: #fff; box-shadow: 0 0 calc(var(--default-glow) * 1px) #fff; }
+            50% { border-color: #fff; box-shadow: 0 0 calc(var(--default-glow) * 1.5px) #fff; }
+            100% { border-color: #fff; box-shadow: 0 0 calc(var(--default-glow) * 1px) #fff; }
+        }
+
+        /* Grid fade-in animation for level start */
+        @keyframes gridFadeIn {
+            0% { background-image: none; opacity: 0; }
+            100% { opacity: 1; }
+        }
+
+        /* Crystal drop-in animation for level intro */
+        @keyframes crystalDrop {
+            0% { transform: translateY(-600px) rotate(45deg); opacity: 0; }
+            70% { transform: translateY(10px) rotate(45deg); opacity: 1; }
+            100% { transform: translateY(0) rotate(45deg); }
+        }
+
+        /* Random flashing lights animation for attract mode */
+        @keyframes randomFlash {
+            0% { background-color: #000; opacity: 0.2; }
+            20% { background-color: var(--red-color); opacity: 0.6; }
+            40% { background-color: var(--green-color); opacity: 0.6; }
+            60% { background-color: var(--blue-color); opacity: 0.6; }
+            80% { background-color: #FFF; opacity: 0.8; }
+            100% { background-color: #000; opacity: 0.2; }
+        }
+
+        /* Screen shake animation for explosions and bomb detonations */
+        @keyframes screenShake {
+            0% { transform: translate(0, 0); }
+            10% { transform: translate(-5px, 5px); }
+            20% { transform: translate(5px, -5px); }
+            30% { transform: translate(-5px, 5px); }
+            40% { transform: translate(5px, -5px); }
+            50% { transform: translate(-5px, 5px); }
+            60% { transform: translate(5px, -5px); }
+            70% { transform: translate(-5px, 5px); }
+            80% { transform: translate(5px, -5px); }
+            90% { transform: translate(-5px, 5px); }
+            100% { transform: translate(0, 0); }
+        }
+
+        /* Class for attract mode squares with random flashing */
+        .attract-square {
+            animation: randomFlash 1s infinite;
+        }
+
+        /* Class for applying screen shake effect */
+        .shake {
+            animation: screenShake 0.5s ease-in-out;
+        }
+
+        /* Footer metadata */
+        #copyrightText,
+        #buildText {
+            position: fixed;
+            bottom: 6px;
+            color: rgba(255, 255, 255, 0.75);
+            font-family: 'Orbitron', 'Courier New', monospace;
+            font-size: 11px;
+            letter-spacing: 1px;
+            z-index: 2000;
+            pointer-events: none;
+        }
+
+        #copyrightText {
+            left: 8px;
+        }
+
+        #buildText {
+            right: 8px;
+        }
+
+        /* Global CSS variables for RGB colors */
+        :root {
+            --red-color: #F00;
+            --green-color: #0F0;
+            --blue-color: #00F;
+        }
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Score display -->
+    <div id="score">0</div>
+    <!-- Bomb indicators -->
+    <div id="bombIndicators">
+        <div class="bomb-missile" id="bomb1"></div>
+        <div class="bomb-missile" id="bomb2"></div>
+        <div class="bomb-missile" id="bomb3"></div>
+    </div>
+    <!-- Level indicators -->
+    <div id="levelIndicators"></div>
+    <!-- Main game container -->
+    <div id="gameContainer">
+        <div id="player"></div>
+        <div id="gameOver">GAME OVER</div>
+        <div id="bonusText"></div> <!-- New element for bonus display -->
+        <div id="instructionsWindow">
+            <div id="instructionsTitle">Block-A-Zoids</div>
+            <div id="instructionsText">
+                <div>Drag the orb to move.</div>
+                <div>Collect the flashing crystal color.</div>
+                <div>Shake phone or press Space for bomb.</div>
+            </div>
+            <button id="startButton">Start Game</button>
+        </div>
+    </div>
+    <div id="copyrightText">© 2026 Marcus Couto</div>
+    <div id="buildText">Build v13</div>
+
+    <script>
+        // Main game class managing state and logic
+        class Game {
+            constructor() {
+                // Define RGB color constants for consistency across the game
+                this.RED_COLOR = '#F00';    // Red color constant
+                this.GREEN_COLOR = '#0F0';  // Green color constant
+                this.BLUE_COLOR = '#00F';   // Blue color constant
+
+                // Game parameters configuration
+                this.parameters = {
+                    playfieldSize: 600,         // Size of the playfield (600x600px)
+                    playerSize: 20,            // Player square size
+                    minSpawnDistance: 250,     // Minimum spawn distance from player
+                    baseSpawnRate: 5,          // Base enemy spawn rate (seconds)
+                    baseMaxEnemies: 8,         // Base maximum number of enemies
+                    baseSpeeds: { small: 3, medium: 2, large: 1.5 }, // Base speeds for enemy sizes
+                    baseBombs: 3,              // Starting number of bombs
+                    bombScoreBonus: 10         // Score bonus for bomb detonation
+                };
+
+                // Enemy spawn proportions
+                this.SMALL_SPAWN_PROPORTION = 0.30;  // 30% small enemies
+                this.MEDIUM_SPAWN_PROPORTION = 0.40; // 40% medium enemies
+                this.LARGE_SPAWN_PROPORTION = 0.30;  // 30% large enemies
+
+                // Game constants derived from parameters
+                this.PLAYFIELD_SIZE = this.parameters.playfieldSize;
+                this.PLAYER_SIZE = this.parameters.playerSize;
+                this.MIN_SPAWN_DISTANCE = this.parameters.minSpawnDistance;
+                this.spawnRate = this.parameters.baseSpawnRate;
+                this.MAX_ENEMIES = this.parameters.baseMaxEnemies;
+                this.BASE_SPEEDS = this.parameters.baseSpeeds;
+                this.TOTAL_CRYSTALS = 80; // Total crystals per level
+
+                // DOM element references
+                this.container = document.getElementById('gameContainer');
+                this.gameOverElement = document.getElementById('gameOver');
+                this.bonusTextElement = document.getElementById('bonusText'); // New reference for bonus text
+                this.startButton = document.getElementById('startButton');
+                this.instructionsWindow = document.getElementById('instructionsWindow');
+
+                // Game objects and state
+                this.player = new Player(this);       // Player instance
+                this.enemies = [];                    // Array of active enemies
+                this.explosions = [];                 // Array of active explosions
+                this.crystals = [];                   // Array of collectible crystals
+                this.collectedPositions = [];         // Positions of collected crystals
+                this.lines = [];                      // Connection lines between crystals
+                this.attractSquares = [];             // Squares for attract mode
+                this.level = 1;                       // Current level
+                this.score = 0;                       // Player score
+                this.bombsLeft = this.parameters.baseBombs; // Remaining bombs
+                this.active = false;                  // Game active state
+                this.isGameOver = false;              // Game over state
+                this.spawnCounter = 0;                // Counter for enemy spawning
+                this.lastFrameTime = performance.now(); // Last frame timestamp
+                this.currentColorIndex = 0;           // Index of current crystal color
+                this.nextCrystalOrder = 1;            // Order of next crystal to collect
+                this.lastCollectedPos = null;         // Last collected crystal position
+                this.colorOrder = ['red', 'green', 'blue']; // Order of crystal colors
+                this.colorMap = { 
+                    red: this.RED_COLOR, 
+                    green: this.GREEN_COLOR, 
+                    blue: this.BLUE_COLOR 
+                }; // Map of colors to hex values
+
+                // Enemy spawn management
+                this.spawnQueue = [];                 // Queue of enemies to spawn
+                this.spawnedCount = { small: 0, medium: 0, large: 0 }; // Count of spawned enemies by size
+
+                // Audio and UI managers
+                this.audio = new AudioManager();      // Audio manager instance
+                this.ui = new UI(this);               // UI manager instance
+
+                // Event handlers for player input
+                this.handlePointerDown = (e) => this.player.handlePointerDown(e);
+                this.handlePointerMove = (e) => this.player.handlePointerMove(e);
+                this.handlePointerUp = (e) => this.player.handlePointerUp(e);
+                this.handleKeyDown = (e) => this.handleKeyboardBomb(e);
+                this.handleMotion = (e) => this.handleDeviceMotion(e);
+                this.motionControlsEnabled = false;
+                this.lastShakeTime = 0;
+                this.lastMotion = null;
+                this.container.addEventListener('pointerdown', this.handlePointerDown);
+                this.container.addEventListener('pointermove', this.handlePointerMove);
+                window.addEventListener('pointerup', this.handlePointerUp);
+                window.addEventListener('pointercancel', this.handlePointerUp);
+                window.addEventListener('keydown', this.handleKeyDown);
+                this.startButton.addEventListener('click', () => this.start());
+
+                // Attract mode variables
+                this.attractInterval = null;          // Interval ID for attract mode
+                this.lifeGrid = [];                   // 10x10 grid for Game of Life
+
+                // Initialize level parameters and start attract mode
+                this.applyLevelParameters();
+                this.startAttractMode();
+            }
+
+            // Adjust spawn rates and enemy counts based on level
+            applyLevelParameters() {
+                this.spawnRate = Math.max(1, this.parameters.baseSpawnRate - (this.level - 1) * 0.5);
+                this.MAX_ENEMIES = this.parameters.baseMaxEnemies + (this.level - 1) * 2;
+
+                const totalEnemies = this.MAX_ENEMIES;
+                const smallCount = Math.round(totalEnemies * this.SMALL_SPAWN_PROPORTION);
+                const mediumCount = Math.round(totalEnemies * this.MEDIUM_SPAWN_PROPORTION);
+                const largeCount = Math.round(totalEnemies * this.LARGE_SPAWN_PROPORTION);
+
+                let currentTotal = smallCount + mediumCount + largeCount;
+                let adjustedSmall = smallCount;
+                let adjustedMedium = mediumCount;
+                let adjustedLarge = largeCount;
+
+                // Adjust counts to match total enemies
+                while (currentTotal < totalEnemies) {
+                    if (adjustedMedium < Math.round(totalEnemies * this.MEDIUM_SPAWN_PROPORTION + 1)) adjustedMedium++;
+                    else if (adjustedSmall < Math.round(totalEnemies * this.SMALL_SPAWN_PROPORTION + 1)) adjustedSmall++;
+                    else adjustedLarge++;
+                    currentTotal = adjustedSmall + adjustedMedium + adjustedLarge;
+                }
+                while (currentTotal > totalEnemies) {
+                    if (adjustedLarge > Math.round(totalEnemies * this.LARGE_SPAWN_PROPORTION - 1)) adjustedLarge--;
+                    else if (adjustedSmall > Math.round(totalEnemies * this.SMALL_SPAWN_PROPORTION - 1)) adjustedSmall--;
+                    else adjustedMedium--;
+                    currentTotal = adjustedSmall + adjustedMedium + adjustedLarge;
+                }
+
+                // Populate spawn queue with adjusted counts
+                this.spawnQueue = [];
+                for (let i = 0; i < adjustedSmall; i++) this.spawnQueue.push('small');
+                for (let i = 0; i < adjustedMedium; i++) this.spawnQueue.push('medium');
+                for (let i = 0; i < adjustedLarge; i++) this.spawnQueue.push('large');
+
+                // Shuffle spawn queue for randomness
+                for (let i = this.spawnQueue.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [this.spawnQueue[i], this.spawnQueue[j]] = [this.spawnQueue[j], this.spawnQueue[i]];
+                }
+            }
+
+            // Start a new game
+            start() {
+                this.active = false; // Pause game during setup
+                this.isGameOver = false;
+                this.audio.resume(); // Unlock audio on mobile browsers
+                this.enableMotionControls(); // Enable shake-to-bomb where supported
+                this.instructionsWindow.style.display = 'none'; // Hide instructions
+                this.stopAttractMode(); // Stop attract mode
+                this.player.reset(); // Reset player position
+                this.enemies.forEach(enemy => enemy.element.remove()); // Clear enemies
+                this.enemies = [];
+                this.explosions.forEach(exp => exp.element.remove()); // Clear explosions
+                this.explosions = [];
+                this.crystals.forEach(crys => crys.element.remove()); // Clear crystals
+                this.crystals = [];
+                this.collectedPositions = []; // Reset collected positions
+                this.lines.forEach(line => line.element.remove()); // Clear lines
+                this.lines = [];
+                const filledSquares = this.container.getElementsByClassName('filled-square');
+                while (filledSquares.length > 0) filledSquares[0].remove(); // Clear filled squares
+                this.level = 1; // Reset to level 1
+                this.score = 0; // Reset score
+                this.bombsLeft = this.parameters.baseBombs; // Reset bombs
+                this.spawnCounter = 0; // Reset spawn counter
+                this.lastFrameTime = performance.now(); // Reset frame time
+                this.spawnedCount = { small: 0, medium: 0, large: 0 }; // Reset spawn counts
+                this.currentColorIndex = 0; // Reset color index
+                this.nextCrystalOrder = 1; // Reset crystal order
+                this.lastCollectedPos = null; // Reset last collected position
+                this.applyLevelParameters(); // Apply level 1 parameters
+
+                // Pointer, keyboard, and motion listeners stay attached for the life of the game.
+
+                this.audio.stopBackgroundMusic(); // Stop any background music
+                this.runIntroAnimation().then(() => {
+                    this.active = true; // Start game
+                    this.updateCrystalHighlight(); // Highlight first crystal
+                    this.updateEnemyColors(); // Set enemy colors
+                    this.gameOverElement.style.opacity = '0'; // Hide game over text
+                    this.bonusTextElement.style.opacity = '0'; // Hide bonus text
+                    this.startButton.textContent = 'Start Game'; // Reset button text
+                    this.ui.updateAll(); // Update UI elements
+                    this.audio.startBackgroundMusic(); // Start background music
+                    requestAnimationFrame((timestamp) => this.gameLoop(timestamp)); // Start game loop
+                    this.updateGame(); // Start enemy spawning
+                });
+
+                this.audio.playIntro(); // Play level intro music
+            }
+
+            // Run the level intro animation with grid fade and crystal drop
+            async runIntroAnimation() {
+                this.player.reset(); // Center player
+                this.container.style.animation = 'gridFadeIn 1s ease-in forwards'; // Fade in grid
+                await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1s
+                this.container.style.animation = ''; // Clear animation
+
+                this.spawnCrystals(true); // Spawn crystals with intro animation
+                await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2s for drop
+            }
+
+            // Spawn crystals on the 10x10 grid, optionally with intro animation
+            spawnCrystals(withIntro = false) {
+                const gridSize = 60; // Grid cell size
+                const centerX = this.PLAYFIELD_SIZE / 2; // Center X coordinate
+                const centerY = this.PLAYFIELD_SIZE / 2; // Center Y coordinate
+                let colorIndex = 0; // Index for cycling colors
+                let redOrder = 1, greenOrder = 1, blueOrder = 1; // Order counters for each color
+                
+                for (let x = gridSize; x <= this.PLAYFIELD_SIZE - gridSize; x += gridSize) {
+                    for (let y = gridSize; y <= this.PLAYFIELD_SIZE - gridSize; y += gridSize) {
+                        if (x !== centerX || y !== centerY) { // Skip player spawn point
+                            const color = this.colorOrder[colorIndex % 3]; // Cycle through red, green, blue
+                            let order;
+                            if (color === 'red') order = redOrder++;
+                            else if (color === 'green') order = greenOrder++;
+                            else if (color === 'blue') order = blueOrder++;
+                            const crystal = new Crystal(this, x - 4, y - 4, color, order); // Create crystal
+                            if (withIntro) {
+                                crystal.element.style.animation = 'crystalDrop 0.8s ease-out forwards'; // Drop animation
+                                const delay = (colorIndex % 3) * 0.2; // Staggered delay
+                                crystal.element.style.animationDelay = `${delay}s`;
+                            }
+                            this.crystals.push(crystal); // Add to crystals array
+                            colorIndex++;
+                        }
+                    }
+                }
+                
+                if (withIntro) {
+                    setTimeout(() => {
+                        this.crystals.forEach(crys => {
+                            crys.element.style.animation = ''; // Clear animation
+                            crys.element.style.animationDelay = '';
+                        });
+                        this.updateCrystalHighlight(); // Highlight first crystal
+                    }, 2000); // Wait for intro to complete
+                } else {
+                    this.updateCrystalHighlight(); // Immediate highlight
+                }
+                this.updateEnemyColors(); // Sync enemy colors
+            }
+
+            // Reset crystal-related gameplay elements for new level
+            resetCrystalsGameplay() {
+                this.crystals.forEach(crys => crys.element.remove()); // Remove all crystals
+                this.crystals = [];
+                this.collectedPositions = []; // Clear collected positions
+                this.lines.forEach(line => line.element.remove()); // Remove connection lines
+                this.lines = [];
+                const filledSquares = this.container.getElementsByClassName('filled-square');
+                while (filledSquares.length > 0) filledSquares[0].remove(); // Clear filled squares
+                this.currentColorIndex = 0; // Reset color index
+                this.nextCrystalOrder = 1; // Reset crystal order
+                this.lastCollectedPos = null; // Reset last collected position
+            }
+
+            // Highlight the next crystal to collect based on color and order
+            updateCrystalHighlight() {
+                this.crystals.forEach(crys => crys.element.classList.remove('next')); // Remove existing highlights
+                let nextCrystal = this.crystals.find(crys => 
+                    crys.color === this.colorOrder[this.currentColorIndex] && 
+                    crys.order === this.nextCrystalOrder
+                ); // Find next crystal in sequence
+
+                if (!nextCrystal) { // If no exact match
+                    const currentColorCrystals = this.crystals.filter(crys => 
+                        crys.color === this.colorOrder[this.currentColorIndex]
+                    ); // Filter by current color
+                    if (currentColorCrystals.length > 0) {
+                        nextCrystal = currentColorCrystals.reduce((min, crys) => 
+                            crys.order < min.order ? crys : min, currentColorCrystals[0]); // Find lowest order
+                        this.nextCrystalOrder = nextCrystal.order;
+                    } else if (this.crystals.length > 0) { // Move to next color if none remain
+                        this.currentColorIndex = (this.currentColorIndex + 1) % this.colorOrder.length;
+                        const nextColorCrystals = this.crystals.filter(crys => 
+                            crys.color === this.colorOrder[this.currentColorIndex]
+                        );
+                        if (nextColorCrystals.length > 0) {
+                            nextCrystal = nextColorCrystals.reduce((min, crys) => 
+                                crys.order < min.order ? crys : min, nextColorCrystals[0]);
+                            this.nextCrystalOrder = nextCrystal.order;
+                        }
+                    }
+                }
+
+                if (nextCrystal) nextCrystal.element.classList.add('next'); // Highlight next crystal
+            }
+
+            // Main game loop for real-time updates
+            gameLoop(timestamp) {
+                if (!this.active || this.isGameOver) return; // Exit if game is paused or over
+                const deltaTime = timestamp - this.lastFrameTime; // Time since last frame
+                this.lastFrameTime = timestamp;
+                this.updateEnemies(deltaTime); // Update enemy positions
+                this.checkCollisions(); // Check for collisions
+                this.checkLevelCompletion(); // Check if level is complete
+                this.explosions = this.explosions.filter(exp => exp.update()); // Update and filter explosions
+                this.updateCrystalHighlight(); // Update crystal highlight
+                requestAnimationFrame((t) => this.gameLoop(t)); // Request next frame
+            }
+
+            // Periodic update for enemy spawning
+            updateGame() {
+                if (!this.active || this.isGameOver) return; // Exit if game is paused or over
+
+                if (this.spawnCounter >= this.spawnRate && 
+                    this.enemies.length < this.MAX_ENEMIES &&
+                    this.spawnQueue.length > 0) { // Spawn new enemy if conditions met
+                    this.spawnCounter = 0; // Reset counter
+                    const enemy = new Enemy(this, this.spawnQueue.shift()); // Spawn from queue
+                    this.enemies.push(enemy);
+                    if (enemy.size === this.PLAYER_SIZE) this.spawnedCount.small++;
+                    else if (enemy.size === this.PLAYER_SIZE * 2) this.spawnedCount.medium++;
+                    else this.spawnedCount.large++;
+                }
+                this.spawnCounter++; // Increment spawn counter
+
+                setTimeout(() => this.updateGame(), 1000); // Schedule next update
+            }
+
+            // Check if level is complete and advance to next level
+            checkLevelCompletion() {
+                if (this.isGameOver) return; // Exit if game is over
+                if (this.crystals.length === 0) { // All crystals collected
+                    // Calculate end-of-level bonus
+                    const bonus = this.bombsLeft * 100; // Bonus = remaining bombs × 100
+                    this.score += bonus; // Add bonus to score
+                    this.ui.updateScore(); // Update UI immediately
+
+                    // Show bonus text
+                    this.showBonusText(bonus);
+
+                    this.level++; // Advance level
+                    this.spawnCounter = 0; // Reset spawn counter
+                    this.enemies.forEach(enemy => enemy.element.remove()); // Clear enemies
+                    this.enemies = [];
+                    this.spawnedCount = { small: 0, medium: 0, large: 0 }; // Reset spawn counts
+                    this.applyLevelParameters(); // Update spawn parameters
+                    this.ui.updateLevelIndicators(); // Update UI
+                    
+                    this.active = false; // Pause game
+                    this.player.reset(); // Reset player position
+                    this.audio.stopBackgroundMusic(); // Stop music
+                    this.resetCrystalsGameplay(); // Reset crystals
+                    this.audio.playIntro(); // Play intro music
+                    
+                    // Delay intro animation to allow bonus text to be visible
+                    setTimeout(() => {
+                        this.runIntroAnimation().then(() => {
+                            this.active = true; // Resume game
+                            this.updateCrystalHighlight(); // Highlight first crystal
+                            this.updateEnemyColors(); // Sync enemy colors
+                            this.audio.startBackgroundMusic(); // Start music
+                            requestAnimationFrame((timestamp) => this.gameLoop(timestamp)); // Resume loop
+                            this.updateGame(); // Resume spawning
+                        });
+                    }, 1500); // 1.5s delay for bonus visibility
+                }
+            }
+
+            // Display bonus text for end-of-level reward
+            showBonusText(bonus) {
+                this.bonusTextElement.textContent = `BONUS: ${bonus}`; // Set bonus message
+                this.bonusTextElement.style.opacity = '1'; // Fade in
+                setTimeout(() => {
+                    this.bonusTextElement.style.opacity = '0'; // Fade out after 1s
+                }, 1000); // Display for 1s
+            }
+
+            // Update enemy positions and resolve collisions
+            updateEnemies(deltaTime) {
+                this.enemies.forEach(enemy => enemy.update(deltaTime)); // Update each enemy
+                let collisionOccurred = true;
+                const maxIterations = 5; // Max iterations to resolve collisions
+                let iteration = 0;
+                while (collisionOccurred && iteration < maxIterations) { // Resolve enemy-enemy collisions
+                    collisionOccurred = false;
+                    iteration++;
+                    for (let i = 0; i < this.enemies.length; i++) {
+                        const enemyA = this.enemies[i];
+                        for (let j = i + 1; j < this.enemies.length; j++) {
+                            const enemyB = this.enemies[j];
+                            if (enemyA.collidesWith(enemyB)) {
+                                collisionOccurred = true;
+                                enemyA.resolveCollisionWith(enemyB); // Adjust positions and velocities
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Check collisions between player, enemies, and crystals
+            checkCollisions() {
+                if (this.isGameOver) return; // Exit if game is over
+                for (const enemy of this.enemies) {
+                    if (enemy.collidesWithPlayer()) { // Player-enemy collision
+                        this.endGame(); // End game
+                        return;
+                    }
+                }
+                if (this.player.isOutOfBounds()) { // Player out of bounds
+                    this.endGame();
+                    return;
+                }
+
+                for (let i = this.crystals.length - 1; i >= 0; i--) { // Check player-crystal collisions
+                    const crystal = this.crystals[i];
+                    if (crystal.collidesWithPlayer() && crystal.color === this.colorOrder[this.currentColorIndex]) {
+                        const pos = { x: crystal.x + 4, y: crystal.y + 4 }; // Crystal center
+                        this.collectedPositions.push(pos); // Add to collected
+                        this.connectToNearestIntersection(pos); // Connect to grid
+                        crystal.element.remove(); // Remove crystal
+                        this.crystals.splice(i, 1); // Remove from array
+
+                        if (crystal.order === this.nextCrystalOrder) { // Correct order
+                            this.score += 20; // Bonus points
+                            this.nextCrystalOrder++; // Next in sequence
+                        } else { // Out of order
+                            this.score += 1; // Minimal points
+                            const currentColorCrystals = this.crystals.filter(c => 
+                                c.color === this.colorOrder[this.currentColorIndex]
+                            );
+                            if (currentColorCrystals.length > 0) { // Find closest remaining crystal
+                                const lastPos = this.lastCollectedPos || pos;
+                                const nextCrystal = currentColorCrystals.reduce((closest, c) => {
+                                    const dist = Math.sqrt(
+                                        (c.x + 4 - lastPos.x) ** 2 + 
+                                        (c.y + 4 - lastPos.y) ** 2
+                                    );
+                                    const closestDist = closest ? Math.sqrt(
+                                        (closest.x + 4 - lastPos.x) ** 2 + 
+                                        (closest.y + 4 - lastPos.y) ** 2
+                                    ) : Infinity;
+                                    return dist < closestDist ? c : closest;
+                                }, null);
+                                this.nextCrystalOrder = nextCrystal ? nextCrystal.order : 1;
+                            }
+                        }
+                        this.lastCollectedPos = pos; // Update last position
+                        this.ui.updateScore(); // Update UI
+                        this.audio.playCollect(); // Play collect sound
+
+                        if (!this.crystals.some(crys => crys.color === this.colorOrder[this.currentColorIndex])) { // No more of current color
+                            this.currentColorIndex = (this.currentColorIndex + 1) % this.colorOrder.length; // Next color
+                            this.nextCrystalOrder = 1; // Reset order
+                            this.updateEnemyColors(); // Sync enemy colors
+                        }
+                        this.updateCrystalHighlight(); // Update highlight
+                    }
+                }
+            }
+
+            // Connect collected crystal to nearest grid intersection
+            connectToNearestIntersection(currentPos) {
+                const gridSize = 60; // Grid cell size
+                const directions = [ // Possible connection directions
+                    { dx: 0, dy: -gridSize, horizontal: false }, // Up
+                    { dx: 0, dy: gridSize, horizontal: false },  // Down
+                    { dx: -gridSize, dy: 0, horizontal: true },  // Left
+                    { dx: gridSize, dy: 0, horizontal: true }    // Right
+                ];
+
+                directions.forEach(dir => {
+                    const targetPos = { x: currentPos.x + dir.dx, y: currentPos.y + dir.dy };
+                    if (this.collectedPositions.some(pos => pos.x === targetPos.x && pos.y === targetPos.y)) {
+                        this.drawLine(currentPos, targetPos, dir.horizontal); // Draw connection line
+                        this.checkForCompletedSquare(currentPos, targetPos); // Check for square
+                    }
+                });
+            }
+
+            // Draw a connection line between two points
+            drawLine(startPos, endPos, horizontal) {
+                const line = document.createElement('div');
+                line.className = 'connection-line';
+                line.style.left = `${Math.min(startPos.x, endPos.x)}px`;
+                line.style.top = `${Math.min(startPos.y, endPos.y)}px`;
+                if (horizontal) {
+                    line.style.width = '60px'; // Horizontal line
+                    line.style.height = '2px';
+                } else {
+                    line.style.width = '2px'; // Vertical line
+                    line.style.height = '60px';
+                }
+                this.container.appendChild(line);
+                this.lines.push({ start: startPos, end: endPos, element: line }); // Store line
+            }
+
+            // Check if a completed square is formed
+            checkForCompletedSquare(startPos, endPos) {
+                const gridSize = 60;
+                const minX = Math.min(startPos.x, endPos.x);
+                const minY = Math.min(startPos.y, endPos.y);
+                const maxX = Math.max(startPos.x, endPos.x);
+                const maxY = Math.max(startPos.y, endPos.y);
+
+                const potentialSquares = []; // Possible square starting points
+                if (startPos.x === endPos.x) { // Vertical line
+                    potentialSquares.push({ x: minX - gridSize, y: minY });
+                    potentialSquares.push({ x: minX, y: minY });
+                } else { // Horizontal line
+                    potentialSquares.push({ x: minX, y: minY - gridSize });
+                    potentialSquares.push({ x: minX, y: minY });
+                }
+
+                potentialSquares.forEach(square => {
+                    const corners = [ // Corners of potential square
+                        { x: square.x, y: square.y },
+                        { x: square.x + gridSize, y: square.y },
+                        { x: square.x, y: square.y + gridSize },
+                        { x: square.x + gridSize, y: square.y + gridSize }
+                    ];
+                    if (corners.every(corner => this.collectedPositions.some(pos => pos.x === corner.x && pos.y === corner.y))) { // All corners collected
+                        const sides = [ // Sides of the square
+                            { start: corners[0], end: corners[1] },
+                            { start: corners[1], end: corners[3] },
+                            { start: corners[2], end: corners[3] },
+                            { start: corners[0], end: corners[2] }
+                        ];
+                        if (sides.every(side => this.lines.some(line => // All sides connected
+                            (line.start.x === side.start.x && line.start.y === side.start.y && line.end.x === side.end.x && line.end.y === side.end.y) ||
+                            (line.start.x === side.end.x && line.start.y === side.end.y && line.end.x === side.start.x && line.end.y === side.start.y)
+                        ))) {
+                            this.fillSquare(square.x, square.y); // Fill completed square
+                        }
+                    }
+                });
+            }
+
+            // Fill a completed square and award points
+            fillSquare(x, y) {
+                const existingSquares = Array.from(this.container.getElementsByClassName('filled-square'));
+                if (!existingSquares.some(square => // Check if square already filled
+                    parseInt(square.style.left) === x && parseInt(square.style.top) === y)) {
+                    const square = document.createElement('div');
+                    square.className = 'filled-square';
+                    square.style.left = `${x}px`;
+                    square.style.top = `${y}px`;
+                    this.container.appendChild(square);
+                    this.score += 10; // Award points
+                    this.ui.updateScore(); // Update UI
+                }
+            }
+
+            // Update enemy colors to match current crystal color
+            updateEnemyColors() {
+                const currentColor = this.colorMap[this.colorOrder[this.currentColorIndex]];
+                this.enemies.forEach(enemy => {
+                    enemy.element.style.backgroundColor = currentColor; // Set color
+                    enemy.updateAnimation(); // Update border and glow
+                });
+            }
+
+            // Keyboard fallback for desktop testing
+            handleKeyboardBomb(e) {
+                if (e.code === 'Space' || e.key.toLowerCase() === 'b') {
+                    e.preventDefault();
+                    this.handleBomb();
+                }
+            }
+
+            // Enable shake-to-bomb on phones and tablets that expose motion events
+            enableMotionControls() {
+                if (this.motionControlsEnabled || typeof DeviceMotionEvent === 'undefined') return;
+
+                if (typeof DeviceMotionEvent.requestPermission === 'function') {
+                    DeviceMotionEvent.requestPermission()
+                        .then(permissionState => {
+                            if (permissionState === 'granted') {
+                                window.addEventListener('devicemotion', this.handleMotion);
+                                this.motionControlsEnabled = true;
+                            }
+                        })
+                        .catch(() => {});
+                } else {
+                    window.addEventListener('devicemotion', this.handleMotion);
+                    this.motionControlsEnabled = true;
+                }
+            }
+
+            // Detect a strong shake and spend one bomb
+            handleDeviceMotion(e) {
+                if (!this.active || this.isGameOver || this.bombsLeft <= 0) return;
+
+                const acceleration = e.accelerationIncludingGravity || e.acceleration;
+                if (!acceleration) return;
+
+                const currentMotion = {
+                    x: acceleration.x || 0,
+                    y: acceleration.y || 0,
+                    z: acceleration.z || 0
+                };
+
+                if (this.lastMotion) {
+                    const movementDelta = Math.abs(currentMotion.x - this.lastMotion.x) +
+                                          Math.abs(currentMotion.y - this.lastMotion.y) +
+                                          Math.abs(currentMotion.z - this.lastMotion.z);
+                    const now = Date.now();
+
+                    if (movementDelta > 32 && now - this.lastShakeTime > 1000) {
+                        this.lastShakeTime = now;
+                        this.handleBomb();
+                    }
+                }
+
+                this.lastMotion = currentMotion;
+            }
+
+            // Handle bomb detonation with screen shake and enemy destruction
+            handleBomb() {
+                if (this.bombsLeft > 0 && this.active && !this.isGameOver) { // Bomb available and game active
+                    this.bombsLeft--; // Decrease bomb count
+                    this.ui.updateBombIndicators(); // Update UI
+                    if (this.enemies.length > 0) { // Enemies present
+                        this.audio.playBomb(); // Play bomb sound
+                        this.container.classList.add('shake'); // Apply screen shake
+                        this.enemies.forEach(enemy => {
+                            this.explosions.push(new Explosion(this, enemy.x + enemy.size / 2, enemy.y + enemy.size / 2, false)); // Create explosion
+                            enemy.element.remove(); // Remove enemy
+                        });
+                        this.score += this.parameters.bombScoreBonus; // Award bonus
+                        this.ui.updateScore(); // Update UI
+                        this.enemies = []; // Clear enemies
+                        this.spawnCounter = 0; // Reset spawn counter
+                        this.applyLevelParameters(); // Reset spawn queue
+                        setTimeout(() => this.container.classList.remove('shake'), 500); // Remove shake after 500ms
+                    }
+                    this.updateCrystalHighlight(); // Update highlight
+                }
+            }
+
+            // Count live neighbors for a cell in the Game of Life grid
+            countNeighbors(grid, x, y) {
+                const width = 10;
+                const height = 10;
+                let count = 0;
+                for (let i = -1; i <= 1; i++) {
+                    for (let j = -1; j <= 1; j++) {
+                        if (i === 0 && j === 0) continue; // Skip self
+                        const newX = (x + i + width) % width; // Wrap around edges
+                        const newY = (y + j + height) % height;
+                        count += grid[newX][newY]; // Add neighbor state
+                    }
+                }
+                return count;
+            }
+
+            // Compute the next generation of the Game of Life grid
+            nextGeneration() {
+                const newGrid = Array(10).fill().map(() => Array(10).fill(0));
+                for (let x = 0; x < 10; x++) {
+                    for (let y = 0; y < 10; y++) {
+                        const neighbors = this.countNeighbors(this.lifeGrid, x, y);
+                        if (this.lifeGrid[x][y]) { // Live cell
+                            newGrid[x][y] = (neighbors === 2 || neighbors === 3) ? 1 : 0; // Survive or die
+                        } else { // Dead cell
+                            newGrid[x][y] = (neighbors === 3) ? 1 : 0; // Birth or stay dead
+                        }
+                    }
+                }
+                return newGrid;
+            }
+
+            // Start attract mode with Conway's Game of Life pattern, less busy
+            startAttractMode() {
+                this.stopAttractMode(); // Clear any existing attract mode
+                const gridSize = 60; // Grid cell size
+                const gridWidth = this.PLAYFIELD_SIZE / gridSize; // 10
+                const gridHeight = this.PLAYFIELD_SIZE / gridSize; // 10
+
+                // Initialize grid with 15% chance of life for a sparser pattern
+                this.lifeGrid = Array(10).fill().map(() => 
+                    Array(10).fill().map(() => Math.random() < 0.15 ? 1 : 0)
+                );
+
+                const updatePattern = () => {
+                    this.attractSquares.forEach(square => square.remove()); // Clear existing squares
+                    this.attractSquares = [];
+
+                    this.lifeGrid = this.nextGeneration(); // Compute next generation
+
+                    // Display live cells as flashing squares
+                    for (let x = 0; x < gridWidth; x++) {
+                        for (let y = 0; y < gridHeight; y++) {
+                            if (this.lifeGrid[x][y]) {
+                                const square = document.createElement('div');
+                                square.className = 'filled-square attract-square';
+                                square.style.left = `${x * gridSize}px`;
+                                square.style.top = `${y * gridSize}px`;
+                                square.style.animationDelay = `${Math.random() * 0.5}s`; // Random flash delay
+                                this.container.appendChild(square);
+                                this.attractSquares.push(square);
+                            }
+                        }
+                    }
+
+                    // Reset grid if all cells die
+                    const totalLive = this.lifeGrid.flat().reduce((sum, val) => sum + val, 0);
+                    if (totalLive === 0) {
+                        this.lifeGrid = Array(10).fill().map(() => 
+                            Array(10).fill().map(() => Math.random() < 0.15 ? 1 : 0)
+                        );
+                    }
+                };
+
+                updatePattern(); // Initial pattern
+                this.attractInterval = setInterval(updatePattern, 1000); // Update every second
+            }
+
+            // Stop attract mode and clean up
+            stopAttractMode() {
+                if (this.attractInterval) {
+                    clearInterval(this.attractInterval); // Stop interval
+                    this.attractInterval = null;
+                }
+                this.attractSquares.forEach(square => square.remove()); // Remove squares
+                this.attractSquares = [];
+                this.lifeGrid = []; // Clear grid
+            }
+
+            // End the game with explosion and screen shake
+            endGame() {
+                if (this.isGameOver) return; // Exit if already over
+                this.active = false; // Pause game
+                this.isGameOver = true;
+                this.audio.stopBackgroundMusic(); // Stop music
+                this.player.releasePointer(); // Stop active drag state
+
+                this.explosions.push(new Explosion(this, this.player.x, this.player.y, true)); // Player explosion
+                this.container.classList.add('shake'); // Screen shake
+                this.audio.playExplosion(true); // Explosion sound
+                this.enemies.forEach(enemy => enemy.element.remove()); // Clear enemies
+                this.enemies = [];
+                this.crystals.forEach(crys => crys.element.remove()); // Clear crystals
+                this.crystals = [];
+                this.lines.forEach(line => line.element.remove()); // Clear lines
+                this.lines = [];
+                const filledSquares = this.container.getElementsByClassName('filled-square');
+                while (filledSquares.length > 0) filledSquares[0].remove(); // Clear filled squares
+
+                setTimeout(() => this.container.classList.remove('shake'), 500); // Remove shake after 500ms
+
+                setTimeout(() => { // Show game over sequence
+                    this.gameOverElement.style.opacity = '1'; // Show game over text
+                    this.audio.playEnd(); // Play end sound
+                    this.audio.resume(); // Resume audio context
+                    setTimeout(() => {
+                        this.gameOverElement.style.opacity = '0'; // Fade out text
+                        setTimeout(() => {
+                            this.instructionsWindow.style.display = 'flex'; // Show instructions
+                            this.startButton.textContent = 'Play Again'; // Update button
+                            this.startAttractMode(); // Restart attract mode
+                        }, 500);
+                    }, 2000);
+                }, 1200);
+            }
+        }
+
+        // Player class for handling movement and state
+        class Player {
+            constructor(game) {
+                this.game = game; // Reference to game instance
+                this.element = document.getElementById('player'); // Player DOM element
+                this.size = game.PLAYER_SIZE; // Player size from game parameters
+                this.isPointerActive = false; // Drag control state
+                this.activePointerId = null;
+                this.dragOffsetX = 0;
+                this.dragOffsetY = 0;
+                this.touchGrabRadius = 45; // Forgiving touch radius without allowing teleporting
+                this.reset(); // Initialize position
+            }
+
+            // Reset player to center of playfield
+            reset() {
+                this.x = this.game.PLAYFIELD_SIZE / 2 - this.size / 2; // Center X
+                this.y = this.game.PLAYFIELD_SIZE / 2 - this.size / 2; // Center Y
+                this.element.style.display = 'block'; // Show player
+                this.releasePointer(); // Disable drag control
+                this.updatePosition(); // Update DOM position
+            }
+
+            // Convert a pointer event into playfield coordinates
+            getPointerPosition(e) {
+                const rect = this.game.container.getBoundingClientRect();
+                return {
+                    x: e.clientX - rect.left,
+                    y: e.clientY - rect.top
+                };
+            }
+
+            // Start dragging only when the finger/cursor begins on or near the orb
+            handlePointerDown(e) {
+                if (!this.game.active || this.game.isGameOver) return;
+
+                const pointer = this.getPointerPosition(e);
+                const centerX = this.x + this.size / 2;
+                const centerY = this.y + this.size / 2;
+                const distanceFromOrb = Math.sqrt((pointer.x - centerX) ** 2 + (pointer.y - centerY) ** 2);
+
+                if (distanceFromOrb <= this.touchGrabRadius) {
+                    e.preventDefault();
+                    this.isPointerActive = true;
+                    this.activePointerId = e.pointerId;
+                    this.dragOffsetX = pointer.x - this.x;
+                    this.dragOffsetY = pointer.y - this.y;
+                    this.game.container.setPointerCapture?.(e.pointerId);
+                }
+            }
+
+            // Move with the active drag. Random taps away from the orb do nothing.
+            handlePointerMove(e) {
+                if (!this.game.active || this.game.isGameOver || !this.isPointerActive) return;
+                if (this.activePointerId !== null && e.pointerId !== this.activePointerId) return;
+
+                e.preventDefault();
+                const pointer = this.getPointerPosition(e);
+                this.x = Math.max(0, Math.min(this.game.PLAYFIELD_SIZE - this.size,
+                    pointer.x - this.dragOffsetX));
+                this.y = Math.max(0, Math.min(this.game.PLAYFIELD_SIZE - this.size,
+                    pointer.y - this.dragOffsetY));
+                this.updatePosition();
+            }
+
+            // Stop dragging when the finger/cursor lifts
+            handlePointerUp(e) {
+                if (this.activePointerId !== null && e.pointerId !== this.activePointerId) return;
+                this.releasePointer();
+            }
+
+            releasePointer() {
+                this.isPointerActive = false;
+                this.activePointerId = null;
+            }
+
+            // Update player position in DOM
+            updatePosition() {
+                this.element.style.left = `${this.x}px`;
+                this.element.style.top = `${this.y}px`;
+            }
+
+            // Check if player is out of bounds
+            isOutOfBounds() {
+                return this.x <= 0 || this.x >= this.game.PLAYFIELD_SIZE - this.size ||
+                       this.y <= 0 || this.y >= this.game.PLAYFIELD_SIZE - this.size;
+            }
+        }
+
+        // Enemy class for handling movement and behavior
+        class Enemy {
+            constructor(game, type) {
+                this.game = game; // Reference to game instance
+                if (type === 'small') { // Small enemy
+                    this.size = game.PLAYER_SIZE;
+                    this.speed = game.BASE_SPEEDS.small;
+                } else if (type === 'medium') { // Medium enemy
+                    this.size = game.PLAYER_SIZE * 2;
+                    this.speed = game.BASE_SPEEDS.medium;
+                } else { // Large enemy
+                    this.size = game.PLAYER_SIZE * 3;
+                    this.speed = game.BASE_SPEEDS.large;
+                }
+                
+                let attempts = 0;
+                const maxAttempts = 50; // Max spawn attempts
+                do { // Spawn away from player and other enemies
+                    this.x = Math.random() * (game.PLAYFIELD_SIZE - this.size);
+                    this.y = Math.random() * (game.PLAYFIELD_SIZE - this.size);
+                    attempts++;
+                    if (attempts > maxAttempts) break; // Prevent infinite loop
+                } while (this.distanceToPlayer() < game.MIN_SPAWN_DISTANCE || this.overlapsOtherEnemies());
+                
+                this.dx = (Math.random() > 0.5 ? 1 : -1) * this.speed; // Random X direction
+                this.dy = (Math.random() > 0.5 ? 1 : -1) * this.speed; // Random Y direction
+                
+                this.element = document.createElement('div');
+                this.element.className = 'enemy';
+                this.element.style.width = `${this.size}px`;
+                this.element.style.height = `${this.size}px`;
+                this.element.style.backgroundColor = this.game.colorMap[this.game.colorOrder[this.game.currentColorIndex]]; // Set color
+                this.element.style.transform = 'scale(0)'; // Start scaled down
+                this.updatePosition(); // Set initial position
+                game.container.appendChild(this.element); // Add to DOM
+                setTimeout(() => { // Fade in animation
+                    this.element.style.opacity = '1';
+                    this.element.style.transform = 'scale(1)';
+                }, 50);
+                game.audio.playSpawn(this.size); // Play spawn sound
+
+                this.updateAnimation(); // Set border and glow
+            }
+
+            // Calculate distance to player
+            distanceToPlayer() {
+                return Math.sqrt((this.x - this.game.player.x) ** 2 + (this.y - this.game.player.y) ** 2);
+            }
+
+            // Check if this enemy overlaps with others
+            overlapsOtherEnemies() {
+                return this.game.enemies.some(other => 
+                    other !== this &&
+                    this.x < other.x + other.size &&
+                    this.x + this.size > other.x &&
+                    this.y < other.y + other.size &&
+                    this.y + this.size > other.y
+                );
+            }
+
+            // Update enemy position based on velocity and time
+            update(deltaTime) {
+                this.x += this.dx * (deltaTime / 16.67); // Move X (normalized to 60fps)
+                this.y += this.dy * (deltaTime / 16.67); // Move Y
+                
+                if (this.x <= 0 || this.x >= this.game.PLAYFIELD_SIZE - this.size) { // Bounce off X bounds
+                    this.x = Math.max(0, Math.min(this.game.PLAYFIELD_SIZE - this.size, this.x));
+                    this.dx = -this.dx;
+                    this.flashBorder(); // Flash border on bounce
+                }
+                if (this.y <= 0 || this.y >= this.game.PLAYFIELD_SIZE - this.size) { // Bounce off Y bounds
+                    this.y = Math.max(0, Math.min(this.game.PLAYFIELD_SIZE - this.size, this.y));
+                    this.dy = -this.dy;
+                    this.flashBorder();
+                }
+                
+                this.updatePosition(); // Update DOM position
+            }
+
+            // Update enemy position in DOM
+            updatePosition() {
+                this.element.style.left = `${this.x}px`;
+                this.element.style.top = `${this.y}px`;
+            }
+
+            // Update enemy border and glow animation
+            updateAnimation() {
+                this.element.style.setProperty('--enemy-color', '#fff'); // White border for contrast
+                this.element.style.border = `1px solid #fff`; // Consistent border
+            }
+
+            // Flash border on collision or bounce
+            flashBorder() {
+                this.element.classList.add('enemyBorderFlash'); // Enemy flash
+                this.game.container.classList.add('borderFlash'); // Container flash
+                setTimeout(() => {
+                    this.element.classList.remove('enemyBorderFlash');
+                    this.game.container.classList.remove('borderFlash');
+                    this.updateAnimation(); // Reset animation
+                }, 300); // Duration matches animation
+            }
+
+            // Resolve collision with another enemy
+            resolveCollisionWith(other) {
+                const overlapX = Math.min(this.x + this.size, other.x + other.size) - Math.max(this.x, other.x);
+                const overlapY = Math.min(this.y + this.size, other.y + other.size) - Math.max(this.y, other.y);
+
+                if (overlapX > 0 && overlapY > 0) { // Collision detected
+                    if (overlapX < overlapY) { // Resolve along X-axis
+                        if (this.x < other.x) {
+                            this.x -= overlapX / 2;
+                            other.x += overlapX / 2;
+                        } else {
+                            this.x += overlapX / 2;
+                            other.x -= overlapX / 2;
+                        }
+                        [this.dx, other.dx] = [other.dx, this.dx]; // Swap X velocities
+                    } else { // Resolve along Y-axis
+                        if (this.y < other.y) {
+                            this.y -= overlapY / 2;
+                            other.y += overlapY / 2;
+                        } else {
+                            this.y += overlapY / 2;
+                            other.y -= overlapY / 2;
+                        }
+                        [this.dy, other.dy] = [other.dy, this.dy]; // Swap Y velocities
+                    }
+
+                    this.flashBorder(); // Flash this enemy
+                    other.flashBorder(); // Flash other enemy
+                    this.updatePosition(); // Update positions
+                    other.updatePosition();
+                }
+            }
+
+            // Check collision with another object
+            collidesWith(other) {
+                return (this.x < other.x + other.size &&
+                        this.x + this.size > other.x &&
+                        this.y < other.y + other.size &&
+                        this.y + this.size > other.y);
+            }
+
+            // Check collision with player
+            collidesWithPlayer() {
+                return this.collidesWith(this.game.player);
+            }
+        }
+
+        // Crystal class for collectible items
+        class Crystal {
+            constructor(game, x, y, color, order) {
+                this.game = game; // Reference to game instance
+                this.size = 8; // Crystal size (smaller than player)
+                this.x = x; // X position
+                this.y = y; // Y position
+                this.color = color; // Crystal color (red, green, blue)
+                this.order = order; // Collection order within color
+
+                this.element = document.createElement('div');
+                this.element.className = `crystal ${this.color}`; // Apply color class
+                this.updatePosition(); // Set initial position
+                this.game.container.appendChild(this.element); // Add to DOM
+            }
+
+            // Update crystal position in DOM
+            updatePosition() {
+                this.element.style.left = `${this.x}px`;
+                this.element.style.top = `${this.y}px`;
+            }
+
+            // Check collision with player
+            collidesWithPlayer() {
+                return (this.x < this.game.player.x + this.game.player.size &&
+                        this.x + this.size > this.game.player.x &&
+                        this.y < this.game.player.y + this.game.player.size &&
+                        this.y + this.size > this.game.player.y);
+            }
+        }
+
+        // Explosion class for visual effects
+        class Explosion {
+            constructor(game, x, y, isPlayer = false) {
+                this.game = game; // Reference to game instance
+                this.x = x; // Center X of explosion
+                this.y = y; // Center Y of explosion
+                this.isPlayer = isPlayer; // Flag for player explosion
+
+                this.element = document.createElement('div');
+                this.element.className = 'explosion';
+                this.element.style.left = `${this.x - 2}px`; // Initial small size
+                this.element.style.top = `${this.y - 2}px`;
+                this.element.style.width = '4px';
+                this.element.style.height = '4px';
+                this.element.style.opacity = '1'; // Fully visible
+                this.game.container.appendChild(this.element); // Add to DOM
+                
+                setTimeout(() => { // Expand explosion
+                    this.element.style.width = '160px';
+                    this.element.style.height = '160px';
+                    this.element.style.left = `${this.x - 80}px`; // Center expansion
+                    this.element.style.top = `${this.y - 80}px`;
+                    if (this.isPlayer) this.game.player.element.style.display = 'none'; // Hide player
+                }, 0);
+                
+                setTimeout(() => this.element.style.opacity = '0', this.isPlayer ? 800 : 600); // Fade out
+
+                this.alive = true; // Explosion state
+            }
+
+            // Update explosion state and remove when faded
+            update() {
+                if (this.element.style.opacity === '0') {
+                    setTimeout(() => this.element.remove(), 600); // Remove after fade
+                    this.alive = false; // Mark as dead
+                }
+                return this.alive; // Return alive state
+            }
+        }
+
+        // Audio manager class for sound effects and music
+        class AudioManager {
+            constructor() {
+                this.ctx = new (window.AudioContext || window.webkitAudioContext)(); // Audio context
+                this.backgroundOscillators = []; // Background music oscillators
+                this.backgroundGains = []; // Background music gain nodes
+            }
+
+            // Play level intro music (C major arpeggio)
+            playIntro() {
+                const oscillator = this.ctx.createOscillator();
+                const gainNode = this.ctx.createGain();
+                oscillator.connect(gainNode);
+                gainNode.connect(this.ctx.destination);
+                oscillator.type = 'square'; // Retro square wave
+                const frequencies = [261.63, 329.63, 392.00, 523.25, 392.00, 329.63, 261.63]; // C4, E4, G4, C5, G4, E4, C4
+                frequencies.forEach((freq, i) => {
+                    oscillator.frequency.setValueAtTime(freq, this.ctx.currentTime + i * 0.2); // Sequence notes
+                });
+                gainNode.gain.setValueAtTime(0.25, this.ctx.currentTime); // Start volume
+                gainNode.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 1.6); // Fade out
+                oscillator.start();
+                oscillator.stop(this.ctx.currentTime + 1.6); // Stop after 1.6s
+            }
+
+            // Play bomb detonation sound
+            playBomb() {
+                const osc1 = this.ctx.createOscillator();
+                const osc2 = this.ctx.createOscillator();
+                const gainNode = this.ctx.createGain();
+                osc1.connect(gainNode);
+                osc2.connect(gainNode);
+                gainNode.connect(this.ctx.destination);
+                osc1.type = 'square'; // Square wave for bass
+                osc2.type = 'sine';   // Sine wave for tone
+                osc1.frequency.setValueAtTime(600, this.ctx.currentTime); // Start high
+                osc2.frequency.setValueAtTime(300, this.ctx.currentTime);
+                osc1.frequency.exponentialRampToValueAtTime(80, this.ctx.currentTime + 0.6); // Drop pitch
+                osc2.frequency.exponentialRampToValueAtTime(60, this.ctx.currentTime + 0.6);
+                gainNode.gain.setValueAtTime(0.25, this.ctx.currentTime); // Start volume
+                gainNode.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.6); // Fade out
+                osc1.start();
+                osc2.start();
+                osc1.stop(this.ctx.currentTime + 0.6); // Stop after 0.6s
+                osc2.stop(this.ctx.currentTime + 0.6);
+            }
+
+            // Play explosion sound (reuses bomb sound for player)
+            playExplosion(isPlayer) {
+                if (isPlayer) this.playBomb(); // Player explosion uses bomb sound
+            }
+
+            // Play game over sound (descending notes)
+            playEnd() {
+                const osc1 = this.ctx.createOscillator();
+                const osc2 = this.ctx.createOscillator();
+                const gainNode = this.ctx.createGain();
+                osc1.connect(gainNode);
+                osc2.connect(gainNode);
+                gainNode.connect(this.ctx.destination);
+                osc1.type = 'sawtooth'; // Sawtooth for harshness
+                osc2.type = 'sine';     // Sine for harmony
+                const frequencies = [349, 294, 261, 220, 196]; // F4, D4, C4, A3, G3
+                frequencies.forEach((freq, i) => {
+                    osc1.frequency.setValueAtTime(freq, this.ctx.currentTime + i * 0.4); // Sequence notes
+                    osc2.frequency.setValueAtTime(freq * 0.75, this.ctx.currentTime + i * 0.4); // Lower harmony
+                });
+                gainNode.gain.setValueAtTime(0.25, this.ctx.currentTime); // Start volume
+                gainNode.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 2.0); // Fade out
+                osc1.start();
+                osc2.start();
+                osc1.stop(this.ctx.currentTime + 2.0); // Stop after 2s
+                osc2.stop(this.ctx.currentTime + 2.0);
+            }
+
+            // Play enemy spawn sound based on size
+            playSpawn(size) {
+                const osc1 = this.ctx.createOscillator();
+                const gainNode = this.ctx.createGain();
+                osc1.connect(gainNode);
+                gainNode.connect(this.ctx.destination);
+                osc1.type = 'square'; // Square wave for retro feel
+                const baseFreq = size === this.PLAYER_SIZE ? 700 : 
+                                (size === this.PLAYER_SIZE * 2 ? 500 : 300); // Higher pitch for smaller size
+                osc1.frequency.setValueAtTime(baseFreq, this.ctx.currentTime); // Start pitch
+                osc1.frequency.exponentialRampToValueAtTime(baseFreq * 0.5, this.ctx.currentTime + 0.3); // Drop pitch
+                gainNode.gain.setValueAtTime(0.25, this.ctx.currentTime); // Start volume
+                gainNode.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.3); // Fade out
+                osc1.start();
+                osc1.stop(this.ctx.currentTime + 0.3); // Stop after 0.3s
+            }
+
+            // Play crystal collection sound
+            playCollect() {
+                const osc1 = this.ctx.createOscillator();
+                const gainNode = this.ctx.createGain();
+                osc1.connect(gainNode);
+                gainNode.connect(this.ctx.destination);
+                osc1.type = 'square'; // Square wave for chirp
+                osc1.frequency.setValueAtTime(880, this.ctx.currentTime); // High pitch (A5)
+                gainNode.gain.setValueAtTime(0.025, this.ctx.currentTime); // Soft crystal collection volume
+                gainNode.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.1); // Quick fade
+                osc1.start();
+                osc1.stop(this.ctx.currentTime + 0.1); // Stop after 0.1s
+            }
+
+            // Start background music with layered oscillators
+            startBackgroundMusic() {
+                if (this.backgroundOscillators.length > 0) return; // Exit if already playing
+
+                const baseFreq = 80; // Base frequency for music
+
+                const osc1 = this.ctx.createOscillator();
+                const gain1 = this.ctx.createGain();
+                osc1.type = 'sawtooth'; // Sawtooth for bass
+                osc1.frequency.value = baseFreq;
+                osc1.connect(gain1);
+                gain1.connect(this.ctx.destination);
+                gain1.gain.value = 0; // Start muted
+                this.backgroundOscillators.push(osc1);
+                this.backgroundGains.push(gain1);
+                osc1.start();
+
+                const osc2 = this.ctx.createOscillator();
+                const gain2 = this.ctx.createGain();
+                osc2.type = 'triangle'; // Triangle for mid-tone
+                osc2.frequency.value = baseFreq * 1.5;
+                osc2.connect(gain2);
+                gain2.connect(this.ctx.destination);
+                gain2.gain.value = 0;
+                this.backgroundOscillators.push(osc2);
+                this.backgroundGains.push(gain2);
+                osc2.start();
+
+                const osc3 = this.ctx.createOscillator();
+                const gain3 = this.ctx.createGain();
+                osc3.type = 'sine'; // Sine for high tone
+                osc3.frequency.value = baseFreq * 2.5;
+                osc3.connect(gain3);
+                gain3.connect(this.ctx.destination);
+                gain3.gain.value = 0;
+                this.backgroundOscillators.push(osc3);
+                this.backgroundGains.push(gain3);
+                osc3.start();
+
+                // Recursive function to play rhythmic pattern
+                const playRhythm = () => {
+                    if (!this.ctx || this.ctx.state === 'closed') return; // Exit if context closed
+                    const now = this.ctx.currentTime;
+
+                    gain1.gain.setValueAtTime(0.05, now); // Bass pulse
+                    gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+                    setTimeout(() => playRhythm(), 800); // Repeat every 800ms
+
+                    setTimeout(() => { // Mid-tone pulse
+                        gain2.gain.setValueAtTime(0.04, now + 0.2);
+                        gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+                    }, 200);
+
+                    if (Math.random() > 0.5) { // Random high-tone pulse
+                        setTimeout(() => {
+                            gain3.gain.setValueAtTime(0.03, now + 0.4);
+                            gain3.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+                        }, 400);
+                    }
+                };
+
+                playRhythm(); // Start rhythm
+            }
+
+            // Stop background music and clear oscillators
+            stopBackgroundMusic() {
+                this.backgroundOscillators.forEach(osc => osc.stop()); // Stop all oscillators
+                this.backgroundOscillators = [];
+                this.backgroundGains = [];
+            }
+
+            // Resume audio context if suspended
+            resume() {
+                this.ctx.resume();
+            }
+        }
+
+        // UI class for managing interface elements
+        class UI {
+            constructor(game) {
+                this.game = game; // Reference to game instance
+                this.scoreElement = document.getElementById('score'); // Score DOM element
+                this.bombIndicators = document.getElementById('bombIndicators'); // Bomb indicators container
+                this.levelIndicators = document.getElementById('levelIndicators'); // Level indicators container
+            }
+
+            // Update score display
+            updateScore() {
+                this.scoreElement.textContent = `${this.game.score}`;
+            }
+
+            // Update bomb indicators based on remaining bombs
+            updateBombIndicators() {
+                const missiles = this.bombIndicators.children;
+                for (let i = 0; i < 3; i++) {
+                    missiles[i].style.display = i < this.game.bombsLeft ? 'block' : 'none'; // Show/hide missiles
+                }
+            }
+
+            // Update level indicators based on current level
+            updateLevelIndicators() {
+                this.levelIndicators.innerHTML = ''; // Clear existing indicators
+                for (let i = 0; i < this.game.level; i++) {
+                    const circle = document.createElement('div');
+                    circle.className = 'level-circle';
+                    if (i < this.game.level - 1) circle.classList.add('completed'); // Fill completed levels
+                    this.levelIndicators.appendChild(circle);
+                }
+            }
+
+            // Update all UI elements
+            updateAll() {
+                this.updateScore();
+                this.updateBombIndicators();
+                this.updateLevelIndicators();
+            }
+        }
+
+        // Initialize and start the game
+        const game = new Game();
+    </script>
+</body>
+</html>
