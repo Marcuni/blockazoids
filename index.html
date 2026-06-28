@@ -5,39 +5,36 @@
     <title>Block-A-Zoids - Game 16</title>
     <style>
         /* Reset default body styling and center game content */
+        html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: #111;
+        }
+
         body {
             margin: 0;
-            padding: max(8px, env(safe-area-inset-top)) 0 max(8px, env(safe-area-inset-bottom)) 0;
+            padding: max(6px, env(safe-area-inset-top)) 0 max(6px, env(safe-area-inset-bottom)) 0;
             background: #111;
             display: flex;
             flex-direction: column;
             align-items: center;
+            justify-content: flex-start;
             overflow: hidden;
             position: relative;
-            width: 100vw;
-            min-height: 100vh;
+            width: 100%;
+            min-height: 100%;
             touch-action: none;
             overscroll-behavior: none;
             user-select: none;
             -webkit-user-select: none;
             -webkit-tap-highlight-color: transparent;
         }
-
-        /* iPhone mechanics test: this shell lets the 600px game scale down visually
-           while the game logic still uses the original 600x600 coordinate system. */
-        #gameShell {
-            width: 100vw;
-            height: 600px;
-            display: flex;
-            justify-content: center;
-            align-items: flex-start;
-            flex: 0 0 auto;
-        }
         
         /* Game container with grid background */
         #gameContainer {
-            width: 600px;
-            height: 600px;
+            width: min(600px, calc(100vw - 8px));
+            height: min(600px, calc(100vw - 8px));
             background: #000;
             position: relative;
             overflow: hidden;
@@ -45,20 +42,19 @@
             box-shadow: 0 0 calc(var(--default-glow) * 1px) #fff;
             margin-left: 0;
             margin-right: 0;
-            transform: scale(var(--game-scale, 1));
-            transform-origin: top center;
             --default-glow: 10;
             background-image: linear-gradient(rgba(255, 255, 255, 0.5) 0.67px, transparent 0.67px),
                              linear-gradient(90deg, rgba(255, 255, 255, 0.5) 0.67px, transparent 0.67px);
-            background-size: 60px 60px;
+            background-size: var(--grid-size, 60px) var(--grid-size, 60px);
+            touch-action: none;
         }
         
         /* Player styling as a glowing white circle */
         #player {
             position: absolute;
             background: #fff;
-            width: 20px;
-            height: 20px;
+            width: var(--player-size, 20px);
+            height: var(--player-size, 20px);
             border-radius: 50%;
             box-shadow: 0 0 calc(var(--default-glow) * 0.8px) #fff;
             border: 1px solid #fff;
@@ -92,8 +88,8 @@
         /* Base crystal (diamond-shaped) styling */
         .crystal {
             position: absolute;
-            width: 10px;
-            height: 10px;
+            width: var(--crystal-size, 10px);
+            height: var(--crystal-size, 10px);
             transform: rotate(45deg);
             z-index: 2;
         }
@@ -127,8 +123,8 @@
         .filled-square {
             position: absolute;
             background: #fff;
-            width: 60px;
-            height: 60px;
+            width: var(--grid-size, 60px);
+            height: var(--grid-size, 60px);
             z-index: 0;
             opacity: 0.2;
             transition: opacity 0.3s ease;
@@ -142,7 +138,7 @@
             transform: translate(-50%, -50%);
             color: #fff;
             font-family: 'Orbitron', 'Courier New', monospace;
-            font-size: 64px;
+            font-size: clamp(36px, 12vw, 64px);
             font-weight: bold;
             text-shadow: 0 0 calc(var(--default-glow) * 2px) #fff;
             opacity: 0;
@@ -161,7 +157,7 @@
             transform: translate(-50%, -50%);
             color: #fff;
             font-family: 'Orbitron', 'Courier New', monospace;
-            font-size: 48px;
+            font-size: clamp(30px, 10vw, 48px);
             font-weight: bold;
             text-shadow: 0 0 calc(var(--default-glow) * 1.5px) #fff;
             opacity: 0;
@@ -178,8 +174,8 @@
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            width: 400px;
-            padding: 20px;
+            width: min(400px, calc(100vw - 42px));
+            padding: 16px;
             background: #000;
             border: 2px solid #fff;
             box-shadow: 0 0 calc(var(--default-glow) * 1px) #fff;
@@ -193,17 +189,17 @@
         /* Instructions title styling */
         #instructionsTitle {
             font-family: 'Orbitron', 'Courier New', monospace;
-            font-size: 48px;
+            font-size: clamp(30px, 10vw, 48px);
             color: #fff;
             text-shadow: 0 0 calc(var(--default-glow) * 1px) #fff;
-            margin-bottom: 20px;
+            margin-bottom: 14px;
         }
 
         /* Compact instructions text styling */
         #instructionsText {
             font-family: 'Orbitron', 'Courier New', monospace;
-            font-size: 14px;
-            line-height: 1.6;
+            font-size: clamp(11px, 3.2vw, 14px);
+            line-height: 1.45;
             color: #fff;
             margin-bottom: 20px;
             text-shadow: 0 0 calc(var(--default-glow) * 0.6px) #fff;
@@ -232,21 +228,21 @@
             color: #fff;
             font-family: 'Orbitron', 'Courier New', monospace;
             text-align: center;
-            margin: 10px;
+            margin: 4px;
             text-shadow: 0 0 calc(var(--default-glow) * 1px) #fff, 0 0 calc(var(--default-glow) * 2px) #fff;
             letter-spacing: 3px;
-            font-size: 36px;
+            font-size: clamp(22px, 7vw, 36px);
             box-shadow: 0 0 calc(var(--default-glow) * 0.8px) #fff;
         }
         
         /* Bottom HUD below the playfield */
         #bottomHud {
-            width: min(604px, 94vw);
+            width: min(604px, calc(100vw - 8px));
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-top: 12px;
-            margin-bottom: 8px;
+            margin-top: 6px;
+            margin-bottom: 4px;
             color: #fff;
             font-family: 'Orbitron', 'Courier New', monospace;
             letter-spacing: 2px;
@@ -386,37 +382,6 @@
             animation: screenShake 0.5s ease-in-out;
         }
 
-
-        /* Large touch target for iPhone bomb testing */
-        #mobileBombButton {
-            margin-top: 6px;
-            padding: 12px 28px;
-            min-width: 140px;
-            font-family: 'Orbitron', 'Courier New', monospace;
-            font-size: 20px;
-            color: #fff;
-            background: #000;
-            border: 2px solid #fff;
-            box-shadow: 0 0 calc(var(--default-glow) * 0.8px) #fff;
-            letter-spacing: 2px;
-            touch-action: manipulation;
-        }
-
-        #mobileBombButton:active {
-            background: #fff;
-            color: #000;
-        }
-
-        #iphoneTestNote {
-            color: #fff;
-            font-family: 'Orbitron', 'Courier New', monospace;
-            font-size: 11px;
-            letter-spacing: 1px;
-            margin-bottom: 4px;
-            opacity: 0.75;
-            text-shadow: 0 0 calc(var(--default-glow) * 0.5px) #fff;
-        }
-
         /* Global CSS variables for RGB colors */
         :root {
             --red-color: #F00;
@@ -427,11 +392,10 @@
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700&display=swap" rel="stylesheet">
 </head>
 <body>
+    <div id="iphoneTestNote" style="color:#fff;font-family:'Orbitron','Courier New',monospace;font-size:11px;opacity:.7;letter-spacing:1px;margin-bottom:2px;">iPhone touch test</div>
     <!-- Score display -->
     <div id="score">0</div>
-    <div id="iphoneTestNote">iPhone mechanics test</div>
     <!-- Main game container -->
-    <div id="gameShell">
     <div id="gameContainer">
         <div id="player"></div>
         <div id="gameOver">GAME OVER</div>
@@ -439,22 +403,19 @@
         <div id="instructionsWindow">
             <div id="instructionsTitle">Block-A-Zoids</div>
             <div id="instructionsText">
-                Touch the white orb and drag to control it.<br>
-                Move the orb to start each level.<br>
+                Tap Start, then drag anywhere on the board to move the white orb.<br>
+                Moving the orb starts each level.<br>
                 Collect colors in order: Red → Green → Blue.<br>
                 Blinking crystals are worth more.<br>
                 Connect crystals to complete squares.<br>
-                Avoid blocks. Tap BOMB to clear enemies.<br>
+                Avoid blocks. Double-tap the board to use a bomb.<br>
                 Bombs cost 50 points and temporarily speed up this level.
             </div>
             <button id="startButton">Start Game</button>
         </div>
     </div>
-    </div>
 
-    <button id="mobileBombButton" type="button">BOMB</button>
-
-    <!-- Bottom HUD for iPhone mechanics testing -->
+    <!-- Bottom HUD for laptop testing -->
     <div id="bottomHud">
         <div class="hud-group" id="levelHud">
             <div id="levelIndicators"></div>
@@ -497,22 +458,19 @@
                 this.MEDIUM_SPAWN_PROPORTION = 0.40; // 40% medium enemies
                 this.LARGE_SPAWN_PROPORTION = 0.30;  // 30% large enemies
 
-                // Game constants derived from parameters
-                this.PLAYFIELD_SIZE = this.parameters.playfieldSize;
-                this.PLAYER_SIZE = this.parameters.playerSize;
-                this.MIN_SPAWN_DISTANCE = this.parameters.minSpawnDistance;
-                this.spawnRate = this.parameters.baseSpawnRate;
-                this.MAX_ENEMIES = this.parameters.maxEnemyCap;
-                this.BASE_SPEEDS = this.parameters.baseSpeeds;
-                this.TOTAL_CRYSTALS = 80; // Total crystals per level
-                this.MAX_LEVEL = 13; // Laptop test campaign length
-
                 // DOM element references
                 this.container = document.getElementById('gameContainer');
                 this.gameOverElement = document.getElementById('gameOver');
                 this.bonusTextElement = document.getElementById('bonusText'); // New reference for bonus text
                 this.startButton = document.getElementById('startButton');
                 this.instructionsWindow = document.getElementById('instructionsWindow');
+
+                // Game constants derived from the actual iPhone-sized board.
+                this.configureResponsivePlayfield();
+                this.spawnRate = this.parameters.baseSpawnRate;
+                this.MAX_ENEMIES = this.parameters.maxEnemyCap;
+                this.TOTAL_CRYSTALS = 80; // Total crystals per level
+                this.MAX_LEVEL = 13; // Touch test campaign length
 
                 // Game objects and state
                 this.player = new Player(this);       // Player instance
@@ -552,14 +510,10 @@
 
                 // Event handlers for player input
                 this.handleMouseMove = (e) => this.player.handleMouseMove(e);
-                this.handleTouchStart = (e) => this.player.handleTouchStart(e);
-                this.handleTouchMove = (e) => this.player.handleTouchMove(e);
-                this.handleTouchEnd = (e) => this.player.handleTouchEnd(e);
+                this.handlePointerDown = (e) => this.player.handlePointerDown(e);
+                this.handlePointerMove = (e) => this.player.handlePointerMove(e);
+                this.handlePointerUp = (e) => this.player.handlePointerUp(e);
                 this.handleBombClick = () => this.handleBomb();
-                this.handleMobileBombPress = (e) => {
-                    if (e) e.preventDefault();
-                    this.handleBomb();
-                };
                 this.handleKeyDown = (e) => {
                     if (e.shiftKey && e.code === 'ArrowUp') {
                         e.preventDefault();
@@ -579,23 +533,16 @@
                     }
                 };
                 this.container.addEventListener('mousemove', this.handleMouseMove);
-                this.container.addEventListener('touchstart', this.handleTouchStart, { passive: false });
-                this.container.addEventListener('touchmove', this.handleTouchMove, { passive: false });
-                this.container.addEventListener('touchend', this.handleTouchEnd, { passive: false });
-                this.container.addEventListener('touchcancel', this.handleTouchEnd, { passive: false });
+                this.container.addEventListener('pointerdown', this.handlePointerDown, { passive: false });
+                this.container.addEventListener('pointermove', this.handlePointerMove, { passive: false });
+                this.container.addEventListener('pointerup', this.handlePointerUp, { passive: false });
+                this.container.addEventListener('pointercancel', this.handlePointerUp, { passive: false });
                 this.container.addEventListener('dblclick', this.handleBombClick);
                 document.addEventListener('keydown', this.handleKeyDown);
-                this.startButton.addEventListener('click', () => this.start());
-                this.startButton.addEventListener('touchstart', (e) => {
+                this.startButton.addEventListener('click', (e) => {
                     e.preventDefault();
                     this.start();
-                }, { passive: false });
-
-                this.mobileBombButton = document.getElementById('mobileBombButton');
-                if (this.mobileBombButton) {
-                    this.mobileBombButton.addEventListener('click', this.handleMobileBombPress);
-                    this.mobileBombButton.addEventListener('touchstart', this.handleMobileBombPress, { passive: false });
-                }
+                });
 
                 // Attract mode variables
                 this.attractInterval = null;          // Interval ID for attract mode
@@ -606,6 +553,33 @@
                 // Initialize level parameters and start attract mode
                 this.applyLevelParameters();
                 this.startAttractMode();
+            }
+
+            // Size the board directly for iPhone instead of clipping or transform-scaling a 600px board.
+            configureResponsivePlayfield() {
+                const availableWidth = Math.max(300, Math.min(600, window.innerWidth - 8));
+                const availableHeight = Math.max(300, Math.min(600, window.innerHeight - 118));
+                const boardSize = Math.max(300, Math.floor(Math.min(availableWidth, availableHeight) / 10) * 10);
+                const scale = boardSize / this.parameters.playfieldSize;
+
+                this.PLAYFIELD_SIZE = boardSize;
+                this.GRID_SIZE = boardSize / 10;
+                this.SIZE_SCALE = scale;
+                this.PLAYER_SIZE = Math.max(18, Math.round(this.parameters.playerSize * scale));
+                this.CRYSTAL_SIZE = Math.max(8, Math.round(10 * scale));
+                this.CRYSTAL_OFFSET = this.CRYSTAL_SIZE / 2;
+                this.MIN_SPAWN_DISTANCE = Math.round(this.parameters.minSpawnDistance * scale);
+                this.BASE_SPEEDS = {
+                    small: this.parameters.baseSpeeds.small * scale,
+                    medium: this.parameters.baseSpeeds.medium * scale,
+                    large: this.parameters.baseSpeeds.large * scale
+                };
+
+                this.container.style.width = `${boardSize}px`;
+                this.container.style.height = `${boardSize}px`;
+                document.documentElement.style.setProperty('--grid-size', `${this.GRID_SIZE}px`);
+                document.documentElement.style.setProperty('--player-size', `${this.PLAYER_SIZE}px`);
+                document.documentElement.style.setProperty('--crystal-size', `${this.CRYSTAL_SIZE}px`);
             }
 
             // Adjust spawn rate by level; enemy count stays capped at a constant value. Bomb pressure only affects speed.
@@ -1159,7 +1133,7 @@
 
             // Spawn crystals on the 10x10 grid, optionally with intro animation
             spawnCrystals(withIntro = false) {
-                const gridSize = 60; // Grid cell size
+                const gridSize = this.GRID_SIZE; // Grid cell size
                 const centerX = this.PLAYFIELD_SIZE / 2; // Center X coordinate
                 const centerY = this.PLAYFIELD_SIZE / 2; // Center Y coordinate
                 let colorIndex = 0; // Used only for intro animation timing
@@ -1179,7 +1153,7 @@
                 this.assignCrystalOrders(cells);
 
                 cells.forEach(cell => {
-                    const crystal = new Crystal(this, cell.x - 5, cell.y - 5, cell.color, cell.order); // Create crystal
+                    const crystal = new Crystal(this, cell.x - this.CRYSTAL_OFFSET, cell.y - this.CRYSTAL_OFFSET, cell.color, cell.order); // Create crystal
                     if (withIntro) {
                         crystal.element.style.animation = 'crystalDrop 0.8s ease-out forwards'; // Drop animation
                         const delay = (colorIndex % 3) * 0.2; // Staggered delay
@@ -1219,17 +1193,17 @@
 
             // Convert a crystal position to its 9x9 grid coordinate.
             getCrystalGridPosition(crystal) {
-                const gridSize = 60;
+                const gridSize = this.GRID_SIZE;
                 return {
-                    col: Math.round((crystal.x + 5) / gridSize),
-                    row: Math.round((crystal.y + 5) / gridSize)
+                    col: Math.round((crystal.x + crystal.size / 2) / gridSize),
+                    row: Math.round((crystal.y + crystal.size / 2) / gridSize)
                 };
             }
 
             // Use the most recently collected crystal as the anchor.
             // At the start of a level/color, use the center start position.
             getHighlightReferenceGridPosition() {
-                const gridSize = 60;
+                const gridSize = this.GRID_SIZE;
                 if (this.lastCollectedPos) {
                     return {
                         col: Math.round(this.lastCollectedPos.x / gridSize),
@@ -1434,7 +1408,7 @@ SPEED UP`;
                     const crystal = this.crystals[i];
                     if (crystal.collidesWithPlayer() && crystal.color === this.colorOrder[this.currentColorIndex]) {
                         const wasBlinking = crystal.element.classList.contains('next') || crystal.order === this.nextCrystalOrder;
-                        const pos = { x: crystal.x + 5, y: crystal.y + 5 }; // Crystal center
+                        const pos = { x: crystal.x + crystal.size / 2, y: crystal.y + crystal.size / 2 }; // Crystal center
                         this.collectedPositions.push(pos); // Add to collected
                         this.connectToNearestIntersection(pos); // Connect to grid
                         crystal.element.remove(); // Remove crystal
@@ -1457,7 +1431,7 @@ SPEED UP`;
 
             // Connect collected crystal to nearest grid intersection
             connectToNearestIntersection(currentPos) {
-                const gridSize = 60; // Grid cell size
+                const gridSize = this.GRID_SIZE; // Grid cell size
                 const directions = [ // Possible connection directions
                     { dx: 0, dy: -gridSize, horizontal: false }, // Up
                     { dx: 0, dy: gridSize, horizontal: false },  // Down
@@ -1481,11 +1455,11 @@ SPEED UP`;
                 line.style.left = `${Math.min(startPos.x, endPos.x)}px`;
                 line.style.top = `${Math.min(startPos.y, endPos.y)}px`;
                 if (horizontal) {
-                    line.style.width = '60px'; // Horizontal line
+                    line.style.width = `${this.GRID_SIZE}px`; // Horizontal line
                     line.style.height = '2px';
                 } else {
                     line.style.width = '2px'; // Vertical line
-                    line.style.height = '60px';
+                    line.style.height = `${this.GRID_SIZE}px`;
                 }
                 this.container.appendChild(line);
                 this.lines.push({ start: startPos, end: endPos, element: line }); // Store line
@@ -1493,7 +1467,7 @@ SPEED UP`;
 
             // Check if a completed square is formed
             checkForCompletedSquare(startPos, endPos) {
-                const gridSize = 60;
+                const gridSize = this.GRID_SIZE;
                 const minX = Math.min(startPos.x, endPos.x);
                 const minY = Math.min(startPos.y, endPos.y);
                 const maxX = Math.max(startPos.x, endPos.x);
@@ -1618,7 +1592,7 @@ SPEED UP`;
             // Start attract mode with Conway's Game of Life pattern, less busy
             startAttractMode() {
                 this.stopAttractMode(); // Clear any existing attract mode
-                const gridSize = 60; // Grid cell size
+                const gridSize = this.GRID_SIZE; // Grid cell size
                 const gridWidth = this.PLAYFIELD_SIZE / gridSize; // 10
                 const gridHeight = this.PLAYFIELD_SIZE / gridSize; // 10
 
@@ -1741,36 +1715,29 @@ SPEED UP`;
                 this.game = game; // Reference to game instance
                 this.element = document.getElementById('player'); // Player DOM element
                 this.size = game.PLAYER_SIZE; // Player size from game parameters
-                this.isMouseActive = false; // Mouse/touch control state
-                this.touchGrabMargin = 30; // Larger grab area for iPhone testing
+                this.isMouseActive = false; // Mouse control state
+                this.isTouchActive = false; // Touch/pointer drag state
                 this.reset(); // Initialize position
             }
 
             // Reset player to center of playfield
             reset() {
+                this.size = this.game.PLAYER_SIZE;
                 this.x = this.game.PLAYFIELD_SIZE / 2 - this.size / 2; // Center X
                 this.y = this.game.PLAYFIELD_SIZE / 2 - this.size / 2; // Center Y
                 this.element.style.display = 'block'; // Show player
-                this.isMouseActive = false; // Disable pointer control
+                this.isMouseActive = false; // Disable mouse control
+                this.isTouchActive = false; // Disable touch control
                 this.updatePosition(); // Update DOM position
             }
 
-            // Convert screen coordinates into the game's original 600x600 coordinate system.
-            getPointerPosition(clientX, clientY) {
+            // Convert browser coordinates into the actual board coordinate system.
+            getBoardPoint(clientX, clientY) {
                 const rect = this.game.container.getBoundingClientRect();
-                const scaleX = this.game.PLAYFIELD_SIZE / rect.width;
-                const scaleY = this.game.PLAYFIELD_SIZE / rect.height;
                 return {
-                    x: (clientX - rect.left) * scaleX,
-                    y: (clientY - rect.top) * scaleY
+                    x: Math.max(0, Math.min(this.game.PLAYFIELD_SIZE, clientX - rect.left)),
+                    y: Math.max(0, Math.min(this.game.PLAYFIELD_SIZE, clientY - rect.top))
                 };
-            }
-
-            isPointOverPlayer(point, margin = 0) {
-                return point.x >= this.x - margin &&
-                       point.x <= this.x + this.size + margin &&
-                       point.y >= this.y - margin &&
-                       point.y <= this.y + this.size + margin;
             }
 
             moveToPoint(point) {
@@ -1781,7 +1748,6 @@ SPEED UP`;
                     point.x - this.size / 2));
                 this.y = Math.max(0, Math.min(this.game.PLAYFIELD_SIZE - this.size,
                     point.y - this.size / 2));
-
                 this.updatePosition();
 
                 if (this.game.waitingForPlayerMove && (this.x !== previousX || this.y !== previousY)) {
@@ -1789,14 +1755,22 @@ SPEED UP`;
                 }
             }
 
-            // Handle mouse movement for desktop fallback.
+            // Desktop fallback: hover the orb, then move it.
             handleMouseMove(e) {
-                if (!this.game.active || this.game.isGameOver) return;
+                if (!this.game.active || this.game.isGameOver || this.isTouchActive) return;
 
-                const point = this.getPointerPosition(e.clientX, e.clientY);
+                const point = this.getBoardPoint(e.clientX, e.clientY);
 
-                if (!this.isMouseActive && this.isPointOverPlayer(point)) {
-                    this.isMouseActive = true;
+                if (!this.isMouseActive) {
+                    const playerLeft = this.x;
+                    const playerTop = this.y;
+                    const playerRight = this.x + this.size;
+                    const playerBottom = this.y + this.size;
+
+                    if (point.x >= playerLeft && point.x <= playerRight &&
+                        point.y >= playerTop && point.y <= playerBottom) {
+                        this.isMouseActive = true;
+                    }
                 }
 
                 if (this.isMouseActive) {
@@ -1804,43 +1778,42 @@ SPEED UP`;
                 }
             }
 
-            // iPhone test control: touch the orb, then drag.
-            handleTouchStart(e) {
+            // iPhone test control: drag anywhere on the board.
+            handlePointerDown(e) {
                 if (!this.game.active || this.game.isGameOver) return;
-                const touch = e.changedTouches && e.changedTouches[0];
-                if (!touch) return;
-
-                const point = this.getPointerPosition(touch.clientX, touch.clientY);
-                if (this.isPointOverPlayer(point, this.touchGrabMargin)) {
-                    e.preventDefault();
-                    this.isMouseActive = true;
-                    this.moveToPoint(point);
-                }
-            }
-
-            handleTouchMove(e) {
-                if (!this.game.active || this.game.isGameOver || !this.isMouseActive) return;
-                const touch = e.changedTouches && e.changedTouches[0];
-                if (!touch) return;
+                if (e.pointerType === 'mouse') return;
 
                 e.preventDefault();
-                const point = this.getPointerPosition(touch.clientX, touch.clientY);
-                this.moveToPoint(point);
+                this.isTouchActive = true;
+                if (this.game.container.setPointerCapture) {
+                    try { this.game.container.setPointerCapture(e.pointerId); } catch (_) {}
+                }
+                this.moveToPoint(this.getBoardPoint(e.clientX, e.clientY));
             }
 
-            handleTouchEnd(e) {
+            handlePointerMove(e) {
+                if (!this.game.active || this.game.isGameOver || !this.isTouchActive) return;
+                if (e.pointerType === 'mouse') return;
+
+                e.preventDefault();
+                this.moveToPoint(this.getBoardPoint(e.clientX, e.clientY));
+            }
+
+            handlePointerUp(e) {
+                if (e && e.pointerType === 'mouse') return;
                 if (e) e.preventDefault();
-                this.isMouseActive = false;
+                this.isTouchActive = false;
             }
 
             // Update player position in DOM
             updatePosition() {
+                this.element.style.width = `${this.size}px`;
+                this.element.style.height = `${this.size}px`;
                 this.element.style.left = `${this.x}px`;
                 this.element.style.top = `${this.y}px`;
             }
 
             // The player is clamped inside the playfield, so touching the wall is safe.
-            // This prevents surprising instant deaths when the cursor reaches the border.
             isOutOfBounds() {
                 return false;
             }
@@ -2352,35 +2325,9 @@ SPEED UP`;
             }
         }
 
-        // Fit the fixed 600x600 playfield onto iPhone screens without changing game physics.
-        function fitIPhoneMechanicsTest() {
-            const shell = document.getElementById('gameShell');
-            const score = document.getElementById('score');
-            const bottomHud = document.getElementById('bottomHud');
-            const bombButton = document.getElementById('mobileBombButton');
-
-            const reservedHeight =
-                (score ? score.getBoundingClientRect().height : 0) +
-                (bottomHud ? bottomHud.getBoundingClientRect().height : 0) +
-                (bombButton ? bombButton.getBoundingClientRect().height : 0) +
-                42;
-
-            const availableWidth = Math.max(280, window.innerWidth - 16);
-            const availableHeight = Math.max(280, window.innerHeight - reservedHeight);
-            const scale = Math.min(1, availableWidth / 600, availableHeight / 600);
-
-            document.documentElement.style.setProperty('--game-scale', scale.toFixed(4));
-            if (shell) shell.style.height = `${600 * scale}px`;
-        }
-
-        window.addEventListener('resize', fitIPhoneMechanicsTest);
-        window.addEventListener('orientationchange', () => {
-            setTimeout(fitIPhoneMechanicsTest, 250);
-        });
-        fitIPhoneMechanicsTest();
-
         // Initialize and start the game
         const game = new Game();
+        window.addEventListener('orientationchange', () => setTimeout(() => window.location.reload(), 300));
     </script>
 </body>
 </html>
