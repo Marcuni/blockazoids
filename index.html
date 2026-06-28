@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
-    <title>Block-A-Zoids - Game 16</title>
+    <title>Block-A-Zoids iPhone Touch Test</title>
     <style>
         /* Reset default body styling and center game content */
         html {
@@ -408,7 +408,7 @@
                 Collect colors in order: Red → Green → Blue.<br>
                 Blinking crystals are worth more.<br>
                 Connect crystals to complete squares.<br>
-                Avoid blocks. Double-tap the board to use a bomb.<br>
+                Avoid blocks. Double-tap anywhere on the board to use a bomb.<br>
                 Bombs cost 50 points and temporarily speed up this level.
             </div>
             <button id="startButton">Start Game</button>
@@ -487,6 +487,13 @@
                 this.active = false;                  // Game active state
                 this.waitingForPlayerMove = false;    // Level is displayed but enemy action waits for first movement
                 this.levelActionStarted = false;      // Enemy spawning/game loop has started for the current level
+                this.lastBoardTapTime = 0;            // Used for iPhone double-tap bomb detection
+                this.lastBoardTapX = 0;
+                this.lastBoardTapY = 0;
+                this.doubleTapWindowMs = 320;         // Maximum time between taps for a bomb
+                this.doubleTapDistance = 42;          // Maximum movement between taps for a bomb
+                this.lastBombTriggerTime = 0;         // Prevents native dblclick + custom double-tap from spending two bombs
+                this.bombInputCooldownMs = 450;
                 this.isGameOver = false;              // Game over state
                 this.spawnCounter = 0;                // Counter for enemy spawning
                 this.lastFrameTime = performance.now(); // Last frame timestamp
@@ -1530,9 +1537,37 @@ SPEED UP`;
                 });
             }
 
+            // Detect iPhone double-tap manually instead of relying on Safari's native dblclick behavior.
+            registerBoardTapForBomb(point) {
+                if (!this.active || this.isGameOver) return false;
+
+                const now = performance.now();
+                const dt = now - this.lastBoardTapTime;
+                const dx = point.x - this.lastBoardTapX;
+                const dy = point.y - this.lastBoardTapY;
+                const distance = Math.hypot(dx, dy);
+                const isDoubleTap = dt > 0 && dt <= this.doubleTapWindowMs && distance <= this.doubleTapDistance;
+
+                this.lastBoardTapTime = now;
+                this.lastBoardTapX = point.x;
+                this.lastBoardTapY = point.y;
+
+                if (isDoubleTap) {
+                    this.lastBoardTapTime = 0;
+                    this.handleBomb();
+                    return true;
+                }
+
+                return false;
+            }
+
             // Handle bomb detonation with screen shake, enemy destruction, and a small difficulty penalty.
             handleBomb() {
                 if (this.bombsLeft > 0 && this.active && !this.isGameOver) { // Bomb available and game active
+                    const now = performance.now();
+                    if (now - this.lastBombTriggerTime < this.bombInputCooldownMs) return;
+                    this.lastBombTriggerTime = now;
+
                     this.bombsLeft--; // Decrease bomb count
                     this.bombPressure++; // Adds one temporary level-speed notch for the rest of this level
                     this.score = Math.max(0, this.score - this.parameters.bombScorePenalty); // Immediate point penalty
@@ -1784,11 +1819,18 @@ SPEED UP`;
                 if (e.pointerType === 'mouse') return;
 
                 e.preventDefault();
+                const point = this.getBoardPoint(e.clientX, e.clientY);
+
+                if (this.game.registerBoardTapForBomb(point)) {
+                    this.isTouchActive = false;
+                    return;
+                }
+
                 this.isTouchActive = true;
                 if (this.game.container.setPointerCapture) {
                     try { this.game.container.setPointerCapture(e.pointerId); } catch (_) {}
                 }
-                this.moveToPoint(this.getBoardPoint(e.clientX, e.clientY));
+                this.moveToPoint(point);
             }
 
             handlePointerMove(e) {
