@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
-    <title>Block-A-Zoids iPhone Touch Test</title>
+    <title>Block-A-Zoids</title>
     <style>
         /* Reset default body styling and center game content */
         html {
@@ -49,6 +49,20 @@
             touch-action: none;
         }
         
+
+        /* Decorative top marquee image */
+        #marquee {
+            width: min(600px, calc(100vw - 8px));
+            margin: 4px 0 8px 0;
+            line-height: 0;
+        }
+
+        #marquee img {
+            display: block;
+            width: 100%;
+            height: auto;
+        }
+
         /* Player styling as a glowing white circle */
         #player {
             position: absolute;
@@ -382,6 +396,18 @@
             animation: screenShake 0.5s ease-in-out;
         }
 
+
+        #buildVersion {
+            color: #fff;
+            font-family: 'Orbitron', 'Courier New', monospace;
+            font-size: 10px;
+            letter-spacing: 1px;
+            opacity: 0.55;
+            text-align: center;
+            margin-top: 4px;
+            text-shadow: 0 0 calc(var(--default-glow) * 0.4px) #fff;
+        }
+
         /* Global CSS variables for RGB colors */
         :root {
             --red-color: #F00;
@@ -392,7 +418,10 @@
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700&display=swap" rel="stylesheet">
 </head>
 <body>
-    <div id="iphoneTestNote" style="color:#fff;font-family:'Orbitron','Courier New',monospace;font-size:11px;opacity:.7;letter-spacing:1px;margin-bottom:2px;">iPhone touch test</div>
+    <div id="marquee">
+        <img src="marquee-top.png" alt="Block-A-Zoids marquee">
+    </div>
+
     <!-- Score display -->
     <div id="score">0</div>
     <!-- Main game container -->
@@ -408,7 +437,7 @@
                 Collect colors in order: Red → Green → Blue.<br>
                 Blinking crystals are worth more.<br>
                 Connect crystals to complete squares.<br>
-                Avoid blocks. Double-tap anywhere on the board to use a bomb.<br>
+                Avoid blocks. Double-tap the board to use a bomb.<br>
                 Bombs cost 50 points and temporarily speed up this level.
             </div>
             <button id="startButton">Start Game</button>
@@ -428,6 +457,7 @@
             </div>
         </div>
     </div>
+    <div id="buildVersion">iPhone Build v5</div>
 
     <script>
         // Main game class managing state and logic
@@ -490,8 +520,8 @@
                 this.lastBoardTapTime = 0;            // Used for iPhone double-tap bomb detection
                 this.lastBoardTapX = 0;
                 this.lastBoardTapY = 0;
-                this.doubleTapWindowMs = 320;         // Maximum time between taps for a bomb
-                this.doubleTapDistance = 42;          // Maximum movement between taps for a bomb
+                this.doubleTapWindowMs = 420;         // Maximum time between two quick taps for a bomb
+                this.doubleTapDistance = Infinity;    // Any two quick taps on the board can trigger a bomb
                 this.lastBombTriggerTime = 0;         // Prevents native dblclick + custom double-tap from spending two bombs
                 this.bombInputCooldownMs = 450;
                 this.isGameOver = false;              // Game over state
@@ -1538,15 +1568,13 @@ SPEED UP`;
             }
 
             // Detect iPhone double-tap manually instead of relying on Safari's native dblclick behavior.
+            // This is intentionally forgiving: two quick taps anywhere on the board use a bomb.
             registerBoardTapForBomb(point) {
                 if (!this.active || this.isGameOver) return false;
 
                 const now = performance.now();
                 const dt = now - this.lastBoardTapTime;
-                const dx = point.x - this.lastBoardTapX;
-                const dy = point.y - this.lastBoardTapY;
-                const distance = Math.hypot(dx, dy);
-                const isDoubleTap = dt > 0 && dt <= this.doubleTapWindowMs && distance <= this.doubleTapDistance;
+                const isDoubleTap = dt > 0 && dt <= this.doubleTapWindowMs;
 
                 this.lastBoardTapTime = now;
                 this.lastBoardTapX = point.x;
@@ -1752,6 +1780,11 @@ SPEED UP`;
                 this.size = game.PLAYER_SIZE; // Player size from game parameters
                 this.isMouseActive = false; // Mouse control state
                 this.isTouchActive = false; // Touch/pointer drag state
+                this.tapStartPoint = null;
+                this.tapStartTime = 0;
+                this.tapMoved = false;
+                this.maxTapMoveDistance = Math.max(18, game.PLAYER_SIZE * 1.25);
+                this.maxTapDurationMs = 320;
                 this.reset(); // Initialize position
             }
 
@@ -1813,7 +1846,7 @@ SPEED UP`;
                 }
             }
 
-            // iPhone test control: drag anywhere on the board.
+            // iPhone control: drag anywhere on the board, double-tap anywhere to bomb.
             handlePointerDown(e) {
                 if (!this.game.active || this.game.isGameOver) return;
                 if (e.pointerType === 'mouse') return;
@@ -1821,15 +1854,15 @@ SPEED UP`;
                 e.preventDefault();
                 const point = this.getBoardPoint(e.clientX, e.clientY);
 
-                if (this.game.registerBoardTapForBomb(point)) {
-                    this.isTouchActive = false;
-                    return;
-                }
-
                 this.isTouchActive = true;
+                this.tapStartPoint = point;
+                this.tapStartTime = performance.now();
+                this.tapMoved = false;
+
                 if (this.game.container.setPointerCapture) {
                     try { this.game.container.setPointerCapture(e.pointerId); } catch (_) {}
                 }
+
                 this.moveToPoint(point);
             }
 
@@ -1838,13 +1871,41 @@ SPEED UP`;
                 if (e.pointerType === 'mouse') return;
 
                 e.preventDefault();
-                this.moveToPoint(this.getBoardPoint(e.clientX, e.clientY));
+                const point = this.getBoardPoint(e.clientX, e.clientY);
+
+                if (this.tapStartPoint) {
+                    const moveDistance = Math.hypot(
+                        point.x - this.tapStartPoint.x,
+                        point.y - this.tapStartPoint.y
+                    );
+                    if (moveDistance > this.maxTapMoveDistance) this.tapMoved = true;
+                }
+
+                this.moveToPoint(point);
             }
 
             handlePointerUp(e) {
                 if (e && e.pointerType === 'mouse') return;
                 if (e) e.preventDefault();
+
+                const point = e
+                    ? this.getBoardPoint(e.clientX, e.clientY)
+                    : this.tapStartPoint;
+
+                const tapDuration = performance.now() - this.tapStartTime;
+                const wasQuickTap = this.tapStartPoint &&
+                    !this.tapMoved &&
+                    tapDuration <= this.maxTapDurationMs;
+
                 this.isTouchActive = false;
+
+                if (wasQuickTap && point) {
+                    this.game.registerBoardTapForBomb(point);
+                }
+
+                this.tapStartPoint = null;
+                this.tapStartTime = 0;
+                this.tapMoved = false;
             }
 
             // Update player position in DOM
