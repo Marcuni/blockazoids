@@ -1053,6 +1053,24 @@ This source code, artwork, game design, and related assets are not licensed for 
         .enemyBorderFlash {
             animation: enemyBorderFlashAnimation 0.3s 1;
         }
+
+        .enemy.fullSwarmFlash {
+            animation: fullSwarmBlockFlash 0.5s steps(1, end) 1;
+        }
+
+        .enemy.fullSwarmFlash::after {
+            content: "";
+            position: absolute;
+            left: 35%;
+            top: 35%;
+            width: 30%;
+            height: 30%;
+            background: #fff;
+            box-shadow: 0 0 10px #fff, 0 0 22px #fff;
+            opacity: 0;
+            pointer-events: none;
+            animation: fullSwarmCoreFlash 0.5s steps(1, end) 1;
+        }
         
         .borderFlash {
             animation: borderFlashAnimation 0.5s 1;
@@ -1089,6 +1107,26 @@ This source code, artwork, game design, and related assets are not licensed for 
             0% { border: 1px solid #fff; box-shadow: 0 0 calc(var(--default-glow) * 0.8px) currentColor; }
             50% { border: 1px solid #fff; box-shadow: 0 0 calc(var(--default-glow) * 2px) #fff; }
             100% { border: 1px solid #fff; box-shadow: 0 0 calc(var(--default-glow) * 0.8px) currentColor; }
+        }
+
+        @keyframes fullSwarmBlockFlash {
+            0% { border-color: #fff; box-shadow: 0 0 calc(var(--default-glow) * 0.8px) currentColor; filter: brightness(1); }
+            14% { border-color: #fff; box-shadow: 0 0 14px #fff, 0 0 34px #fff; filter: brightness(1.9); }
+            28% { border-color: #fff; box-shadow: 0 0 5px #fff; filter: brightness(0.72); }
+            42% { border-color: #fff; box-shadow: 0 0 18px #fff, 0 0 44px #fff; filter: brightness(2.15); }
+            58% { border-color: #fff; box-shadow: 0 0 5px #fff; filter: brightness(0.78); }
+            74% { border-color: #fff; box-shadow: 0 0 16px #fff, 0 0 38px #fff; filter: brightness(1.8); }
+            100% { border-color: #fff; box-shadow: 0 0 calc(var(--default-glow) * 0.8px) currentColor; filter: brightness(1); }
+        }
+
+        @keyframes fullSwarmCoreFlash {
+            0% { opacity: 0; }
+            14% { opacity: 1; }
+            28% { opacity: 0.18; }
+            42% { opacity: 1; }
+            58% { opacity: 0.12; }
+            74% { opacity: 0.9; }
+            100% { opacity: 0; }
         }
         
         /* Container border flash animation */
@@ -1284,7 +1322,7 @@ This source code, artwork, game design, and related assets are not licensed for 
     <div id="copyrightFooter">© 2026 Marcus Couto</div>
 
     <script>
-        const BUILD_VERSION = 'Build v111';
+        const BUILD_VERSION = 'Build v113';
         document.getElementById('buildVersion').textContent = BUILD_VERSION;
 
         let lastGlobalTouchEndTime = 0;
@@ -1619,7 +1657,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 const showingStartPanel = this.instructionsWindow && this.instructionsWindow.style.display !== 'none';
                 const showingPause = this.pauseWindow && this.pauseWindow.style.display === 'flex';
                 const showingLevelSelect = this.levelSelectWindow && this.levelSelectWindow.style.display === 'flex';
-                return !!this.attractInterval && showingStartPanel && !this.active && !this.isPaused && !this.levelActionStarted && !showingPause && !showingLevelSelect;
+                return !!this.attractInterval && showingStartPanel && !this.active && !this.isPaused && !showingPause && !showingLevelSelect;
             }
 
             resetMarqueeEasterEgg() {
@@ -1653,7 +1691,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.swapMarqueeImageWithGlitch(this.marqueeAlternateSrc, true, () => {
                     this.marqueeMidGlitchTimer = setTimeout(() => {
                         if (!this.marqueeEasterEggActive || !this.isAttractModeActive()) return;
-                        this.pulseMarqueeCrtGlitch(true);
+                        this.pulseMarqueeCrtGlitch(false);
                     }, 3500);
 
                     this.marqueeEasterEggTimer = setTimeout(() => {
@@ -2306,7 +2344,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                     { name: 'PRISM RELIC MISSED', action: () => this.audio.playPrismRelicMissed(), stopAfterMs: 520 },
                     { name: 'ENEMY SPAWN', action: () => this.audio.playSpawn(), stopAfterMs: 520 },
                     { name: 'EXPLOSION', action: () => this.audio.playExplosionSound(), stopAfterMs: 850 },
-                    { name: 'FULL SWARM', action: () => this.audio.playSurvivalistCue(), stopAfterMs: 900 },
+                    { name: 'FULL SWARM', action: () => this.audio.playSurvivalistCue(), stopAfterMs: 1650 },
                     { name: 'HIGH SCORE FLASH', action: () => this.audio.playHighScore(), stopAfterMs: 1100 },
                     { name: 'BONUS COUNT-UP', action: () => this.audio.playBonusCountUp(900), stopAfterMs: 1200 },
                     { name: 'SECTOR RESTORED', action: () => this.audio.playGridRestored(), stopAfterMs: 3200 },
@@ -2988,6 +3026,18 @@ This source code, artwork, game design, and related assets are not licensed for 
                 }
             }
 
+            flashFullSwarmBlocks() {
+                this.enemies.forEach(enemy => {
+                    if (!enemy || !enemy.element) return;
+                    enemy.element.classList.remove('fullSwarmFlash');
+                    void enemy.element.offsetWidth;
+                    enemy.element.classList.add('fullSwarmFlash');
+                    setTimeout(() => {
+                        if (enemy.element) enemy.element.classList.remove('fullSwarmFlash');
+                    }, 560);
+                });
+            }
+
             checkSurvivalistProgress() {
                 if (this.survivalistQualifiedThisSector || this.survivalistCueTimer) return;
                 if (!this.active || this.isPaused || this.isGameOver || !this.levelActionStarted) return;
@@ -2998,6 +3048,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                         if (!this.active || this.isPaused || this.isGameOver || !this.levelActionStarted) return;
                         if (this.enemies.length < this.MAX_ENEMIES) return;
                         this.survivalistQualifiedThisSector = true;
+                        this.flashFullSwarmBlocks();
                         this.audio.playSurvivalistCue();
                     }, this.survivalistCueDelayMs);
                 }
@@ -4931,49 +4982,71 @@ BLOCK-A-ZOIDS RETURN`;
                 });
             }
 
-            // One-second danger alarm when the maximum Block-A-Zoid swarm is active.
+            // Dark danger alarm when the maximum Block-A-Zoid swarm is active.
             playSurvivalistCue() {
                 this.ensureAudio();
                 const now = this.ctx.currentTime;
-                const duration = 1.0;
+                const duration = 1.45;
+
+                const drone = this.ctx.createOscillator();
+                const droneGain = this.ctx.createGain();
+                drone.type = 'sawtooth';
+                drone.frequency.setValueAtTime(58, now);
+                drone.frequency.exponentialRampToValueAtTime(46, now + duration);
+                droneGain.gain.setValueAtTime(0.001, now);
+                droneGain.gain.linearRampToValueAtTime(0.07, now + 0.09);
+                droneGain.gain.setValueAtTime(0.065, now + 0.95);
+                droneGain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+                drone.connect(droneGain);
+                this.connectOutput(droneGain);
+                drone.start(now);
+                drone.stop(now + duration + 0.06);
+
+                const sub = this.ctx.createOscillator();
+                const subGain = this.ctx.createGain();
+                sub.type = 'sine';
+                sub.frequency.setValueAtTime(87, now);
+                sub.frequency.exponentialRampToValueAtTime(69, now + duration);
+                subGain.gain.setValueAtTime(0.001, now);
+                subGain.gain.linearRampToValueAtTime(0.052, now + 0.12);
+                subGain.gain.exponentialRampToValueAtTime(0.001, now + duration + 0.05);
+                sub.connect(subGain);
+                this.connectOutput(subGain);
+                sub.start(now);
+                sub.stop(now + duration + 0.08);
 
                 const alarmOsc = this.ctx.createOscillator();
                 const alarmGain = this.ctx.createGain();
                 alarmOsc.type = 'square';
-                alarmOsc.frequency.setValueAtTime(760, now);
-                alarmOsc.frequency.setValueAtTime(610, now + 0.125);
-                alarmOsc.frequency.setValueAtTime(760, now + 0.25);
-                alarmOsc.frequency.setValueAtTime(610, now + 0.375);
-                alarmOsc.frequency.setValueAtTime(760, now + 0.50);
-                alarmOsc.frequency.setValueAtTime(610, now + 0.625);
-                alarmOsc.frequency.setValueAtTime(760, now + 0.75);
-                alarmOsc.frequency.setValueAtTime(560, now + 0.875);
+                alarmOsc.frequency.setValueAtTime(392, now);
+                alarmOsc.frequency.setValueAtTime(311, now + 0.31);
+                alarmOsc.frequency.setValueAtTime(392, now + 0.62);
+                alarmOsc.frequency.setValueAtTime(294, now + 0.93);
+                alarmOsc.frequency.setValueAtTime(233, now + 1.18);
                 alarmGain.gain.setValueAtTime(0.001, now);
 
-                for (let i = 0; i < 4; i++) {
-                    const start = now + i * 0.24;
+                [0.00, 0.36, 0.72, 1.08].forEach((offset, index) => {
+                    const start = now + offset;
+                    const peak = index === 3 ? 0.095 : 0.082;
                     alarmGain.gain.setValueAtTime(0.001, start);
-                    alarmGain.gain.linearRampToValueAtTime(0.115, start + 0.018);
-                    alarmGain.gain.exponentialRampToValueAtTime(0.012, start + 0.17);
-                }
+                    alarmGain.gain.linearRampToValueAtTime(peak, start + 0.045);
+                    alarmGain.gain.exponentialRampToValueAtTime(0.01, start + 0.25);
+                });
                 alarmGain.gain.exponentialRampToValueAtTime(0.001, now + duration);
                 alarmOsc.connect(alarmGain);
                 this.connectOutput(alarmGain);
                 alarmOsc.start(now);
-                alarmOsc.stop(now + duration + 0.04);
+                alarmOsc.stop(now + duration + 0.05);
 
-                const warningBed = this.ctx.createOscillator();
-                const warningGain = this.ctx.createGain();
-                warningBed.type = 'sawtooth';
-                warningBed.frequency.setValueAtTime(118, now);
-                warningBed.frequency.exponentialRampToValueAtTime(82, now + duration);
-                warningGain.gain.setValueAtTime(0.001, now);
-                warningGain.gain.linearRampToValueAtTime(0.045, now + 0.04);
-                warningGain.gain.exponentialRampToValueAtTime(0.001, now + duration);
-                warningBed.connect(warningGain);
-                this.connectOutput(warningGain);
-                warningBed.start(now);
-                warningBed.stop(now + duration + 0.05);
+                const wobble = this.ctx.createOscillator();
+                const wobbleGain = this.ctx.createGain();
+                wobble.type = 'sine';
+                wobble.frequency.setValueAtTime(5.4, now);
+                wobbleGain.gain.setValueAtTime(8, now);
+                wobble.connect(wobbleGain);
+                wobbleGain.connect(alarmOsc.frequency);
+                wobble.start(now);
+                wobble.stop(now + duration + 0.05);
             }
 
             // Play the dramatic grid-sector restored sound between levels.
