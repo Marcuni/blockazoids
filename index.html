@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v126: Full Swarm uses the Web Audio Radar Warning cue and overlaps directly into the Space Invaders-style swarm thump loop.
+Build v127: Max Swarm terminology cleanup; Survivalist remains the bonus label while swarm cue and beat systems use Max Swarm names.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -1208,7 +1208,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 <button id="soundToggleButton" class="menu-button settings-toggle">Sound: On</button>
                 <button id="musicToggleButton" class="menu-button settings-toggle">Music: On</button>
                 <button id="resetHighScoreButton" class="menu-button settings-toggle">Reset High Score</button>
-                <button id="radarWarningTestButton" class="menu-button settings-toggle">RADAR WARNING</button>
+                <button id="maxSwarmSignalTestButton" class="menu-button settings-toggle">MAX SWARM SIGNAL</button>
                 <button id="settingsBackButton" class="menu-back-button">Back</button>
             </div>
             <div id="buildVersion"></div>
@@ -1237,7 +1237,7 @@ This source code, artwork, game design, and related assets are not licensed for 
     <div id="copyrightFooter">© 2026 Marcus Couto</div>
 
     <script>
-        const BUILD_VERSION = 'Build v126';
+        const BUILD_VERSION = 'Build v127';
         document.getElementById('buildVersion').textContent = BUILD_VERSION;
 
         let lastGlobalTouchEndTime = 0;
@@ -1266,8 +1266,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                     minSpawnDistance: 325,     // Minimum spawn distance from player
                     baseSpawnDelay: 5,          // Base enemy spawn delay (seconds)
                     spawnDelayLevelReduction: 0.25, // Spawn delay reduction per level; smaller = slower difficulty ramp
-                    baseMaxEnemies: 8,         // Constant maximum number of enemies on screen
-                    maxEnemyCap: 8,            // Hard cap for enemies on screen
+                    normalSwarmSize: 8,        // Normal Block-A-Zoid swarm size before overtime escalation
                     baseSpeeds: { small: 3, medium: 2, large: 1.5 }, // Base speeds for enemy sizes
                     baseBombs: 3,              // Starting number of bombs
                     unusedBombBonus: 50,       // End-of-level bonus for each unused bomb
@@ -1314,7 +1313,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.musicToggleButton = document.getElementById('musicToggleButton');
                 this.highScoreHud = document.getElementById('highScoreHud');
                 this.resetHighScoreButton = document.getElementById('resetHighScoreButton');
-                this.radarWarningTestButton = document.getElementById('radarWarningTestButton');
+                this.maxSwarmSignalTestButton = document.getElementById('maxSwarmSignalTestButton');
                 this.resetHighScorePending = false;
                 this.resetHighScoreConfirmTimer = null;
                 this.menuButtons = document.getElementById('menuButtons');
@@ -1326,7 +1325,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 // Game constants derived from the actual iPhone-sized board.
                 this.configureResponsivePlayfield();
                 this.spawnDelay = this.parameters.baseSpawnDelay;
-                this.MAX_ENEMIES = this.parameters.maxEnemyCap;
+                this.normalSwarmSize = this.parameters.normalSwarmSize;
                 this.MAX_LEVEL = 15; // Sector Maps campaign length
                 this.BASE_BLINKING_CRYSTAL_COUNT = 5; // Each level starts with five blinking crystal choices
                 this.currentBlinkingCrystalCount = this.BASE_BLINKING_CRYSTAL_COUNT; // Bomb use lowers this for the current level only
@@ -1381,9 +1380,9 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.activeBlinkingCrystals = [];     // Current selectable blinking crystals; kept stable between pickups
                 this.survivalScoreAccumulator = 0;   // Tracks active gameplay seconds for +1 point per second
                 this.sectorElapsedMs = 0;            // Total active time in the current sector
-                this.survivalistQualifiedThisSector = false; // True once max active Block-A-Zoids are on screen
-                this.survivalistCueTimer = null;      // Delays the actual max-swarm bonus trigger so it does not overlap the final spawn sound
-                this.survivalistCueDelayMs = 1000;    // One-second gap after the final enemy materializes
+                this.maxSwarmReachedThisSector = false; // True once max active Block-A-Zoids are on screen
+                this.maxSwarmCueTimer = null;      // Delays the actual max-swarm bonus trigger so it does not overlap the final spawn sound
+                this.maxSwarmCueDelayMs = 1000;    // One-second gap after the final enemy materializes
                 this.prismRelicCueTimer = null;       // Delays the actual Prism Relic trigger so it does not overlap an enemy spawn sound
                 this.prismRelicCueDelayMs = 1000;     // One-second gap after the threshold enemy materializes
                 this.lastCollectedPos = null;         // Last collected crystal position
@@ -1501,11 +1500,11 @@ This source code, artwork, game design, and related assets are not licensed for 
                     e.stopPropagation();
                     this.requestHighScoreReset();
                 });
-                if (this.radarWarningTestButton) {
-                    this.radarWarningTestButton.addEventListener('click', (e) => {
+                if (this.maxSwarmSignalTestButton) {
+                    this.maxSwarmSignalTestButton.addEventListener('click', (e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        if (this.audio) this.audio.playFullSwarmRadarAlarm();
+                        if (this.audio) this.audio.playMaxSwarmSignal();
                     });
                 }
                 this.updateSoundToggleLabel();
@@ -1677,9 +1676,9 @@ This source code, artwork, game design, and related assets are not licensed for 
             // Adjust spawn delay by level; enemy count stays capped at a constant value. Bomb pressure only affects speed.
             applyLevelParameters() {
                 this.spawnDelay = Math.max(2, this.parameters.baseSpawnDelay - (this.level - 1) * this.parameters.spawnDelayLevelReduction);
-                this.MAX_ENEMIES = this.parameters.maxEnemyCap;
+                this.normalSwarmSize = this.parameters.normalSwarmSize;
 
-                const totalEnemies = this.MAX_ENEMIES;
+                const totalEnemies = this.normalSwarmSize;
                 const smallCount = Math.round(totalEnemies * this.SMALL_SPAWN_PROPORTION);
                 const mediumCount = Math.round(totalEnemies * this.MEDIUM_SPAWN_PROPORTION);
                 const largeCount = Math.round(totalEnemies * this.LARGE_SPAWN_PROPORTION);
@@ -1755,7 +1754,7 @@ This source code, artwork, game design, and related assets are not licensed for 
             // Remove active gameplay objects before starting, jumping, or rebuilding a level.
             clearGameplayObjects() {
                 this.clearPendingSpawnWarnings();
-                this.clearSurvivalistCueTimer();
+                this.clearMaxSwarmCueTimer();
                 this.clearPrismRelicCueTimer();
                 this.removePrismRelic();
 
@@ -1786,10 +1785,10 @@ This source code, artwork, game design, and related assets are not licensed for 
             }
 
             // Stop any delayed max-swarm trigger so it cannot fire after pause, restart, or level transition.
-            clearSurvivalistCueTimer() {
-                if (this.survivalistCueTimer) {
-                    clearTimeout(this.survivalistCueTimer);
-                    this.survivalistCueTimer = null;
+            clearMaxSwarmCueTimer() {
+                if (this.maxSwarmCueTimer) {
+                    clearTimeout(this.maxSwarmCueTimer);
+                    this.maxSwarmCueTimer = null;
                 }
             }
 
@@ -1810,7 +1809,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.isPaused = false;
                 this.gameplayRunToken++;
                 this.clearUpdateGameTimer();
-                this.clearSurvivalistCueTimer();
+                this.clearMaxSwarmCueTimer();
                 this.clearPrismRelicCueTimer();
                 this.releaseWakeLock();
                 this.isGameOver = false;
@@ -1855,8 +1854,8 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.activeBlinkingCrystals = [];
                 this.survivalScoreAccumulator = 0;
                 this.sectorElapsedMs = 0;
-                this.survivalistQualifiedThisSector = false;
-                this.clearSurvivalistCueTimer();
+                this.maxSwarmReachedThisSector = false;
+                this.clearMaxSwarmCueTimer();
                 this.clearPrismRelicCueTimer();
                 this.lastCollectedPos = null;
                 this.applyLevelParameters();
@@ -1938,11 +1937,11 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.clearUpdateGameTimer();
                 this.clearGameOverlayForGameplay();
                 this.audio.startBackgroundMusic(this.level);
-                if (this.survivalistQualifiedThisSector && this.enemies.length >= this.MAX_ENEMIES) this.audio.startFullSwarmPressureLoop(0);
+                if (this.maxSwarmReachedThisSector && this.enemies.length >= this.normalSwarmSize) this.audio.startMaxSwarmBeat(0);
                 if (this.prismRelic) this.audio.startPrismRelicHum();
                 this.requestWakeLock();
                 this.checkPrismRelicSpawnProgress();
-                this.checkSurvivalistProgress();
+                this.checkMaxSwarmProgress();
                 requestAnimationFrame((timestamp) => this.gameLoop(timestamp, runToken));
                 this.updateGame();
             }
@@ -1966,7 +1965,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                     this.soundToggleButton,
                     this.musicToggleButton,
                     this.resetHighScoreButton,
-                    this.radarWarningTestButton,
+                    this.maxSwarmSignalTestButton,
                     this.levelSelectCloseButton
                 ].forEach(button => {
                     if (button && typeof button.blur === 'function') button.blur();
@@ -2240,7 +2239,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.audio.stopBackgroundMusic();
                 this.audio.stopPrismRelicHum();
                 this.clearUpdateGameTimer();
-                this.clearSurvivalistCueTimer();
+                this.clearMaxSwarmCueTimer();
                 this.clearPrismRelicCueTimer();
                 this.levelSelectWindow.style.display = 'none';
                 this.pauseWindow.style.display = 'none';
@@ -2257,7 +2256,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.lastPauseTapTime = 0;
                 this.gameplayRunToken++;
                 this.clearUpdateGameTimer();
-                this.clearSurvivalistCueTimer();
+                this.clearMaxSwarmCueTimer();
                 this.clearPrismRelicCueTimer();
                 this.clearPendingSpawnWarnings(true);
                 this.audio.stopBackgroundMusic();
@@ -2288,11 +2287,11 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.clearUpdateGameTimer();
                 this.clearGameOverlayForGameplay();
                 this.audio.startBackgroundMusic(this.level);
-                if (this.survivalistQualifiedThisSector && this.enemies.length >= this.MAX_ENEMIES) this.audio.startFullSwarmPressureLoop(0);
+                if (this.maxSwarmReachedThisSector && this.enemies.length >= this.normalSwarmSize) this.audio.startMaxSwarmBeat(0);
                 if (this.prismRelic) this.audio.startPrismRelicHum();
                 this.requestWakeLock();
                 this.checkPrismRelicSpawnProgress();
-                this.checkSurvivalistProgress();
+                this.checkMaxSwarmProgress();
                 requestAnimationFrame((timestamp) => this.gameLoop(timestamp, runToken));
                 this.updateGame();
             }
@@ -2818,25 +2817,25 @@ This source code, artwork, game design, and related assets are not licensed for 
                 if (this.prismRelicSpawnedThisSector || this.prismRelicRecoveredThisSector || this.prismRelic || this.prismRelicCueTimer) return;
                 if (!this.active || this.isPaused || this.isGameOver || !this.levelActionStarted) return;
 
-                const spawnEnemyThreshold = Math.ceil(this.MAX_ENEMIES * this.parameters.prismRelicSpawnEnemyRatio);
+                const spawnEnemyThreshold = Math.ceil(this.normalSwarmSize * this.parameters.prismRelicSpawnEnemyRatio);
                 if (this.enemies.length >= spawnEnemyThreshold) {
                     this.spawnPrismRelic();
                 }
             }
 
 
-            checkSurvivalistProgress() {
-                if (this.survivalistQualifiedThisSector || this.survivalistCueTimer) return;
+            checkMaxSwarmProgress() {
+                if (this.maxSwarmReachedThisSector || this.maxSwarmCueTimer) return;
                 if (!this.active || this.isPaused || this.isGameOver || !this.levelActionStarted) return;
 
-                if (this.enemies.length >= this.MAX_ENEMIES) {
-                    this.survivalistCueTimer = setTimeout(() => {
-                        this.survivalistCueTimer = null;
+                if (this.enemies.length >= this.normalSwarmSize) {
+                    this.maxSwarmCueTimer = setTimeout(() => {
+                        this.maxSwarmCueTimer = null;
                         if (!this.active || this.isPaused || this.isGameOver || !this.levelActionStarted) return;
-                        if (this.enemies.length < this.MAX_ENEMIES) return;
-                        this.survivalistQualifiedThisSector = true;
-                        this.audio.playSurvivalistCue();
-                    }, this.survivalistCueDelayMs);
+                        if (this.enemies.length < this.normalSwarmSize) return;
+                        this.maxSwarmReachedThisSector = true;
+                        this.audio.playMaxSwarmCue();
+                    }, this.maxSwarmCueDelayMs);
                 }
             }
 
@@ -3122,7 +3121,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                     const enemy = new Enemy(this, type, { x: location.x, y: location.y });
                     this.enemies.push(enemy);
                     this.checkPrismRelicSpawnProgress();
-                    this.checkSurvivalistProgress();
+                    this.checkMaxSwarmProgress();
                     if (enemy.size === this.PLAYER_SIZE) this.spawnedCount.small++;
                     else if (enemy.size === this.PLAYER_SIZE * 2) this.spawnedCount.medium++;
                     else this.spawnedCount.large++;
@@ -3138,7 +3137,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 if (!this.active || this.isPaused || this.isGameOver || !this.levelActionStarted) return; // Exit if game is paused, waiting, or over
 
                 if (this.spawnCounter >= this.spawnDelay && 
-                    this.enemies.length + this.pendingSpawnWarnings.length < this.MAX_ENEMIES &&
+                    this.enemies.length + this.pendingSpawnWarnings.length < this.normalSwarmSize &&
                     this.spawnQueue.length > 0) { // Telegraph the next enemy if conditions met
                     const nextType = this.spawnQueue[0];
                     if (this.startEnemySpawnWarning(nextType)) {
@@ -3170,8 +3169,8 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.audio.stopBackgroundMusic();
 
                 const unusedBombBonus = this.bombsLeft * this.parameters.unusedBombBonus;
-                const survivalistBonus = this.survivalistQualifiedThisSector ? this.parameters.survivalistBonus : 0;
-                const perfectSectorBonus = this.bombPressure === 0 && this.prismRelicRecoveredThisSector && this.survivalistQualifiedThisSector ? this.parameters.perfectSectorBonus : 0;
+                const survivalistBonus = this.maxSwarmReachedThisSector ? this.parameters.survivalistBonus : 0;
+                const perfectSectorBonus = this.bombPressure === 0 && this.prismRelicRecoveredThisSector && this.maxSwarmReachedThisSector ? this.parameters.perfectSectorBonus : 0;
                 const relicRecoveredBonus = this.prismRelicRecoveredThisSector ? this.parameters.prismRelicBonus : 0;
                 const cycleBonus = completedLevel >= this.MAX_LEVEL ? this.parameters.gameCycleBonus : 0;
                 const totalBonus = unusedBombBonus + survivalistBonus + perfectSectorBonus + relicRecoveredBonus + cycleBonus;
@@ -3311,8 +3310,8 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.currentBlinkingCrystalCount = this.BASE_BLINKING_CRYSTAL_COUNT;
                 this.survivalScoreAccumulator = 0;
                 this.sectorElapsedMs = 0;
-                this.survivalistQualifiedThisSector = false;
-                this.clearSurvivalistCueTimer();
+                this.maxSwarmReachedThisSector = false;
+                this.clearMaxSwarmCueTimer();
                 this.clearPrismRelicCueTimer();
                 this.removePrismRelic();
                 this.colorGroupsCompletedThisSector = 0;
@@ -3330,7 +3329,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.ui.updateAll();
                 this.gameplayRunToken++;
                 this.clearUpdateGameTimer();
-                this.clearSurvivalistCueTimer();
+                this.clearMaxSwarmCueTimer();
                 this.clearPrismRelicCueTimer();
                 this.player.reset();
                 this.audio.stopBackgroundMusic();
@@ -3597,7 +3596,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                     this.container.classList.add('shake'); // Apply screen shake
 
                     if (this.enemies.length > 0) { // Enemies present
-                        const wasMaxSwarmPressure = this.audio && this.audio.fullSwarmPressurePlaying;
+                        const wasMaxSwarmPressure = this.audio && this.audio.maxSwarmBeatPlaying;
                         this.enemies.forEach(enemy => {
                             this.explosions.push(new Explosion(this, enemy.x + enemy.size / 2, enemy.y + enemy.size / 2, false)); // Create explosion
                             enemy.element.remove(); // Remove enemy
@@ -3722,7 +3721,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.isPaused = false;
                 this.gameplayRunToken++;
                 this.clearUpdateGameTimer();
-                this.clearSurvivalistCueTimer();
+                this.clearMaxSwarmCueTimer();
                 this.clearPrismRelicCueTimer();
                 this.releaseWakeLock();
                 this.pauseWindow.style.display = 'none';
@@ -3799,7 +3798,7 @@ BLOCK-A-ZOIDS RETURN`;
                 this.isPaused = false;
                 this.gameplayRunToken++;
                 this.clearUpdateGameTimer();
-                this.clearSurvivalistCueTimer();
+                this.clearMaxSwarmCueTimer();
                 this.clearPrismRelicCueTimer();
                 this.releaseWakeLock();
                 this.pauseWindow.style.display = 'none';
@@ -4361,9 +4360,9 @@ BLOCK-A-ZOIDS RETURN`;
                 this.backgroundTimers = []; // Timers used by the background rhythm loop
                 this.backgroundMixGain = null; // Dedicated gain so paused/stopped gameplay music cuts off cleanly
                 this.backgroundMusicPlaying = false; // Prevents older rhythm loops from stacking
-                this.fullSwarmPressurePlaying = false; // Dedicated Max Swarm marching-thump background loop
-                this.fullSwarmPressureTimers = [];
-                this.fullSwarmPressureOscillators = [];
+                this.maxSwarmBeatPlaying = false; // Dedicated Max Swarm marching-thump background loop
+                this.maxSwarmBeatTimers = [];
+                this.maxSwarmBeatOscillators = [];
                 this.musicMuted = this.loadMusicMutedSetting();
                 this.prismRelicHumOscillators = []; // Sustained hum while the Prism Relic is active
                 this.prismRelicHumGains = [];
@@ -4487,13 +4486,13 @@ BLOCK-A-ZOIDS RETURN`;
                 return timer;
             }
 
-            scheduleFullSwarmPressure(callback, delay) {
+            scheduleMaxSwarmBeat(callback, delay) {
                 const timer = setTimeout(() => {
-                    this.fullSwarmPressureTimers = this.fullSwarmPressureTimers.filter(id => id !== timer);
-                    if (!this.fullSwarmPressurePlaying || !this.backgroundMusicPlaying) return;
+                    this.maxSwarmBeatTimers = this.maxSwarmBeatTimers.filter(id => id !== timer);
+                    if (!this.maxSwarmBeatPlaying || !this.backgroundMusicPlaying) return;
                     callback();
                 }, delay);
-                this.fullSwarmPressureTimers.push(timer);
+                this.maxSwarmBeatTimers.push(timer);
                 return timer;
             }
 
@@ -4521,18 +4520,18 @@ BLOCK-A-ZOIDS RETURN`;
                 this.backgroundGains = [];
             }
 
-            stopFullSwarmPressureLoop() {
-                this.fullSwarmPressurePlaying = false;
-                this.fullSwarmPressureTimers.forEach(timer => clearTimeout(timer));
-                this.fullSwarmPressureTimers = [];
+            stopMaxSwarmBeat() {
+                this.maxSwarmBeatPlaying = false;
+                this.maxSwarmBeatTimers.forEach(timer => clearTimeout(timer));
+                this.maxSwarmBeatTimers = [];
 
-                this.fullSwarmPressureOscillators.forEach(osc => {
+                this.maxSwarmBeatOscillators.forEach(osc => {
                     try { osc.stop(); } catch (_) {}
                 });
-                this.fullSwarmPressureOscillators = [];
+                this.maxSwarmBeatOscillators = [];
             }
 
-            playFullSwarmThump(start, stepIndex = 0) {
+            playMaxSwarmThump(start, stepIndex = 0) {
                 if (!this.ctx || this.ctx.state === 'closed' || !this.backgroundMixGain) return;
 
                 // Max Swarm uses an arcade marching-thump voice: low body plus a small upper click
@@ -4575,28 +4574,28 @@ BLOCK-A-ZOIDS RETURN`;
 
                 [thump, thumpBody, click].forEach(osc => {
                     this.backgroundOscillators.push(osc);
-                    this.fullSwarmPressureOscillators.push(osc);
+                    this.maxSwarmBeatOscillators.push(osc);
                     osc.onended = () => {
                         this.backgroundOscillators = this.backgroundOscillators.filter(item => item !== osc);
-                        this.fullSwarmPressureOscillators = this.fullSwarmPressureOscillators.filter(item => item !== osc);
+                        this.maxSwarmBeatOscillators = this.maxSwarmBeatOscillators.filter(item => item !== osc);
                     };
                     osc.start(start);
                     osc.stop(start + 0.31);
                 });
             }
 
-            startFullSwarmPressureLoop(delaySeconds = 0) {
+            startMaxSwarmBeat(delaySeconds = 0) {
                 this.ensureAudio();
                 if (!this.ctx || this.ctx.state === 'closed') return;
-                if (this.fullSwarmPressurePlaying) return;
+                if (this.maxSwarmBeatPlaying) return;
 
                 // Replace the normal gameplay song at the requested moment.
                 // If an alarm is playing first, keep the old song alive until the thump loop begins.
-                this.stopFullSwarmPressureLoop();
-                this.fullSwarmPressurePlaying = true;
+                this.stopMaxSwarmBeat();
+                this.maxSwarmBeatPlaying = true;
 
                 const launchPressureLoop = () => {
-                    if (!this.fullSwarmPressurePlaying || !this.ctx || this.ctx.state === 'closed') return;
+                    if (!this.maxSwarmBeatPlaying || !this.ctx || this.ctx.state === 'closed') return;
 
                     this.stopCurrentBackgroundVoicesOnly();
                     this.backgroundMusicPlaying = true;
@@ -4612,7 +4611,7 @@ BLOCK-A-ZOIDS RETURN`;
                     let nextPatternStart = now + 0.002;
 
                     const schedulePattern = () => {
-                        if (!this.fullSwarmPressurePlaying || !this.backgroundMusicPlaying || !this.ctx || this.ctx.state === 'closed') return;
+                        if (!this.maxSwarmBeatPlaying || !this.backgroundMusicPlaying || !this.ctx || this.ctx.state === 'closed') return;
 
                         const currentTime = this.ctx.currentTime;
                         while (nextPatternStart < currentTime + 0.025) {
@@ -4621,12 +4620,12 @@ BLOCK-A-ZOIDS RETURN`;
 
                         for (let index = 0; index < patternLength; index++) {
                             const start = nextPatternStart + index * beatSeconds;
-                            this.playFullSwarmThump(start, index);
+                            this.playMaxSwarmThump(start, index);
                         }
 
                         nextPatternStart += beatSeconds * patternLength;
                         const delayMs = Math.max(80, (nextPatternStart - this.ctx.currentTime - 0.08) * 1000);
-                        this.scheduleFullSwarmPressure(schedulePattern, delayMs);
+                        this.scheduleMaxSwarmBeat(schedulePattern, delayMs);
                     };
 
                     schedulePattern();
@@ -4634,7 +4633,7 @@ BLOCK-A-ZOIDS RETURN`;
 
                 const delayMs = Math.max(0, delaySeconds * 1000);
                 if (delayMs > 0) {
-                    this.scheduleFullSwarmPressure(launchPressureLoop, delayMs);
+                    this.scheduleMaxSwarmBeat(launchPressureLoop, delayMs);
                 } else {
                     launchPressureLoop();
                 }
@@ -4989,7 +4988,7 @@ BLOCK-A-ZOIDS RETURN`;
             }
 
             // Space Invaders-style marching thump when the maximum Block-A-Zoid swarm is active.
-            // Radar Warning: bright Web Audio radar-ping cue, then immediate marching thump.
+            // Radar-style Max Swarm signal: bright Web Audio ping cue, then immediate marching thump.
             createSoftClipper(drive = 1.35) {
                 const shaper = this.ctx.createWaveShaper();
                 const samples = 256;
@@ -5003,7 +5002,7 @@ BLOCK-A-ZOIDS RETURN`;
                 return shaper;
             }
 
-            playFullSwarmRadarAlarm() {
+            playMaxSwarmSignal() {
                 this.ensureAudio();
                 if (!this.ctx || this.ctx.state === 'closed') return 0;
 
@@ -5079,11 +5078,11 @@ BLOCK-A-ZOIDS RETURN`;
                 return 1.04;
             }
 
-            // Full Swarm warning: Radar Warning overlaps directly into the Space Invaders-style marching thump.
-            playSurvivalistCue() {
+            // Max Swarm cue: signal overlaps directly into the Space Invaders-style marching thump.
+            playMaxSwarmCue() {
                 this.ensureAudio();
-                const alarmDuration = this.playFullSwarmRadarAlarm();
-                this.startFullSwarmPressureLoop(Math.max(0, alarmDuration - 0.22));
+                const alarmDuration = this.playMaxSwarmSignal();
+                this.startMaxSwarmBeat(Math.max(0, alarmDuration - 0.22));
             }
 
             // Play the dramatic grid-sector restored sound between levels.
@@ -5701,7 +5700,7 @@ BLOCK-A-ZOIDS RETURN`;
 
             // Stop background music and clear oscillators/timers
             stopBackgroundMusic() {
-                this.stopFullSwarmPressureLoop();
+                this.stopMaxSwarmBeat();
                 this.backgroundMusicPlaying = false;
                 this.backgroundTimers.forEach(timer => clearTimeout(timer));
                 this.backgroundTimers = [];
