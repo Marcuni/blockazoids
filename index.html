@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v121: Full Swarm visual flashing removed; low thump pressure loop added after the alarm.
+Build v122: Full Swarm uses a sub-style battle-stations alarm, then switches to a dedicated max-swarm thump loop; easter egg delay tuned.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -1236,7 +1236,7 @@ This source code, artwork, game design, and related assets are not licensed for 
     <div id="copyrightFooter">© 2026 Marcus Couto</div>
 
     <script>
-        const BUILD_VERSION = 'Build v121';
+        const BUILD_VERSION = 'Build v122';
         document.getElementById('buildVersion').textContent = BUILD_VERSION;
 
         let lastGlobalTouchEndTime = 0;
@@ -1525,8 +1525,8 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.marqueeReturnTimer = null;
                 this.marqueeMidGlitchTimer = null;
                 this.lastMarqueeEasterEggShakeTime = 0;
-                this.marqueeEasterEggShakeCooldownMs = 1600;
-                this.marqueeEasterEggUnlockDelayMs = 10000;
+                this.marqueeEasterEggShakeCooldownMs = 2000;
+                this.marqueeEasterEggUnlockDelayMs = 20000;
                 this.attractModeStartedAt = 0;
                 this.marqueePreviewLabelTimer = null;
 
@@ -4347,7 +4347,7 @@ BLOCK-A-ZOIDS RETURN`;
                 this.backgroundTimers = []; // Timers used by the background rhythm loop
                 this.backgroundMixGain = null; // Dedicated gain so paused/stopped gameplay music cuts off cleanly
                 this.backgroundMusicPlaying = false; // Prevents older rhythm loops from stacking
-                this.fullSwarmPressurePlaying = false; // Low thump layer after the Full Swarm alarm
+                this.fullSwarmPressurePlaying = false; // Dedicated Max Swarm background loop after the Full Swarm alarm
                 this.fullSwarmPressureTimers = [];
                 this.fullSwarmPressureOscillators = [];
                 this.musicMuted = this.loadMusicMutedSetting();
@@ -4483,6 +4483,30 @@ BLOCK-A-ZOIDS RETURN`;
                 return timer;
             }
 
+            stopCurrentBackgroundVoicesOnly() {
+                this.backgroundTimers.forEach(timer => clearTimeout(timer));
+                this.backgroundTimers = [];
+
+                const now = this.ctx ? this.ctx.currentTime : 0;
+                if (this.backgroundMixGain && this.ctx) {
+                    try {
+                        this.backgroundMixGain.gain.cancelScheduledValues(now);
+                        this.backgroundMixGain.gain.setValueAtTime(0.001, now);
+                    } catch (_) {}
+                    const oldMix = this.backgroundMixGain;
+                    setTimeout(() => {
+                        try { oldMix.disconnect(); } catch (_) {}
+                    }, 80);
+                    this.backgroundMixGain = null;
+                }
+
+                this.backgroundOscillators.forEach(osc => {
+                    try { osc.stop(now); } catch (_) {}
+                });
+                this.backgroundOscillators = [];
+                this.backgroundGains = [];
+            }
+
             stopFullSwarmPressureLoop() {
                 this.fullSwarmPressurePlaying = false;
                 this.fullSwarmPressureTimers.forEach(timer => clearTimeout(timer));
@@ -4500,57 +4524,83 @@ BLOCK-A-ZOIDS RETURN`;
                 const sub = this.ctx.createOscillator();
                 const subGain = this.ctx.createGain();
                 sub.type = 'sine';
-                sub.frequency.setValueAtTime(58, start);
-                sub.frequency.exponentialRampToValueAtTime(38, start + 0.105);
+                sub.frequency.setValueAtTime(76, start);
+                sub.frequency.exponentialRampToValueAtTime(42, start + 0.095);
                 sub.connect(subGain);
                 subGain.connect(this.backgroundMixGain);
 
                 subGain.gain.setValueAtTime(0.001, start);
-                subGain.gain.linearRampToValueAtTime(0.058, start + 0.012);
-                subGain.gain.exponentialRampToValueAtTime(0.001, start + 0.115);
+                subGain.gain.linearRampToValueAtTime(0.14, start + 0.01);
+                subGain.gain.exponentialRampToValueAtTime(0.001, start + 0.13);
 
-                const click = this.ctx.createOscillator();
-                const clickGain = this.ctx.createGain();
-                click.type = 'triangle';
-                click.frequency.setValueAtTime(116, start);
-                click.frequency.exponentialRampToValueAtTime(78, start + 0.055);
-                click.connect(clickGain);
-                clickGain.connect(this.backgroundMixGain);
+                const body = this.ctx.createOscillator();
+                const bodyGain = this.ctx.createGain();
+                body.type = 'triangle';
+                body.frequency.setValueAtTime(152, start);
+                body.frequency.exponentialRampToValueAtTime(82, start + 0.07);
+                body.connect(bodyGain);
+                bodyGain.connect(this.backgroundMixGain);
 
-                clickGain.gain.setValueAtTime(0.001, start);
-                clickGain.gain.linearRampToValueAtTime(0.018, start + 0.006);
-                clickGain.gain.exponentialRampToValueAtTime(0.001, start + 0.058);
+                bodyGain.gain.setValueAtTime(0.001, start);
+                bodyGain.gain.linearRampToValueAtTime(0.055, start + 0.006);
+                bodyGain.gain.exponentialRampToValueAtTime(0.001, start + 0.085);
 
-                this.backgroundOscillators.push(sub, click);
-                this.fullSwarmPressureOscillators.push(sub, click);
+                // Tiny upper transient so the thump still reads on small phone speakers.
+                const tick = this.ctx.createOscillator();
+                const tickGain = this.ctx.createGain();
+                tick.type = 'square';
+                tick.frequency.setValueAtTime(310, start);
+                tick.frequency.exponentialRampToValueAtTime(190, start + 0.026);
+                tick.connect(tickGain);
+                tickGain.connect(this.backgroundMixGain);
+
+                tickGain.gain.setValueAtTime(0.001, start);
+                tickGain.gain.linearRampToValueAtTime(0.018, start + 0.004);
+                tickGain.gain.exponentialRampToValueAtTime(0.001, start + 0.035);
+
+                this.backgroundOscillators.push(sub, body, tick);
+                this.fullSwarmPressureOscillators.push(sub, body, tick);
                 const cleanup = () => {
-                    this.backgroundOscillators = this.backgroundOscillators.filter(item => item !== sub && item !== click);
-                    this.fullSwarmPressureOscillators = this.fullSwarmPressureOscillators.filter(item => item !== sub && item !== click);
+                    this.backgroundOscillators = this.backgroundOscillators.filter(item => item !== sub && item !== body && item !== tick);
+                    this.fullSwarmPressureOscillators = this.fullSwarmPressureOscillators.filter(item => item !== sub && item !== body && item !== tick);
                 };
                 sub.onended = cleanup;
 
                 sub.start(start);
-                click.start(start);
-                sub.stop(start + 0.14);
-                click.stop(start + 0.075);
+                body.start(start);
+                tick.start(start);
+                sub.stop(start + 0.15);
+                body.stop(start + 0.10);
+                tick.stop(start + 0.045);
             }
 
             startFullSwarmPressureLoop(delaySeconds = 0) {
-                if (this.fullSwarmPressurePlaying || !this.backgroundMusicPlaying) return;
+                if (this.fullSwarmPressurePlaying) return;
                 this.ensureAudio();
                 if (!this.ctx || this.ctx.state === 'closed') return;
 
+                // Replace the normal gameplay song. This is the actual Max Swarm background, not an added layer.
+                this.stopFullSwarmPressureLoop();
+                this.stopCurrentBackgroundVoicesOnly();
+                this.backgroundMusicPlaying = true;
                 this.fullSwarmPressurePlaying = true;
-                const beatSeconds = 0.375;
+
+                const now = this.ctx.currentTime;
+                this.backgroundMixGain = this.ctx.createGain();
+                this.backgroundMixGain.gain.setValueAtTime(0.001, now);
+                this.backgroundMixGain.gain.linearRampToValueAtTime(0.82, now + 0.10);
+                this.backgroundMixGain.connect(this.musicGain || this.masterGain);
+
+                const beatSeconds = 0.36;
                 const pattern = [1, 1, 0, 1, 1, 0, 0, 0]; // |xxox|xooo|
                 const patternSeconds = beatSeconds * pattern.length;
-                let nextPatternStart = this.ctx.currentTime + Math.max(0, delaySeconds);
+                let nextPatternStart = now + Math.max(0, delaySeconds);
 
                 const schedulePattern = () => {
                     if (!this.fullSwarmPressurePlaying || !this.backgroundMusicPlaying || !this.ctx || this.ctx.state === 'closed') return;
 
-                    const now = this.ctx.currentTime;
-                    while (nextPatternStart < now + 0.025) {
+                    const currentTime = this.ctx.currentTime;
+                    while (nextPatternStart < currentTime + 0.025) {
                         nextPatternStart += patternSeconds;
                     }
 
@@ -4916,72 +4966,63 @@ BLOCK-A-ZOIDS RETURN`;
                 });
             }
 
-            // Dark danger alarm when the maximum Block-A-Zoid swarm is active.
+            // Sub-style battle-stations alarm when the maximum Block-A-Zoid swarm is active.
             playSurvivalistCue() {
                 this.ensureAudio();
                 const now = this.ctx.currentTime;
-                const duration = 1.45;
+                const duration = 1.62;
 
-                const drone = this.ctx.createOscillator();
-                const droneGain = this.ctx.createGain();
-                drone.type = 'sawtooth';
-                drone.frequency.setValueAtTime(58, now);
-                drone.frequency.exponentialRampToValueAtTime(46, now + duration);
-                droneGain.gain.setValueAtTime(0.001, now);
-                droneGain.gain.linearRampToValueAtTime(0.07, now + 0.09);
-                droneGain.gain.setValueAtTime(0.065, now + 0.95);
-                droneGain.gain.exponentialRampToValueAtTime(0.001, now + duration);
-                drone.connect(droneGain);
-                this.connectOutput(droneGain);
-                drone.start(now);
-                drone.stop(now + duration + 0.06);
-
-                const sub = this.ctx.createOscillator();
-                const subGain = this.ctx.createGain();
-                sub.type = 'sine';
-                sub.frequency.setValueAtTime(87, now);
-                sub.frequency.exponentialRampToValueAtTime(69, now + duration);
-                subGain.gain.setValueAtTime(0.001, now);
-                subGain.gain.linearRampToValueAtTime(0.052, now + 0.12);
-                subGain.gain.exponentialRampToValueAtTime(0.001, now + duration + 0.05);
-                sub.connect(subGain);
-                this.connectOutput(subGain);
-                sub.start(now);
-                sub.stop(now + duration + 0.08);
-
-                const alarmOsc = this.ctx.createOscillator();
-                const alarmGain = this.ctx.createGain();
-                alarmOsc.type = 'square';
-                alarmOsc.frequency.setValueAtTime(392, now);
-                alarmOsc.frequency.setValueAtTime(311, now + 0.31);
-                alarmOsc.frequency.setValueAtTime(392, now + 0.62);
-                alarmOsc.frequency.setValueAtTime(294, now + 0.93);
-                alarmOsc.frequency.setValueAtTime(233, now + 1.18);
-                alarmGain.gain.setValueAtTime(0.001, now);
-
-                [0.00, 0.36, 0.72, 1.08].forEach((offset, index) => {
+                const playHornPulse = (offset, freqStart, freqEnd, peak = 0.13) => {
                     const start = now + offset;
-                    const peak = index === 3 ? 0.095 : 0.082;
-                    alarmGain.gain.setValueAtTime(0.001, start);
-                    alarmGain.gain.linearRampToValueAtTime(peak, start + 0.045);
-                    alarmGain.gain.exponentialRampToValueAtTime(0.01, start + 0.25);
-                });
-                alarmGain.gain.exponentialRampToValueAtTime(0.001, now + duration);
-                alarmOsc.connect(alarmGain);
-                this.connectOutput(alarmGain);
-                alarmOsc.start(now);
-                alarmOsc.stop(now + duration + 0.05);
+                    const horn = this.ctx.createOscillator();
+                    const hornGain = this.ctx.createGain();
+                    horn.type = 'sawtooth';
+                    horn.frequency.setValueAtTime(freqStart, start);
+                    horn.frequency.exponentialRampToValueAtTime(freqEnd, start + 0.32);
+                    horn.connect(hornGain);
+                    this.connectOutput(hornGain);
 
-                const wobble = this.ctx.createOscillator();
-                const wobbleGain = this.ctx.createGain();
-                wobble.type = 'sine';
-                wobble.frequency.setValueAtTime(5.4, now);
-                wobbleGain.gain.setValueAtTime(8, now);
-                wobble.connect(wobbleGain);
-                wobbleGain.connect(alarmOsc.frequency);
-                wobble.start(now);
-                wobble.stop(now + duration + 0.05);
+                    hornGain.gain.setValueAtTime(0.001, start);
+                    hornGain.gain.linearRampToValueAtTime(peak, start + 0.055);
+                    hornGain.gain.setValueAtTime(peak * 0.72, start + 0.22);
+                    hornGain.gain.exponentialRampToValueAtTime(0.001, start + 0.46);
 
+                    horn.start(start);
+                    horn.stop(start + 0.52);
+
+                    const low = this.ctx.createOscillator();
+                    const lowGain = this.ctx.createGain();
+                    low.type = 'sine';
+                    low.frequency.setValueAtTime(freqStart / 2, start);
+                    low.frequency.exponentialRampToValueAtTime(freqEnd / 2, start + 0.34);
+                    low.connect(lowGain);
+                    this.connectOutput(lowGain);
+                    lowGain.gain.setValueAtTime(0.001, start);
+                    lowGain.gain.linearRampToValueAtTime(peak * 0.52, start + 0.07);
+                    lowGain.gain.exponentialRampToValueAtTime(0.001, start + 0.50);
+                    low.start(start);
+                    low.stop(start + 0.55);
+                };
+
+                // Two low descending horn blasts: submarine / battle-stations feel.
+                playHornPulse(0.00, 164.81, 116.54, 0.132);
+                playHornPulse(0.68, 146.83, 103.83, 0.125);
+
+                const rumble = this.ctx.createOscillator();
+                const rumbleGain = this.ctx.createGain();
+                rumble.type = 'triangle';
+                rumble.frequency.setValueAtTime(48, now);
+                rumble.frequency.exponentialRampToValueAtTime(36, now + duration);
+                rumble.connect(rumbleGain);
+                this.connectOutput(rumbleGain);
+                rumbleGain.gain.setValueAtTime(0.001, now);
+                rumbleGain.gain.linearRampToValueAtTime(0.052, now + 0.10);
+                rumbleGain.gain.setValueAtTime(0.04, now + 1.10);
+                rumbleGain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+                rumble.start(now);
+                rumble.stop(now + duration + 0.05);
+
+                // Start the dedicated Max Swarm background only after the alarm clears.
                 this.startFullSwarmPressureLoop(duration + 0.04);
             }
 
