@@ -1326,7 +1326,7 @@ This source code, artwork, game design, and related assets are not licensed for 
     <div id="copyrightFooter">© 2026 Marcus Couto</div>
 
     <script>
-        const BUILD_VERSION = 'Build v116';
+        const BUILD_VERSION = 'Build v117';
         document.getElementById('buildVersion').textContent = BUILD_VERSION;
 
         let lastGlobalTouchEndTime = 0;
@@ -4688,6 +4688,29 @@ BLOCK-A-ZOIDS RETURN`;
                 return timer;
             }
 
+            scheduleBeatAlignedMusicLoop(loopSeconds, scheduleEvents) {
+                const loopLeadSeconds = 0.07;
+                const minimumLeadSeconds = 0.025;
+                let nextLoopStart = this.ctx.currentTime + loopLeadSeconds;
+
+                const scheduleLoop = () => {
+                    if (!this.backgroundMusicPlaying || this.musicMuted || !this.ctx || this.ctx.state === 'closed') return;
+
+                    while (nextLoopStart < this.ctx.currentTime + minimumLeadSeconds) {
+                        nextLoopStart += loopSeconds;
+                    }
+
+                    const loopStart = nextLoopStart;
+                    scheduleEvents(loopStart);
+                    nextLoopStart += loopSeconds;
+
+                    const delayMs = Math.max(25, (nextLoopStart - this.ctx.currentTime - loopLeadSeconds) * 1000);
+                    this.scheduleBackground(scheduleLoop, delayMs);
+                };
+
+                scheduleLoop();
+            }
+
             pulseGain(gainNode, startValue, endValue, startTime, endTime) {
                 try {
                     gainNode.gain.cancelScheduledValues(startTime);
@@ -5567,15 +5590,9 @@ BLOCK-A-ZOIDS RETURN`;
 
                 const loopSeconds = this.orbThemeTicksToSeconds(ORB_THEME_MIDI.loopTicks);
 
-                const scheduleLoop = () => {
-                    if (!this.backgroundMusicPlaying || this.musicMuted || !this.ctx || this.ctx.state === 'closed') return;
-
-                    const loopStart = this.ctx.currentTime + 0.035;
+                this.scheduleBeatAlignedMusicLoop(loopSeconds, (loopStart) => {
                     ORB_THEME_MIDI.events.forEach(event => this.playOrbThemeMidiEvent(event, loopStart));
-                    this.scheduleBackground(scheduleLoop, Math.max(1000, (loopSeconds - 0.04) * 1000));
-                };
-
-                scheduleLoop();
+                });
             }
 
 
@@ -5589,15 +5606,9 @@ BLOCK-A-ZOIDS RETURN`;
 
                 const loopSeconds = this.sectorCommandTicksToSeconds(SECTOR_COMMAND_MIDI.loopTicks);
 
-                const scheduleLoop = () => {
-                    if (!this.backgroundMusicPlaying || this.musicMuted || !this.ctx || this.ctx.state === 'closed') return;
-
-                    const loopStart = this.ctx.currentTime + 0.035;
+                this.scheduleBeatAlignedMusicLoop(loopSeconds, (loopStart) => {
                     SECTOR_COMMAND_MIDI.events.forEach(event => this.playSectorCommandMidiEvent(event, loopStart));
-                    this.scheduleBackground(scheduleLoop, Math.max(1000, (loopSeconds - 0.04) * 1000));
-                };
-
-                scheduleLoop();
+                });
             }
 
 
@@ -5609,15 +5620,9 @@ BLOCK-A-ZOIDS RETURN`;
                 this.backgroundMixGain.gain.linearRampToValueAtTime(0.53, this.ctx.currentTime + 0.16);
                 this.backgroundMixGain.connect(this.musicGain || this.masterGain);
 
-                const scheduleLoop = () => {
-                    if (!this.backgroundMusicPlaying || this.musicMuted || !this.ctx || this.ctx.state === 'closed') return;
-
-                    const loopStart = this.ctx.currentTime + 0.035;
+                this.scheduleBeatAlignedMusicLoop(NEBULA_BOUNCE_SONG.loopSeconds, (loopStart) => {
                     NEBULA_BOUNCE_SONG.events.forEach(event => this.playNebulaBounceEvent(event, loopStart));
-                    this.scheduleBackground(scheduleLoop, Math.max(1000, (NEBULA_BOUNCE_SONG.loopSeconds - 0.04) * 1000));
-                };
-
-                scheduleLoop();
+                });
             }
 
             playNebulaBounceEvent(event, loopStart) {
