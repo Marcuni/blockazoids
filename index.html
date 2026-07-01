@@ -1284,7 +1284,7 @@ This source code, artwork, game design, and related assets are not licensed for 
     <div id="copyrightFooter">© 2026 Marcus Couto</div>
 
     <script>
-        const BUILD_VERSION = 'Build v110';
+        const BUILD_VERSION = 'Build v111';
         document.getElementById('buildVersion').textContent = BUILD_VERSION;
 
         let lastGlobalTouchEndTime = 0;
@@ -1405,6 +1405,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.bombPressure = 0;                // Extra danger added by bomb use during the current level
                 this.active = false;                  // Game active state
                 this.levelActionStarted = false;      // Enemy spawning/game loop has started for the current level
+                this.showHudDuringSectorIntro = false; // Keep bottom HUD visible while sector name/number is displayed
                 this.isPaused = false;                // Temporary pause-screen state
                 this.updateGameTimer = null;          // Enemy spawn timer so pause/resume cannot duplicate spawn loops
                 this.gameplayRunToken = 0;            // Invalidates old animation frames when pausing/restarting
@@ -1583,9 +1584,9 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.marqueeEasterEggActive = false;
                 this.marqueeEasterEggTimer = null;
                 this.marqueeReturnTimer = null;
-                this.marqueeTapCount = 0;
-                this.lastMarqueeTapTime = 0;
-                this.marqueeTapTimer = null;
+                this.marqueeMidGlitchTimer = null;
+                this.lastMarqueeEasterEggShakeTime = 0;
+                this.marqueeEasterEggShakeCooldownMs = 1600;
                 this.marqueePreviewLabelTimer = null;
 
                 // Initialize level parameters and start attract mode
@@ -1596,7 +1597,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.refreshGameOverlay();
             }
 
-            // Hidden marquee easter egg: triple-click/tap the marquee to reveal the 1983 alternate for seven seconds.
+            // Hidden marquee easter egg: shake the phone during attract mode to reveal the 1983 alternate for seven seconds.
             setupMarqueePreviewCycler() {
                 if (!this.marqueeElement || !this.marqueeImageElement) return;
 
@@ -1610,44 +1611,51 @@ This source code, artwork, game design, and related assets are not licensed for 
                 };
                 probe.src = this.marqueeAlternateSrc;
 
-                this.marqueeElement.addEventListener('pointerup', (e) => this.handleMarqueePreviewTap(e), { passive: false });
+                // On iOS, motion permission still requires a touch gesture. This does not trigger the easter egg.
+                this.marqueeElement.addEventListener('pointerdown', () => this.enableShakeBomb(), { passive: true });
             }
 
-            handleMarqueePreviewTap(e) {
-                if (!this.marqueeImageElement) return;
-                const now = performance.now();
-                if (!this.lastMarqueeTapTime || now - this.lastMarqueeTapTime > 700) {
-                    this.marqueeTapCount = 0;
+            isAttractModeActive() {
+                const showingStartPanel = this.instructionsWindow && this.instructionsWindow.style.display !== 'none';
+                const showingPause = this.pauseWindow && this.pauseWindow.style.display === 'flex';
+                const showingLevelSelect = this.levelSelectWindow && this.levelSelectWindow.style.display === 'flex';
+                return !!this.attractInterval && showingStartPanel && !this.active && !this.isPaused && !this.levelActionStarted && !showingPause && !showingLevelSelect;
+            }
+
+            resetMarqueeEasterEgg() {
+                if (this.marqueeEasterEggTimer) clearTimeout(this.marqueeEasterEggTimer);
+                if (this.marqueeReturnTimer) clearTimeout(this.marqueeReturnTimer);
+                if (this.marqueeMidGlitchTimer) clearTimeout(this.marqueeMidGlitchTimer);
+                this.marqueeEasterEggTimer = null;
+                this.marqueeReturnTimer = null;
+                this.marqueeMidGlitchTimer = null;
+                this.marqueeEasterEggActive = false;
+                if (this.marqueeElement) {
+                    this.marqueeElement.classList.remove('vintageCrtActive', 'vintageCrtGlitch');
                 }
-
-                this.marqueeTapCount++;
-                this.lastMarqueeTapTime = now;
-
-                if (this.marqueeTapTimer) clearTimeout(this.marqueeTapTimer);
-
-                if (this.marqueeTapCount >= 3) {
-                    this.marqueeTapCount = 0;
-                    this.lastMarqueeTapTime = 0;
-                    if (e && e.preventDefault) e.preventDefault();
-                    this.triggerMarqueeEasterEgg();
-                    return;
+                if (this.marqueeImageElement) {
+                    this.marqueeImageElement.classList.remove('marqueeFadeSwap');
+                    this.marqueeImageElement.src = this.marqueeOriginalSrc;
                 }
-
-                this.marqueeTapTimer = setTimeout(() => {
-                    this.marqueeTapCount = 0;
-                    this.lastMarqueeTapTime = 0;
-                }, 720);
+                if (this.audio && this.audio.stopVintageMonitorHum) this.audio.stopVintageMonitorHum();
             }
 
             triggerMarqueeEasterEgg() {
+                if (!this.isAttractModeActive()) return;
                 if (!this.marqueeAlternateAvailable || this.marqueeEasterEggActive || !this.marqueeElement || !this.marqueeImageElement) return;
 
                 this.marqueeEasterEggActive = true;
                 if (this.marqueeEasterEggTimer) clearTimeout(this.marqueeEasterEggTimer);
                 if (this.marqueeReturnTimer) clearTimeout(this.marqueeReturnTimer);
+                if (this.marqueeMidGlitchTimer) clearTimeout(this.marqueeMidGlitchTimer);
 
                 if (this.audio) this.audio.startVintageMonitorHum(7000);
                 this.swapMarqueeImageWithGlitch(this.marqueeAlternateSrc, true, () => {
+                    this.marqueeMidGlitchTimer = setTimeout(() => {
+                        if (!this.marqueeEasterEggActive || !this.isAttractModeActive()) return;
+                        this.pulseMarqueeCrtGlitch(true);
+                    }, 3500);
+
                     this.marqueeEasterEggTimer = setTimeout(() => {
                         this.swapMarqueeImageWithGlitch(this.marqueeOriginalSrc, false, () => {
                             this.marqueeEasterEggActive = false;
@@ -1656,11 +1664,22 @@ This source code, artwork, game design, and related assets are not licensed for 
                 });
             }
 
+            pulseMarqueeCrtGlitch(playStatic = true) {
+                if (!this.marqueeElement) return;
+                if (playStatic && this.audio) this.audio.playMarqueeGlitchZap();
+                if (this.marqueeReturnTimer) clearTimeout(this.marqueeReturnTimer);
+                this.marqueeElement.classList.remove('vintageCrtGlitch');
+                void this.marqueeElement.offsetWidth;
+                this.marqueeElement.classList.add('vintageCrtGlitch');
+                this.marqueeReturnTimer = setTimeout(() => {
+                    if (this.marqueeElement) this.marqueeElement.classList.remove('vintageCrtGlitch');
+                }, 760);
+            }
+
             swapMarqueeImageWithGlitch(nextSrc, vintageActive, afterSwap) {
                 if (!this.marqueeElement || !this.marqueeImageElement) return;
 
-                if (this.audio) this.audio.playMarqueeGlitchZap();
-                this.marqueeElement.classList.add('vintageCrtGlitch');
+                this.pulseMarqueeCrtGlitch(true);
                 this.marqueeImageElement.classList.add('marqueeFadeSwap');
 
                 setTimeout(() => {
@@ -1670,10 +1689,6 @@ This source code, artwork, game design, and related assets are not licensed for 
                     this.marqueeImageElement.classList.remove('marqueeFadeSwap');
                     if (afterSwap) afterSwap();
                 }, 220);
-
-                this.marqueeReturnTimer = setTimeout(() => {
-                    if (this.marqueeElement) this.marqueeElement.classList.remove('vintageCrtGlitch');
-                }, 760);
             }
 
             // Size the board directly for iPhone instead of clipping or transform-scaling a 600px board.
@@ -1836,6 +1851,8 @@ This source code, artwork, game design, and related assets are not licensed for 
             prepareLevelStart(levelNumber, resetScore = false, options = {}) {
                 this.active = false;
                 this.levelActionStarted = false;
+                this.showHudDuringSectorIntro = false;
+                this.resetMarqueeEasterEgg();
                 this.isPaused = false;
                 this.gameplayRunToken++;
                 this.clearUpdateGameTimer();
@@ -1921,6 +1938,8 @@ This source code, artwork, game design, and related assets are not licensed for 
                 const steps = ['3', '2', '1'];
                 const levelName = this.getLevelPatternName(this.level).toUpperCase();
 
+                this.showHudDuringSectorIntro = true;
+                this.ui.updateAll();
                 this.setGameOverlayVisible(true);
                 this.bonusTextElement.classList.add('countdownText');
                 this.bonusTextElement.style.transition = 'opacity 0.12s ease-in-out';
@@ -1928,6 +1947,8 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.bonusTextElement.innerHTML = `<span class="countdown-level-number">GRID SECTOR ${this.level}</span><span class="countdown-level-name">${levelName}</span>`;
 
                 const cancelCountdown = () => {
+                    this.showHudDuringSectorIntro = false;
+                    this.ui.updateAll();
                     this.bonusTextElement.classList.remove('countdownText');
                     this.bonusTextElement.style.opacity = '0';
                     this.bonusTextElement.textContent = '';
@@ -1948,6 +1969,8 @@ This source code, artwork, game design, and related assets are not licensed for 
                 await wait(150);
                 this.bonusTextElement.classList.remove('countdownText');
                 this.bonusTextElement.textContent = '';
+                this.showHudDuringSectorIntro = false;
+                this.ui.updateAll();
                 this.refreshGameOverlay();
                 return loadToken === this.levelLoadToken;
             }
@@ -3684,7 +3707,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 return this.enableShakeInput(true);
             }
 
-            // Shake the phone to use a bomb during active gameplay.
+            // Shake the phone for the attract-mode marquee easter egg, or to use a bomb during active gameplay.
             handleShakeMotion(e) {
                 const a = e.accelerationIncludingGravity || e.acceleration;
                 if (!a) return;
@@ -3706,6 +3729,15 @@ This source code, artwork, game design, and related assets are not licensed for 
                 if (delta < this.shakeThreshold) return;
 
                 const now = performance.now();
+
+                if (this.isAttractModeActive()) {
+                    if (now - this.lastMarqueeEasterEggShakeTime >= this.marqueeEasterEggShakeCooldownMs) {
+                        this.lastMarqueeEasterEggShakeTime = now;
+                        this.triggerMarqueeEasterEgg();
+                    }
+                    return;
+                }
+
                 if (!this.active || this.isPaused || this.isGameOver || !this.levelActionStarted || this.bombsLeft <= 0) return;
                 if (now - this.lastShakeBombTime >= this.shakeBombCooldownMs) {
                     this.lastShakeBombTime = now;
@@ -4456,6 +4488,8 @@ BLOCK-A-ZOIDS RETURN`;
                 this.prismRelicHumGains = [];
                 this.prismRelicHumTimers = [];
                 this.prismRelicHumPlaying = false;
+                this.vintageMonitorHumOscillators = [];
+                this.vintageMonitorHumGain = null;
                 this.muted = this.loadMutedSetting();
                 this.createAudioContext();
             }
@@ -4768,62 +4802,65 @@ BLOCK-A-ZOIDS RETURN`;
                 melody.forEach(note => playNote(note.f, now + note.t, note.d, note.v, note.type));
             }
 
-            // Short glitch burst for the hidden vintage marquee easter egg.
+            // Short static burst for the hidden vintage marquee easter egg.
             playMarqueeGlitchZap() {
                 this.ensureAudio();
                 const now = this.ctx.currentTime;
+                const duration = 0.32;
 
-                const noiseBuffer = this.ctx.createBuffer(1, Math.floor(this.ctx.sampleRate * 0.18), this.ctx.sampleRate);
+                const noiseBuffer = this.ctx.createBuffer(1, Math.floor(this.ctx.sampleRate * duration), this.ctx.sampleRate);
                 const data = noiseBuffer.getChannelData(0);
                 for (let i = 0; i < data.length; i++) {
-                    data[i] = (Math.random() * 2 - 1) * (1 - i / data.length);
+                    const envelope = 1 - (i / data.length) * 0.35;
+                    const crackleGate = Math.random() > 0.08 ? 1 : 0.18;
+                    data[i] = (Math.random() * 2 - 1) * envelope * crackleGate;
                 }
-                const noise = this.ctx.createBufferSource();
-                const noiseGain = this.ctx.createGain();
-                noise.buffer = noiseBuffer;
-                noise.connect(noiseGain);
-                this.connectOutput(noiseGain);
-                noiseGain.gain.setValueAtTime(0.001, now);
-                noiseGain.gain.linearRampToValueAtTime(0.055, now + 0.012);
-                noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.17);
-                noise.start(now);
-                noise.stop(now + 0.19);
 
-                [92, 184, 736].forEach((freq, index) => {
-                    const start = now + index * 0.028;
-                    const osc = this.ctx.createOscillator();
-                    const gainNode = this.ctx.createGain();
-                    osc.type = index === 2 ? 'square' : 'sawtooth';
-                    osc.frequency.setValueAtTime(freq * 1.35, start);
-                    osc.frequency.exponentialRampToValueAtTime(Math.max(48, freq * 0.58), start + 0.12);
-                    osc.connect(gainNode);
-                    this.connectOutput(gainNode);
-                    gainNode.gain.setValueAtTime(0.001, start);
-                    gainNode.gain.linearRampToValueAtTime(index === 2 ? 0.045 : 0.036, start + 0.01);
-                    gainNode.gain.exponentialRampToValueAtTime(0.001, start + 0.13);
-                    osc.start(start);
-                    osc.stop(start + 0.16);
-                });
+                const noise = this.ctx.createBufferSource();
+                const highpass = this.ctx.createBiquadFilter();
+                const lowpass = this.ctx.createBiquadFilter();
+                const noiseGain = this.ctx.createGain();
+
+                noise.buffer = noiseBuffer;
+                highpass.type = 'highpass';
+                highpass.frequency.setValueAtTime(520, now);
+                lowpass.type = 'lowpass';
+                lowpass.frequency.setValueAtTime(7200, now);
+
+                noise.connect(highpass);
+                highpass.connect(lowpass);
+                lowpass.connect(noiseGain);
+                this.connectOutput(noiseGain);
+
+                noiseGain.gain.setValueAtTime(0.001, now);
+                noiseGain.gain.linearRampToValueAtTime(0.145, now + 0.018);
+                noiseGain.gain.setValueAtTime(0.112, now + 0.13);
+                noiseGain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+                noise.start(now);
+                noise.stop(now + duration + 0.02);
             }
 
             // Low old RGB monitor hum under the seven-second alternate marquee reveal.
             startVintageMonitorHum(durationMs = 7000) {
                 this.ensureAudio();
+                this.stopVintageMonitorHum();
+
                 const now = this.ctx.currentTime;
                 const duration = Math.max(0.5, durationMs / 1000);
                 const humGain = this.ctx.createGain();
+                this.vintageMonitorHumGain = humGain;
                 this.connectOutput(humGain);
 
                 humGain.gain.setValueAtTime(0.001, now);
-                humGain.gain.linearRampToValueAtTime(0.034, now + 0.18);
-                humGain.gain.setValueAtTime(0.034, now + Math.max(0.22, duration - 0.32));
+                humGain.gain.linearRampToValueAtTime(0.055, now + 0.18);
+                humGain.gain.setValueAtTime(0.055, now + Math.max(0.22, duration - 0.32));
                 humGain.gain.exponentialRampToValueAtTime(0.001, now + duration + 0.18);
 
                 const voices = [
-                    { freq: 59.94, type: 'sine', gain: 0.70 },
-                    { freq: 119.88, type: 'triangle', gain: 0.26 },
-                    { freq: 179.82, type: 'sine', gain: 0.12 },
-                    { freq: 15734, type: 'sine', gain: 0.018 }
+                    { freq: 59.94, type: 'sine', gain: 0.86 },
+                    { freq: 119.88, type: 'triangle', gain: 0.34 },
+                    { freq: 179.82, type: 'sine', gain: 0.14 },
+                    { freq: 15734, type: 'sine', gain: 0.015 }
                 ];
 
                 voices.forEach(voice => {
@@ -4836,7 +4873,23 @@ BLOCK-A-ZOIDS RETURN`;
                     voiceGain.connect(humGain);
                     osc.start(now);
                     osc.stop(now + duration + 0.25);
+                    this.vintageMonitorHumOscillators.push(osc);
                 });
+            }
+
+            stopVintageMonitorHum() {
+                this.vintageMonitorHumOscillators.forEach(osc => {
+                    try { osc.stop(); } catch (_) {}
+                });
+                this.vintageMonitorHumOscillators = [];
+                if (this.vintageMonitorHumGain && this.ctx && this.ctx.state !== 'closed') {
+                    try {
+                        const now = this.ctx.currentTime;
+                        this.vintageMonitorHumGain.gain.cancelScheduledValues(now);
+                        this.vintageMonitorHumGain.gain.setValueAtTime(0.001, now);
+                    } catch (_) {}
+                }
+                this.vintageMonitorHumGain = null;
             }
 
             // Quick tally sound used when delayed sector bonus points count into the top score.
@@ -5584,7 +5637,7 @@ BLOCK-A-ZOIDS RETURN`;
                 // Hide the bottom HUD only before the first run starts.
                 // During Game Over / Play Again, keep the last-run state visible so the player
                 // can see the sector reached and the bombs left.
-                return (this.game.active && this.game.levelActionStarted) || this.game.isGameOver;
+                return (this.game.active && this.game.levelActionStarted) || this.game.showHudDuringSectorIntro || this.game.isGameOver;
             }
 
             // Update bomb indicators based on remaining bombs
