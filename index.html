@@ -65,12 +65,107 @@ This source code, artwork, game design, and related assets are not licensed for 
             width: min(600px, calc(100vw - 8px));
             margin: 4px 0 8px 0;
             line-height: 0;
+            position: relative;
+            overflow: hidden;
         }
 
         #marquee img {
             display: block;
             width: 100%;
             height: auto;
+            position: relative;
+            z-index: 0;
+            opacity: 1;
+            transform: translateX(0);
+            transition: opacity 0.28s ease-in-out, filter 0.28s ease-in-out, transform 0.12s steps(2, end);
+        }
+
+        #marqueeImage.marqueeFadeSwap {
+            opacity: 0.08;
+            filter: contrast(2.25) brightness(1.42) saturate(0.52);
+            transform: translateX(-3px) scaleY(0.98);
+        }
+
+        #marquee.vintageCrtActive img {
+            filter: contrast(1.22) brightness(1.08) saturate(0.76);
+        }
+
+        #marquee.vintageCrtActive::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            z-index: 2;
+            pointer-events: none;
+            opacity: 0.55;
+            background:
+                repeating-linear-gradient(0deg, rgba(0,0,0,0.18) 0px, rgba(0,0,0,0.18) 1px, rgba(255,255,255,0.06) 2px, rgba(255,255,255,0.06) 3px),
+                linear-gradient(90deg, rgba(255,0,0,0.14), rgba(0,255,0,0.04) 48%, rgba(0,90,255,0.14));
+            mix-blend-mode: screen;
+            animation: marqueeCrtScan 0.18s linear infinite;
+        }
+
+        #marquee.vintageCrtGlitch img {
+            animation: marqueeCrtGlitch 0.58s steps(2, end) 1;
+        }
+
+        #marquee.vintageCrtGlitch::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            z-index: 3;
+            pointer-events: none;
+            opacity: 0;
+            background:
+                linear-gradient(90deg, rgba(255,0,0,0.34), transparent 18%, rgba(0,255,255,0.28) 82%, rgba(0,0,255,0.26)),
+                repeating-linear-gradient(0deg, transparent 0px, transparent 7px, rgba(255,255,255,0.34) 8px, transparent 10px);
+            mix-blend-mode: screen;
+            animation: marqueeCrtSweep 0.58s steps(3, end) 1;
+        }
+
+        @keyframes marqueeCrtScan {
+            0% { transform: translateY(0); }
+            100% { transform: translateY(4px); }
+        }
+
+        @keyframes marqueeCrtSweep {
+            0% { opacity: 0; transform: translateX(-18px); }
+            12% { opacity: 0.92; transform: translateX(12px); }
+            26% { opacity: 0.2; transform: translateX(-8px); }
+            42% { opacity: 0.75; transform: translateX(16px); }
+            66% { opacity: 0.18; transform: translateX(-2px); }
+            100% { opacity: 0; transform: translateX(0); }
+        }
+
+        @keyframes marqueeCrtGlitch {
+            0% { transform: translateX(0); filter: contrast(1.0) brightness(1.0); }
+            10% { transform: translateX(-5px); filter: contrast(2.1) brightness(1.45) hue-rotate(-12deg); }
+            18% { transform: translateX(4px); filter: contrast(0.85) brightness(0.78) hue-rotate(16deg); }
+            32% { transform: translateX(-2px) skewX(-1deg); filter: contrast(2.35) brightness(1.52) saturate(0.62); }
+            48% { transform: translateX(5px); filter: contrast(1.1) brightness(1.12); }
+            62% { transform: translateX(-3px); filter: contrast(2.0) brightness(1.35) hue-rotate(8deg); }
+            100% { transform: translateX(0); filter: inherit; }
+        }
+
+        #marqueePreviewLabel {
+            position: absolute;
+            right: 8px;
+            bottom: 6px;
+            padding: 3px 6px;
+            color: #fff;
+            background: rgba(0, 0, 0, 0.78);
+            border: 1px solid #fff;
+            font-family: 'Orbitron', 'Courier New', monospace;
+            font-size: 10px;
+            line-height: 1;
+            letter-spacing: 1px;
+            opacity: 0;
+            transition: opacity 0.15s ease-in-out;
+            pointer-events: none;
+            text-shadow: none;
+        }
+
+        #marqueePreviewLabel.visible {
+            opacity: 0.9;
         }
 
         button, #instructionsWindow, #pauseWindow, #levelSelectWindow {
@@ -1101,7 +1196,8 @@ This source code, artwork, game design, and related assets are not licensed for 
 </head>
 <body>
     <div id="marquee">
-        <img src="marquee-top.png" alt="Block-A-Zoids marquee">
+        <img id="marqueeImage" src="marquee-top.png" alt="Block-A-Zoids marquee">
+        <div id="marqueePreviewLabel"></div>
     </div>
 
     <!-- Score display -->
@@ -1157,7 +1253,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 <button id="soundToggleButton" class="menu-button settings-toggle">Sound: On</button>
                 <button id="musicToggleButton" class="menu-button settings-toggle">Music: On</button>
                 <button id="resetHighScoreButton" class="menu-button settings-toggle">Reset High Score</button>
-                <button id="soundTestToggleButton" class="menu-button settings-toggle" type="button" aria-label="Music and sound">♪</button>
+                <button id="soundTestToggleButton" class="menu-button settings-toggle" type="button" aria-label="Songs">Songs</button>
                 <div id="soundTestLabel"></div>
                 <div id="soundTestList"></div>
                 <button id="settingsBackButton" class="menu-back-button">Back</button>
@@ -1188,7 +1284,7 @@ This source code, artwork, game design, and related assets are not licensed for 
     <div id="copyrightFooter">© 2026 Marcus Couto</div>
 
     <script>
-        const BUILD_VERSION = 'Build v108';
+        const BUILD_VERSION = 'Build v110';
         document.getElementById('buildVersion').textContent = BUILD_VERSION;
 
         let lastGlobalTouchEndTime = 0;
@@ -1239,6 +1335,9 @@ This source code, artwork, game design, and related assets are not licensed for 
 
                 // DOM element references
                 this.container = document.getElementById('gameContainer');
+                this.marqueeElement = document.getElementById('marquee');
+                this.marqueeImageElement = document.getElementById('marqueeImage');
+                this.marqueePreviewLabel = document.getElementById('marqueePreviewLabel');
                 this.gameOverElement = document.getElementById('gameOver');
                 this.bonusTextElement = document.getElementById('bonusText'); // New reference for bonus text
                 this.screenFadeElement = document.getElementById('screenFade');
@@ -1478,12 +1577,103 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.soundTestHumTimer = null;
                 this.cycleTransitionActive = false;
                 this.screenFadeDurationMs = 500;
+                this.marqueeOriginalSrc = 'marquee-top.png';
+                this.marqueeAlternateSrc = 'marquee-top-alternate.png';
+                this.marqueeAlternateAvailable = false;
+                this.marqueeEasterEggActive = false;
+                this.marqueeEasterEggTimer = null;
+                this.marqueeReturnTimer = null;
+                this.marqueeTapCount = 0;
+                this.lastMarqueeTapTime = 0;
+                this.marqueeTapTimer = null;
+                this.marqueePreviewLabelTimer = null;
 
                 // Initialize level parameters and start attract mode
+                this.setupMarqueePreviewCycler();
                 this.applyLevelParameters();
                 this.updateHighScoreDisplay();
                 this.startAttractMode();
                 this.refreshGameOverlay();
+            }
+
+            // Hidden marquee easter egg: triple-click/tap the marquee to reveal the 1983 alternate for seven seconds.
+            setupMarqueePreviewCycler() {
+                if (!this.marqueeElement || !this.marqueeImageElement) return;
+
+                this.marqueeImageElement.src = this.marqueeOriginalSrc;
+                const probe = new Image();
+                probe.onload = () => {
+                    this.marqueeAlternateAvailable = true;
+                };
+                probe.onerror = () => {
+                    this.marqueeAlternateAvailable = false;
+                };
+                probe.src = this.marqueeAlternateSrc;
+
+                this.marqueeElement.addEventListener('pointerup', (e) => this.handleMarqueePreviewTap(e), { passive: false });
+            }
+
+            handleMarqueePreviewTap(e) {
+                if (!this.marqueeImageElement) return;
+                const now = performance.now();
+                if (!this.lastMarqueeTapTime || now - this.lastMarqueeTapTime > 700) {
+                    this.marqueeTapCount = 0;
+                }
+
+                this.marqueeTapCount++;
+                this.lastMarqueeTapTime = now;
+
+                if (this.marqueeTapTimer) clearTimeout(this.marqueeTapTimer);
+
+                if (this.marqueeTapCount >= 3) {
+                    this.marqueeTapCount = 0;
+                    this.lastMarqueeTapTime = 0;
+                    if (e && e.preventDefault) e.preventDefault();
+                    this.triggerMarqueeEasterEgg();
+                    return;
+                }
+
+                this.marqueeTapTimer = setTimeout(() => {
+                    this.marqueeTapCount = 0;
+                    this.lastMarqueeTapTime = 0;
+                }, 720);
+            }
+
+            triggerMarqueeEasterEgg() {
+                if (!this.marqueeAlternateAvailable || this.marqueeEasterEggActive || !this.marqueeElement || !this.marqueeImageElement) return;
+
+                this.marqueeEasterEggActive = true;
+                if (this.marqueeEasterEggTimer) clearTimeout(this.marqueeEasterEggTimer);
+                if (this.marqueeReturnTimer) clearTimeout(this.marqueeReturnTimer);
+
+                if (this.audio) this.audio.startVintageMonitorHum(7000);
+                this.swapMarqueeImageWithGlitch(this.marqueeAlternateSrc, true, () => {
+                    this.marqueeEasterEggTimer = setTimeout(() => {
+                        this.swapMarqueeImageWithGlitch(this.marqueeOriginalSrc, false, () => {
+                            this.marqueeEasterEggActive = false;
+                        });
+                    }, 7000);
+                });
+            }
+
+            swapMarqueeImageWithGlitch(nextSrc, vintageActive, afterSwap) {
+                if (!this.marqueeElement || !this.marqueeImageElement) return;
+
+                if (this.audio) this.audio.playMarqueeGlitchZap();
+                this.marqueeElement.classList.add('vintageCrtGlitch');
+                this.marqueeImageElement.classList.add('marqueeFadeSwap');
+
+                setTimeout(() => {
+                    if (!this.marqueeImageElement || !this.marqueeElement) return;
+                    this.marqueeImageElement.src = nextSrc;
+                    this.marqueeElement.classList.toggle('vintageCrtActive', !!vintageActive);
+                    this.marqueeImageElement.classList.remove('marqueeFadeSwap');
+                    if (afterSwap) afterSwap();
+                }, 220);
+
+                this.marqueeReturnTimer = setTimeout(() => {
+                    if (this.marqueeElement) this.marqueeElement.classList.remove('vintageCrtGlitch');
+                }, 760);
             }
 
             // Size the board directly for iPhone instead of clipping or transform-scaling a 600px board.
@@ -1955,8 +2145,9 @@ This source code, artwork, game design, and related assets are not licensed for 
                 }
 
                 if (this.soundTestToggleButton) {
-                    this.soundTestToggleButton.textContent = '♪';
-                    this.soundTestToggleButton.title = 'Music and sound';
+                    this.soundTestToggleButton.textContent = 'Songs';
+                    this.soundTestToggleButton.title = 'Songs';
+                    this.soundTestToggleButton.setAttribute('aria-label', 'Songs');
                 }
             }
 
@@ -2097,9 +2288,9 @@ This source code, artwork, game design, and related assets are not licensed for 
                     { name: 'BONUS COUNT-UP', action: () => this.audio.playBonusCountUp(900), stopAfterMs: 1200 },
                     { name: 'SECTOR RESTORED', action: () => this.audio.playGridRestored(), stopAfterMs: 3200 },
                     { name: 'GAME OVER', action: () => this.audio.playEnd(), stopAfterMs: 4100 },
-                    { name: 'CYCLE COMPLETE / VICTORY', action: () => this.audio.playCycleComplete(), stopAfterMs: 6800 },
-                    { name: 'ORB THEME FIXED MIDI LOOP', action: () => this.audio.startBackgroundMusic(1), stopAfterMs: 7200, stopBackground: true },
-                    { name: 'SECTOR COMMAND MIDI LOOP', action: () => this.audio.startBackgroundMusic(2), stopAfterMs: 7200, stopBackground: true }
+                    { name: 'VICTORY CYCLE SONG', action: () => this.audio.playCycleComplete(), stopAfterMs: 6800 },
+                    { name: 'ORB THEME SONG', action: () => this.audio.startBackgroundMusic(1), stopAfterMs: 7200, stopBackground: true },
+                    { name: 'SECTOR COMMAND SONG', action: () => this.audio.startBackgroundMusic(2), stopAfterMs: 7200, stopBackground: true }
                 ];
             }
 
@@ -4575,6 +4766,77 @@ BLOCK-A-ZOIDS RETURN`;
                 ];
 
                 melody.forEach(note => playNote(note.f, now + note.t, note.d, note.v, note.type));
+            }
+
+            // Short glitch burst for the hidden vintage marquee easter egg.
+            playMarqueeGlitchZap() {
+                this.ensureAudio();
+                const now = this.ctx.currentTime;
+
+                const noiseBuffer = this.ctx.createBuffer(1, Math.floor(this.ctx.sampleRate * 0.18), this.ctx.sampleRate);
+                const data = noiseBuffer.getChannelData(0);
+                for (let i = 0; i < data.length; i++) {
+                    data[i] = (Math.random() * 2 - 1) * (1 - i / data.length);
+                }
+                const noise = this.ctx.createBufferSource();
+                const noiseGain = this.ctx.createGain();
+                noise.buffer = noiseBuffer;
+                noise.connect(noiseGain);
+                this.connectOutput(noiseGain);
+                noiseGain.gain.setValueAtTime(0.001, now);
+                noiseGain.gain.linearRampToValueAtTime(0.055, now + 0.012);
+                noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.17);
+                noise.start(now);
+                noise.stop(now + 0.19);
+
+                [92, 184, 736].forEach((freq, index) => {
+                    const start = now + index * 0.028;
+                    const osc = this.ctx.createOscillator();
+                    const gainNode = this.ctx.createGain();
+                    osc.type = index === 2 ? 'square' : 'sawtooth';
+                    osc.frequency.setValueAtTime(freq * 1.35, start);
+                    osc.frequency.exponentialRampToValueAtTime(Math.max(48, freq * 0.58), start + 0.12);
+                    osc.connect(gainNode);
+                    this.connectOutput(gainNode);
+                    gainNode.gain.setValueAtTime(0.001, start);
+                    gainNode.gain.linearRampToValueAtTime(index === 2 ? 0.045 : 0.036, start + 0.01);
+                    gainNode.gain.exponentialRampToValueAtTime(0.001, start + 0.13);
+                    osc.start(start);
+                    osc.stop(start + 0.16);
+                });
+            }
+
+            // Low old RGB monitor hum under the seven-second alternate marquee reveal.
+            startVintageMonitorHum(durationMs = 7000) {
+                this.ensureAudio();
+                const now = this.ctx.currentTime;
+                const duration = Math.max(0.5, durationMs / 1000);
+                const humGain = this.ctx.createGain();
+                this.connectOutput(humGain);
+
+                humGain.gain.setValueAtTime(0.001, now);
+                humGain.gain.linearRampToValueAtTime(0.034, now + 0.18);
+                humGain.gain.setValueAtTime(0.034, now + Math.max(0.22, duration - 0.32));
+                humGain.gain.exponentialRampToValueAtTime(0.001, now + duration + 0.18);
+
+                const voices = [
+                    { freq: 59.94, type: 'sine', gain: 0.70 },
+                    { freq: 119.88, type: 'triangle', gain: 0.26 },
+                    { freq: 179.82, type: 'sine', gain: 0.12 },
+                    { freq: 15734, type: 'sine', gain: 0.018 }
+                ];
+
+                voices.forEach(voice => {
+                    const osc = this.ctx.createOscillator();
+                    const voiceGain = this.ctx.createGain();
+                    osc.type = voice.type;
+                    osc.frequency.setValueAtTime(voice.freq, now);
+                    voiceGain.gain.setValueAtTime(voice.gain, now);
+                    osc.connect(voiceGain);
+                    voiceGain.connect(humGain);
+                    osc.start(now);
+                    osc.stop(now + duration + 0.25);
+                });
             }
 
             // Quick tally sound used when delayed sector bonus points count into the top score.
