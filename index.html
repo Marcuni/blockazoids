@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v128: Max Swarm audio handoff schedules the signal and first swarm thump on one Web Audio timeline to remove transition gaps.
+Build v129: Overtime begins after Max Swarm, adding one extra Block-A-Zoid every 60 seconds while the swarm beat rises in tempo and pitch.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -1237,7 +1237,7 @@ This source code, artwork, game design, and related assets are not licensed for 
     <div id="copyrightFooter">© 2026 Marcus Couto</div>
 
     <script>
-        const BUILD_VERSION = 'Build v128';
+        const BUILD_VERSION = 'Build v129';
         document.getElementById('buildVersion').textContent = BUILD_VERSION;
 
         let lastGlobalTouchEndTime = 0;
@@ -1267,6 +1267,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                     baseSpawnDelay: 5,          // Base enemy spawn delay (seconds)
                     spawnDelayLevelReduction: 0.25, // Spawn delay reduction per level; smaller = slower difficulty ramp
                     normalSwarmSize: 8,        // Normal Block-A-Zoid swarm size before overtime escalation
+                    overtimeEnemyIntervalMs: 60000, // During Overtime, add one extra Block-A-Zoid every minute
                     baseSpeeds: { small: 3, medium: 2, large: 1.5 }, // Base speeds for enemy sizes
                     baseBombs: 3,              // Starting number of bombs
                     unusedBombBonus: 50,       // End-of-level bonus for each unused bomb
@@ -1383,6 +1384,9 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.maxSwarmReachedThisSector = false; // True once max active Block-A-Zoids are on screen
                 this.maxSwarmCueTimer = null;      // Delays the actual max-swarm bonus trigger so it does not overlap the final spawn sound
                 this.maxSwarmCueDelayMs = 1000;    // One-second gap after the final enemy materializes
+                this.overtimeActive = false;       // Overtime starts after Max Swarm and lasts until sector end/death/restart
+                this.overtimeEnemyTimer = null;    // Adds extra Block-A-Zoids during Overtime
+                this.overtimeEnemiesAdded = 0;     // Raises the Max Swarm beat tempo/pitch as Overtime escalates
                 this.prismRelicCueTimer = null;       // Delays the actual Prism Relic trigger so it does not overlap an enemy spawn sound
                 this.prismRelicCueDelayMs = 1000;     // One-second gap after the threshold enemy materializes
                 this.lastCollectedPos = null;         // Last collected crystal position
@@ -1394,7 +1398,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 }; // Map of colors to hex values
 
                 // Enemy spawn management
-                this.spawnQueue = [];                 // Queue of enemies to spawn
+                this.spawnQueue = [];                 // Queue of normal-swarm enemies to spawn
                 this.spawnedCount = { small: 0, medium: 0, large: 0 }; // Count of spawned enemies by size
                 this.pendingSpawnWarnings = [];      // Telegraphs queued before enemies materialize
                 this.spawnWarningDurationMs = 850;    // How long the warning flashes before spawn
@@ -1756,6 +1760,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.clearPendingSpawnWarnings();
                 this.clearMaxSwarmCueTimer();
                 this.clearPrismRelicCueTimer();
+                this.resetOvertimeState();
                 this.removePrismRelic();
 
                 this.enemies.forEach(enemy => enemy.element.remove());
@@ -1792,6 +1797,22 @@ This source code, artwork, game design, and related assets are not licensed for 
                 }
             }
 
+            clearOvertimeEnemyTimer() {
+                if (this.overtimeEnemyTimer) {
+                    clearTimeout(this.overtimeEnemyTimer);
+                    this.overtimeEnemyTimer = null;
+                }
+            }
+
+            resetOvertimeState() {
+                this.clearOvertimeEnemyTimer();
+                this.overtimeActive = false;
+                this.overtimeEnemiesAdded = 0;
+                if (this.audio && this.audio.setMaxSwarmBeatIntensity) {
+                    this.audio.setMaxSwarmBeatIntensity(0);
+                }
+            }
+
             // Stop any delayed Prism Relic trigger so it cannot fire after pause, restart, or level transition.
             clearPrismRelicCueTimer() {
                 if (this.prismRelicCueTimer) {
@@ -1811,6 +1832,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.clearUpdateGameTimer();
                 this.clearMaxSwarmCueTimer();
                 this.clearPrismRelicCueTimer();
+                this.clearOvertimeEnemyTimer();
                 this.releaseWakeLock();
                 this.isGameOver = false;
                 this.instructionsWindow.style.display = 'none';
@@ -1855,6 +1877,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.survivalScoreAccumulator = 0;
                 this.sectorElapsedMs = 0;
                 this.maxSwarmReachedThisSector = false;
+                this.resetOvertimeState();
                 this.clearMaxSwarmCueTimer();
                 this.clearPrismRelicCueTimer();
                 this.lastCollectedPos = null;
@@ -1937,7 +1960,11 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.clearUpdateGameTimer();
                 this.clearGameOverlayForGameplay();
                 this.audio.startBackgroundMusic(this.level);
-                if (this.maxSwarmReachedThisSector && this.enemies.length >= this.normalSwarmSize) this.audio.startMaxSwarmBeat(0);
+                if (this.overtimeActive) {
+                    this.audio.setMaxSwarmBeatIntensity(this.overtimeEnemiesAdded);
+                    this.audio.startMaxSwarmBeat(0);
+                    this.scheduleOvertimeEnemy();
+                }
                 if (this.prismRelic) this.audio.startPrismRelicHum();
                 this.requestWakeLock();
                 this.checkPrismRelicSpawnProgress();
@@ -2258,6 +2285,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.clearUpdateGameTimer();
                 this.clearMaxSwarmCueTimer();
                 this.clearPrismRelicCueTimer();
+                this.clearOvertimeEnemyTimer();
                 this.clearPendingSpawnWarnings(true);
                 this.audio.stopBackgroundMusic();
                 this.audio.stopPrismRelicHum();
@@ -2287,7 +2315,11 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.clearUpdateGameTimer();
                 this.clearGameOverlayForGameplay();
                 this.audio.startBackgroundMusic(this.level);
-                if (this.maxSwarmReachedThisSector && this.enemies.length >= this.normalSwarmSize) this.audio.startMaxSwarmBeat(0);
+                if (this.overtimeActive) {
+                    this.audio.setMaxSwarmBeatIntensity(this.overtimeEnemiesAdded);
+                    this.audio.startMaxSwarmBeat(0);
+                    this.scheduleOvertimeEnemy();
+                }
                 if (this.prismRelic) this.audio.startPrismRelicHum();
                 this.requestWakeLock();
                 this.checkPrismRelicSpawnProgress();
@@ -2835,8 +2867,53 @@ This source code, artwork, game design, and related assets are not licensed for 
                         if (this.enemies.length < this.normalSwarmSize) return;
                         this.maxSwarmReachedThisSector = true;
                         this.audio.playMaxSwarmCue();
+                        this.startOvertime();
                     }, this.maxSwarmCueDelayMs);
                 }
+            }
+
+            startOvertime() {
+                if (this.overtimeActive) return;
+                this.overtimeActive = true;
+                this.overtimeEnemiesAdded = 0;
+                if (this.audio && this.audio.setMaxSwarmBeatIntensity) {
+                    this.audio.setMaxSwarmBeatIntensity(0);
+                }
+                this.scheduleOvertimeEnemy();
+            }
+
+            scheduleOvertimeEnemy(delayMs = this.parameters.overtimeEnemyIntervalMs) {
+                this.clearOvertimeEnemyTimer();
+                if (!this.overtimeActive || !this.active || this.isPaused || this.isGameOver || !this.levelActionStarted) return;
+
+                this.overtimeEnemyTimer = setTimeout(() => {
+                    this.overtimeEnemyTimer = null;
+                    if (!this.overtimeActive || !this.active || this.isPaused || this.isGameOver || !this.levelActionStarted) return;
+
+                    const warningStarted = this.spawnOvertimeEnemy();
+                    this.scheduleOvertimeEnemy(warningStarted ? this.parameters.overtimeEnemyIntervalMs : 5000);
+                }, delayMs);
+            }
+
+            chooseOvertimeEnemyType() {
+                const roll = Math.random();
+                if (roll < this.SMALL_SPAWN_PROPORTION) return 'small';
+                if (roll < this.SMALL_SPAWN_PROPORTION + this.MEDIUM_SPAWN_PROPORTION) return 'medium';
+                return 'large';
+            }
+
+            spawnOvertimeEnemy() {
+                if (!this.overtimeActive || !this.active || this.isPaused || this.isGameOver || !this.levelActionStarted) return false;
+                const type = this.chooseOvertimeEnemyType();
+                return this.startEnemySpawnWarning(type, {
+                    requeueOnCancel: false,
+                    onSpawn: () => {
+                        this.overtimeEnemiesAdded++;
+                        if (this.audio && this.audio.setMaxSwarmBeatIntensity) {
+                            this.audio.setMaxSwarmBeatIntensity(this.overtimeEnemiesAdded);
+                        }
+                    }
+                });
             }
 
             removePrismRelic() {
@@ -3022,7 +3099,7 @@ This source code, artwork, game design, and related assets are not licensed for 
 
                 if (requeue) {
                     for (let i = pending.length - 1; i >= 0; i--) {
-                        this.spawnQueue.unshift(pending[i].type);
+                        if (pending[i].requeueOnCancel !== false) this.spawnQueue.unshift(pending[i].type);
                     }
                 }
 
@@ -3101,20 +3178,20 @@ This source code, artwork, game design, and related assets are not licensed for 
 
             // Flash one grid cell first, then materialize the queued enemy in its clamped spawn location.
             // The warning is always the same size so it does not reveal the next Block-A-Zoid size.
-            startEnemySpawnWarning(type) {
+            startEnemySpawnWarning(type, options = {}) {
                 const size = type === 'small' ? this.PLAYER_SIZE : (type === 'medium' ? this.PLAYER_SIZE * 2 : this.PLAYER_SIZE * 3);
                 const location = this.choosePeripheralSpawnLocation(size);
                 if (!location) return false;
 
                 const warning = new SpawnWarning(this, location.warningX, location.warningY, this.GRID_SIZE);
-                const pending = { type, warning, size, spawnX: location.x, spawnY: location.y, timeoutId: null };
+                const pending = { type, warning, size, spawnX: location.x, spawnY: location.y, timeoutId: null, requeueOnCancel: options.requeueOnCancel !== false };
 
                 pending.timeoutId = setTimeout(() => {
                     this.pendingSpawnWarnings = this.pendingSpawnWarnings.filter(item => item !== pending);
                     warning.remove();
 
                     if (!this.active || this.isPaused || this.isGameOver || !this.levelActionStarted) {
-                        this.spawnQueue.unshift(type);
+                        if (options.requeueOnCancel !== false) this.spawnQueue.unshift(type);
                         return;
                     }
 
@@ -3125,6 +3202,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                     if (enemy.size === this.PLAYER_SIZE) this.spawnedCount.small++;
                     else if (enemy.size === this.PLAYER_SIZE * 2) this.spawnedCount.medium++;
                     else this.spawnedCount.large++;
+                    if (typeof options.onSpawn === 'function') options.onSpawn(enemy);
                 }, this.spawnWarningDurationMs);
 
                 this.pendingSpawnWarnings.push(pending);
@@ -3165,6 +3243,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.clearUpdateGameTimer();
                 this.releaseWakeLock();
                 this.clearPendingSpawnWarnings();
+                this.clearOvertimeEnemyTimer();
                 this.removePrismRelic();
                 this.audio.stopBackgroundMusic();
 
@@ -3311,6 +3390,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.survivalScoreAccumulator = 0;
                 this.sectorElapsedMs = 0;
                 this.maxSwarmReachedThisSector = false;
+                this.resetOvertimeState();
                 this.clearMaxSwarmCueTimer();
                 this.clearPrismRelicCueTimer();
                 this.removePrismRelic();
@@ -3331,6 +3411,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.clearUpdateGameTimer();
                 this.clearMaxSwarmCueTimer();
                 this.clearPrismRelicCueTimer();
+                this.clearOvertimeEnemyTimer();
                 this.player.reset();
                 this.audio.stopBackgroundMusic();
                 this.resetCrystalsGameplay();
@@ -3596,16 +3677,11 @@ This source code, artwork, game design, and related assets are not licensed for 
                     this.container.classList.add('shake'); // Apply screen shake
 
                     if (this.enemies.length > 0) { // Enemies present
-                        const wasMaxSwarmPressure = this.audio && this.audio.maxSwarmBeatPlaying;
                         this.enemies.forEach(enemy => {
                             this.explosions.push(new Explosion(this, enemy.x + enemy.size / 2, enemy.y + enemy.size / 2, false)); // Create explosion
                             enemy.element.remove(); // Remove enemy
                         });
                         this.enemies = []; // Clear enemies
-                        if (wasMaxSwarmPressure) {
-                            this.audio.stopBackgroundMusic();
-                            this.audio.startBackgroundMusic(this.level);
-                        }
                     }
 
                     this.applyLevelParameters(); // Rebuild spawn queue; bomb pressure affects speed only
@@ -3723,6 +3799,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.clearUpdateGameTimer();
                 this.clearMaxSwarmCueTimer();
                 this.clearPrismRelicCueTimer();
+                this.resetOvertimeState();
                 this.releaseWakeLock();
                 this.pauseWindow.style.display = 'none';
                 if (this.menuButtons && this.scoringPanel && this.storyPanel && this.settingsPanel) this.showMainMenuButtons();
@@ -4363,6 +4440,7 @@ BLOCK-A-ZOIDS RETURN`;
                 this.maxSwarmBeatPlaying = false; // Dedicated Max Swarm marching-thump background loop
                 this.maxSwarmBeatTimers = [];
                 this.maxSwarmBeatOscillators = [];
+                this.maxSwarmBeatIntensity = 0;
                 this.musicMuted = this.loadMusicMutedSetting();
                 this.prismRelicHumOscillators = []; // Sustained hum while the Prism Relic is active
                 this.prismRelicHumGains = [];
@@ -4531,13 +4609,29 @@ BLOCK-A-ZOIDS RETURN`;
                 this.maxSwarmBeatOscillators = [];
             }
 
+            setMaxSwarmBeatIntensity(intensity = 0) {
+                this.maxSwarmBeatIntensity = Math.max(0, parseInt(intensity, 10) || 0);
+            }
+
+            getMaxSwarmBeatBpm() {
+                return Math.min(136, 100 + this.maxSwarmBeatIntensity * 8);
+            }
+
+            getMaxSwarmBeatSeconds() {
+                return 60 / this.getMaxSwarmBeatBpm();
+            }
+
+            getMaxSwarmPitchMultiplier() {
+                return Math.pow(2, Math.min(6, this.maxSwarmBeatIntensity) / 12);
+            }
+
             playMaxSwarmThump(start, stepIndex = 0) {
                 if (!this.ctx || this.ctx.state === 'closed' || !this.backgroundMixGain) return;
 
                 // Max Swarm uses an arcade marching-thump voice: low body plus a small upper click
                 // so it reads on phone speakers without becoming a melody.
                 const lowPitches = [65.41, 73.42, 82.41, 73.42];
-                const baseFreq = lowPitches[stepIndex % lowPitches.length];
+                const baseFreq = lowPitches[stepIndex % lowPitches.length] * this.getMaxSwarmPitchMultiplier();
                 const thump = this.ctx.createOscillator();
                 const thumpBody = this.ctx.createOscillator();
                 const click = this.ctx.createOscillator();
@@ -4627,7 +4721,6 @@ BLOCK-A-ZOIDS RETURN`;
                 this.backgroundMixGain.gain.linearRampToValueAtTime(0.90, beatStart + 0.006);
                 this.backgroundMixGain.connect(this.musicGain || this.masterGain);
 
-                const beatSeconds = 0.60; // 100 BPM marching pressure beat
                 const patternLength = 4;
                 let nextPatternStart = beatStart;
 
@@ -4639,6 +4732,7 @@ BLOCK-A-ZOIDS RETURN`;
                         nextPatternStart += beatSeconds * patternLength;
                     }
 
+                    const beatSeconds = this.getMaxSwarmBeatSeconds();
                     for (let index = 0; index < patternLength; index++) {
                         const start = nextPatternStart + index * beatSeconds;
                         this.playMaxSwarmThump(start, index);
@@ -5096,6 +5190,7 @@ BLOCK-A-ZOIDS RETURN`;
                 this.ensureAudio();
                 if (!this.ctx || this.ctx.state === 'closed') return;
                 const signalStart = this.ctx.currentTime + 0.018;
+                this.setMaxSwarmBeatIntensity(0);
                 this.playMaxSwarmSignal(signalStart);
                 // Last radar ping begins at signalStart + 0.825; the first thump lands inside its decay
                 // so the player hears a continuous handoff with no timer-controlled silence gap.
@@ -5718,6 +5813,7 @@ BLOCK-A-ZOIDS RETURN`;
             // Stop background music and clear oscillators/timers
             stopBackgroundMusic() {
                 this.stopMaxSwarmBeat();
+                this.setMaxSwarmBeatIntensity(0);
                 this.backgroundMusicPlaying = false;
                 this.backgroundTimers.forEach(timer => clearTimeout(timer));
                 this.backgroundTimers = [];
