@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v120: Settings song preview removed; Prism Relic uses giant-crystal flashing; Full Swarm uses a single whole-block flash.
+Build v121: Full Swarm visual flashing removed; low thump pressure loop added after the alarm.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -1006,10 +1006,6 @@ This source code, artwork, game design, and related assets are not licensed for 
             animation: enemyBorderFlashAnimation 0.3s 1;
         }
 
-        .enemy.fullSwarmFlash {
-            animation: fullSwarmBlockFlash 0.34s ease-out 1;
-        }
-
         
         .borderFlash {
             animation: borderFlashAnimation 0.5s 1;
@@ -1048,24 +1044,7 @@ This source code, artwork, game design, and related assets are not licensed for 
             100% { border: 1px solid #fff; box-shadow: 0 0 calc(var(--default-glow) * 0.8px) currentColor; }
         }
 
-        @keyframes fullSwarmBlockFlash {
-            0% {
-                border-color: #fff;
-                box-shadow: 0 0 calc(var(--default-glow) * 0.8px) currentColor;
-                filter: brightness(1);
-            }
-            28% {
-                border-color: #fff;
-                box-shadow: 0 0 14px currentColor, 0 0 26px rgba(255, 255, 255, 0.54), inset 0 0 8px rgba(255, 255, 255, 0.20);
-                filter: brightness(1.28);
-            }
-            100% {
-                border-color: #fff;
-                box-shadow: 0 0 calc(var(--default-glow) * 0.8px) currentColor;
-                filter: brightness(1);
-            }
-        }
-
+        
         
         /* Container border flash animation */
         @keyframes borderFlashAnimation {
@@ -1257,7 +1236,7 @@ This source code, artwork, game design, and related assets are not licensed for 
     <div id="copyrightFooter">© 2026 Marcus Couto</div>
 
     <script>
-        const BUILD_VERSION = 'Build v120';
+        const BUILD_VERSION = 'Build v121';
         document.getElementById('buildVersion').textContent = BUILD_VERSION;
 
         let lastGlobalTouchEndTime = 0;
@@ -1950,6 +1929,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.clearUpdateGameTimer();
                 this.clearGameOverlayForGameplay();
                 this.audio.startBackgroundMusic(this.level);
+                if (this.survivalistQualifiedThisSector && this.enemies.length >= this.MAX_ENEMIES) this.audio.startFullSwarmPressureLoop(0.08);
                 if (this.prismRelic) this.audio.startPrismRelicHum();
                 this.requestWakeLock();
                 this.checkPrismRelicSpawnProgress();
@@ -2298,6 +2278,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.clearUpdateGameTimer();
                 this.clearGameOverlayForGameplay();
                 this.audio.startBackgroundMusic(this.level);
+                if (this.survivalistQualifiedThisSector && this.enemies.length >= this.MAX_ENEMIES) this.audio.startFullSwarmPressureLoop(0.08);
                 if (this.prismRelic) this.audio.startPrismRelicHum();
                 this.requestWakeLock();
                 this.checkPrismRelicSpawnProgress();
@@ -2833,17 +2814,6 @@ This source code, artwork, game design, and related assets are not licensed for 
                 }
             }
 
-            flashFullSwarmBlocks() {
-                this.enemies.forEach(enemy => {
-                    if (!enemy || !enemy.element) return;
-                    enemy.element.classList.remove('fullSwarmFlash');
-                    void enemy.element.offsetWidth;
-                    enemy.element.classList.add('fullSwarmFlash');
-                    setTimeout(() => {
-                        if (enemy.element) enemy.element.classList.remove('fullSwarmFlash');
-                    }, 360);
-                });
-            }
 
             checkSurvivalistProgress() {
                 if (this.survivalistQualifiedThisSector || this.survivalistCueTimer) return;
@@ -2855,7 +2825,6 @@ This source code, artwork, game design, and related assets are not licensed for 
                         if (!this.active || this.isPaused || this.isGameOver || !this.levelActionStarted) return;
                         if (this.enemies.length < this.MAX_ENEMIES) return;
                         this.survivalistQualifiedThisSector = true;
-                        this.flashFullSwarmBlocks();
                         this.audio.playSurvivalistCue();
                     }, this.survivalistCueDelayMs);
                 }
@@ -3618,6 +3587,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                     this.container.classList.add('shake'); // Apply screen shake
 
                     if (this.enemies.length > 0) { // Enemies present
+                        this.audio.stopFullSwarmPressureLoop();
                         this.enemies.forEach(enemy => {
                             this.explosions.push(new Explosion(this, enemy.x + enemy.size / 2, enemy.y + enemy.size / 2, false)); // Create explosion
                             enemy.element.remove(); // Remove enemy
@@ -4377,6 +4347,9 @@ BLOCK-A-ZOIDS RETURN`;
                 this.backgroundTimers = []; // Timers used by the background rhythm loop
                 this.backgroundMixGain = null; // Dedicated gain so paused/stopped gameplay music cuts off cleanly
                 this.backgroundMusicPlaying = false; // Prevents older rhythm loops from stacking
+                this.fullSwarmPressurePlaying = false; // Low thump layer after the Full Swarm alarm
+                this.fullSwarmPressureTimers = [];
+                this.fullSwarmPressureOscillators = [];
                 this.musicMuted = this.loadMusicMutedSetting();
                 this.prismRelicHumOscillators = []; // Sustained hum while the Prism Relic is active
                 this.prismRelicHumGains = [];
@@ -4498,6 +4471,101 @@ BLOCK-A-ZOIDS RETURN`;
                 }, delay);
                 this.backgroundTimers.push(timer);
                 return timer;
+            }
+
+            scheduleFullSwarmPressure(callback, delay) {
+                const timer = setTimeout(() => {
+                    this.fullSwarmPressureTimers = this.fullSwarmPressureTimers.filter(id => id !== timer);
+                    if (!this.fullSwarmPressurePlaying || !this.backgroundMusicPlaying) return;
+                    callback();
+                }, delay);
+                this.fullSwarmPressureTimers.push(timer);
+                return timer;
+            }
+
+            stopFullSwarmPressureLoop() {
+                this.fullSwarmPressurePlaying = false;
+                this.fullSwarmPressureTimers.forEach(timer => clearTimeout(timer));
+                this.fullSwarmPressureTimers = [];
+
+                this.fullSwarmPressureOscillators.forEach(osc => {
+                    try { osc.stop(); } catch (_) {}
+                });
+                this.fullSwarmPressureOscillators = [];
+            }
+
+            playFullSwarmThump(start) {
+                if (!this.ctx || this.ctx.state === 'closed' || !this.backgroundMixGain) return;
+
+                const sub = this.ctx.createOscillator();
+                const subGain = this.ctx.createGain();
+                sub.type = 'sine';
+                sub.frequency.setValueAtTime(58, start);
+                sub.frequency.exponentialRampToValueAtTime(38, start + 0.105);
+                sub.connect(subGain);
+                subGain.connect(this.backgroundMixGain);
+
+                subGain.gain.setValueAtTime(0.001, start);
+                subGain.gain.linearRampToValueAtTime(0.058, start + 0.012);
+                subGain.gain.exponentialRampToValueAtTime(0.001, start + 0.115);
+
+                const click = this.ctx.createOscillator();
+                const clickGain = this.ctx.createGain();
+                click.type = 'triangle';
+                click.frequency.setValueAtTime(116, start);
+                click.frequency.exponentialRampToValueAtTime(78, start + 0.055);
+                click.connect(clickGain);
+                clickGain.connect(this.backgroundMixGain);
+
+                clickGain.gain.setValueAtTime(0.001, start);
+                clickGain.gain.linearRampToValueAtTime(0.018, start + 0.006);
+                clickGain.gain.exponentialRampToValueAtTime(0.001, start + 0.058);
+
+                this.backgroundOscillators.push(sub, click);
+                this.fullSwarmPressureOscillators.push(sub, click);
+                const cleanup = () => {
+                    this.backgroundOscillators = this.backgroundOscillators.filter(item => item !== sub && item !== click);
+                    this.fullSwarmPressureOscillators = this.fullSwarmPressureOscillators.filter(item => item !== sub && item !== click);
+                };
+                sub.onended = cleanup;
+
+                sub.start(start);
+                click.start(start);
+                sub.stop(start + 0.14);
+                click.stop(start + 0.075);
+            }
+
+            startFullSwarmPressureLoop(delaySeconds = 0) {
+                if (this.fullSwarmPressurePlaying || !this.backgroundMusicPlaying) return;
+                this.ensureAudio();
+                if (!this.ctx || this.ctx.state === 'closed') return;
+
+                this.fullSwarmPressurePlaying = true;
+                const beatSeconds = 0.375;
+                const pattern = [1, 1, 0, 1, 1, 0, 0, 0]; // |xxox|xooo|
+                const patternSeconds = beatSeconds * pattern.length;
+                let nextPatternStart = this.ctx.currentTime + Math.max(0, delaySeconds);
+
+                const schedulePattern = () => {
+                    if (!this.fullSwarmPressurePlaying || !this.backgroundMusicPlaying || !this.ctx || this.ctx.state === 'closed') return;
+
+                    const now = this.ctx.currentTime;
+                    while (nextPatternStart < now + 0.025) {
+                        nextPatternStart += patternSeconds;
+                    }
+
+                    pattern.forEach((hit, index) => {
+                        if (!hit) return;
+                        const start = nextPatternStart + index * beatSeconds;
+                        this.playFullSwarmThump(start);
+                    });
+
+                    nextPatternStart += patternSeconds;
+                    const delayMs = Math.max(80, (nextPatternStart - this.ctx.currentTime - 0.08) * 1000);
+                    this.scheduleFullSwarmPressure(schedulePattern, delayMs);
+                };
+
+                this.scheduleFullSwarmPressure(schedulePattern, Math.max(0, delaySeconds * 1000 - 40));
             }
 
             scheduleBeatAlignedMusicLoop(loopSeconds, scheduleEvents) {
@@ -4913,6 +4981,8 @@ BLOCK-A-ZOIDS RETURN`;
                 wobbleGain.connect(alarmOsc.frequency);
                 wobble.start(now);
                 wobble.stop(now + duration + 0.05);
+
+                this.startFullSwarmPressureLoop(duration + 0.04);
             }
 
             // Play the dramatic grid-sector restored sound between levels.
@@ -5530,6 +5600,7 @@ BLOCK-A-ZOIDS RETURN`;
 
             // Stop background music and clear oscillators/timers
             stopBackgroundMusic() {
+                this.stopFullSwarmPressureLoop();
                 this.backgroundMusicPlaying = false;
                 this.backgroundTimers.forEach(timer => clearTimeout(timer));
                 this.backgroundTimers = [];
