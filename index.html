@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v125: Full Swarm uses a 5-tone Radar Alarm, then switches seamlessly into the Space Invaders-style swarm thump loop.
+Build v126: Full Swarm uses the Web Audio Radar Warning cue and overlaps directly into the Space Invaders-style swarm thump loop.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -1208,6 +1208,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 <button id="soundToggleButton" class="menu-button settings-toggle">Sound: On</button>
                 <button id="musicToggleButton" class="menu-button settings-toggle">Music: On</button>
                 <button id="resetHighScoreButton" class="menu-button settings-toggle">Reset High Score</button>
+                <button id="radarWarningTestButton" class="menu-button settings-toggle">RADAR WARNING</button>
                 <button id="settingsBackButton" class="menu-back-button">Back</button>
             </div>
             <div id="buildVersion"></div>
@@ -1236,7 +1237,7 @@ This source code, artwork, game design, and related assets are not licensed for 
     <div id="copyrightFooter">© 2026 Marcus Couto</div>
 
     <script>
-        const BUILD_VERSION = 'Build v125';
+        const BUILD_VERSION = 'Build v126';
         document.getElementById('buildVersion').textContent = BUILD_VERSION;
 
         let lastGlobalTouchEndTime = 0;
@@ -1313,6 +1314,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.musicToggleButton = document.getElementById('musicToggleButton');
                 this.highScoreHud = document.getElementById('highScoreHud');
                 this.resetHighScoreButton = document.getElementById('resetHighScoreButton');
+                this.radarWarningTestButton = document.getElementById('radarWarningTestButton');
                 this.resetHighScorePending = false;
                 this.resetHighScoreConfirmTimer = null;
                 this.menuButtons = document.getElementById('menuButtons');
@@ -1499,6 +1501,13 @@ This source code, artwork, game design, and related assets are not licensed for 
                     e.stopPropagation();
                     this.requestHighScoreReset();
                 });
+                if (this.radarWarningTestButton) {
+                    this.radarWarningTestButton.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (this.audio) this.audio.playFullSwarmRadarAlarm();
+                    });
+                }
                 this.updateSoundToggleLabel();
                 this.updateMusicToggleLabel();
                 this.updateHighScoreDisplay();
@@ -1929,7 +1938,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.clearUpdateGameTimer();
                 this.clearGameOverlayForGameplay();
                 this.audio.startBackgroundMusic(this.level);
-                if (this.survivalistQualifiedThisSector && this.enemies.length >= this.MAX_ENEMIES) this.audio.startFullSwarmPressureLoop(0.08);
+                if (this.survivalistQualifiedThisSector && this.enemies.length >= this.MAX_ENEMIES) this.audio.startFullSwarmPressureLoop(0);
                 if (this.prismRelic) this.audio.startPrismRelicHum();
                 this.requestWakeLock();
                 this.checkPrismRelicSpawnProgress();
@@ -1957,6 +1966,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                     this.soundToggleButton,
                     this.musicToggleButton,
                     this.resetHighScoreButton,
+                    this.radarWarningTestButton,
                     this.levelSelectCloseButton
                 ].forEach(button => {
                     if (button && typeof button.blur === 'function') button.blur();
@@ -2278,7 +2288,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.clearUpdateGameTimer();
                 this.clearGameOverlayForGameplay();
                 this.audio.startBackgroundMusic(this.level);
-                if (this.survivalistQualifiedThisSector && this.enemies.length >= this.MAX_ENEMIES) this.audio.startFullSwarmPressureLoop(0.08);
+                if (this.survivalistQualifiedThisSector && this.enemies.length >= this.MAX_ENEMIES) this.audio.startFullSwarmPressureLoop(0);
                 if (this.prismRelic) this.audio.startPrismRelicHum();
                 this.requestWakeLock();
                 this.checkPrismRelicSpawnProgress();
@@ -4594,12 +4604,12 @@ BLOCK-A-ZOIDS RETURN`;
                     const now = this.ctx.currentTime;
                     this.backgroundMixGain = this.ctx.createGain();
                     this.backgroundMixGain.gain.setValueAtTime(0.001, now);
-                    this.backgroundMixGain.gain.linearRampToValueAtTime(0.88, now + 0.035);
+                    this.backgroundMixGain.gain.linearRampToValueAtTime(0.90, now + 0.006);
                     this.backgroundMixGain.connect(this.musicGain || this.masterGain);
 
                     const beatSeconds = 0.60; // 100 BPM marching pressure beat
                     const patternLength = 4;
-                    let nextPatternStart = now + 0.01;
+                    let nextPatternStart = now + 0.002;
 
                     const schedulePattern = () => {
                         if (!this.fullSwarmPressurePlaying || !this.backgroundMusicPlaying || !this.ctx || this.ctx.state === 'closed') return;
@@ -4979,64 +4989,101 @@ BLOCK-A-ZOIDS RETURN`;
             }
 
             // Space Invaders-style marching thump when the maximum Block-A-Zoid swarm is active.
-            // Five-tone Radar Alarm before the Max Swarm marching thump takes over.
+            // Radar Warning: bright Web Audio radar-ping cue, then immediate marching thump.
+            createSoftClipper(drive = 1.35) {
+                const shaper = this.ctx.createWaveShaper();
+                const samples = 256;
+                const curve = new Float32Array(samples);
+                for (let i = 0; i < samples; i++) {
+                    const x = (i * 2 / (samples - 1)) - 1;
+                    curve[i] = Math.tanh(x * drive);
+                }
+                shaper.curve = curve;
+                shaper.oversample = '2x';
+                return shaper;
+            }
+
             playFullSwarmRadarAlarm() {
                 this.ensureAudio();
                 if (!this.ctx || this.ctx.state === 'closed') return 0;
 
                 const now = this.ctx.currentTime;
-                const tones = [
-                    { f: 392.00, t: 0.00, d: 0.085 },
-                    { f: 523.25, t: 0.13, d: 0.085 },
-                    { f: 392.00, t: 0.26, d: 0.085 },
-                    { f: 523.25, t: 0.39, d: 0.085 },
-                    { f: 329.63, t: 0.55, d: 0.24 }
-                ];
-                const duration = 0.86;
+                const sourceBus = this.ctx.createGain();
+                const outputGain = this.ctx.createGain();
+                const shaper = this.createSoftClipper(1.35);
+                const echoDelay = this.ctx.createDelay(0.25);
+                const echoFeedback = this.ctx.createGain();
 
-                tones.forEach((tone, index) => {
-                    const start = now + tone.t;
-                    const osc = this.ctx.createOscillator();
-                    const sub = this.ctx.createOscillator();
-                    const gainNode = this.ctx.createGain();
-                    const subGain = this.ctx.createGain();
+                echoDelay.delayTime.setValueAtTime(0.092, now);
+                echoFeedback.gain.setValueAtTime(0.15, now);
 
-                    osc.type = index === tones.length - 1 ? 'sawtooth' : 'square';
-                    sub.type = 'triangle';
-                    osc.frequency.setValueAtTime(tone.f, start);
-                    sub.frequency.setValueAtTime(tone.f * 0.5, start);
-                    if (index === tones.length - 1) {
-                        osc.frequency.exponentialRampToValueAtTime(246.94, start + tone.d);
-                        sub.frequency.exponentialRampToValueAtTime(123.47, start + tone.d);
-                    }
+                sourceBus.connect(shaper);
+                sourceBus.connect(echoDelay);
+                echoDelay.connect(echoFeedback);
+                echoFeedback.connect(echoDelay);
+                echoDelay.connect(shaper);
+                shaper.connect(outputGain);
+                this.connectOutput(outputGain);
 
-                    osc.connect(gainNode);
-                    sub.connect(subGain);
-                    this.connectOutput(gainNode);
-                    this.connectOutput(subGain);
+                outputGain.gain.setValueAtTime(0.001, now);
+                outputGain.gain.linearRampToValueAtTime(0.92, now + 0.045);
+                outputGain.gain.setValueAtTime(0.92, now + 0.86);
+                outputGain.gain.exponentialRampToValueAtTime(0.001, now + 1.04);
 
-                    gainNode.gain.setValueAtTime(0.001, start);
-                    gainNode.gain.linearRampToValueAtTime(index === tones.length - 1 ? 0.105 : 0.085, start + 0.012);
-                    gainNode.gain.exponentialRampToValueAtTime(0.004, start + tone.d);
+                const highTone = 1040;
+                const lowTone = 740;
+                const pulsePeriod = 0.20; // 5 pulses per second
+                const pingDuration = pulsePeriod * 0.22;
+                const startOffset = 0.025;
 
-                    subGain.gain.setValueAtTime(0.001, start);
-                    subGain.gain.linearRampToValueAtTime(index === tones.length - 1 ? 0.045 : 0.026, start + 0.018);
-                    subGain.gain.exponentialRampToValueAtTime(0.004, start + tone.d + 0.045);
+                for (let i = 0; i < 5; i++) {
+                    const start = now + startOffset + i * pulsePeriod;
+                    const freq = i % 2 === 0 ? highTone : lowTone;
+                    const main = this.ctx.createOscillator();
+                    const overtone = this.ctx.createOscillator();
+                    const mainGain = this.ctx.createGain();
+                    const overtoneGain = this.ctx.createGain();
 
-                    osc.start(start);
-                    sub.start(start);
-                    osc.stop(start + tone.d + 0.055);
-                    sub.stop(start + tone.d + 0.08);
-                });
+                    main.type = 'triangle';
+                    overtone.type = 'sine';
+                    main.frequency.setValueAtTime(freq, start);
+                    overtone.frequency.setValueAtTime(freq * 2, start);
 
-                return duration;
+                    main.connect(mainGain);
+                    overtone.connect(overtoneGain);
+                    mainGain.connect(sourceBus);
+                    overtoneGain.connect(sourceBus);
+
+                    mainGain.gain.setValueAtTime(0.001, start);
+                    mainGain.gain.linearRampToValueAtTime(0.110, start + 0.006);
+                    mainGain.gain.exponentialRampToValueAtTime(0.004, start + pingDuration);
+
+                    overtoneGain.gain.setValueAtTime(0.001, start);
+                    overtoneGain.gain.linearRampToValueAtTime(0.026, start + 0.006);
+                    overtoneGain.gain.exponentialRampToValueAtTime(0.003, start + pingDuration);
+
+                    main.start(start);
+                    overtone.start(start);
+                    main.stop(start + pingDuration + 0.035);
+                    overtone.stop(start + pingDuration + 0.035);
+                }
+
+                setTimeout(() => {
+                    try { sourceBus.disconnect(); } catch (_) {}
+                    try { shaper.disconnect(); } catch (_) {}
+                    try { echoDelay.disconnect(); } catch (_) {}
+                    try { echoFeedback.disconnect(); } catch (_) {}
+                    try { outputGain.disconnect(); } catch (_) {}
+                }, 1300);
+
+                return 1.04;
             }
 
-            // Full Swarm warning: 5-tone Radar Alarm, then immediate Space Invaders-style marching thump.
+            // Full Swarm warning: Radar Warning overlaps directly into the Space Invaders-style marching thump.
             playSurvivalistCue() {
                 this.ensureAudio();
                 const alarmDuration = this.playFullSwarmRadarAlarm();
-                this.startFullSwarmPressureLoop(alarmDuration);
+                this.startFullSwarmPressureLoop(Math.max(0, alarmDuration - 0.22));
             }
 
             // Play the dramatic grid-sector restored sound between levels.
