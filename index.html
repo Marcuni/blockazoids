@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v140: Refines the HUD menu button, resume countdown, high-score display, menu build label, and background loop mix.
+Build v141: Lowers the patrol cowbell pitch further and restyles the HUD menu button to better match the playfield frame.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -914,7 +914,7 @@ This source code, artwork, game design, and related assets are not licensed for 
             color: #fff;
             background: #000;
             border: 2px solid #fff;
-            box-shadow: 0 0 calc(var(--default-glow) * 0.65px) #fff;
+            box-shadow: 0 0 calc(var(--default-glow) * 1px) #fff, inset 0 0 calc(var(--default-glow) * 0.28px) rgba(255, 255, 255, 0.28);
             opacity: 0;
             pointer-events: none;
             cursor: pointer;
@@ -923,10 +923,10 @@ This source code, artwork, game design, and related assets are not licensed for 
 
         #hudMenuButton .hud-menu-line {
             display: block;
-            width: 54%;
+            width: 52%;
             height: 2px;
             background: #fff;
-            box-shadow: 0 0 calc(var(--default-glow) * 0.35px) #fff;
+            box-shadow: 0 0 calc(var(--default-glow) * 0.5px) #fff;
             pointer-events: none;
         }
 
@@ -1314,7 +1314,7 @@ This source code, artwork, game design, and related assets are not licensed for 
     <div id="copyrightFooter">© 2026 Marcus Couto</div>
 
     <script>
-        const BUILD_VERSION = 'Build v140';
+        const BUILD_VERSION = 'Build v141';
         document.getElementById('buildVersion').textContent = BUILD_VERSION;
 
         let lastGlobalTouchEndTime = 0;
@@ -5865,26 +5865,26 @@ BLOCK-A-ZOIDS RETURN`;
 
             makePatrolCowbellShape() {
                 const sr = this.ctx.sampleRate;
-                const duration = 0.062;
-                const length = Math.max(1, Math.ceil((duration + 0.018) * sr));
+                const duration = 0.074;
+                const length = Math.max(1, Math.ceil((duration + 0.022) * sr));
                 const raw = new Float32Array(length);
                 const noise = this.createDeterministicNoise(0x7a5c2f19);
                 for (let i = 0; i < length; i++) {
                     const t = i / sr;
-                    const attack = Math.min(1, t / 0.0012);
-                    const decay = Math.exp(-t * 56) * Math.max(0, 1 - Math.max(0, t - 0.040) / 0.024);
-                    const partialA = Math.sign(Math.sin(2 * Math.PI * 690 * t));
-                    const partialB = Math.sign(Math.sin(2 * Math.PI * 925 * t + 0.55));
-                    const metal = partialA * 0.54 + partialB * 0.38;
-                    const strike = i < 12 ? (1 - i / 12) * 0.42 : 0;
-                    const grit = noise() * 0.08 * Math.exp(-t * 105);
+                    const attack = Math.min(1, t / 0.0016);
+                    const decay = Math.exp(-t * 46) * Math.max(0, 1 - Math.max(0, t - 0.050) / 0.030);
+                    const partialA = Math.sign(Math.sin(2 * Math.PI * 470 * t));
+                    const partialB = Math.sign(Math.sin(2 * Math.PI * 635 * t + 0.55));
+                    const metal = partialA * 0.58 + partialB * 0.34;
+                    const strike = i < 14 ? (1 - i / 14) * 0.36 : 0;
+                    const grit = noise() * 0.07 * Math.exp(-t * 92);
                     raw[i] = (metal + strike + grit) * attack * decay;
                 }
-                const hp = this.highpassSamples(raw, 420);
+                const hp = this.highpassSamples(raw, 260);
                 let max = 0.0001;
                 for (let i = 0; i < hp.length; i++) max = Math.max(max, Math.abs(hp[i]));
                 const data = new Float32Array(length);
-                for (let i = 0; i < hp.length; i++) data[i] = (hp[i] / max) * 0.064;
+                for (let i = 0; i < hp.length; i++) data[i] = (hp[i] / max) * 0.066;
                 return data;
             }
 
@@ -6001,7 +6001,7 @@ BLOCK-A-ZOIDS RETURN`;
                 });
                 if (overtimeKick && kickLayer) [0.000, 0.660, 1.320, 1.980].forEach(time => this.addShapeToLoop(kickLayer, overtimeKick, time, 1));
 
-                // v140: Cowbell sits lower than the old tick, Shaker is shorter, and Overtime Thump is more forward.
+                // v141: Cowbell is pitched lower again so it reads as arcade percussion, not a crystal reward tone.
                 this.addNormalizedLayerToLoop(data, clickLayer, 0.34);
                 this.addNormalizedLayerToLoop(data, tickLayer, 0.16);
                 this.addNormalizedLayerToLoop(data, liftLayer, 0.12);
