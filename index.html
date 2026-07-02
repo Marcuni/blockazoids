@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v129: Overtime begins after Max Swarm, adding one extra Block-A-Zoid every 60 seconds while the swarm beat rises in tempo and pitch.
+Build v130: Overtime timing fixes; bomb resets Overtime pressure, and the Max Swarm beat resyncs immediately after each overtime enemy materializes.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -1237,7 +1237,7 @@ This source code, artwork, game design, and related assets are not licensed for 
     <div id="copyrightFooter">© 2026 Marcus Couto</div>
 
     <script>
-        const BUILD_VERSION = 'Build v129';
+        const BUILD_VERSION = 'Build v130';
         document.getElementById('buildVersion').textContent = BUILD_VERSION;
 
         let lastGlobalTouchEndTime = 0;
@@ -2891,7 +2891,9 @@ This source code, artwork, game design, and related assets are not licensed for 
                     if (!this.overtimeActive || !this.active || this.isPaused || this.isGameOver || !this.levelActionStarted) return;
 
                     const warningStarted = this.spawnOvertimeEnemy();
-                    this.scheduleOvertimeEnemy(warningStarted ? this.parameters.overtimeEnemyIntervalMs : 5000);
+                    if (!warningStarted) this.scheduleOvertimeEnemy(5000);
+                    // When the warning succeeds, the next 60-second Overtime interval is scheduled
+                    // only after the new Block-A-Zoid actually materializes.
                 }, delayMs);
             }
 
@@ -2912,6 +2914,10 @@ This source code, artwork, game design, and related assets are not licensed for 
                         if (this.audio && this.audio.setMaxSwarmBeatIntensity) {
                             this.audio.setMaxSwarmBeatIntensity(this.overtimeEnemiesAdded);
                         }
+                        if (this.audio && this.audio.resyncMaxSwarmBeatAfterOvertimeSpawn) {
+                            this.audio.resyncMaxSwarmBeatAfterOvertimeSpawn();
+                        }
+                        this.scheduleOvertimeEnemy();
                     }
                 });
             }
@@ -3682,6 +3688,15 @@ This source code, artwork, game design, and related assets are not licensed for 
                             enemy.element.remove(); // Remove enemy
                         });
                         this.enemies = []; // Clear enemies
+                    }
+                    this.clearPendingSpawnWarnings(true); // Cancel any pending normal/overtime spawns; normal wave items requeue.
+
+                    // Bombs clear the Overtime pressure but do not erase the earned Survivalist state.
+                    this.clearMaxSwarmCueTimer();
+                    this.resetOvertimeState();
+                    if (this.audio) {
+                        this.audio.stopBackgroundMusic();
+                        this.audio.startBackgroundMusic(this.level);
                     }
 
                     this.applyLevelParameters(); // Rebuild spawn queue; bomb pressure affects speed only
@@ -4685,10 +4700,10 @@ BLOCK-A-ZOIDS RETURN`;
                 this.startMaxSwarmBeatAt(firstThumpStart);
             }
 
-            startMaxSwarmBeatAt(firstThumpStart) {
+            startMaxSwarmBeatAt(firstThumpStart, options = {}) {
                 this.ensureAudio();
                 if (!this.ctx || this.ctx.state === 'closed') return;
-                if (this.maxSwarmBeatPlaying) return;
+                if (this.maxSwarmBeatPlaying && !options.forceRestart) return;
 
                 const now = this.ctx.currentTime;
                 const beatStart = Math.max(now + 0.018, firstThumpStart || now + 0.018);
@@ -4728,11 +4743,11 @@ BLOCK-A-ZOIDS RETURN`;
                     if (!this.maxSwarmBeatPlaying || !this.backgroundMusicPlaying || !this.ctx || this.ctx.state === 'closed') return;
 
                     const currentTime = this.ctx.currentTime;
+                    const beatSeconds = this.getMaxSwarmBeatSeconds();
                     while (nextPatternStart < currentTime + 0.010) {
                         nextPatternStart += beatSeconds * patternLength;
                     }
 
-                    const beatSeconds = this.getMaxSwarmBeatSeconds();
                     for (let index = 0; index < patternLength; index++) {
                         const start = nextPatternStart + index * beatSeconds;
                         this.playMaxSwarmThump(start, index);
@@ -4744,6 +4759,11 @@ BLOCK-A-ZOIDS RETURN`;
                 };
 
                 schedulePattern();
+            }
+
+            resyncMaxSwarmBeatAfterOvertimeSpawn() {
+                if (!this.ctx || this.ctx.state === 'closed' || !this.maxSwarmBeatPlaying) return;
+                this.startMaxSwarmBeatAt(this.ctx.currentTime + 0.045, { forceRestart: true });
             }
 
             scheduleBeatAlignedMusicLoop(loopSeconds, scheduleEvents) {
