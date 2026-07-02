@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v137: Balances the Overtime click-bed mix, strengthens the kick for small speakers, and reduces start directions text one step.
+Build v138: Applies the no-low-pressure click-bed mix, removes the inactive Difficulty button, and aligns Score/Story menu text sizing.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
-This source code, artwork,     game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
+This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
 -->
 <html>
 <head>
@@ -630,10 +630,10 @@ This source code, artwork,     game design, and related assets are not licensed 
             margin-bottom: 14px;
         }
 
-        /* Larger start directions text styling */
+        /* Compact shared menu body text styling */
         #instructionsText {
             font-family: 'Orbitron', 'Courier New', monospace;
-            font-size: clamp(14px, 4.5vw, 18px);
+            font-size: var(--menu-body-text-size);
             line-height: 1.38;
             color: #fff;
             margin-bottom: 16px;
@@ -774,8 +774,8 @@ This source code, artwork,     game design, and related assets are not licensed 
             display: flex;
             justify-content: space-between;
             gap: 12px;
-            font-size: clamp(10px, 2.8vw, 14px);
-            line-height: 1.45;
+            font-size: var(--menu-body-text-size);
+            line-height: 1.38;
             white-space: nowrap;
         }
 
@@ -784,8 +784,8 @@ This source code, artwork,     game design, and related assets are not licensed 
         }
 
         #storyPanelText {
-            font-size: clamp(11px, 3vw, 14px);
-            line-height: 1.45;
+            font-size: var(--menu-body-text-size);
+            line-height: 1.38;
             opacity: 0.86;
             overflow: auto;
         }
@@ -1145,6 +1145,7 @@ This source code, artwork,     game design, and related assets are not licensed 
             --red-color: #F00;
             --green-color: #0F0;
             --blue-color: #00F;
+            --menu-body-text-size: clamp(14px, 4.5vw, 18px);
         }
     </style>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700&display=swap" rel="stylesheet">
@@ -1207,7 +1208,6 @@ This source code, artwork,     game design, and related assets are not licensed 
                 <div class="menu-panel-title">SETTINGS</div>
                 <button id="soundToggleButton" class="menu-button settings-toggle">Sound: On</button>
                 <button id="musicToggleButton" class="menu-button settings-toggle">Music: On</button>
-                <button id="difficultyButton" class="menu-button settings-toggle">Difficulty</button>
                 <button id="resetHighScoreButton" class="menu-button settings-toggle">Reset High Score</button>
                 <button id="settingsBackButton" class="menu-back-button">Back</button>
             </div>
@@ -1237,7 +1237,7 @@ This source code, artwork,     game design, and related assets are not licensed 
     <div id="copyrightFooter">© 2026 Marcus Couto</div>
 
     <script>
-        const BUILD_VERSION = 'Build v137';
+        const BUILD_VERSION = 'Build v138';
         document.getElementById('buildVersion').textContent = BUILD_VERSION;
 
         let lastGlobalTouchEndTime = 0;
@@ -1317,7 +1317,6 @@ This source code, artwork,     game design, and related assets are not licensed 
                 this.musicToggleButton = document.getElementById('musicToggleButton');
                 this.highScoreHud = document.getElementById('highScoreHud');
                 this.resetHighScoreButton = document.getElementById('resetHighScoreButton');
-                this.difficultyButton = document.getElementById('difficultyButton');
                 this.resetHighScorePending = false;
                 this.resetHighScoreConfirmTimer = null;
                 this.menuButtons = document.getElementById('menuButtons');
@@ -1501,12 +1500,6 @@ This source code, artwork,     game design, and related assets are not licensed 
                         e.preventDefault();
                         e.stopPropagation();
                         this.toggleMusicSetting();
-                    });
-                }
-                if (this.difficultyButton) {
-                    this.difficultyButton.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
                     });
                 }
                 this.resetHighScoreButton.addEventListener('click', (e) => {
@@ -2023,7 +2016,6 @@ This source code, artwork,     game design, and related assets are not licensed 
                     this.settingsBackButton,
                     this.soundToggleButton,
                     this.musicToggleButton,
-                    this.difficultyButton,
                     this.resetHighScoreButton,
                     this.levelSelectCloseButton
                 ].forEach(button => {
@@ -5833,22 +5825,6 @@ BLOCK-A-ZOIDS RETURN`;
                 return data;
             }
 
-            makePatrolPressureShape() {
-                const sr = this.ctx.sampleRate;
-                const duration = 0.070;
-                const length = Math.max(1, Math.ceil((duration + 0.010) * sr));
-                const data = new Float32Array(length);
-                for (let i = 0; i < length; i++) {
-                    const t = i / sr;
-                    const attack = Math.min(1, t / 0.004);
-                    const decay = Math.max(0, 1 - Math.max(0, t - 0.004) / Math.max(0.001, duration - 0.004));
-                    const phase = (t * 123) % 1;
-                    const tri = 4 * Math.abs(phase - 0.5) - 1;
-                    data[i] += tri * attack * decay * 0.020;
-                }
-                return data;
-            }
-
             makeOvertimeKickShape() {
                 const sr = this.ctx.sampleRate;
                 const duration = 0.112;
@@ -5880,6 +5856,15 @@ BLOCK-A-ZOIDS RETURN`;
                 }
             }
 
+            addNormalizedLayerToLoop(loopData, layerData, targetPeak) {
+                let peak = 0.0001;
+                for (let i = 0; i < layerData.length; i++) peak = Math.max(peak, Math.abs(layerData[i]));
+                const scale = targetPeak / peak;
+                for (let i = 0; i < loopData.length && i < layerData.length; i++) {
+                    loopData[i] += layerData[i] * scale;
+                }
+            }
+
             buildClickBedLoopBuffer(options = {}) {
                 const stepSeconds = 0.165;
                 // Beat notation: C = longer dry click, c = short dry click, a = accent click, o = silence.
@@ -5888,7 +5873,7 @@ BLOCK-A-ZOIDS RETURN`;
                 // Dry Clicks:   C  c  o  c  C  c  o  c  C  c  o  c  C  c  C  a
                 // Alert Ticks:  o  o  o  o  T  o  o  o  o  T  o  o  o  o  T  o
                 // Noise Lift:   o  o  L  o  o  o  o  L  o  o  o  o  L  o  o  o
-                // Low Pressure: P  o  o  o  o  o  o  o  P  o  o  o  o  o  P  o
+                // Low Pressure: removed from v138 mix.
                 // Overtime loop adds:
                 // Kick:         K  o  o  o  K  o  o  o  K  o  o  o  K  o  o  o
                 const pattern = options.pattern || 'CcocCcocCcocCcCa';
@@ -5902,29 +5887,32 @@ BLOCK-A-ZOIDS RETURN`;
                 const accentClick = this.makePatrolClickShape('a');
                 const signalTick = this.makePatrolRadarTickShape();
                 const noiseRise = this.makePatrolSweepShape();
-                const lowPressure = this.makePatrolPressureShape();
                 const overtimeKick = options.includeKick ? this.makeOvertimeKickShape() : null;
-                const clickScale = options.includeKick ? 0.68 : 1;
-                const accentScale = options.includeKick ? 0.62 : 1;
-                const tickScale = options.includeKick ? 0.72 : 1;
-                const liftScale = options.includeKick ? 0.66 : 1;
-                const pressureScale = options.includeKick ? 0.70 : 1;
+
+                const clickLayer = new Float32Array(length);
+                const tickLayer = new Float32Array(length);
+                const liftLayer = new Float32Array(length);
+                const kickLayer = options.includeKick ? new Float32Array(length) : null;
 
                 for (let i = 0; i < pattern.length; i++) {
                     const mark = pattern[i];
-                    if (mark === 'C') this.addShapeToLoop(data, longClick, i * stepSeconds, clickScale);
-                    if (mark === 'c') this.addShapeToLoop(data, shortClick, i * stepSeconds, clickScale);
-                    if (mark === 'a') this.addShapeToLoop(data, accentClick, i * stepSeconds, accentScale);
+                    if (mark === 'C') this.addShapeToLoop(clickLayer, longClick, i * stepSeconds, 1);
+                    if (mark === 'c') this.addShapeToLoop(clickLayer, shortClick, i * stepSeconds, 1);
+                    if (mark === 'a') this.addShapeToLoop(clickLayer, accentClick, i * stepSeconds, 1);
                 }
 
                 // Baked deterministic layers keep the same clicks from being randomly recolored.
-                [0.660, 1.485, 2.310].forEach(time => this.addShapeToLoop(data, signalTick, time, tickScale));
-                [0.330, 1.320, 2.145].forEach(time => this.addShapeToLoop(data, noiseRise, time, liftScale));
-                [0.000, 1.320, 2.310].forEach(time => this.addShapeToLoop(data, lowPressure, time, pressureScale));
+                [0.660, 1.485, 2.310].forEach(time => this.addShapeToLoop(tickLayer, signalTick, time, 1));
+                [0.330, 1.320, 2.145].forEach(time => this.addShapeToLoop(liftLayer, noiseRise, time, 1));
+                if (overtimeKick && kickLayer) [0.000, 0.660, 1.320, 1.980].forEach(time => this.addShapeToLoop(kickLayer, overtimeKick, time, 1));
 
-                if (overtimeKick) [0.000, 0.660, 1.320, 1.980].forEach(time => this.addShapeToLoop(data, overtimeKick, time, 1.85));
+                // Match the approved v137 no-low-pressure mix exports.
+                this.addNormalizedLayerToLoop(data, clickLayer, 0.34);
+                this.addNormalizedLayerToLoop(data, tickLayer, 0.20);
+                this.addNormalizedLayerToLoop(data, liftLayer, 0.20);
+                if (kickLayer) this.addNormalizedLayerToLoop(data, kickLayer, 0.56);
 
-                const outputScale = options.outputScale || 0.42;
+                const outputScale = options.outputScale || (options.includeKick ? 0.66 : 0.72);
                 for (let i = 0; i < data.length; i++) {
                     const soft = Math.tanh(data[i] * 1.15) / Math.tanh(1.15);
                     data[i] = Math.max(-0.82, Math.min(0.82, soft * outputScale));
@@ -5937,7 +5925,7 @@ BLOCK-A-ZOIDS RETURN`;
                 if (this.consistentPatrolLoopBuffer && this.consistentPatrolLoopBuffer.sampleRate === this.ctx.sampleRate) {
                     return this.consistentPatrolLoopBuffer;
                 }
-                this.consistentPatrolLoopBuffer = this.buildClickBedLoopBuffer({ outputScale: 0.42 });
+                this.consistentPatrolLoopBuffer = this.buildClickBedLoopBuffer({ outputScale: 0.72 });
                 return this.consistentPatrolLoopBuffer;
             }
 
@@ -5945,7 +5933,7 @@ BLOCK-A-ZOIDS RETURN`;
                 if (this.overtimeClickKickLoopBuffer && this.overtimeClickKickLoopBuffer.sampleRate === this.ctx.sampleRate) {
                     return this.overtimeClickKickLoopBuffer;
                 }
-                this.overtimeClickKickLoopBuffer = this.buildClickBedLoopBuffer({ includeKick: true, outputScale: 0.40 });
+                this.overtimeClickKickLoopBuffer = this.buildClickBedLoopBuffer({ includeKick: true, outputScale: 0.66 });
                 return this.overtimeClickKickLoopBuffer;
             }
 
