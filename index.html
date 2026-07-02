@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v143: Adds the GRIDLOCK score-HUD alert and removes the block warning flash.
+Build v144: Restores the original background loop for gameplay/Gridlock and recenters countdown panels.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -404,7 +404,7 @@ This source code, artwork, game design, and related assets are not licensed for 
 
         /* Framed level-start text */
         #bonusText.countdownText {
-            top: 33%;
+            top: 50%;
             width: min(88%, 520px);
             box-sizing: border-box;
             padding: 18px 14px;
@@ -435,7 +435,7 @@ This source code, artwork, game design, and related assets are not licensed for 
 
         /* Compact resume countdown shown after closing the pause menu */
         #bonusText.resumeCountdownText {
-            top: 33%;
+            top: 50%;
             width: auto;
             padding: 0;
             color: #fff;
@@ -1330,7 +1330,7 @@ This source code, artwork, game design, and related assets are not licensed for 
     <div id="copyrightFooter">© 2026 Marcus Couto</div>
 
     <script>
-        const BUILD_VERSION = 'Build v143';
+        const BUILD_VERSION = 'Build v144';
         document.getElementById('buildVersion').textContent = BUILD_VERSION;
 
         let lastGlobalTouchEndTime = 0;
@@ -4584,6 +4584,7 @@ BLOCK-A-ZOIDS RETURN`;
                 this.maxSwarmBeatTimers = [];
                 this.maxSwarmBeatOscillators = [];
                 this.maxSwarmBeatIntensity = 0;
+                this.useOriginalBackgroundLoopOnly = true; // v144: songs stay in code but are disconnected from gameplay.
                 this.musicMuted = this.loadMusicMutedSetting();
                 this.prismRelicHumOscillators = []; // Sustained hum while the Prism Relic is active
                 this.prismRelicHumGains = [];
@@ -4678,8 +4679,7 @@ BLOCK-A-ZOIDS RETURN`;
             }
 
             setMusicMuted(muted) {
-                // Music: On rotates Orb Theme, Sector Command, and Nebula Bounce.
-                // Music: Off keeps the original simple background loop instead of muting music entirely.
+                // v144: Music On uses the original temporary background loop; newer songs remain dormant in code.
                 this.musicMuted = Boolean(muted);
                 try {
                     localStorage.setItem('blockazoidsMusicMuted', this.musicMuted ? '1' : '0');
@@ -4901,17 +4901,29 @@ BLOCK-A-ZOIDS RETURN`;
             startMaxSwarmBeat(delaySeconds = 0) {
                 this.ensureAudio();
                 if (!this.ctx || this.ctx.state === 'closed') return;
+                if (this.useOriginalBackgroundLoopOnly) {
+                    if (!this.backgroundMusicPlaying) this.startBackgroundMusic(this.currentGameplayMusicLevel || 1);
+                    return;
+                }
                 const firstLoopStart = this.ctx.currentTime + Math.max(0.018, delaySeconds || 0);
                 this.startOvertimeSwarmLoopAt(firstLoopStart);
             }
 
             startMaxSwarmBeatAt(firstThumpStart, options = {}) {
+                if (this.useOriginalBackgroundLoopOnly) {
+                    this.startMaxSwarmBeat(0);
+                    return;
+                }
                 this.startOvertimeSwarmLoopAt(firstThumpStart, options);
             }
 
             startOvertimeSwarmLoopAt(firstLoopStart, options = {}) {
                 this.ensureAudio();
                 if (!this.ctx || this.ctx.state === 'closed') return;
+                if (this.useOriginalBackgroundLoopOnly) {
+                    if (!this.backgroundMusicPlaying) this.startBackgroundMusic(this.currentGameplayMusicLevel || 1);
+                    return;
+                }
                 if (this.maxSwarmBeatPlaying && !options.forceRestart) return;
 
                 const now = this.ctx.currentTime;
@@ -4970,6 +4982,7 @@ BLOCK-A-ZOIDS RETURN`;
             }
 
             resyncMaxSwarmBeatAfterOvertimeSpawn() {
+                if (this.useOriginalBackgroundLoopOnly) return;
                 if (!this.ctx || this.ctx.state === 'closed' || !this.maxSwarmBeatPlaying) return;
                 this.startOvertimeSwarmLoopAt(this.ctx.currentTime + 0.045, { forceRestart: true });
             }
@@ -5809,8 +5822,8 @@ BLOCK-A-ZOIDS RETURN`;
             }
 
 
-            // Start the gameplay music for the current sector.
-            // Music: On rotates Orb Theme / Sector Command / Nebula Bounce; Music: Off uses the original Classic loop.
+            // Start the gameplay background for the current sector.
+            // v144: Newer gameplay songs remain in code but are disconnected from active play.
             startBackgroundMusic(levelNumber = this.currentGameplayMusicLevel || 1) {
                 this.ensureAudio();
                 if (this.backgroundMusicPlaying) return;
@@ -5819,11 +5832,14 @@ BLOCK-A-ZOIDS RETURN`;
                 this.stopBackgroundMusic();
                 this.backgroundMusicPlaying = true;
 
-                if (this.musicMuted) {
-                    this.startClassicBackgroundLoop();
-                } else {
-                    this.startLevelSong(this.currentGameplayMusicLevel);
+                if (this.musicMuted) return;
+
+                if (this.useOriginalBackgroundLoopOnly) {
+                    this.startOriginalBackgroundLoop();
+                    return;
                 }
+
+                this.startLevelSong(this.currentGameplayMusicLevel);
             }
 
             // Deterministic normal gameplay patrol loop used as the Music: Off/simple background.
@@ -6054,6 +6070,65 @@ BLOCK-A-ZOIDS RETURN`;
                 }
                 this.overtimeClickKickLoopBuffer = this.buildClickBedLoopBuffer({ includeKick: true, outputScale: 0.70 });
                 return this.overtimeClickKickLoopBuffer;
+            }
+
+            startOriginalBackgroundLoop() {
+                const baseFreq = 80;
+
+                const osc1 = this.ctx.createOscillator();
+                const gain1 = this.ctx.createGain();
+                osc1.type = 'sawtooth';
+                osc1.frequency.value = baseFreq;
+                osc1.connect(gain1);
+                this.connectMusicOutput(gain1);
+                gain1.gain.value = 0;
+                this.backgroundOscillators.push(osc1);
+                this.backgroundGains.push(gain1);
+                osc1.start();
+
+                const osc2 = this.ctx.createOscillator();
+                const gain2 = this.ctx.createGain();
+                osc2.type = 'triangle';
+                osc2.frequency.value = baseFreq * 1.5;
+                osc2.connect(gain2);
+                this.connectMusicOutput(gain2);
+                gain2.gain.value = 0;
+                this.backgroundOscillators.push(osc2);
+                this.backgroundGains.push(gain2);
+                osc2.start();
+
+                const osc3 = this.ctx.createOscillator();
+                const gain3 = this.ctx.createGain();
+                osc3.type = 'sine';
+                osc3.frequency.value = baseFreq * 2.5;
+                osc3.connect(gain3);
+                this.connectMusicOutput(gain3);
+                gain3.gain.value = 0;
+                this.backgroundOscillators.push(osc3);
+                this.backgroundGains.push(gain3);
+                osc3.start();
+
+                const playRhythm = () => {
+                    if (!this.backgroundMusicPlaying || !this.ctx || this.ctx.state === 'closed') return;
+                    const now = this.ctx.currentTime;
+
+                    this.pulseGain(gain1, 0.045, 0.001, now, now + 0.3);
+                    this.scheduleBackground(() => playRhythm(), 800);
+
+                    this.scheduleBackground(() => {
+                        const pulseTime = this.ctx.currentTime;
+                        this.pulseGain(gain2, 0.035, 0.001, pulseTime, pulseTime + 0.3);
+                    }, 200);
+
+                    if (Math.random() > 0.5) {
+                        this.scheduleBackground(() => {
+                            const pulseTime = this.ctx.currentTime;
+                            this.pulseGain(gain3, 0.025, 0.001, pulseTime, pulseTime + 0.2);
+                        }, 400);
+                    }
+                };
+
+                playRhythm();
             }
 
             startClassicBackgroundLoop() {
