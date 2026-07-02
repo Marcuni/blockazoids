@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v132: Separates Survivalist scoring from Max Swarm active state after bombs.
+Build v133: Adds hidden Sector Select unlock, Difficulty placeholder, and dry arcade patrol loop.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -1207,8 +1207,8 @@ This source code, artwork, game design, and related assets are not licensed for 
                 <div class="menu-panel-title">SETTINGS</div>
                 <button id="soundToggleButton" class="menu-button settings-toggle">Sound: On</button>
                 <button id="musicToggleButton" class="menu-button settings-toggle">Music: On</button>
+                <button id="difficultyButton" class="menu-button settings-toggle">Difficulty</button>
                 <button id="resetHighScoreButton" class="menu-button settings-toggle">Reset High Score</button>
-                <button id="maxSwarmSignalTestButton" class="menu-button settings-toggle">MAX SWARM SIGNAL</button>
                 <button id="settingsBackButton" class="menu-back-button">Back</button>
             </div>
             <div id="buildVersion"></div>
@@ -1237,7 +1237,7 @@ This source code, artwork, game design, and related assets are not licensed for 
     <div id="copyrightFooter">© 2026 Marcus Couto</div>
 
     <script>
-        const BUILD_VERSION = 'Build v132';
+        const BUILD_VERSION = 'Build v133';
         document.getElementById('buildVersion').textContent = BUILD_VERSION;
 
         let lastGlobalTouchEndTime = 0;
@@ -1304,6 +1304,9 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.storyButton = document.getElementById('storyButton');
                 this.settingsButton = document.getElementById('settingsButton');
                 this.levelSelectButton = document.getElementById('levelSelectButton');
+                this.levelSelectUnlocked = false;
+                this.marqueeUnlockTapCount = 0;
+                this.marqueeUnlockTapResetTimer = null;
                 this.scoringPanel = document.getElementById('scoringPanel');
                 this.storyPanel = document.getElementById('storyPanel');
                 this.settingsPanel = document.getElementById('settingsPanel');
@@ -1314,7 +1317,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.musicToggleButton = document.getElementById('musicToggleButton');
                 this.highScoreHud = document.getElementById('highScoreHud');
                 this.resetHighScoreButton = document.getElementById('resetHighScoreButton');
-                this.maxSwarmSignalTestButton = document.getElementById('maxSwarmSignalTestButton');
+                this.difficultyButton = document.getElementById('difficultyButton');
                 this.resetHighScorePending = false;
                 this.resetHighScoreConfirmTimer = null;
                 this.menuButtons = document.getElementById('menuButtons');
@@ -1500,18 +1503,17 @@ This source code, artwork, game design, and related assets are not licensed for 
                         this.toggleMusicSetting();
                     });
                 }
+                if (this.difficultyButton) {
+                    this.difficultyButton.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                    });
+                }
                 this.resetHighScoreButton.addEventListener('click', (e) => {
                     e.preventDefault();
                     e.stopPropagation();
                     this.requestHighScoreReset();
                 });
-                if (this.maxSwarmSignalTestButton) {
-                    this.maxSwarmSignalTestButton.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        if (this.audio) this.audio.playMaxSwarmSignal();
-                    });
-                }
                 this.updateSoundToggleLabel();
                 this.updateMusicToggleLabel();
                 this.updateHighScoreDisplay();
@@ -1521,6 +1523,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                     this.hideLevelSelectMenu();
                 });
                 this.buildLevelSelectButtons();
+                this.updateLevelSelectUnlockState();
 
                 // Attract mode variables
                 this.attractInterval = null;          // Interval ID for attract mode
@@ -1566,7 +1569,34 @@ This source code, artwork, game design, and related assets are not licensed for 
                 probe.src = this.marqueeAlternateSrc;
 
                 // On iOS, motion permission still requires a touch gesture. This does not trigger the easter egg.
-                this.marqueeElement.addEventListener('pointerdown', () => this.enableShakeBomb(), { passive: true });
+                this.marqueeElement.addEventListener('pointerdown', () => {
+                    this.enableShakeBomb();
+                    this.recordMarqueeUnlockTap();
+                }, { passive: true });
+            }
+
+            recordMarqueeUnlockTap() {
+                if (this.levelSelectUnlocked) return;
+
+                this.marqueeUnlockTapCount++;
+                if (this.marqueeUnlockTapResetTimer) clearTimeout(this.marqueeUnlockTapResetTimer);
+
+                if (this.marqueeUnlockTapCount >= 5) {
+                    this.levelSelectUnlocked = true;
+                    this.marqueeUnlockTapCount = 0;
+                    this.updateLevelSelectUnlockState();
+                    return;
+                }
+
+                this.marqueeUnlockTapResetTimer = setTimeout(() => {
+                    this.marqueeUnlockTapCount = 0;
+                    this.marqueeUnlockTapResetTimer = null;
+                }, 2200);
+            }
+
+            updateLevelSelectUnlockState() {
+                if (!this.levelSelectButton) return;
+                this.levelSelectButton.style.display = this.levelSelectUnlocked ? '' : 'none';
             }
 
             isAttractModeActive() {
@@ -1993,8 +2023,8 @@ This source code, artwork, game design, and related assets are not licensed for 
                     this.settingsBackButton,
                     this.soundToggleButton,
                     this.musicToggleButton,
+                    this.difficultyButton,
                     this.resetHighScoreButton,
-                    this.maxSwarmSignalTestButton,
                     this.levelSelectCloseButton
                 ].forEach(button => {
                     if (button && typeof button.blur === 'function') button.blur();
@@ -2010,6 +2040,7 @@ This source code, artwork, game design, and related assets are not licensed for 
 
             showMainMenuButtons() {
                 this.menuButtons.style.display = 'flex';
+                this.updateLevelSelectUnlockState();
                 this.resetHighScoreConfirmationState();
                 this.scoringPanel.classList.remove('open');
                 this.storyPanel.classList.remove('open');
@@ -5719,68 +5750,94 @@ BLOCK-A-ZOIDS RETURN`;
                 }
             }
 
-            // Original simple background loop kept as the Music: Off fallback.
-            startClassicBackgroundLoop() {
-                this.backgroundMixGain = this.ctx.createGain();
-                this.backgroundMixGain.gain.setValueAtTime(0.82, this.ctx.currentTime);
-                this.backgroundMixGain.connect(this.musicGain || this.masterGain);
+            // Dry arcade patrol rhythm used as the Music: Off normal gameplay loop.
+            // Web Audio generated only: high-passed noise clicks, no melody, hum, bass, or tonal oscillators.
+            getArcadePatrolClickNoiseBuffer() {
+                if (this.arcadePatrolClickNoiseBuffer && this.arcadePatrolClickNoiseBuffer.sampleRate === this.ctx.sampleRate) {
+                    return this.arcadePatrolClickNoiseBuffer;
+                }
 
-                const baseFreq = 80;
+                const length = Math.max(1, Math.floor(this.ctx.sampleRate * 0.055));
+                const buffer = this.ctx.createBuffer(1, length, this.ctx.sampleRate);
+                const data = buffer.getChannelData(0);
+                let seed = 0x4a6d2f1b;
 
-                const osc1 = this.ctx.createOscillator();
-                const gain1 = this.ctx.createGain();
-                osc1.type = 'sawtooth';
-                osc1.frequency.value = baseFreq;
-                osc1.connect(gain1);
-                gain1.connect(this.backgroundMixGain);
-                gain1.gain.value = 0;
-                this.backgroundOscillators.push(osc1);
-                this.backgroundGains.push(gain1);
-                osc1.start();
-
-                const osc2 = this.ctx.createOscillator();
-                const gain2 = this.ctx.createGain();
-                osc2.type = 'triangle';
-                osc2.frequency.value = baseFreq * 1.5;
-                osc2.connect(gain2);
-                gain2.connect(this.backgroundMixGain);
-                gain2.gain.value = 0;
-                this.backgroundOscillators.push(osc2);
-                this.backgroundGains.push(gain2);
-                osc2.start();
-
-                const osc3 = this.ctx.createOscillator();
-                const gain3 = this.ctx.createGain();
-                osc3.type = 'sine';
-                osc3.frequency.value = baseFreq * 2.5;
-                osc3.connect(gain3);
-                gain3.connect(this.backgroundMixGain);
-                gain3.gain.value = 0;
-                this.backgroundOscillators.push(osc3);
-                this.backgroundGains.push(gain3);
-                osc3.start();
-
-                const playRhythm = () => {
-                    if (!this.backgroundMusicPlaying || !this.musicMuted || !this.ctx || this.ctx.state === 'closed') return;
-                    const now = this.ctx.currentTime;
-
-                    this.pulseGain(gain1, 0.045, 0.001, now, now + 0.3);
-                    this.scheduleBackground(() => playRhythm(), 800);
-
-                    this.scheduleBackground(() => {
-                        const pulseTime = this.ctx.currentTime;
-                        this.pulseGain(gain2, 0.035, 0.001, pulseTime, pulseTime + 0.3);
-                    }, 200);
-
-                    if (Math.random() > 0.5) {
-                        this.scheduleBackground(() => {
-                            const pulseTime = this.ctx.currentTime;
-                            this.pulseGain(gain3, 0.025, 0.001, pulseTime, pulseTime + 0.2);
-                        }, 400);
-                    }
+                const seededNoise = () => {
+                    seed = (seed * 1664525 + 1013904223) >>> 0;
+                    return (seed / 0xffffffff) * 2 - 1;
                 };
 
-                playRhythm();
+                for (let i = 0; i < length; i++) {
+                    const t = i / this.ctx.sampleRate;
+                    const envelope = Math.exp(-t * 82);
+                    const impulse = i < 3 ? (1 - i / 3) * 0.9 : 0;
+                    data[i] = (seededNoise() * envelope * 0.64) + impulse;
+                }
+
+                this.arcadePatrolClickNoiseBuffer = buffer;
+                return buffer;
+            }
+
+            playArcadePatrolClick(start, isLongClick = false) {
+                if (!this.backgroundMixGain || !this.ctx || this.ctx.state === 'closed') return;
+
+                const source = this.ctx.createBufferSource();
+                const highpass = this.ctx.createBiquadFilter();
+                const gainNode = this.ctx.createGain();
+                const duration = isLongClick ? 0.038 : 0.016;
+                const attack = 0.0007;
+                const release = isLongClick ? 0.020 : 0.007;
+                const peak = isLongClick ? 0.048 : 0.032;
+
+                source.buffer = this.getArcadePatrolClickNoiseBuffer();
+                highpass.type = 'highpass';
+                highpass.frequency.setValueAtTime(5200, start);
+                highpass.Q.setValueAtTime(0.85, start);
+
+                source.connect(highpass);
+                highpass.connect(gainNode);
+                gainNode.connect(this.backgroundMixGain);
+
+                gainNode.gain.setValueAtTime(0.001, start);
+                gainNode.gain.linearRampToValueAtTime(peak, start + attack);
+                gainNode.gain.exponentialRampToValueAtTime(0.004, start + Math.max(attack + 0.002, duration));
+                gainNode.gain.exponentialRampToValueAtTime(0.001, start + duration + release);
+
+                this.backgroundOscillators.push(source);
+                this.backgroundGains.push(gainNode);
+                source.onended = () => {
+                    this.backgroundOscillators = this.backgroundOscillators.filter(item => item !== source);
+                    this.backgroundGains = this.backgroundGains.filter(item => item !== gainNode);
+                    try { highpass.disconnect(); } catch (_) {}
+                    try { gainNode.disconnect(); } catch (_) {}
+                };
+
+                source.start(start, 0, duration + release + 0.004);
+            }
+
+            startClassicBackgroundLoop() {
+                this.backgroundMixGain = this.ctx.createGain();
+                this.backgroundMixGain.gain.setValueAtTime(0.001, this.ctx.currentTime);
+                this.backgroundMixGain.gain.linearRampToValueAtTime(0.58, this.ctx.currentTime + 0.08);
+                this.backgroundMixGain.connect(this.musicGain || this.masterGain);
+
+                const stepSeconds = 0.165;
+                const pattern = 'XxoxXxoxXxoxXxXx';
+                const loopSeconds = stepSeconds * pattern.length;
+
+                const scheduleLoop = (loopStart) => {
+                    if (!this.backgroundMusicPlaying || !this.musicMuted || !this.ctx || this.ctx.state === 'closed') return;
+
+                    for (let i = 0; i < pattern.length; i++) {
+                        const mark = pattern[i];
+                        if (mark === 'o') continue;
+                        this.playArcadePatrolClick(loopStart + i * stepSeconds, mark === 'X');
+                    }
+
+                    this.scheduleBackground(() => scheduleLoop(loopStart + loopSeconds), Math.max(80, (loopStart + loopSeconds - this.ctx.currentTime - 0.08) * 1000));
+                };
+
+                scheduleLoop(this.ctx.currentTime + 0.035);
             }
 
 
