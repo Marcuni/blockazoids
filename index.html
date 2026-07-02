@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v141: Lowers the patrol cowbell pitch further and restyles the HUD menu button to better match the playfield frame.
+Build v142: Aligns the HUD menu button over the first grid column, moves countdown text upward, and adds a Max Swarm double-flash warning.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -404,6 +404,7 @@ This source code, artwork, game design, and related assets are not licensed for 
 
         /* Framed level-start text */
         #bonusText.countdownText {
+            top: 33%;
             width: min(88%, 520px);
             box-sizing: border-box;
             padding: 18px 14px;
@@ -434,6 +435,7 @@ This source code, artwork, game design, and related assets are not licensed for 
 
         /* Compact resume countdown shown after closing the pause menu */
         #bonusText.resumeCountdownText {
+            top: 33%;
             width: auto;
             padding: 0;
             color: #fff;
@@ -897,13 +899,13 @@ This source code, artwork, game design, and related assets are not licensed for 
 
         #hudMenuButton {
             position: absolute;
-            left: clamp(8px, 2.8vw, 18px);
+            left: var(--hud-menu-button-left, 13px);
             top: 50%;
             transform: translateY(-50%);
-            width: clamp(30px, 7.2vw, 38px);
-            height: clamp(30px, 7.2vw, 38px);
-            min-width: clamp(30px, 7.2vw, 38px);
-            min-height: clamp(30px, 7.2vw, 38px);
+            width: var(--hud-menu-button-size, 38px);
+            height: var(--hud-menu-button-size, 38px);
+            min-width: var(--hud-menu-button-size, 38px);
+            min-height: var(--hud-menu-button-size, 38px);
             padding: 0;
             box-sizing: border-box;
             display: flex;
@@ -914,7 +916,7 @@ This source code, artwork, game design, and related assets are not licensed for 
             color: #fff;
             background: #000;
             border: 2px solid #fff;
-            box-shadow: 0 0 calc(var(--default-glow) * 1px) #fff, inset 0 0 calc(var(--default-glow) * 0.28px) rgba(255, 255, 255, 0.28);
+            box-shadow: 0 0 calc(var(--default-glow) * 1px) #fff;
             opacity: 0;
             pointer-events: none;
             cursor: pointer;
@@ -1082,6 +1084,10 @@ This source code, artwork, game design, and related assets are not licensed for 
             animation: enemyBorderFlashAnimation 0.3s 1;
         }
 
+        .maxSwarmWarningFlash {
+            animation: maxSwarmWarningFlashAnimation 0.24s steps(1, end) 1;
+        }
+
         
         .borderFlash {
             animation: borderFlashAnimation 0.5s 1;
@@ -1118,6 +1124,13 @@ This source code, artwork, game design, and related assets are not licensed for 
             0% { border: 1px solid #fff; box-shadow: 0 0 calc(var(--default-glow) * 0.8px) currentColor; }
             50% { border: 1px solid #fff; box-shadow: 0 0 calc(var(--default-glow) * 2px) #fff; }
             100% { border: 1px solid #fff; box-shadow: 0 0 calc(var(--default-glow) * 0.8px) currentColor; }
+        }
+
+        @keyframes maxSwarmWarningFlashAnimation {
+            0%, 24% { background-color: #fff; box-shadow: 0 0 calc(var(--default-glow) * 2.2px) #fff, 0 0 calc(var(--default-glow) * 4px) #fff; filter: brightness(1.45); }
+            25%, 49% { background-color: var(--enemy-base-color); box-shadow: 0 0 calc(var(--default-glow) * 0.8px) currentColor; filter: none; }
+            50%, 74% { background-color: #fff; box-shadow: 0 0 calc(var(--default-glow) * 2.2px) #fff, 0 0 calc(var(--default-glow) * 4px) #fff; filter: brightness(1.45); }
+            75%, 100% { background-color: var(--enemy-base-color); box-shadow: 0 0 calc(var(--default-glow) * 0.8px) currentColor; filter: none; }
         }
 
         
@@ -1314,7 +1327,7 @@ This source code, artwork, game design, and related assets are not licensed for 
     <div id="copyrightFooter">© 2026 Marcus Couto</div>
 
     <script>
-        const BUILD_VERSION = 'Build v141';
+        const BUILD_VERSION = 'Build v142';
         document.getElementById('buildVersion').textContent = BUILD_VERSION;
 
         let lastGlobalTouchEndTime = 0;
@@ -1775,6 +1788,10 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.container.style.width = `${boardSize}px`;
                 this.container.style.height = `${boardSize}px`;
                 document.documentElement.style.setProperty('--grid-size', `${this.GRID_SIZE}px`);
+                const hudMenuButtonSize = Math.max(28, Math.min(38, Math.round(this.GRID_SIZE * 0.72)));
+                const hudMenuButtonLeft = Math.round(2 + this.GRID_SIZE / 2 - hudMenuButtonSize / 2);
+                document.documentElement.style.setProperty('--hud-menu-button-size', `${hudMenuButtonSize}px`);
+                document.documentElement.style.setProperty('--hud-menu-button-left', `${hudMenuButtonLeft}px`);
                 document.documentElement.style.setProperty('--player-size', `${this.PLAYER_SIZE}px`);
                 document.documentElement.style.setProperty('--crystal-size', `${this.CRYSTAL_SIZE}px`);
                 document.documentElement.style.setProperty('--prism-relic-size', `${this.PRISM_RELIC_SIZE}px`);
@@ -2954,6 +2971,18 @@ This source code, artwork, game design, and related assets are not licensed for 
             }
 
 
+            flashMaxSwarmWarningBlocks() {
+                this.enemies.forEach(enemy => {
+                    if (!enemy || !enemy.element) return;
+                    enemy.element.classList.remove('maxSwarmWarningFlash');
+                    void enemy.element.offsetWidth;
+                    enemy.element.classList.add('maxSwarmWarningFlash');
+                    setTimeout(() => {
+                        if (enemy.element) enemy.element.classList.remove('maxSwarmWarningFlash');
+                    }, 260);
+                });
+            }
+
             checkMaxSwarmProgress() {
                 if (this.maxSwarmActive || this.maxSwarmCueTimer) return;
                 if (!this.active || this.isPaused || this.isGameOver || !this.levelActionStarted) return;
@@ -2965,6 +2994,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                         if (this.enemies.length < this.normalSwarmSize) return;
                         this.maxSwarmActive = true;
                         this.survivalistEarnedThisSector = true;
+                        this.flashMaxSwarmWarningBlocks();
                         this.audio.playMaxSwarmCue();
                         this.startOvertime();
                     }, this.maxSwarmCueDelayMs);
@@ -3700,6 +3730,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 const currentColor = this.colorMap[this.colorOrder[this.currentColorIndex]];
                 this.enemies.forEach(enemy => {
                     enemy.element.style.backgroundColor = currentColor; // Set color
+                    enemy.element.style.setProperty('--enemy-base-color', currentColor);
                     enemy.updateAnimation(); // Update border and glow
                 });
             }
@@ -4195,7 +4226,9 @@ BLOCK-A-ZOIDS RETURN`;
                 this.element.className = 'enemy';
                 this.element.style.width = `${this.size}px`;
                 this.element.style.height = `${this.size}px`;
-                this.element.style.backgroundColor = this.game.colorMap[this.game.colorOrder[this.game.currentColorIndex]]; // Set color
+                const enemyBaseColor = this.game.colorMap[this.game.colorOrder[this.game.currentColorIndex]];
+                this.element.style.backgroundColor = enemyBaseColor; // Set color
+                this.element.style.setProperty('--enemy-base-color', enemyBaseColor);
                 this.element.style.transform = 'scale(0)'; // Start scaled down
                 this.updatePosition(); // Set initial position
                 game.container.appendChild(this.element); // Add to DOM
@@ -5960,7 +5993,6 @@ BLOCK-A-ZOIDS RETURN`;
                 // Dry Clicks:   C  c  o  c  C  c  o  c  C  c  o  c  C  c  C  a
                 // Cowbell:      o  o  o  o  B  o  o  o  o  B  o  o  o  o  B  o
                 // Shaker:       o  o  S  o  o  o  o  S  o  o  o  o  S  o  o  o
-                // Low Pressure: removed from v138 mix.
                 // Overtime loop adds:
                 // Thump:        K  o  o  o  K  o  o  o  K  o  o  o  K  o  o  o
                 const pattern = options.pattern || 'CcocCcocCcocCcCa';
