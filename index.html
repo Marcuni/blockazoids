@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v135: Rebuilds the normal simple gameplay loop as one deterministic Web Audio-generated buffer so the patrol beat repeats with consistent click sounds.
+Build v136: Adds the click-bed overtime kick variation, lowers the normal patrol bed toward background texture, and enlarges start directions text.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -609,8 +609,8 @@ This source code, artwork, game design, and related assets are not licensed for 
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            width: min(245px, 72vw);
-            padding: 14px 10px;
+            width: min(315px, 86vw);
+            padding: 16px 12px;
             background: #000;
             border: 2px solid #fff;
             box-shadow: none;
@@ -630,11 +630,11 @@ This source code, artwork, game design, and related assets are not licensed for 
             margin-bottom: 14px;
         }
 
-        /* Compact instructions text styling */
+        /* Larger start directions text styling */
         #instructionsText {
             font-family: 'Orbitron', 'Courier New', monospace;
-            font-size: clamp(11px, 3.2vw, 14px);
-            line-height: 1.45;
+            font-size: clamp(16px, 5.4vw, 22px);
+            line-height: 1.32;
             color: #fff;
             margin-bottom: 16px;
             text-shadow: none;
@@ -1237,7 +1237,7 @@ This source code, artwork, game design, and related assets are not licensed for 
     <div id="copyrightFooter">© 2026 Marcus Couto</div>
 
     <script>
-        const BUILD_VERSION = 'Build v135';
+        const BUILD_VERSION = 'Build v136';
         document.getElementById('buildVersion').textContent = BUILD_VERSION;
 
         let lastGlobalTouchEndTime = 0;
@@ -4829,14 +4829,14 @@ BLOCK-A-ZOIDS RETURN`;
                 this.backgroundMusicPlaying = true;
 
                 // Stop future normal-song scheduling immediately, but let currently ringing notes fade
-                // into the first Overtime Swarm Loop thump instead of cutting early and leaving silence.
+                // into the first Overtime click-bed kick loop instead of cutting early and leaving silence.
                 this.backgroundTimers.forEach(timer => clearTimeout(timer));
                 this.backgroundTimers = [];
 
                 const oldMix = this.backgroundMixGain;
                 if (oldMix && this.ctx) {
                     try {
-                        const currentLevel = Math.max(0.001, oldMix.gain.value || 0.52);
+                        const currentLevel = Math.max(0.001, oldMix.gain.value || 0.40);
                         oldMix.gain.cancelScheduledValues(now);
                         oldMix.gain.setValueAtTime(currentLevel, now);
                         oldMix.gain.setValueAtTime(currentLevel, Math.max(now, loopStart - 0.012));
@@ -4847,12 +4847,12 @@ BLOCK-A-ZOIDS RETURN`;
                     }, Math.max(160, (loopStart - now) * 1000 + 240));
                 }
 
-                const shaper = this.createSoftClipper ? this.createSoftClipper(1.24) : null;
+                const shaper = this.createSoftClipper ? this.createSoftClipper(1.18) : null;
                 this.maxSwarmBeatShaper = shaper;
                 this.backgroundMixGain = this.ctx.createGain();
                 this.backgroundMixGain.gain.setValueAtTime(0.001, now);
                 this.backgroundMixGain.gain.setValueAtTime(0.001, Math.max(now, loopStart - 0.012));
-                this.backgroundMixGain.gain.linearRampToValueAtTime(0.86, loopStart + 0.018);
+                this.backgroundMixGain.gain.linearRampToValueAtTime(0.62, loopStart + 0.018);
 
                 if (shaper) {
                     this.backgroundMixGain.connect(shaper);
@@ -4861,36 +4861,20 @@ BLOCK-A-ZOIDS RETURN`;
                     this.backgroundMixGain.connect(this.musicGain || this.masterGain);
                 }
 
-                this.startOvertimeSwarmBed(loopStart);
+                const source = this.ctx.createBufferSource();
+                source.buffer = this.getOvertimeClickKickLoopBuffer();
+                source.loop = true;
+                source.playbackRate.setValueAtTime(this.getOvertimeSwarmPitchMultiplier(), loopStart);
+                source.connect(this.backgroundMixGain);
 
-                let nextLoopStart = loopStart;
-                const cellsPerLoop = 6;
-
-                const scheduleLoop = () => {
-                    if (!this.maxSwarmBeatPlaying || !this.backgroundMusicPlaying || !this.ctx || this.ctx.state === 'closed') return;
-
-                    const currentTime = this.ctx.currentTime;
-                    const cellSeconds = this.getOvertimeSwarmCellSeconds();
-                    const loopSeconds = cellSeconds * cellsPerLoop;
-
-                    while (nextLoopStart < currentTime + 0.012) {
-                        nextLoopStart += loopSeconds;
-                    }
-
-                    for (let cell = 0; cell < cellsPerLoop; cell++) {
-                        const cellStart = nextLoopStart + cell * cellSeconds;
-                        this.playOvertimeSwarmThump(cellStart, 92, Math.min(0.24, cellSeconds * 0.34), 1.0);
-                        this.playOvertimeSwarmTick(cellStart + cellSeconds * 0.50, 880, Math.min(0.06, cellSeconds * 0.095), 0.92);
-                        this.playOvertimeSwarmTick(cellStart + cellSeconds * 0.83, 740, Math.min(0.05, cellSeconds * 0.085), 0.78);
-                        this.playOvertimeSwarmThump(cellStart + cellSeconds, 110, Math.min(0.22, cellSeconds * 0.32), 0.72);
-                    }
-
-                    nextLoopStart += loopSeconds;
-                    const delayMs = Math.max(90, (nextLoopStart - this.ctx.currentTime - 0.18) * 1000);
-                    this.scheduleMaxSwarmBeat(scheduleLoop, delayMs);
+                this.backgroundOscillators.push(source);
+                this.maxSwarmBeatOscillators.push(source);
+                source.onended = () => {
+                    this.backgroundOscillators = this.backgroundOscillators.filter(item => item !== source);
+                    this.maxSwarmBeatOscillators = this.maxSwarmBeatOscillators.filter(item => item !== source);
+                    try { source.disconnect(); } catch (_) {}
                 };
-
-                scheduleLoop();
+                source.start(loopStart);
             }
 
             resyncMaxSwarmBeatAfterOvertimeSpawn() {
@@ -5865,6 +5849,24 @@ BLOCK-A-ZOIDS RETURN`;
                 return data;
             }
 
+            makeOvertimeKickShape() {
+                const sr = this.ctx.sampleRate;
+                const duration = 0.118;
+                const length = Math.max(1, Math.ceil((duration + 0.030) * sr));
+                const data = new Float32Array(length);
+                for (let i = 0; i < length; i++) {
+                    const t = i / sr;
+                    const attack = Math.min(1, t / 0.004);
+                    const decay = Math.exp(-t * 31) * Math.max(0, 1 - Math.max(0, t - 0.080) / 0.045);
+                    const freq = 82 - 28 * Math.min(1, t / 0.055);
+                    const phase = (t * freq) % 1;
+                    const tri = 4 * Math.abs(phase - 0.5) - 1;
+                    const edge = i < 10 ? (1 - i / 10) * 0.16 : 0;
+                    data[i] += (tri * 0.155 + edge) * attack * decay;
+                }
+                return data;
+            }
+
             addShapeToLoop(loopData, shape, startSeconds) {
                 const sr = this.ctx.sampleRate;
                 const start = Math.round(startSeconds * sr);
@@ -5876,13 +5878,11 @@ BLOCK-A-ZOIDS RETURN`;
                 }
             }
 
-            getConsistentPatrolLoopBuffer() {
-                if (this.consistentPatrolLoopBuffer && this.consistentPatrolLoopBuffer.sampleRate === this.ctx.sampleRate) {
-                    return this.consistentPatrolLoopBuffer;
-                }
-
+            buildClickBedLoopBuffer(options = {}) {
                 const stepSeconds = 0.165;
-                const pattern = 'XxoxXxoxXxoxXxXa';
+                // Beat notation going forward: C = longer click, c = short click, o = silence.
+                // Descriptive layers: signal tick, noise rise, low pressure, and overtime kick.
+                const pattern = options.pattern || 'CcocCcocCcocCcCa';
                 const loopSeconds = stepSeconds * pattern.length;
                 const length = Math.max(1, Math.round(loopSeconds * this.ctx.sampleRate));
                 const buffer = this.ctx.createBuffer(1, length, this.ctx.sampleRate);
@@ -5891,35 +5891,55 @@ BLOCK-A-ZOIDS RETURN`;
                 const longClick = this.makePatrolClickShape('X');
                 const shortClick = this.makePatrolClickShape('x');
                 const accentClick = this.makePatrolClickShape('a');
-                const radarTick = this.makePatrolRadarTickShape();
-                const sweep = this.makePatrolSweepShape();
-                const pressure = this.makePatrolPressureShape();
+                const signalTick = this.makePatrolRadarTickShape();
+                const noiseRise = this.makePatrolSweepShape();
+                const lowPressure = this.makePatrolPressureShape();
+                const overtimeKick = options.includeKick ? this.makeOvertimeKickShape() : null;
 
                 for (let i = 0; i < pattern.length; i++) {
                     const mark = pattern[i];
-                    if (mark === 'X') this.addShapeToLoop(data, longClick, i * stepSeconds);
-                    if (mark === 'x') this.addShapeToLoop(data, shortClick, i * stepSeconds);
+                    if (mark === 'C') this.addShapeToLoop(data, longClick, i * stepSeconds);
+                    if (mark === 'c') this.addShapeToLoop(data, shortClick, i * stepSeconds);
                     if (mark === 'a') this.addShapeToLoop(data, accentClick, i * stepSeconds);
                 }
 
-                // The danger layers are baked into the same deterministic buffer so they cannot randomly recolor clicks.
-                [0.660, 1.485, 2.310].forEach(time => this.addShapeToLoop(data, radarTick, time));
-                [0.330, 1.320, 2.145].forEach(time => this.addShapeToLoop(data, sweep, time));
-                [0.000, 1.320, 2.310].forEach(time => this.addShapeToLoop(data, pressure, time));
+                // Baked deterministic layers keep the same clicks from being randomly recolored.
+                [0.660, 1.485, 2.310].forEach(time => this.addShapeToLoop(data, signalTick, time));
+                [0.330, 1.320, 2.145].forEach(time => this.addShapeToLoop(data, noiseRise, time));
+                [0.000, 1.320, 2.310].forEach(time => this.addShapeToLoop(data, lowPressure, time));
 
+                // Overtime kick row: K o o o K o o o K o o o K o o o. No final kick on step 15.
+                if (overtimeKick) [0.000, 0.660, 1.320, 1.980].forEach(time => this.addShapeToLoop(data, overtimeKick, time));
+
+                const outputScale = options.outputScale || 0.42;
                 for (let i = 0; i < data.length; i++) {
                     const soft = Math.tanh(data[i] * 1.15) / Math.tanh(1.15);
-                    data[i] = Math.max(-0.82, Math.min(0.82, soft * 0.58));
+                    data[i] = Math.max(-0.82, Math.min(0.82, soft * outputScale));
                 }
 
-                this.consistentPatrolLoopBuffer = buffer;
                 return buffer;
+            }
+
+            getConsistentPatrolLoopBuffer() {
+                if (this.consistentPatrolLoopBuffer && this.consistentPatrolLoopBuffer.sampleRate === this.ctx.sampleRate) {
+                    return this.consistentPatrolLoopBuffer;
+                }
+                this.consistentPatrolLoopBuffer = this.buildClickBedLoopBuffer({ outputScale: 0.42 });
+                return this.consistentPatrolLoopBuffer;
+            }
+
+            getOvertimeClickKickLoopBuffer() {
+                if (this.overtimeClickKickLoopBuffer && this.overtimeClickKickLoopBuffer.sampleRate === this.ctx.sampleRate) {
+                    return this.overtimeClickKickLoopBuffer;
+                }
+                this.overtimeClickKickLoopBuffer = this.buildClickBedLoopBuffer({ includeKick: true, outputScale: 0.54 });
+                return this.overtimeClickKickLoopBuffer;
             }
 
             startClassicBackgroundLoop() {
                 this.backgroundMixGain = this.ctx.createGain();
                 this.backgroundMixGain.gain.setValueAtTime(0.001, this.ctx.currentTime);
-                this.backgroundMixGain.gain.linearRampToValueAtTime(0.48, this.ctx.currentTime + 0.08);
+                this.backgroundMixGain.gain.linearRampToValueAtTime(0.40, this.ctx.currentTime + 0.08);
                 this.backgroundMixGain.connect(this.musicGain || this.masterGain);
 
                 const source = this.ctx.createBufferSource();
