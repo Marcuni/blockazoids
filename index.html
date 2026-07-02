@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v142: Aligns the HUD menu button over the first grid column, moves countdown text upward, and adds a Max Swarm double-flash warning.
+Build v143: Adds the GRIDLOCK score-HUD alert and removes the block warning flash.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -1084,10 +1084,6 @@ This source code, artwork, game design, and related assets are not licensed for 
             animation: enemyBorderFlashAnimation 0.3s 1;
         }
 
-        .maxSwarmWarningFlash {
-            animation: maxSwarmWarningFlashAnimation 0.24s steps(1, end) 1;
-        }
-
         
         .borderFlash {
             animation: borderFlashAnimation 0.5s 1;
@@ -1118,6 +1114,22 @@ This source code, artwork, game design, and related assets are not licensed for 
             78% { transform: translateY(-2px) scale(1.14); opacity: 1; text-shadow: 0 0 calc(var(--default-glow) * 2px) #fff, 0 0 calc(var(--default-glow) * 3.5px) #fff; }
             100% { transform: translateY(0) scale(1); opacity: 1; text-shadow: 0 0 calc(var(--default-glow) * 1px) #fff, 0 0 calc(var(--default-glow) * 2px) #fff; }
         }
+
+        #score.gridlockAlert {
+            font-size: clamp(19px, 5.7vw, 30px);
+            letter-spacing: 2px;
+            animation: gridlockScoreAlertAnimation 1.18s steps(1, end) 1;
+            transform-origin: center;
+        }
+
+        @keyframes gridlockScoreAlertAnimation {
+            0%, 16% { opacity: 1; transform: scale(1.10); text-shadow: 0 0 calc(var(--default-glow) * 2.6px) #fff, 0 0 calc(var(--default-glow) * 5px) #fff; }
+            17%, 31% { opacity: 0.18; transform: scale(0.98); text-shadow: none; }
+            32%, 49% { opacity: 1; transform: scale(1.14); text-shadow: 0 0 calc(var(--default-glow) * 3px) #fff, 0 0 calc(var(--default-glow) * 6px) #fff; }
+            50%, 64% { opacity: 0.20; transform: scale(0.98); text-shadow: none; }
+            65%, 84% { opacity: 1; transform: scale(1.08); text-shadow: 0 0 calc(var(--default-glow) * 2.4px) #fff, 0 0 calc(var(--default-glow) * 4.8px) #fff; }
+            85%, 100% { opacity: 1; transform: scale(1); text-shadow: 0 0 calc(var(--default-glow) * 1px) #fff, 0 0 calc(var(--default-glow) * 2px) #fff; }
+        }
         
         /* Enemy border flash animation for collisions */
         @keyframes enemyBorderFlashAnimation {
@@ -1126,15 +1138,6 @@ This source code, artwork, game design, and related assets are not licensed for 
             100% { border: 1px solid #fff; box-shadow: 0 0 calc(var(--default-glow) * 0.8px) currentColor; }
         }
 
-        @keyframes maxSwarmWarningFlashAnimation {
-            0%, 24% { background-color: #fff; box-shadow: 0 0 calc(var(--default-glow) * 2.2px) #fff, 0 0 calc(var(--default-glow) * 4px) #fff; filter: brightness(1.45); }
-            25%, 49% { background-color: var(--enemy-base-color); box-shadow: 0 0 calc(var(--default-glow) * 0.8px) currentColor; filter: none; }
-            50%, 74% { background-color: #fff; box-shadow: 0 0 calc(var(--default-glow) * 2.2px) #fff, 0 0 calc(var(--default-glow) * 4px) #fff; filter: brightness(1.45); }
-            75%, 100% { background-color: var(--enemy-base-color); box-shadow: 0 0 calc(var(--default-glow) * 0.8px) currentColor; filter: none; }
-        }
-
-        
-        
         /* Container border flash animation */
         @keyframes borderFlashAnimation {
             0% { border-color: #fff; box-shadow: 0 0 calc(var(--default-glow) * 1px) #fff; }
@@ -1283,7 +1286,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 <div class="scoring-row"><span>Color Group Complete</span><span>100/ea</span></div>
                 <div class="scoring-row"><span>Time Alive</span><span>1/sec</span></div>
                 <div class="scoring-section-title">BONUS</div>
-                <div class="scoring-row"><span>Survivalist <span class="scoring-label-note">(Max Swarm)</span></span><span>100</span></div>
+                <div class="scoring-row"><span>Survivalist <span class="scoring-label-note">(Gridlock)</span></span><span>100</span></div>
                 <div class="scoring-row"><span>Prism Relic</span><span>200</span></div>
                 <div class="scoring-row"><span>Bombs Left</span><span>50/ea</span></div>
                 <div class="scoring-row"><span>Perfect Sector</span><span>100</span></div>
@@ -1327,7 +1330,7 @@ This source code, artwork, game design, and related assets are not licensed for 
     <div id="copyrightFooter">© 2026 Marcus Couto</div>
 
     <script>
-        const BUILD_VERSION = 'Build v142';
+        const BUILD_VERSION = 'Build v143';
         document.getElementById('buildVersion').textContent = BUILD_VERSION;
 
         let lastGlobalTouchEndTime = 0;
@@ -1472,13 +1475,13 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.activeBlinkingCrystals = [];     // Current selectable blinking crystals; kept stable between pickups
                 this.survivalScoreAccumulator = 0;   // Tracks active gameplay seconds for +1 point per second
                 this.sectorElapsedMs = 0;            // Total active time in the current sector
-                this.survivalistEarnedThisSector = false; // Scoring flag: stays earned after a bomb once Max Swarm was reached
-                this.maxSwarmActive = false; // Gameplay/audio flag: resets after bombs so Max Swarm can trigger again
-                this.maxSwarmCueTimer = null;      // Delays the actual max-swarm bonus trigger so it does not overlap the final spawn sound
+                this.survivalistEarnedThisSector = false; // Scoring flag: stays earned after a bomb once Gridlock was reached
+                this.maxSwarmActive = false; // Gameplay/audio flag: resets after bombs so Gridlock can trigger again
+                this.maxSwarmCueTimer = null;      // Delays the actual gridlock bonus trigger so it does not overlap the final spawn sound
                 this.maxSwarmCueDelayMs = 1000;    // One-second gap after the final enemy materializes
-                this.overtimeActive = false;       // Overtime starts after Max Swarm and lasts until sector end/death/restart
+                this.overtimeActive = false;       // Overtime starts after Gridlock and lasts until sector end/death/restart
                 this.overtimeEnemyTimer = null;    // Adds extra Block-A-Zoids during Overtime
-                this.overtimeEnemiesAdded = 0;     // Raises the Max Swarm beat tempo/pitch as Overtime escalates
+                this.overtimeEnemiesAdded = 0;     // Raises the Gridlock beat tempo/pitch as Overtime escalates
                 this.prismRelicCueTimer = null;       // Delays the actual Prism Relic trigger so it does not overlap an enemy spawn sound
                 this.prismRelicCueDelayMs = 1000;     // One-second gap after the threshold enemy materializes
                 this.lastCollectedPos = null;         // Last collected crystal position
@@ -1909,7 +1912,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 }
             }
 
-            // Stop any delayed max-swarm trigger so it cannot fire after pause, restart, or level transition.
+            // Stop any delayed gridlock trigger so it cannot fire after pause, restart, or level transition.
             clearMaxSwarmCueTimer() {
                 if (this.maxSwarmCueTimer) {
                     clearTimeout(this.maxSwarmCueTimer);
@@ -2971,17 +2974,6 @@ This source code, artwork, game design, and related assets are not licensed for 
             }
 
 
-            flashMaxSwarmWarningBlocks() {
-                this.enemies.forEach(enemy => {
-                    if (!enemy || !enemy.element) return;
-                    enemy.element.classList.remove('maxSwarmWarningFlash');
-                    void enemy.element.offsetWidth;
-                    enemy.element.classList.add('maxSwarmWarningFlash');
-                    setTimeout(() => {
-                        if (enemy.element) enemy.element.classList.remove('maxSwarmWarningFlash');
-                    }, 260);
-                });
-            }
 
             checkMaxSwarmProgress() {
                 if (this.maxSwarmActive || this.maxSwarmCueTimer) return;
@@ -2994,7 +2986,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                         if (this.enemies.length < this.normalSwarmSize) return;
                         this.maxSwarmActive = true;
                         this.survivalistEarnedThisSector = true;
-                        this.flashMaxSwarmWarningBlocks();
+                        if (this.ui && this.ui.flashGridlockAlert) this.ui.flashGridlockAlert();
                         this.audio.playMaxSwarmCue();
                         this.startOvertime();
                     }, this.maxSwarmCueDelayMs);
@@ -4588,7 +4580,7 @@ BLOCK-A-ZOIDS RETURN`;
                 this.backgroundTimers = []; // Timers used by the background rhythm loop
                 this.backgroundMixGain = null; // Dedicated gain so paused/stopped gameplay music cuts off cleanly
                 this.backgroundMusicPlaying = false; // Prevents older rhythm loops from stacking
-                this.maxSwarmBeatPlaying = false; // Dedicated Max Swarm marching-thump background loop
+                this.maxSwarmBeatPlaying = false; // Dedicated Gridlock marching-thump background loop
                 this.maxSwarmBeatTimers = [];
                 this.maxSwarmBeatOscillators = [];
                 this.maxSwarmBeatIntensity = 0;
@@ -5331,7 +5323,7 @@ BLOCK-A-ZOIDS RETURN`;
             }
 
             // Space Invaders-style marching thump when the maximum Block-A-Zoid swarm is active.
-            // Radar-style Max Swarm signal: bright Web Audio ping cue, then immediate marching thump.
+            // Radar-style Gridlock signal: bright Web Audio ping cue, then immediate marching thump.
             createSoftClipper(drive = 1.35) {
                 const shaper = this.ctx.createWaveShaper();
                 const samples = 256;
@@ -5421,7 +5413,7 @@ BLOCK-A-ZOIDS RETURN`;
                 return 1.04;
             }
 
-            // Max Swarm cue: signal and first Space Invaders-style thump share one Web Audio timeline.
+            // Gridlock cue: signal and first Space Invaders-style thump share one Web Audio timeline.
             playMaxSwarmCue() {
                 this.ensureAudio();
                 if (!this.ctx || this.ctx.state === 'closed') return;
@@ -6272,10 +6264,13 @@ BLOCK-A-ZOIDS RETURN`;
                 this.bombIndicators = document.getElementById('bombIndicators'); // Bomb indicators container
                 this.levelIndicators = document.getElementById('levelIndicators'); // Level indicators container
                 this.cycleElement = document.getElementById('cycleHud'); // Cycle marker for harder loops
+                this.scoreAlertActive = false;
+                this.scoreAlertTimer = null;
             }
 
             // Update score display
             updateScore() {
+                if (this.scoreAlertActive) return;
                 const showingInitialStart = !this.game.hasStartedRun && !this.game.active && !this.game.isPaused && !this.game.isGameOver;
                 if (showingInitialStart) {
                     this.scoreElement.textContent = `HI ${this.game.highScore}`;
@@ -6285,6 +6280,22 @@ BLOCK-A-ZOIDS RETURN`;
 
                 this.scoreElement.textContent = `${this.game.score}`;
                 this.scoreElement.classList.remove('attractHighScore');
+            }
+
+            flashGridlockAlert() {
+                if (!this.scoreElement) return;
+                if (this.scoreAlertTimer) clearTimeout(this.scoreAlertTimer);
+                this.scoreAlertActive = true;
+                this.scoreElement.classList.remove('attractHighScore', 'highScoreFlash', 'bonusScoreCount', 'gridlockAlert');
+                this.scoreElement.textContent = 'GRIDLOCK';
+                void this.scoreElement.offsetWidth;
+                this.scoreElement.classList.add('gridlockAlert');
+                this.scoreAlertTimer = setTimeout(() => {
+                    this.scoreAlertActive = false;
+                    this.scoreElement.classList.remove('gridlockAlert');
+                    this.updateScore();
+                    this.scoreAlertTimer = null;
+                }, 1180);
             }
 
             // High score is kept in the Scoring menu and initial attract display, not active gameplay HUD.
