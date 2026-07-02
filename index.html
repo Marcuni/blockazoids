@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v131: Replaces the Overtime / Max Swarm background with the Web Audio Overtime Swarm Loop.
+Build v132: Separates Survivalist scoring from Max Swarm active state after bombs.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -1237,7 +1237,7 @@ This source code, artwork, game design, and related assets are not licensed for 
     <div id="copyrightFooter">© 2026 Marcus Couto</div>
 
     <script>
-        const BUILD_VERSION = 'Build v131';
+        const BUILD_VERSION = 'Build v132';
         document.getElementById('buildVersion').textContent = BUILD_VERSION;
 
         let lastGlobalTouchEndTime = 0;
@@ -1381,7 +1381,8 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.activeBlinkingCrystals = [];     // Current selectable blinking crystals; kept stable between pickups
                 this.survivalScoreAccumulator = 0;   // Tracks active gameplay seconds for +1 point per second
                 this.sectorElapsedMs = 0;            // Total active time in the current sector
-                this.maxSwarmReachedThisSector = false; // True once max active Block-A-Zoids are on screen
+                this.survivalistEarnedThisSector = false; // Scoring flag: stays earned after a bomb once Max Swarm was reached
+                this.maxSwarmActive = false; // Gameplay/audio flag: resets after bombs so Max Swarm can trigger again
                 this.maxSwarmCueTimer = null;      // Delays the actual max-swarm bonus trigger so it does not overlap the final spawn sound
                 this.maxSwarmCueDelayMs = 1000;    // One-second gap after the final enemy materializes
                 this.overtimeActive = false;       // Overtime starts after Max Swarm and lasts until sector end/death/restart
@@ -1876,7 +1877,8 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.activeBlinkingCrystals = [];
                 this.survivalScoreAccumulator = 0;
                 this.sectorElapsedMs = 0;
-                this.maxSwarmReachedThisSector = false;
+                this.survivalistEarnedThisSector = false;
+                this.maxSwarmActive = false;
                 this.resetOvertimeState();
                 this.clearMaxSwarmCueTimer();
                 this.clearPrismRelicCueTimer();
@@ -2857,7 +2859,7 @@ This source code, artwork, game design, and related assets are not licensed for 
 
 
             checkMaxSwarmProgress() {
-                if (this.maxSwarmReachedThisSector || this.maxSwarmCueTimer) return;
+                if (this.maxSwarmActive || this.maxSwarmCueTimer) return;
                 if (!this.active || this.isPaused || this.isGameOver || !this.levelActionStarted) return;
 
                 if (this.enemies.length >= this.normalSwarmSize) {
@@ -2865,7 +2867,8 @@ This source code, artwork, game design, and related assets are not licensed for 
                         this.maxSwarmCueTimer = null;
                         if (!this.active || this.isPaused || this.isGameOver || !this.levelActionStarted) return;
                         if (this.enemies.length < this.normalSwarmSize) return;
-                        this.maxSwarmReachedThisSector = true;
+                        this.maxSwarmActive = true;
+                        this.survivalistEarnedThisSector = true;
                         this.audio.playMaxSwarmCue();
                         this.startOvertime();
                     }, this.maxSwarmCueDelayMs);
@@ -3254,8 +3257,8 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.audio.stopBackgroundMusic();
 
                 const unusedBombBonus = this.bombsLeft * this.parameters.unusedBombBonus;
-                const survivalistBonus = this.maxSwarmReachedThisSector ? this.parameters.survivalistBonus : 0;
-                const perfectSectorBonus = this.bombPressure === 0 && this.prismRelicRecoveredThisSector && this.maxSwarmReachedThisSector ? this.parameters.perfectSectorBonus : 0;
+                const survivalistBonus = this.survivalistEarnedThisSector ? this.parameters.survivalistBonus : 0;
+                const perfectSectorBonus = this.bombPressure === 0 && this.prismRelicRecoveredThisSector && this.survivalistEarnedThisSector ? this.parameters.perfectSectorBonus : 0;
                 const relicRecoveredBonus = this.prismRelicRecoveredThisSector ? this.parameters.prismRelicBonus : 0;
                 const cycleBonus = completedLevel >= this.MAX_LEVEL ? this.parameters.gameCycleBonus : 0;
                 const totalBonus = unusedBombBonus + survivalistBonus + perfectSectorBonus + relicRecoveredBonus + cycleBonus;
@@ -3395,7 +3398,8 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.currentBlinkingCrystalCount = this.BASE_BLINKING_CRYSTAL_COUNT;
                 this.survivalScoreAccumulator = 0;
                 this.sectorElapsedMs = 0;
-                this.maxSwarmReachedThisSector = false;
+                this.survivalistEarnedThisSector = false;
+                this.maxSwarmActive = false;
                 this.resetOvertimeState();
                 this.clearMaxSwarmCueTimer();
                 this.clearPrismRelicCueTimer();
@@ -3693,6 +3697,7 @@ This source code, artwork, game design, and related assets are not licensed for 
 
                     // Bombs clear the Overtime pressure but do not erase the earned Survivalist state.
                     this.clearMaxSwarmCueTimer();
+                    this.maxSwarmActive = false;
                     this.resetOvertimeState();
                     if (this.audio) {
                         this.audio.stopBackgroundMusic();
