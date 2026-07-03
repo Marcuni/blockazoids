@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v158: Randomizes Prism Grid reboot repair cells and brings back restored attract-grid idle before Continue.
+Build v159: Updates high-score display wording, Scoring menu record sizing, and the story ending line.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -1020,7 +1020,7 @@ This source code, artwork, game design, and related assets are not licensed for 
             margin: 0 auto 8px;
             padding: 0 0 4px;
             width: 100%;
-            font-size: clamp(12px, 3.5vw, 17px);
+            font-size: clamp(15px, 4.4vw, 20px);
             line-height: 1;
             letter-spacing: 2px;
             opacity: 0.88;
@@ -1031,9 +1031,9 @@ This source code, artwork, game design, and related assets are not licensed for 
         }
 
         .scoring-record-value {
-            font-size: clamp(15px, 4.4vw, 21px);
+            font-size: inherit;
             line-height: 1;
-            letter-spacing: 2px;
+            letter-spacing: inherit;
             text-align: center;
             text-shadow: 0 0 calc(var(--default-glow) * 0.6px) #fff;
         }
@@ -1607,7 +1607,7 @@ This source code, artwork, game design, and related assets are not licensed for 
             </div>
             <div id="scoringPanel" class="menu-panel">
                 <div class="scoring-record-area">
-                    <span class="scoring-record-label">BEST</span>
+                    <span class="scoring-record-label">HIGH SCORE</span>
                     <span id="scoringHighScoreValue" class="scoring-record-value">0</span>
                 </div>
                 <div class="scoring-divider"></div>
@@ -1623,7 +1623,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 <button id="scoringBackButton" class="menu-back-button">Back</button>
             </div>
             <div id="storyPanel" class="menu-panel">
-                <div id="storyPanelText">The Prism Grid was built to keep perfect order.<br><br>Then protection became panic.<br><br>Its repair blocks turned on their own pattern, sealing red, green, and blue inside collapsing sectors.<br><br>Only one thing still moves outside the pattern:<br><br>a rogue Orb.</div>
+                <div id="storyPanelText">The Prism Grid was built to keep perfect order.<br><br>Then protection became panic.<br><br>Its repair blocks turned on their own pattern, sealing red, green, and blue inside collapsing sectors.<br><br>Only one thing still moves free of the pattern:<br><br>a rogue Orb.</div>
                 <button id="storyBackButton" class="menu-back-button">Back</button>
             </div>
             <div id="settingsPanel" class="menu-panel">
@@ -1659,7 +1659,7 @@ This source code, artwork, game design, and related assets are not licensed for 
     <div id="copyrightFooter">© 2026 Marcus Couto</div>
 
     <script>
-        const BUILD_VERSION = 'Build v158';
+        const BUILD_VERSION = 'Build v159';
         document.getElementById('buildVersion').textContent = BUILD_VERSION;
 
         let lastGlobalTouchEndTime = 0;
@@ -1782,7 +1782,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.level = 1;                       // Current level
                 this.cycle = 1;                      // Arcade loop/cycle. Cycle 2 starts after clearing the campaign.
                 this.score = 0;                       // Player score
-                this.highScore = this.loadHighScore(); // Best score saved on this device/browser
+                this.highScore = this.loadHighScore(); // High score saved on this device/browser
                 this.highScoreTarget = this.highScore; // Saved score the current run must beat for the record fanfare
                 this.highScoreBeatenThisRun = this.highScoreTarget <= 0; // Avoid a record fanfare when no real score exists yet
                 this.cosmicZapsLeft = this.getCosmicZapsForCurrentCycle(); // Remaining Cosmic Zaps
@@ -2582,6 +2582,8 @@ This source code, artwork, game design, and related assets are not licensed for 
                 if (this.scoringHighScoreValue) {
                     this.scoringHighScoreValue.textContent = `${this.highScore}`;
                 }
+                const scoringRecordArea = document.querySelector('.scoring-record-area');
+                if (scoringRecordArea) scoringRecordArea.style.display = this.highScore > 0 ? 'flex' : 'none';
             }
 
             checkHighScore() {
@@ -6748,9 +6750,15 @@ This source code, artwork, game design, and related assets are not licensed for 
                                   this.game.showHudDuringSectorIntro ||
                                   this.game.isGameOver;
                 if (!showScore) {
-                    this.scoreElement.textContent = '';
-                    this.scoreElement.classList.add('scoreHidden');
-                    this.scoreElement.classList.remove('attractHighScore');
+                    if (this.game.highScore > 0) {
+                        this.scoreElement.textContent = `HIGH SCORE ${this.game.highScore}`;
+                        this.scoreElement.classList.remove('scoreHidden');
+                        this.scoreElement.classList.add('attractHighScore');
+                    } else {
+                        this.scoreElement.textContent = '';
+                        this.scoreElement.classList.add('scoreHidden');
+                        this.scoreElement.classList.remove('attractHighScore');
+                    }
                     return;
                 }
 
@@ -6774,11 +6782,19 @@ This source code, artwork, game design, and related assets are not licensed for 
                 }, 2300);
             }
 
-            // High score is separated in the Scoring menu and shown as a subdued number during initial attract, not as a HUD label.
+            // High score is separated in the Scoring menu and shown on the opening screen only after a record exists.
             updateHighScore() {
                 const highScoreElement = document.getElementById('highScoreHud');
+                const scoringRecordArea = document.querySelector('.scoring-record-area');
                 if (highScoreElement) highScoreElement.textContent = `${this.game.highScore}`;
                 if (this.game.scoringHighScoreValue) this.game.scoringHighScoreValue.textContent = `${this.game.highScore}`;
+                if (scoringRecordArea) scoringRecordArea.style.display = this.game.highScore > 0 ? 'flex' : 'none';
+                if (!((this.game.active && this.game.levelActionStarted) ||
+                      (this.game.isPaused && this.game.levelActionStarted) ||
+                      this.game.showHudDuringSectorIntro ||
+                      this.game.isGameOver)) {
+                    this.updateScore();
+                }
             }
 
             updateHudMenuButton() {
