@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v157: Adds Prism Grid reboot repair animation for end-of-cycle restoration.
+Build v158: Randomizes Prism Grid reboot repair cells and brings back restored attract-grid idle before Continue.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
-This source  code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
+This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
 -->
 <html>
 <head>
@@ -750,8 +750,8 @@ This source  code, artwork, game design, and related assets are not licensed for
             42% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
             66% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
             73% { opacity: 0.84; transform: translate(-50%, -50%) scale(1.25); }
-            88% { opacity: 0; transform: translate(-50%, -50%) scale(1.7); }
-            100% { opacity: 0; transform: translate(-50%, -50%) scale(1.7); }
+            88% { opacity: 0.38; transform: translate(-50%, -50%) scale(1.02); }
+            100% { opacity: 0.74; transform: translate(-50%, -50%) scale(1); }
         }
 
         @keyframes cycleCelebrationGridReboot {
@@ -1659,7 +1659,7 @@ This source  code, artwork, game design, and related assets are not licensed for
     <div id="copyrightFooter">© 2026 Marcus Couto</div>
 
     <script>
-        const BUILD_VERSION = 'Build v157';
+        const BUILD_VERSION = 'Build v158';
         document.getElementById('buildVersion').textContent = BUILD_VERSION;
 
         let lastGlobalTouchEndTime = 0;
@@ -4489,28 +4489,37 @@ This source  code, artwork, game design, and related assets are not licensed for
                 this.removeCycleRebootCells();
                 const gridSize = this.GRID_SIZE;
                 const gridCount = Math.round(this.PLAYFIELD_SIZE / gridSize);
-                const center = (gridCount - 1) / 2;
-                const maxDistance = Math.hypot(center, center) || 1;
+                const positions = [];
                 const cells = [];
 
                 for (let row = 0; row < gridCount; row++) {
                     for (let col = 0; col < gridCount; col++) {
-                        const cell = document.createElement('div');
-                        cell.className = 'cycle-reboot-cell final-lock';
-                        cell.style.left = `${col * gridSize}px`;
-                        cell.style.top = `${row * gridSize}px`;
-                        cell.style.width = `${gridSize}px`;
-                        cell.style.height = `${gridSize}px`;
-
-                        const distance = Math.hypot(col - center, row - center);
-                        const waveDelay = Math.round((distance / maxDistance) * 2050);
-                        const jitter = ((row * 17 + col * 23) % 5) * 34;
-                        cell.style.setProperty('--reboot-delay', `${180 + waveDelay + jitter}ms`);
-
-                        this.container.appendChild(cell);
-                        cells.push(cell);
+                        positions.push({ row, col });
                     }
                 }
+
+                // Randomize the repair order so the Prism Grid feels like a live reboot,
+                // not a predictable wave the player can read as another level pattern.
+                for (let i = positions.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [positions[i], positions[j]] = [positions[j], positions[i]];
+                }
+
+                positions.forEach((position, index) => {
+                    const cell = document.createElement('div');
+                    cell.className = 'cycle-reboot-cell final-lock';
+                    cell.style.left = `${position.col * gridSize}px`;
+                    cell.style.top = `${position.row * gridSize}px`;
+                    cell.style.width = `${gridSize}px`;
+                    cell.style.height = `${gridSize}px`;
+
+                    const progress = positions.length <= 1 ? 0 : index / (positions.length - 1);
+                    const repairDelay = Math.round(180 + progress * 2200 + Math.random() * 75);
+                    cell.style.setProperty('--reboot-delay', `${repairDelay}ms`);
+
+                    this.container.appendChild(cell);
+                    cells.push(cell);
+                });
 
                 this.cycleRebootCells = cells;
             }
@@ -4621,6 +4630,9 @@ This source  code, artwork, game design, and related assets are not licensed for
                     return;
                 }
 
+                this.removeCycleRebootCells();
+                this.setGameOverlayVisible(false);
+                this.startAttractMode();
                 this.showCycleContinueButton(transitionToken);
             }
 
