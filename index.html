@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v150: Adds cycle Continue, updates story text, and hides the pre-game score.
+Build v151: Gates the marquee easter egg behind Sector Select unlock, keeps HUD visible in menu/Game Over, and removes the Story header.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
-This source code, artwork,  game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
+This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
 -->
 <html>
 <head>
@@ -1407,7 +1407,6 @@ This source code, artwork,  game design, and related assets are not licensed for
                 <button id="scoringBackButton" class="menu-back-button">Back</button>
             </div>
             <div id="storyPanel" class="menu-panel">
-                <div class="menu-panel-title">STORY</div>
                 <div id="storyPanelText">The Prism Grid was built to keep perfect order.<br><br>Then protection became panic.<br><br>Its repair blocks turned on their own pattern, sealing red, green, and blue inside collapsing sectors.<br><br>Only one thing still moves outside the pattern:<br><br>a rogue Orb.</div>
                 <button id="storyBackButton" class="menu-back-button">Back</button>
             </div>
@@ -1444,7 +1443,7 @@ This source code, artwork,  game design, and related assets are not licensed for
     <div id="copyrightFooter">© 2026 Marcus Couto</div>
 
     <script>
-        const BUILD_VERSION = 'Build v150';
+        const BUILD_VERSION = 'Build v151';
         document.getElementById('buildVersion').textContent = BUILD_VERSION;
 
         let lastGlobalTouchEndTime = 0;
@@ -1811,6 +1810,10 @@ This source code, artwork,  game design, and related assets are not licensed for
                     this.levelSelectUnlocked = true;
                     this.marqueeUnlockTapCount = 0;
                     this.updateLevelSelectUnlockState();
+                    if (this.audio) {
+                        this.audio.resume();
+                        this.audio.playMarqueeGlitchZap();
+                    }
                     return;
                 }
 
@@ -1833,7 +1836,7 @@ This source code, artwork,  game design, and related assets are not licensed for
             }
 
             isMarqueeEasterEggUnlocked() {
-                return this.isAttractModeActive() && this.attractModeStartedAt > 0 && performance.now() - this.attractModeStartedAt >= this.marqueeEasterEggUnlockDelayMs;
+                return this.isAttractModeActive() && this.levelSelectUnlocked;
             }
 
             resetMarqueeEasterEgg() {
@@ -6214,7 +6217,10 @@ BLOCK-A-ZOIDS RETURN`;
             // Update score display
             updateScore() {
                 if (this.scoreAlertActive) return;
-                const showScore = (this.game.active && this.game.levelActionStarted) || this.game.showHudDuringSectorIntro;
+                const showScore = (this.game.active && this.game.levelActionStarted) ||
+                                  (this.game.isPaused && this.game.levelActionStarted) ||
+                                  this.game.showHudDuringSectorIntro ||
+                                  this.game.isGameOver;
                 if (!showScore) {
                     this.scoreElement.textContent = '';
                     this.scoreElement.classList.add('scoreHidden');
@@ -6281,7 +6287,10 @@ BLOCK-A-ZOIDS RETURN`;
                 // Hide the bottom HUD only before the first run starts.
                 // During Game Over / Play Again, keep the last-run state visible so the player
                 // can see the sector reached and the bombs left.
-                return (this.game.active && this.game.levelActionStarted) || this.game.showHudDuringSectorIntro || this.game.isGameOver;
+                return (this.game.active && this.game.levelActionStarted) ||
+                       (this.game.isPaused && this.game.levelActionStarted) ||
+                       this.game.showHudDuringSectorIntro ||
+                       this.game.isGameOver;
             }
 
             // Update bomb indicators based on remaining bombs
