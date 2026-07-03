@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v151: Gates the marquee easter egg behind Sector Select unlock, keeps HUD visible in menu/Game Over, and removes the Story header.
+Build v152: Adds Cosmic Zaps with Orb discharge animation and the piccolo unlock arpeggio.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -198,7 +198,7 @@ This source code, artwork, game design, and related assets are not licensed for 
             --enemy-color: #fff;
         }
         
-        /* Explosion effect for player death or bomb detonation */
+        /* Explosion effect for player death or Cosmic Zap discharge */
         .explosion {
             position: absolute;
             background: #fff;
@@ -208,6 +208,98 @@ This source code, artwork, game design, and related assets are not licensed for 
             opacity: 0;
             transition: all 0.6s ease-out;
             z-index: 6;
+        }
+        
+        /* Cosmic Zap: instant Orb discharge feedback. Gameplay clears immediately; this is visual confirmation. */
+        #player.cosmicZapOrbFlash {
+            animation: cosmicZapOrbFlashAnimation 0.42s ease-out 1;
+        }
+
+        .cosmic-zap-ring {
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            border: 2px solid #fff;
+            border-radius: 50%;
+            box-shadow: 0 0 12px #fff, 0 0 28px rgba(255, 255, 255, 0.86), inset 0 0 12px rgba(255, 255, 255, 0.72);
+            opacity: 0;
+            z-index: 9;
+            pointer-events: none;
+            transform: translate(-50%, -50%) scale(0.25);
+            animation: cosmicZapRingAnimation 0.46s ease-out forwards;
+        }
+
+        .cosmic-zap-line {
+            position: absolute;
+            height: 2px;
+            background: #fff;
+            box-shadow: 0 0 7px #fff, 0 0 18px rgba(255, 255, 255, 0.86);
+            opacity: 0;
+            z-index: 9;
+            pointer-events: none;
+            transform-origin: left center;
+            animation: cosmicZapLineAnimation 0.24s steps(1, end) forwards;
+        }
+
+        .cosmic-zap-spark {
+            position: absolute;
+            width: 5px;
+            height: 5px;
+            background: #fff;
+            box-shadow: 0 0 6px #fff, 0 0 14px rgba(255, 255, 255, 0.86);
+            opacity: 0;
+            z-index: 10;
+            pointer-events: none;
+            animation: cosmicZapSparkAnimation 0.36s ease-out forwards;
+        }
+
+        .enemy.cosmicZapDissolve {
+            animation: cosmicZapDissolveAnimation 0.16s steps(1, end) forwards;
+        }
+
+        #gameContainer.cosmicZapShake {
+            animation: cosmicZapShakeAnimation 0.28s ease-in-out 1;
+        }
+
+        @keyframes cosmicZapOrbFlashAnimation {
+            0% { transform: scale(1); box-shadow: 0 0 calc(var(--default-glow) * 0.8px) #fff; }
+            22% { transform: scale(1.22); box-shadow: 0 0 18px #fff, 0 0 42px #fff, 0 0 72px rgba(255,255,255,0.9); }
+            100% { transform: scale(1); box-shadow: 0 0 calc(var(--default-glow) * 0.8px) #fff; }
+        }
+
+        @keyframes cosmicZapRingAnimation {
+            0% { opacity: 0.95; transform: translate(-50%, -50%) scale(0.25); }
+            62% { opacity: 0.58; transform: translate(-50%, -50%) scale(16); }
+            100% { opacity: 0; transform: translate(-50%, -50%) scale(24); }
+        }
+
+        @keyframes cosmicZapLineAnimation {
+            0% { opacity: 0; }
+            10% { opacity: 1; }
+            36% { opacity: 0; }
+            54% { opacity: 0.9; }
+            100% { opacity: 0; }
+        }
+
+        @keyframes cosmicZapSparkAnimation {
+            0% { opacity: 1; transform: translate(0, 0) scale(0.85); }
+            100% { opacity: 0; transform: translate(var(--zap-spark-x, 0), var(--zap-spark-y, -18px)) scale(0.1); }
+        }
+
+        @keyframes cosmicZapDissolveAnimation {
+            0% { opacity: 1; filter: brightness(1); transform: scale(1); }
+            32% { opacity: 1; filter: brightness(4); transform: scale(1.06); background: #fff; }
+            64% { opacity: 0.52; filter: brightness(2); transform: scale(0.84); }
+            100% { opacity: 0; filter: brightness(1); transform: scale(0.22); }
+        }
+
+        @keyframes cosmicZapShakeAnimation {
+            0% { transform: translate(0, 0); }
+            20% { transform: translate(-2px, 2px); }
+            40% { transform: translate(2px, -2px); }
+            60% { transform: translate(-1px, 1px); }
+            80% { transform: translate(1px, -1px); }
+            100% { transform: translate(0, 0); }
         }
         
         /* Base crystal (diamond-shaped) styling */
@@ -1094,21 +1186,21 @@ This source code, artwork, game design, and related assets are not licensed for 
             100% { opacity: 1; }
         }
 
-        /* Bomb indicators container */
-        #bombIndicators {
+        /* Cosmic Zap indicators container */
+        #cosmicZapIndicators {
             display: none;
-            gap: 8px;
+            gap: 9px;
             z-index: 1000;
             box-shadow: none;
         }
         
-        /* Individual bomb missile styling */
-        .bomb-missile {
-            width: 6px;
-            height: 20px;
+        /* Individual Cosmic Zap indicator styling */
+        .cosmic-zap-icon {
+            width: 13px;
+            height: 22px;
             background: #fff;
-            box-shadow: none;
-            clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+            box-shadow: 0 0 calc(var(--default-glow) * 0.45px) #fff;
+            clip-path: polygon(58% 0%, 18% 54%, 45% 54%, 32% 100%, 84% 39%, 56% 39%);
         }
         
         /* Level indicators container */
@@ -1279,7 +1371,7 @@ This source code, artwork, game design, and related assets are not licensed for 
 
 
 
-        /* Screen shake animation for explosions and bomb detonations */
+        /* Screen shake animation for explosions and Cosmic Zap discharges */
         @keyframes screenShake {
             0% { transform: translate(0, 0); }
             10% { transform: translate(-5px, 5px); }
@@ -1376,7 +1468,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 Drag the white orb to move.<br>
                 Collect blinking crystals.<br>
                 Avoid moving blocks.<br>
-                Shake to bomb.
+                Shake to Cosmic Zap.
             </div>
             <button id="startButton">Start Game</button>
         </div>
@@ -1402,7 +1494,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 <div class="scoring-section-title">BONUS</div>
                 <div class="scoring-row"><span>Survivalist <span class="scoring-label-note">(Gridlock)</span></span><span>100</span></div>
                 <div class="scoring-row"><span>Prism Relic</span><span>200</span></div>
-                <div class="scoring-row"><span>Bombs Left</span><span>50/ea</span></div>
+                <div class="scoring-row"><span>Cosmic Zaps Left</span><span>50/ea</span></div>
                 <div class="scoring-row"><span>Perfect Sector</span><span>100</span></div>
                 <button id="scoringBackButton" class="menu-back-button">Back</button>
             </div>
@@ -1432,18 +1524,18 @@ This source code, artwork, game design, and related assets are not licensed for 
             <div id="levelIndicators"></div>
         </div>
         <div class="hud-group" id="cycleHud"></div>
-        <div class="hud-group" id="bombHud">
-            <div id="bombIndicators">
-                <div class="bomb-missile" id="bomb1"></div>
-                <div class="bomb-missile" id="bomb2"></div>
-                <div class="bomb-missile" id="bomb3"></div>
+        <div class="hud-group" id="cosmicZapHud">
+            <div id="cosmicZapIndicators">
+                <div class="cosmic-zap-icon" id="cosmicZap1"></div>
+                <div class="cosmic-zap-icon" id="cosmicZap2"></div>
+                <div class="cosmic-zap-icon" id="cosmicZap3"></div>
             </div>
         </div>
     </div>
     <div id="copyrightFooter">© 2026 Marcus Couto</div>
 
     <script>
-        const BUILD_VERSION = 'Build v151';
+        const BUILD_VERSION = 'Build v152';
         document.getElementById('buildVersion').textContent = BUILD_VERSION;
 
         let lastGlobalTouchEndTime = 0;
@@ -1475,16 +1567,16 @@ This source code, artwork, game design, and related assets are not licensed for 
                     normalSwarmSize: 8,        // Normal Block-A-Zoid swarm size before overtime escalation
                     overtimeEnemyIntervalMs: 60000, // During Overtime, add one extra Block-A-Zoid every minute
                     baseSpeeds: { small: 3, medium: 2, large: 1.5 }, // Base speeds for enemy sizes
-                    baseBombs: 3,              // Starting number of bombs
-                    unusedBombBonus: 50,       // End-of-level bonus for each unused bomb
-                    perfectSectorBonus: 100,   // Extra bonus for clearing a sector with no bombs, gridlock survived, and the Prism Relic recovered
+                    baseCosmicZaps: 3,              // Starting number of Cosmic Zaps
+                    unusedCosmicZapBonus: 50,       // End-of-level bonus for each unused Cosmic Zap
+                    perfectSectorBonus: 100,   // Extra bonus for clearing a sector with no Cosmic Zaps used, Gridlock survived, and the Prism Relic recovered
                     survivalistBonus: 100,     // Extra bonus for surviving until the max active Block-A-Zoids are on screen
                     prismRelicBonus: 200,       // Optional temporary Prism Relic pickup bonus
                     prismRelicSpawnEnemyRatio: 2 / 3, // Spawn when about two-thirds of the maximum Block-A-Zoids are active
                     prismRelicLifetimeMs: 6000, // Prism Relic disappears if not recovered in time
                     gameCycleBonus: 500,       // Bonus when the campaign loops into a harder cycle
                     colorCompleteBonus: 100,   // Bonus for clearing all crystals in one color group
-                    levelSpeedBoost: 0.03      // Enemy speed increase per level; each bomb adds one temporary level-speed notch
+                    levelSpeedBoost: 0.03      // Enemy speed increase per level; each Cosmic Zap adds one temporary level-speed notch
                 };
 
                 // Enemy spawn proportions
@@ -1543,7 +1635,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.normalSwarmSize = this.parameters.normalSwarmSize;
                 this.MAX_LEVEL = 15; // Sector Maps campaign length
                 this.BASE_BLINKING_CRYSTAL_COUNT = 5; // Each level starts with five blinking crystal choices
-                this.currentBlinkingCrystalCount = this.BASE_BLINKING_CRYSTAL_COUNT; // Bomb use lowers this for the current level only
+                this.currentBlinkingCrystalCount = this.BASE_BLINKING_CRYSTAL_COUNT; // Cosmic Zap use lowers this for the current level only
 
                 // Game objects and state
                 this.player = new Player(this);       // Player instance
@@ -1566,8 +1658,8 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.highScore = this.loadHighScore(); // Best score saved on this device/browser
                 this.highScoreTarget = this.highScore; // Saved score the current run must beat for the record fanfare
                 this.highScoreBeatenThisRun = this.highScoreTarget <= 0; // Avoid a record fanfare when no real score exists yet
-                this.bombsLeft = this.getBombsForCurrentCycle(); // Remaining bombs
-                this.bombPressure = 0;                // Extra danger added by bomb use during the current level
+                this.cosmicZapsLeft = this.getCosmicZapsForCurrentCycle(); // Remaining Cosmic Zaps
+                this.cosmicZapPressure = 0;                // Extra danger added by Cosmic Zap use during the current level
                 this.active = false;                  // Game active state
                 this.levelActionStarted = false;      // Enemy spawning/game loop has started for the current level
                 this.showHudDuringSectorIntro = false; // Keep bottom HUD visible while sector name/number is displayed
@@ -1576,16 +1668,16 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.resumeCountdownActive = false;   // Blocks repeated resume clicks during the short countdown.
                 this.updateGameTimer = null;          // Enemy spawn timer so pause/resume cannot duplicate spawn loops
                 this.gameplayRunToken = 0;            // Invalidates old animation frames when pausing/restarting
-                this.lastBombTriggerTime = 0;         // Prevents repeated bomb triggers from one input
-                this.bombInputCooldownMs = 450;
-                this.playfieldBombTapStart = null;   // Tracks quick double-taps on the playfield for bomb input
-                this.lastPlayfieldBombTapTime = 0;
-                this.playfieldBombDoubleTapWindowMs = 360;
-                this.playfieldBombTapMaxDurationMs = 300;
-                this.playfieldBombTapMaxMove = Math.max(24, this.PLAYER_SIZE * 1.35);
-                this.motionBombEnabled = false;       // True after iOS/device motion permission is granted
-                this.lastShakeBombTime = 0;           // Prevents one shake from firing multiple bombs
-                this.shakeBombCooldownMs = 1200;
+                this.lastCosmicZapTriggerTime = 0;         // Prevents repeated Cosmic Zap triggers from one input
+                this.cosmicZapInputCooldownMs = 450;
+                this.playfieldCosmicZapTapStart = null;   // Tracks quick double-taps on the playfield for Cosmic Zap input
+                this.lastPlayfieldCosmicZapTapTime = 0;
+                this.playfieldCosmicZapDoubleTapWindowMs = 360;
+                this.playfieldCosmicZapTapMaxDurationMs = 300;
+                this.playfieldCosmicZapTapMaxMove = Math.max(24, this.PLAYER_SIZE * 1.35);
+                this.motionCosmicZapEnabled = false;       // True after iOS/device motion permission is granted
+                this.lastShakeCosmicZapTime = 0;           // Prevents one shake from firing multiple Cosmic Zaps
+                this.shakeCosmicZapCooldownMs = 1200;
                 this.shakeThreshold = 32;             // Higher = harder to trigger accidentally
                 this.lastMotionSample = null;
                 this.wakeLock = null;                 // Optional screen wake lock during active play
@@ -1597,8 +1689,8 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.activeBlinkingCrystals = [];     // Current selectable blinking crystals; kept stable between pickups
                 this.survivalScoreAccumulator = 0;   // Tracks active gameplay seconds for +1 point per second
                 this.sectorElapsedMs = 0;            // Total active time in the current sector
-                this.survivalistEarnedThisSector = false; // Scoring flag: stays earned after a bomb once Gridlock was reached
-                this.maxSwarmActive = false; // Gameplay/audio flag: resets after bombs so Gridlock can trigger again
+                this.survivalistEarnedThisSector = false; // Scoring flag: stays earned after a Cosmic Zap once Gridlock was reached
+                this.maxSwarmActive = false; // Gameplay/audio flag: resets after Cosmic Zaps so Gridlock can trigger again
                 this.maxSwarmCueTimer = null;      // Delays the actual gridlock bonus trigger so it does not overlap the final spawn sound
                 this.maxSwarmCueDelayMs = 1000;    // One-second gap after the final enemy materializes
                 this.overtimeActive = false;       // Overtime starts after Gridlock and lasts until sector end/death/restart
@@ -1629,21 +1721,21 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.handlePointerMove = (e) => this.player.handlePointerMove(e);
                 this.handlePointerUp = (e) => this.player.handlePointerUp(e);
                 this.handleDeviceMotion = (e) => this.handleShakeMotion(e);
-                this.handlePlayfieldBombPointerDown = (e) => this.recordPlayfieldBombPointerDown(e);
-                this.handlePlayfieldBombPointerUp = (e) => this.recordPlayfieldBombPointerUp(e);
-                this.handlePlayfieldBombPointerCancel = () => { this.playfieldBombTapStart = null; };
-                this.handlePlayfieldBombDoubleClick = (e) => this.triggerPlayfieldBombFromDoubleInput(e);
+                this.handlePlayfieldCosmicZapPointerDown = (e) => this.recordPlayfieldCosmicZapPointerDown(e);
+                this.handlePlayfieldCosmicZapPointerUp = (e) => this.recordPlayfieldCosmicZapPointerUp(e);
+                this.handlePlayfieldCosmicZapPointerCancel = () => { this.playfieldCosmicZapTapStart = null; };
+                this.handlePlayfieldCosmicZapDoubleClick = (e) => this.triggerPlayfieldCosmicZapFromDoubleInput(e);
                 this.container.addEventListener('pointerdown', this.handlePointerDown, { passive: false });
                 this.container.addEventListener('pointermove', this.handlePointerMove, { passive: false });
                 this.container.addEventListener('pointerup', this.handlePointerUp, { passive: false });
                 this.container.addEventListener('pointercancel', this.handlePointerUp, { passive: false });
-                this.container.addEventListener('pointerdown', this.handlePlayfieldBombPointerDown, { passive: true });
-                this.container.addEventListener('pointerup', this.handlePlayfieldBombPointerUp, { passive: false });
-                this.container.addEventListener('pointercancel', this.handlePlayfieldBombPointerCancel, { passive: true });
-                this.container.addEventListener('dblclick', this.handlePlayfieldBombDoubleClick, { passive: false });
+                this.container.addEventListener('pointerdown', this.handlePlayfieldCosmicZapPointerDown, { passive: true });
+                this.container.addEventListener('pointerup', this.handlePlayfieldCosmicZapPointerUp, { passive: false });
+                this.container.addEventListener('pointercancel', this.handlePlayfieldCosmicZapPointerCancel, { passive: true });
+                this.container.addEventListener('dblclick', this.handlePlayfieldCosmicZapDoubleClick, { passive: false });
                 this.enableShakeInput(false); // Android/desktop motion can listen immediately; iOS waits for a tap.
                 this.instructionsWindow.addEventListener('pointerdown', () => {
-                    if (!this.active && !this.isPaused) this.enableShakeBomb();
+                    if (!this.active && !this.isPaused) this.enableShakeCosmicZap();
                 }, { passive: true });
                 document.addEventListener('visibilitychange', () => {
                     if (document.visibilityState === 'visible' && this.active && !this.isPaused && !this.isGameOver) {
@@ -1652,7 +1744,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 });
                 this.startButton.addEventListener('click', (e) => {
                     e.preventDefault();
-                    this.enableShakeBomb();
+                    this.enableShakeCosmicZap();
                     this.start();
                 });
                 if (this.cycleContinueButton) {
@@ -1795,7 +1887,7 @@ This source code, artwork, game design, and related assets are not licensed for 
 
                 // On iOS, motion permission still requires a touch gesture. This does not trigger the easter egg.
                 this.marqueeElement.addEventListener('pointerdown', () => {
-                    this.enableShakeBomb();
+                    this.enableShakeCosmicZap();
                     this.recordMarqueeUnlockTap();
                 }, { passive: true });
             }
@@ -1812,7 +1904,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                     this.updateLevelSelectUnlockState();
                     if (this.audio) {
                         this.audio.resume();
-                        this.audio.playMarqueeGlitchZap();
+                        this.audio.playUnlockPiccoloArpeggio();
                     }
                     return;
                 }
@@ -1941,7 +2033,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 document.documentElement.style.setProperty('--prism-relic-size', `${this.PRISM_RELIC_SIZE}px`);
             }
 
-            // Adjust spawn delay by level; enemy count stays capped at a constant value. Bomb pressure only affects speed.
+            // Adjust spawn delay by level; enemy count stays capped at a constant value. Cosmic Zap pressure only affects speed.
             applyLevelParameters() {
                 this.spawnDelay = Math.max(2, this.parameters.baseSpawnDelay - (this.level - 1) * this.parameters.spawnDelayLevelReduction);
                 this.normalSwarmSize = this.parameters.normalSwarmSize;
@@ -1983,16 +2075,16 @@ This source code, artwork, game design, and related assets are not licensed for 
                 }
             }
 
-            getBombsForCurrentCycle() {
-                return this.cycle >= 2 ? 2 : this.parameters.baseBombs;
+            getCosmicZapsForCurrentCycle() {
+                return this.cycle >= 2 ? 2 : this.parameters.baseCosmicZaps;
             }
 
             // Enemy speed uses one named tuning constant.
-            // Each bomb adds one temporary level-speed notch for the current level only.
+            // Each Cosmic Zap adds one temporary level-speed notch for the current level only.
             getEnemySpeed(type) {
                 const levelBoost = (this.level - 1) * this.parameters.levelSpeedBoost;
-                const bombBoost = this.bombPressure * this.parameters.levelSpeedBoost;
-                const multiplier = 1 + levelBoost + bombBoost;
+                const cosmicZapBoost = this.cosmicZapPressure * this.parameters.levelSpeedBoost;
+                const multiplier = 1 + levelBoost + cosmicZapBoost;
                 return this.BASE_SPEEDS[type] * multiplier;
             }
             // Try to keep the screen awake during active gameplay.
@@ -2131,9 +2223,9 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.prismRelicRecoveredThisSector = false;
                 this.prismRelicRemainingMs = 0;
                 this.prismRelicInitialCrystalCount = 0;
-                this.bombsLeft = this.getBombsForCurrentCycle();
+                this.cosmicZapsLeft = this.getCosmicZapsForCurrentCycle();
                 this.currentBlinkingCrystalCount = this.BASE_BLINKING_CRYSTAL_COUNT;
-                this.bombPressure = 0;
+                this.cosmicZapPressure = 0;
                 this.spawnCounter = 0;
                 this.lastFrameTime = performance.now();
                 this.spawnedCount = { small: 0, medium: 0, large: 0 };
@@ -2701,7 +2793,7 @@ This source code, artwork, game design, and related assets are not licensed for 
 
             // Every level uses the same red -> green -> blue collection rule.
             // Sector Maps are ordered easiest-to-hardest by movement difficulty.
-            // Difficulty can later be adjusted with enemy count, enemy speed, spawn timing, and bomb pressure.
+            // Difficulty can later be adjusted with enemy count, enemy speed, spawn timing, and Cosmic Zap pressure.
             getLevelPatternRows(levelNumber = this.level) {
                 const patterns = [
                     // Grid Sector 1 — Columns / Pylon: clean vertical color zones.
@@ -3332,7 +3424,7 @@ This source code, artwork, game design, and related assets are not licensed for 
 
                 const desiredBlinkingCount = Math.min(this.currentBlinkingCrystalCount, currentColorCrystals.length);
 
-                // If bomb use reduced the allowed choices, remove extra blinking selections without rerolling the rest.
+                // If Cosmic Zap use reduced the allowed choices, remove extra blinking selections without rerolling the rest.
                 while (this.activeBlinkingCrystals.length > desiredBlinkingCount) {
                     const removeIndex = Math.floor(Math.random() * this.activeBlinkingCrystals.length);
                     this.activeBlinkingCrystals.splice(removeIndex, 1);
@@ -3372,9 +3464,9 @@ This source code, artwork, game design, and related assets are not licensed for 
             }
 
 
-            buildSectorBonusLines(unusedBombBonus, survivalistBonus, perfectSectorBonus, relicRecoveredBonus, cycleBonus) {
+            buildSectorBonusLines(unusedCosmicZapBonus, survivalistBonus, perfectSectorBonus, relicRecoveredBonus, cycleBonus) {
                 const lines = [];
-                if (unusedBombBonus > 0) lines.push({ label: 'BOMBS LEFT', value: unusedBombBonus });
+                if (unusedCosmicZapBonus > 0) lines.push({ label: 'COSMIC ZAPS LEFT', value: unusedCosmicZapBonus });
                 if (survivalistBonus > 0) lines.push({ label: 'SURVIVALIST', value: survivalistBonus });
                 if (relicRecoveredBonus > 0) lines.push({ label: 'PRISM RELIC', value: relicRecoveredBonus });
                 if (perfectSectorBonus > 0) lines.push({ label: 'PERFECT SECTOR', value: perfectSectorBonus, highlight: true });
@@ -3551,13 +3643,13 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.removePrismRelic();
                 this.audio.stopBackgroundMusic();
 
-                const unusedBombBonus = this.bombsLeft * this.parameters.unusedBombBonus;
+                const unusedCosmicZapBonus = this.cosmicZapsLeft * this.parameters.unusedCosmicZapBonus;
                 const survivalistBonus = this.survivalistEarnedThisSector ? this.parameters.survivalistBonus : 0;
-                const perfectSectorBonus = this.bombPressure === 0 && this.prismRelicRecoveredThisSector && this.survivalistEarnedThisSector ? this.parameters.perfectSectorBonus : 0;
+                const perfectSectorBonus = this.cosmicZapPressure === 0 && this.prismRelicRecoveredThisSector && this.survivalistEarnedThisSector ? this.parameters.perfectSectorBonus : 0;
                 const relicRecoveredBonus = this.prismRelicRecoveredThisSector ? this.parameters.prismRelicBonus : 0;
                 const cycleBonus = completedLevel >= this.MAX_LEVEL ? this.parameters.gameCycleBonus : 0;
-                const totalBonus = unusedBombBonus + survivalistBonus + perfectSectorBonus + relicRecoveredBonus + cycleBonus;
-                const bonusLines = this.buildSectorBonusLines(unusedBombBonus, survivalistBonus, perfectSectorBonus, relicRecoveredBonus, cycleBonus);
+                const totalBonus = unusedCosmicZapBonus + survivalistBonus + perfectSectorBonus + relicRecoveredBonus + cycleBonus;
+                const bonusLines = this.buildSectorBonusLines(unusedCosmicZapBonus, survivalistBonus, perfectSectorBonus, relicRecoveredBonus, cycleBonus);
 
                 this.runGridRestoreSequence(completedLevel, transitionToken, { bonusLines, totalBonus }).then((sequenceCompleted) => {
                     if (!sequenceCompleted || transitionToken !== this.levelLoadToken || this.isGameOver) return;
@@ -3689,7 +3781,7 @@ This source code, artwork, game design, and related assets are not licensed for 
             advanceToNextLevelAfterRestore(nextLevel) {
                 this.level = nextLevel;
                 this.spawnCounter = 0;
-                this.bombsLeft = this.getBombsForCurrentCycle();
+                this.cosmicZapsLeft = this.getCosmicZapsForCurrentCycle();
                 this.currentBlinkingCrystalCount = this.BASE_BLINKING_CRYSTAL_COUNT;
                 this.survivalScoreAccumulator = 0;
                 this.sectorElapsedMs = 0;
@@ -3704,7 +3796,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.prismRelicRecoveredThisSector = false;
                 this.prismRelicRemainingMs = 0;
                 this.prismRelicInitialCrystalCount = 0;
-                this.bombPressure = 0;
+                this.cosmicZapPressure = 0;
                 this.spawnedCount = { small: 0, medium: 0, large: 0 };
                 this.applyLevelParameters();
                 this.ui.updateAll();
@@ -3905,25 +3997,30 @@ This source code, artwork, game design, and related assets are not licensed for 
             }
 
 
-            shouldIgnorePlayfieldBombEvent(e) {
-                if (!e || !e.target || !e.target.closest) return false;
-                return !!e.target.closest('#pauseWindow, #levelSelectWindow, #instructionsWindow, #gameOver, #bonusText, #screenFade, #gameOverlay');
+            shouldIgnorePlayfieldCosmicZapEvent(e) {
+                if (!e || !e.target) return false;
+                if (e.target.closest && e.target.closest('#pauseWindow')) return true;
+                if (e.target.closest && e.target.closest('#levelSelectWindow')) return true;
+                if (e.target.closest && e.target.closest('#instructionsWindow')) return true;
+                if (e.target.closest && e.target.closest('#scoreHud')) return true;
+                if (e.target.closest && e.target.closest('#bottomHud')) return true;
+                return false;
             }
 
-            canTriggerPlayfieldBomb() {
-                return this.active && !this.isPaused && !this.isGameOver && this.levelActionStarted && this.bombsLeft > 0;
+            canTriggerPlayfieldCosmicZap() {
+                return this.active && !this.isPaused && !this.isGameOver && this.levelActionStarted && this.cosmicZapsLeft > 0;
             }
 
-            triggerPlayfieldBombFromDoubleInput(e) {
-                if (this.shouldIgnorePlayfieldBombEvent(e) || !this.canTriggerPlayfieldBomb()) return;
+            triggerPlayfieldCosmicZapFromDoubleInput(e) {
+                if (this.shouldIgnorePlayfieldCosmicZapEvent(e) || !this.canTriggerPlayfieldCosmicZap()) return;
                 if (e && e.preventDefault) e.preventDefault();
                 if (e && e.stopPropagation) e.stopPropagation();
-                this.handleBomb();
+                this.handleCosmicZap();
             }
 
-            recordPlayfieldBombPointerDown(e) {
-                if (this.shouldIgnorePlayfieldBombEvent(e) || !this.canTriggerPlayfieldBomb()) return;
-                this.playfieldBombTapStart = {
+            recordPlayfieldCosmicZapPointerDown(e) {
+                if (this.shouldIgnorePlayfieldCosmicZapEvent(e) || !this.canTriggerPlayfieldCosmicZap()) return;
+                this.playfieldCosmicZapTapStart = {
                     pointerId: e.pointerId,
                     x: e.clientX,
                     y: e.clientY,
@@ -3931,30 +4028,30 @@ This source code, artwork, game design, and related assets are not licensed for 
                 };
             }
 
-            recordPlayfieldBombPointerUp(e) {
-                if (this.shouldIgnorePlayfieldBombEvent(e) || !this.canTriggerPlayfieldBomb() || !this.playfieldBombTapStart) return;
-                if (e.pointerId !== this.playfieldBombTapStart.pointerId) return;
+            recordPlayfieldCosmicZapPointerUp(e) {
+                if (this.shouldIgnorePlayfieldCosmicZapEvent(e) || !this.canTriggerPlayfieldCosmicZap() || !this.playfieldCosmicZapTapStart) return;
+                if (e.pointerId !== this.playfieldCosmicZapTapStart.pointerId) return;
 
                 const now = performance.now();
-                const duration = now - this.playfieldBombTapStart.time;
-                const distance = Math.hypot(e.clientX - this.playfieldBombTapStart.x, e.clientY - this.playfieldBombTapStart.y);
-                this.playfieldBombTapStart = null;
+                const duration = now - this.playfieldCosmicZapTapStart.time;
+                const distance = Math.hypot(e.clientX - this.playfieldCosmicZapTapStart.x, e.clientY - this.playfieldCosmicZapTapStart.y);
+                this.playfieldCosmicZapTapStart = null;
 
-                if (duration > this.playfieldBombTapMaxDurationMs || distance > this.playfieldBombTapMaxMove) return;
+                if (duration > this.playfieldCosmicZapTapMaxDurationMs || distance > this.playfieldCosmicZapTapMaxMove) return;
 
-                const sinceLastTap = now - this.lastPlayfieldBombTapTime;
-                if (sinceLastTap > 0 && sinceLastTap <= this.playfieldBombDoubleTapWindowMs) {
-                    this.lastPlayfieldBombTapTime = 0;
-                    this.triggerPlayfieldBombFromDoubleInput(e);
+                const sinceLastTap = now - this.lastPlayfieldCosmicZapTapTime;
+                if (sinceLastTap > 0 && sinceLastTap <= this.playfieldCosmicZapDoubleTapWindowMs) {
+                    this.lastPlayfieldCosmicZapTapTime = 0;
+                    this.triggerPlayfieldCosmicZapFromDoubleInput(e);
                     return;
                 }
 
-                this.lastPlayfieldBombTapTime = now;
+                this.lastPlayfieldCosmicZapTapTime = now;
             }
 
             // Enable shake input. iOS requires motion permission from a tap gesture.
             async enableShakeInput(requestPermission = true) {
-                if (this.motionBombEnabled) return true;
+                if (this.motionCosmicZapEnabled) return true;
                 if (typeof DeviceMotionEvent === 'undefined') return false;
 
                 try {
@@ -3965,7 +4062,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                     }
 
                     window.addEventListener('devicemotion', this.handleDeviceMotion, { passive: true });
-                    this.motionBombEnabled = true;
+                    this.motionCosmicZapEnabled = true;
                     return true;
                 } catch (_) {
                     // If permission is denied or motion is unavailable, shake features simply stay disabled.
@@ -3973,12 +4070,12 @@ This source code, artwork, game design, and related assets are not licensed for 
                 }
             }
 
-            // Enable shake-to-bomb from a user gesture when required by the browser.
-            async enableShakeBomb() {
+            // Enable shake-to-Cosmic-Zap from a user gesture when required by the browser.
+            async enableShakeCosmicZap() {
                 return this.enableShakeInput(true);
             }
 
-            // Shake the phone for the attract-mode marquee easter egg, or to use a bomb during active gameplay.
+            // Shake the phone for the attract-mode marquee easter egg, or to use a Cosmic Zap during active gameplay.
             handleShakeMotion(e) {
                 const a = e.accelerationIncludingGravity || e.acceleration;
                 if (!a) return;
@@ -4009,37 +4106,100 @@ This source code, artwork, game design, and related assets are not licensed for 
                     return;
                 }
 
-                if (!this.active || this.isPaused || this.isGameOver || !this.levelActionStarted || this.bombsLeft <= 0) return;
-                if (now - this.lastShakeBombTime >= this.shakeBombCooldownMs) {
-                    this.lastShakeBombTime = now;
-                    this.handleBomb();
+                if (!this.active || this.isPaused || this.isGameOver || !this.levelActionStarted || this.cosmicZapsLeft <= 0) return;
+                if (now - this.lastShakeCosmicZapTime >= this.shakeCosmicZapCooldownMs) {
+                    this.lastShakeCosmicZapTime = now;
+                    this.handleCosmicZap();
                 }
             }
 
-            // Handle bomb detonation with screen shake, enemy destruction, and fewer blinking choices for this level.
-            handleBomb() {
-                if (this.bombsLeft > 0 && this.active && !this.isPaused && !this.isGameOver) { // Bomb available and game active
-                    const now = performance.now();
-                    if (now - this.lastBombTriggerTime < this.bombInputCooldownMs) return;
-                    this.lastBombTriggerTime = now;
+            createCosmicZapElement(className, x, y) {
+                const element = document.createElement('div');
+                element.className = className;
+                element.style.left = `${x}px`;
+                element.style.top = `${y}px`;
+                this.container.appendChild(element);
+                return element;
+            }
 
-                    this.bombsLeft--; // Decrease bomb count
-                    this.bombPressure++; // Adds one temporary level-speed notch for the rest of this level
-                    this.currentBlinkingCrystalCount = Math.max(1, this.currentBlinkingCrystalCount - 1); // Bomb use lowers active blinking choices for this level only
-                    this.ui.updateBombIndicators(); // Update UI
-                    this.audio.playExplosionSound(); // Play explosion sound
-                    this.container.classList.add('shake'); // Apply screen shake
+            playCosmicZapDischarge(clearedEnemies = []) {
+                const centerX = this.player.x + this.player.size / 2;
+                const centerY = this.player.y + this.player.size / 2;
 
-                    if (this.enemies.length > 0) { // Enemies present
-                        this.enemies.forEach(enemy => {
-                            this.explosions.push(new Explosion(this, enemy.x + enemy.size / 2, enemy.y + enemy.size / 2, false)); // Create explosion
-                            enemy.element.remove(); // Remove enemy
-                        });
-                        this.enemies = []; // Clear enemies
+                this.player.element.classList.remove('cosmicZapOrbFlash');
+                void this.player.element.offsetWidth;
+                this.player.element.classList.add('cosmicZapOrbFlash');
+                setTimeout(() => this.player.element.classList.remove('cosmicZapOrbFlash'), 430);
+
+                const ring = this.createCosmicZapElement('cosmic-zap-ring', centerX, centerY);
+                setTimeout(() => ring.remove(), 520);
+
+                const targets = clearedEnemies.length > 0
+                    ? clearedEnemies.map(enemy => ({ x: enemy.x + enemy.size / 2, y: enemy.y + enemy.size / 2 }))
+                    : Array.from({ length: 6 }, (_, index) => {
+                        const angle = -Math.PI / 2 + index * Math.PI / 3;
+                        return {
+                            x: centerX + Math.cos(angle) * this.PLAYFIELD_SIZE * 0.42,
+                            y: centerY + Math.sin(angle) * this.PLAYFIELD_SIZE * 0.42
+                        };
+                    });
+
+                targets.slice(0, 10).forEach((target, index) => {
+                    const dx = target.x - centerX;
+                    const dy = target.y - centerY;
+                    const distance = Math.max(24, Math.hypot(dx, dy));
+                    const angle = Math.atan2(dy, dx) * 180 / Math.PI;
+                    const line = this.createCosmicZapElement('cosmic-zap-line', centerX, centerY);
+                    line.style.width = `${distance}px`;
+                    line.style.transform = `translateY(-50%) rotate(${angle}deg)`;
+                    line.style.animationDelay = `${Math.min(0.08, index * 0.012)}s`;
+                    setTimeout(() => line.remove(), 320);
+                });
+
+                clearedEnemies.forEach(enemy => {
+                    const ex = enemy.x + enemy.size / 2;
+                    const ey = enemy.y + enemy.size / 2;
+                    for (let i = 0; i < 3; i++) {
+                        const spark = this.createCosmicZapElement('cosmic-zap-spark', ex - 2, ey - 2);
+                        const angle = (i / 3) * Math.PI * 2 + Math.random() * 0.5;
+                        const distance = 14 + Math.random() * 16;
+                        spark.style.setProperty('--zap-spark-x', `${Math.cos(angle) * distance}px`);
+                        spark.style.setProperty('--zap-spark-y', `${Math.sin(angle) * distance}px`);
+                        spark.style.animationDelay = `${i * 0.018}s`;
+                        setTimeout(() => spark.remove(), 460);
                     }
-                    this.clearPendingSpawnWarnings(true); // Cancel any pending normal/overtime spawns; normal wave items requeue.
+                });
+            }
 
-                    // Bombs clear the Overtime pressure but do not erase the earned Survivalist state.
+            // Handle Cosmic Zap discharge with instant danger clearing and quick Orb-centered feedback.
+            handleCosmicZap() {
+                if (this.cosmicZapsLeft > 0 && this.active && !this.isPaused && !this.isGameOver) {
+                    const now = performance.now();
+                    if (now - this.lastCosmicZapTriggerTime < this.cosmicZapInputCooldownMs) return;
+                    this.lastCosmicZapTriggerTime = now;
+
+                    const clearedEnemies = this.enemies.slice();
+
+                    this.cosmicZapsLeft--;
+                    this.cosmicZapPressure++;
+                    this.currentBlinkingCrystalCount = Math.max(1, this.currentBlinkingCrystalCount - 1);
+                    this.ui.updateCosmicZapIndicators();
+                    this.audio.playCosmicZapSound();
+                    this.playCosmicZapDischarge(clearedEnemies);
+                    this.container.classList.remove('cosmicZapShake');
+                    void this.container.offsetWidth;
+                    this.container.classList.add('cosmicZapShake');
+
+                    if (this.enemies.length > 0) {
+                        this.enemies.forEach(enemy => {
+                            enemy.element.classList.add('cosmicZapDissolve');
+                            setTimeout(() => enemy.element.remove(), 170);
+                        });
+                        this.enemies = [];
+                    }
+                    this.clearPendingSpawnWarnings(true);
+
+                    // Cosmic Zaps clear the Overtime pressure but do not erase the earned Survivalist state.
                     this.clearMaxSwarmCueTimer();
                     this.maxSwarmActive = false;
                     this.resetOvertimeState();
@@ -4048,10 +4208,10 @@ This source code, artwork, game design, and related assets are not licensed for 
                         this.audio.startBackgroundMusic(this.level);
                     }
 
-                    this.applyLevelParameters(); // Rebuild spawn queue; bomb pressure affects speed only
-                    this.spawnCounter = Math.max(0, this.spawnDelay - 1); // Enemies return soon, not from a fully relaxed delay state
-                    setTimeout(() => this.container.classList.remove('shake'), 500); // Remove shake after 500ms
-                    this.updateCrystalHighlight(); // Update highlight
+                    this.applyLevelParameters();
+                    this.spawnCounter = Math.max(0, this.spawnDelay - 1);
+                    setTimeout(() => this.container.classList.remove('cosmicZapShake'), 300);
+                    this.updateCrystalHighlight();
                 }
             }
 
@@ -4228,7 +4388,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.bonusTextElement.classList.add('finalCycleSubtext');
                 this.gameOverElement.textContent = 'PRISM GRID\nRESTORED';
                 this.bonusTextElement.textContent = `CYCLE ${this.cycle}
-BOMBS: ${this.getBombsForCurrentCycle()}
+COSMIC ZAPS: ${this.getCosmicZapsForCurrentCycle()}
 BLOCK-A-ZOIDS RETURN`;
                 this.gameOverElement.style.opacity = '0';
                 this.bonusTextElement.style.opacity = '0';
@@ -5289,6 +5449,32 @@ BLOCK-A-ZOIDS RETURN`;
                 melody.forEach(note => playNote(note.f, now + note.t, note.d, note.v, note.type));
             }
 
+            // Quick piccolo-like secret unlock: up, down, then up the arpeggio.
+            playUnlockPiccoloArpeggio() {
+                this.ensureAudio();
+                const now = this.ctx.currentTime;
+                const notes = [
+                    1046.50, 1318.51, 1567.98, 2093.00,
+                    1567.98, 1318.51, 1046.50,
+                    1318.51, 1567.98, 2093.00
+                ];
+
+                notes.forEach((freq, i) => {
+                    const start = now + i * 0.045;
+                    const osc = this.ctx.createOscillator();
+                    const gainNode = this.ctx.createGain();
+                    osc.type = i % 3 === 0 ? 'square' : 'triangle';
+                    osc.frequency.setValueAtTime(freq, start);
+                    osc.connect(gainNode);
+                    this.connectOutput(gainNode);
+                    gainNode.gain.setValueAtTime(0.001, start);
+                    gainNode.gain.linearRampToValueAtTime(0.068, start + 0.007);
+                    gainNode.gain.exponentialRampToValueAtTime(0.006, start + 0.047);
+                    osc.start(start);
+                    osc.stop(start + 0.055);
+                });
+            }
+
             // Short static burst for the hidden vintage marquee easter egg.
             playMarqueeGlitchZap() {
                 this.ensureAudio();
@@ -5604,6 +5790,62 @@ BLOCK-A-ZOIDS RETURN`;
                 ].forEach(([f, s]) => playV(f, s, 0.55, 'sine', 0.022));
 
                 return durationMs;
+            }
+
+            // Play Cosmic Zap sound: fast dry electric discharge, not an explosion.
+            playCosmicZapSound() {
+                this.ensureAudio();
+                const now = this.ctx.currentTime;
+
+                const zapOsc = this.ctx.createOscillator();
+                const zapGain = this.ctx.createGain();
+                zapOsc.type = 'square';
+                zapOsc.frequency.setValueAtTime(1760, now);
+                zapOsc.frequency.exponentialRampToValueAtTime(740, now + 0.055);
+                zapOsc.frequency.exponentialRampToValueAtTime(2349.32, now + 0.18);
+                zapOsc.connect(zapGain);
+                this.connectOutput(zapGain);
+                zapGain.gain.setValueAtTime(0.001, now);
+                zapGain.gain.linearRampToValueAtTime(0.115, now + 0.01);
+                zapGain.gain.exponentialRampToValueAtTime(0.008, now + 0.21);
+                zapOsc.start(now);
+                zapOsc.stop(now + 0.24);
+
+                const buzzOsc = this.ctx.createOscillator();
+                const buzzGain = this.ctx.createGain();
+                buzzOsc.type = 'sawtooth';
+                buzzOsc.frequency.setValueAtTime(120, now);
+                buzzOsc.frequency.exponentialRampToValueAtTime(90, now + 0.16);
+                buzzOsc.connect(buzzGain);
+                this.connectOutput(buzzGain);
+                buzzGain.gain.setValueAtTime(0.001, now);
+                buzzGain.gain.linearRampToValueAtTime(0.04, now + 0.012);
+                buzzGain.gain.exponentialRampToValueAtTime(0.006, now + 0.18);
+                buzzOsc.start(now);
+                buzzOsc.stop(now + 0.2);
+
+                const duration = 0.18;
+                const noiseBuffer = this.ctx.createBuffer(1, Math.floor(this.ctx.sampleRate * duration), this.ctx.sampleRate);
+                const data = noiseBuffer.getChannelData(0);
+                for (let i = 0; i < data.length; i++) {
+                    const envelope = 1 - i / data.length;
+                    data[i] = (Math.random() * 2 - 1) * envelope;
+                }
+
+                const noise = this.ctx.createBufferSource();
+                const highpass = this.ctx.createBiquadFilter();
+                const noiseGain = this.ctx.createGain();
+                noise.buffer = noiseBuffer;
+                highpass.type = 'highpass';
+                highpass.frequency.setValueAtTime(900, now);
+                noise.connect(highpass);
+                highpass.connect(noiseGain);
+                this.connectOutput(noiseGain);
+                noiseGain.gain.setValueAtTime(0.001, now);
+                noiseGain.gain.linearRampToValueAtTime(0.05, now + 0.012);
+                noiseGain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+                noise.start(now);
+                noise.stop(now + duration + 0.02);
             }
 
             // Play explosion sound
@@ -6207,7 +6449,7 @@ BLOCK-A-ZOIDS RETURN`;
             constructor(game) {
                 this.game = game; // Reference to game instance
                 this.scoreElement = document.getElementById('score'); // Score DOM element
-                this.bombIndicators = document.getElementById('bombIndicators'); // Bomb indicators container
+                this.cosmicZapIndicators = document.getElementById('cosmicZapIndicators'); // Cosmic Zap indicators container
                 this.levelIndicators = document.getElementById('levelIndicators'); // Level indicators container
                 this.cycleElement = document.getElementById('cycleHud'); // Cycle marker for harder loops
                 this.scoreAlertActive = false;
@@ -6282,25 +6524,25 @@ BLOCK-A-ZOIDS RETURN`;
                 }
             }
 
-            // Update bomb indicators based on remaining bombs
+            // Update Cosmic Zap indicators based on remaining Cosmic Zaps
             shouldShowGameplayHud() {
                 // Hide the bottom HUD only before the first run starts.
                 // During Game Over / Play Again, keep the last-run state visible so the player
-                // can see the sector reached and the bombs left.
+                // can see the sector reached and the Cosmic Zaps left.
                 return (this.game.active && this.game.levelActionStarted) ||
                        (this.game.isPaused && this.game.levelActionStarted) ||
                        this.game.showHudDuringSectorIntro ||
                        this.game.isGameOver;
             }
 
-            // Update bomb indicators based on remaining bombs
-            updateBombIndicators() {
-                const showBombHud = this.shouldShowGameplayHud();
-                if (!this.bombIndicators) return;
-                this.bombIndicators.style.display = showBombHud ? 'flex' : 'none';
-                const missiles = this.bombIndicators.children;
+            // Update Cosmic Zap indicators based on remaining Cosmic Zaps
+            updateCosmicZapIndicators() {
+                const showCosmicZapHud = this.shouldShowGameplayHud();
+                if (!this.cosmicZapIndicators) return;
+                this.cosmicZapIndicators.style.display = showCosmicZapHud ? 'flex' : 'none';
+                const zapIcons = this.cosmicZapIndicators.children;
                 for (let i = 0; i < 3; i++) {
-                    missiles[i].style.display = showBombHud && i < this.game.bombsLeft ? 'block' : 'none'; // Show/hide missiles
+                    zapIcons[i].style.display = showCosmicZapHud && i < this.game.cosmicZapsLeft ? 'block' : 'none';
                 }
             }
 
@@ -6331,7 +6573,7 @@ BLOCK-A-ZOIDS RETURN`;
                 this.updateHighScore();
                 this.updateHudMenuButton();
                 this.updateCycleIndicator();
-                this.updateBombIndicators();
+                this.updateCosmicZapIndicators();
                 this.updateLevelIndicators();
             }
         }
