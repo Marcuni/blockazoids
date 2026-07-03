@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v152: Adds Cosmic Zaps with Orb discharge animation and the piccolo unlock arpeggio.
+Build v153: Refines Cosmic Zap protection, target overload animation, wording, and ray sound.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
-This source code, artwork, game design,  and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
+This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
 -->
 <html>
 <head>
@@ -210,23 +210,23 @@ This source code, artwork, game design,  and related assets are not licensed for
             z-index: 6;
         }
         
-        /* Cosmic Zap: instant Orb discharge feedback. Gameplay clears immediately; this is visual confirmation. */
+        /* Cosmic Zap: instant Orb-triggered target overload. Gameplay clears immediately; this is visual confirmation. */
         #player.cosmicZapOrbFlash {
             animation: cosmicZapOrbFlashAnimation 0.42s ease-out 1;
         }
 
-        .cosmic-zap-ring {
+        .cosmic-zap-overload-ring {
             position: absolute;
             width: 8px;
             height: 8px;
             border: 2px solid #fff;
             border-radius: 50%;
-            box-shadow: 0 0 12px #fff, 0 0 28px rgba(255, 255, 255, 0.86), inset 0 0 12px rgba(255, 255, 255, 0.72);
+            box-shadow: 0 0 10px #fff, 0 0 24px rgba(255, 255, 255, 0.86), inset 0 0 10px rgba(255, 255, 255, 0.66);
             opacity: 0;
             z-index: 9;
             pointer-events: none;
-            transform: translate(-50%, -50%) scale(0.25);
-            animation: cosmicZapRingAnimation 0.46s ease-out forwards;
+            transform: translate(-50%, -50%) scale(0.35);
+            animation: cosmicZapOverloadRingAnimation 0.40s ease-out forwards;
         }
 
         .cosmic-zap-line {
@@ -263,14 +263,14 @@ This source code, artwork, game design,  and related assets are not licensed for
 
         @keyframes cosmicZapOrbFlashAnimation {
             0% { transform: scale(1); box-shadow: 0 0 calc(var(--default-glow) * 0.8px) #fff; }
-            22% { transform: scale(1.22); box-shadow: 0 0 18px #fff, 0 0 42px #fff, 0 0 72px rgba(255,255,255,0.9); }
+            22% { transform: scale(1.10); box-shadow: 0 0 16px #fff, 0 0 34px #fff, 0 0 56px rgba(255,255,255,0.82); }
             100% { transform: scale(1); box-shadow: 0 0 calc(var(--default-glow) * 0.8px) #fff; }
         }
 
-        @keyframes cosmicZapRingAnimation {
-            0% { opacity: 0.95; transform: translate(-50%, -50%) scale(0.25); }
-            62% { opacity: 0.58; transform: translate(-50%, -50%) scale(16); }
-            100% { opacity: 0; transform: translate(-50%, -50%) scale(24); }
+        @keyframes cosmicZapOverloadRingAnimation {
+            0% { opacity: 0.95; transform: translate(-50%, -50%) scale(0.35); }
+            58% { opacity: 0.70; transform: translate(-50%, -50%) scale(12); }
+            100% { opacity: 0; transform: translate(-50%, -50%) scale(18); }
         }
 
         @keyframes cosmicZapLineAnimation {
@@ -1494,7 +1494,7 @@ This source code, artwork, game design,  and related assets are not licensed for
                 <div class="scoring-section-title">BONUS</div>
                 <div class="scoring-row"><span>Survivalist <span class="scoring-label-note">(Gridlock)</span></span><span>100</span></div>
                 <div class="scoring-row"><span>Prism Relic</span><span>200</span></div>
-                <div class="scoring-row"><span>Cosmic Zaps Left</span><span>50/ea</span></div>
+                <div class="scoring-row"><span>Cosmic Zaps (unused)</span><span>50/ea</span></div>
                 <div class="scoring-row"><span>Perfect Sector</span><span>100</span></div>
                 <button id="scoringBackButton" class="menu-back-button">Back</button>
             </div>
@@ -1535,7 +1535,7 @@ This source code, artwork, game design,  and related assets are not licensed for
     <div id="copyrightFooter">© 2026 Marcus Couto</div>
 
     <script>
-        const BUILD_VERSION = 'Build v152';
+        const BUILD_VERSION = 'Build v153';
         document.getElementById('buildVersion').textContent = BUILD_VERSION;
 
         let lastGlobalTouchEndTime = 0;
@@ -1670,6 +1670,8 @@ This source code, artwork, game design,  and related assets are not licensed for
                 this.gameplayRunToken = 0;            // Invalidates old animation frames when pausing/restarting
                 this.lastCosmicZapTriggerTime = 0;         // Prevents repeated Cosmic Zap triggers from one input
                 this.cosmicZapInputCooldownMs = 450;
+                this.cosmicZapProtectionUntil = 0;         // Protects the Orb immediately while the Zap confirms visually
+                this.cosmicZapProtectionMs = 520;
                 this.playfieldCosmicZapTapStart = null;   // Tracks quick double-taps on the playfield for Cosmic Zap input
                 this.lastPlayfieldCosmicZapTapTime = 0;
                 this.playfieldCosmicZapDoubleTapWindowMs = 360;
@@ -3466,7 +3468,7 @@ This source code, artwork, game design,  and related assets are not licensed for
 
             buildSectorBonusLines(unusedCosmicZapBonus, survivalistBonus, perfectSectorBonus, relicRecoveredBonus, cycleBonus) {
                 const lines = [];
-                if (unusedCosmicZapBonus > 0) lines.push({ label: 'COSMIC ZAPS LEFT', value: unusedCosmicZapBonus });
+                if (unusedCosmicZapBonus > 0) lines.push({ label: 'COSMIC ZAPS', value: unusedCosmicZapBonus });
                 if (survivalistBonus > 0) lines.push({ label: 'SURVIVALIST', value: survivalistBonus });
                 if (relicRecoveredBonus > 0) lines.push({ label: 'PRISM RELIC', value: relicRecoveredBonus });
                 if (perfectSectorBonus > 0) lines.push({ label: 'PERFECT SECTOR', value: perfectSectorBonus, highlight: true });
@@ -3843,11 +3845,16 @@ This source code, artwork, game design,  and related assets are not licensed for
                 }
             }
 
+            isCosmicZapProtectingOrb() {
+                return performance.now() < this.cosmicZapProtectionUntil;
+            }
+
             // Check collisions between player, enemies, and crystals
             checkCollisions() {
                 if (this.isGameOver) return; // Exit if game is over
                 for (const enemy of this.enemies) {
                     if (enemy.collidesWithPlayer()) { // Player-enemy collision
+                        if (this.isCosmicZapProtectingOrb()) continue;
                         this.endGame(); // End game
                         return;
                     }
@@ -4131,9 +4138,6 @@ This source code, artwork, game design,  and related assets are not licensed for
                 this.player.element.classList.add('cosmicZapOrbFlash');
                 setTimeout(() => this.player.element.classList.remove('cosmicZapOrbFlash'), 430);
 
-                const ring = this.createCosmicZapElement('cosmic-zap-ring', centerX, centerY);
-                setTimeout(() => ring.remove(), 520);
-
                 const targets = clearedEnemies.length > 0
                     ? clearedEnemies.map(enemy => ({ x: enemy.x + enemy.size / 2, y: enemy.y + enemy.size / 2 }))
                     : Array.from({ length: 6 }, (_, index) => {
@@ -4159,6 +4163,8 @@ This source code, artwork, game design,  and related assets are not licensed for
                 clearedEnemies.forEach(enemy => {
                     const ex = enemy.x + enemy.size / 2;
                     const ey = enemy.y + enemy.size / 2;
+                    const overloadRing = this.createCosmicZapElement('cosmic-zap-overload-ring', ex, ey);
+                    setTimeout(() => overloadRing.remove(), 460);
                     for (let i = 0; i < 3; i++) {
                         const spark = this.createCosmicZapElement('cosmic-zap-spark', ex - 2, ey - 2);
                         const angle = (i / 3) * Math.PI * 2 + Math.random() * 0.5;
@@ -4171,12 +4177,13 @@ This source code, artwork, game design,  and related assets are not licensed for
                 });
             }
 
-            // Handle Cosmic Zap discharge with instant danger clearing and quick Orb-centered feedback.
+            // Handle Cosmic Zap discharge with instant protection, danger clearing, and target overload feedback.
             handleCosmicZap() {
                 if (this.cosmicZapsLeft > 0 && this.active && !this.isPaused && !this.isGameOver) {
                     const now = performance.now();
                     if (now - this.lastCosmicZapTriggerTime < this.cosmicZapInputCooldownMs) return;
                     this.lastCosmicZapTriggerTime = now;
+                    this.cosmicZapProtectionUntil = now + this.cosmicZapProtectionMs;
 
                     const clearedEnemies = this.enemies.slice();
 
@@ -5792,39 +5799,56 @@ BLOCK-A-ZOIDS RETURN`;
                 return durationMs;
             }
 
-            // Play Cosmic Zap sound: fast dry electric discharge, not an explosion.
+            // Play Cosmic Zap sound: short vintage ray/phaser discharge, not an explosion.
             playCosmicZapSound() {
                 this.ensureAudio();
                 const now = this.ctx.currentTime;
 
-                const zapOsc = this.ctx.createOscillator();
-                const zapGain = this.ctx.createGain();
-                zapOsc.type = 'square';
-                zapOsc.frequency.setValueAtTime(1760, now);
-                zapOsc.frequency.exponentialRampToValueAtTime(740, now + 0.055);
-                zapOsc.frequency.exponentialRampToValueAtTime(2349.32, now + 0.18);
-                zapOsc.connect(zapGain);
-                this.connectOutput(zapGain);
-                zapGain.gain.setValueAtTime(0.001, now);
-                zapGain.gain.linearRampToValueAtTime(0.115, now + 0.01);
-                zapGain.gain.exponentialRampToValueAtTime(0.008, now + 0.21);
-                zapOsc.start(now);
-                zapOsc.stop(now + 0.24);
+                const rayOsc = this.ctx.createOscillator();
+                const rayGain = this.ctx.createGain();
+                rayOsc.type = 'sawtooth';
+                rayOsc.frequency.setValueAtTime(420, now);
+                rayOsc.frequency.exponentialRampToValueAtTime(2520, now + 0.095);
+                rayOsc.frequency.exponentialRampToValueAtTime(960, now + 0.22);
+                rayOsc.connect(rayGain);
+                this.connectOutput(rayGain);
+                rayGain.gain.setValueAtTime(0.001, now);
+                rayGain.gain.linearRampToValueAtTime(0.105, now + 0.012);
+                rayGain.gain.exponentialRampToValueAtTime(0.006, now + 0.24);
+                rayOsc.start(now);
+                rayOsc.stop(now + 0.26);
 
-                const buzzOsc = this.ctx.createOscillator();
-                const buzzGain = this.ctx.createGain();
-                buzzOsc.type = 'sawtooth';
-                buzzOsc.frequency.setValueAtTime(120, now);
-                buzzOsc.frequency.exponentialRampToValueAtTime(90, now + 0.16);
-                buzzOsc.connect(buzzGain);
-                this.connectOutput(buzzGain);
-                buzzGain.gain.setValueAtTime(0.001, now);
-                buzzGain.gain.linearRampToValueAtTime(0.04, now + 0.012);
-                buzzGain.gain.exponentialRampToValueAtTime(0.006, now + 0.18);
-                buzzOsc.start(now);
-                buzzOsc.stop(now + 0.2);
+                const phaserOsc = this.ctx.createOscillator();
+                const phaserGain = this.ctx.createGain();
+                phaserOsc.type = 'square';
+                phaserOsc.frequency.setValueAtTime(1680, now + 0.018);
+                phaserOsc.frequency.exponentialRampToValueAtTime(3360, now + 0.095);
+                phaserOsc.frequency.exponentialRampToValueAtTime(1260, now + 0.20);
+                phaserOsc.connect(phaserGain);
+                this.connectOutput(phaserGain);
+                phaserGain.gain.setValueAtTime(0.001, now + 0.018);
+                phaserGain.gain.linearRampToValueAtTime(0.052, now + 0.032);
+                phaserGain.gain.exponentialRampToValueAtTime(0.004, now + 0.21);
+                phaserOsc.start(now + 0.018);
+                phaserOsc.stop(now + 0.23);
 
-                const duration = 0.18;
+                const tickTimes = [0.02, 0.065, 0.115];
+                tickTimes.forEach((offset, index) => {
+                    const tickStart = now + offset;
+                    const tick = this.ctx.createOscillator();
+                    const tickGain = this.ctx.createGain();
+                    tick.type = 'square';
+                    tick.frequency.setValueAtTime(index === 1 ? 2400 : 1800, tickStart);
+                    tick.connect(tickGain);
+                    this.connectOutput(tickGain);
+                    tickGain.gain.setValueAtTime(0.001, tickStart);
+                    tickGain.gain.linearRampToValueAtTime(0.036, tickStart + 0.004);
+                    tickGain.gain.exponentialRampToValueAtTime(0.003, tickStart + 0.036);
+                    tick.start(tickStart);
+                    tick.stop(tickStart + 0.045);
+                });
+
+                const duration = 0.14;
                 const noiseBuffer = this.ctx.createBuffer(1, Math.floor(this.ctx.sampleRate * duration), this.ctx.sampleRate);
                 const data = noiseBuffer.getChannelData(0);
                 for (let i = 0; i < data.length; i++) {
@@ -5833,16 +5857,17 @@ BLOCK-A-ZOIDS RETURN`;
                 }
 
                 const noise = this.ctx.createBufferSource();
-                const highpass = this.ctx.createBiquadFilter();
+                const bandpass = this.ctx.createBiquadFilter();
                 const noiseGain = this.ctx.createGain();
                 noise.buffer = noiseBuffer;
-                highpass.type = 'highpass';
-                highpass.frequency.setValueAtTime(900, now);
-                noise.connect(highpass);
-                highpass.connect(noiseGain);
+                bandpass.type = 'bandpass';
+                bandpass.frequency.setValueAtTime(1800, now);
+                bandpass.Q.setValueAtTime(8, now);
+                noise.connect(bandpass);
+                bandpass.connect(noiseGain);
                 this.connectOutput(noiseGain);
                 noiseGain.gain.setValueAtTime(0.001, now);
-                noiseGain.gain.linearRampToValueAtTime(0.05, now + 0.012);
+                noiseGain.gain.linearRampToValueAtTime(0.038, now + 0.01);
                 noiseGain.gain.exponentialRampToValueAtTime(0.001, now + duration);
                 noise.start(now);
                 noise.stop(now + duration + 0.02);
