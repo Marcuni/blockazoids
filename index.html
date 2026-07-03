@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v149: Adds restart confirmation, separates record display, updates story text, and strengthens GRIDLOCK alert.
+Build v150: Adds cycle Continue, updates story text, and hides the pre-game score.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -910,6 +910,39 @@ This source code, artwork, game design, and related assets are not licensed for 
         }
 
         
+        #cycleContinueButton {
+            position: absolute;
+            left: 50%;
+            top: 78%;
+            transform: translate(-50%, -50%);
+            padding: 10px 24px;
+            font-family: 'Orbitron', 'Courier New', monospace;
+            font-size: clamp(18px, 5.2vw, 28px);
+            color: #fff;
+            background: #000;
+            border: 2px solid #fff;
+            box-shadow: 0 0 calc(var(--default-glow) * 1px) #fff, inset 0 0 calc(var(--default-glow) * 0.5px) rgba(255, 255, 255, 0.35);
+            letter-spacing: 2px;
+            cursor: pointer;
+            z-index: 1006;
+            display: none;
+        }
+
+        #cycleContinueButton.visible {
+            display: block;
+        }
+
+        #cycleContinueButton:focus {
+            outline: none;
+            background: #000;
+            color: #fff;
+        }
+
+        #cycleContinueButton:focus-visible {
+            outline: 2px solid rgba(255, 255, 255, 0.65);
+            outline-offset: 3px;
+        }
+
         /* Score display styling */
         #scoreHud {
             width: min(604px, calc(100vw - 8px));
@@ -986,6 +1019,12 @@ This source code, artwork, game design, and related assets are not licensed for 
             text-shadow: 0 0 calc(var(--default-glow) * 1px) #fff, 0 0 calc(var(--default-glow) * 2px) #fff;
             box-shadow: 0 0 calc(var(--default-glow) * 0.8px) #fff;
             transform-origin: center;
+        }
+
+        #score.scoreHidden {
+            opacity: 0;
+            box-shadow: none;
+            text-shadow: none;
         }
 
         #score.attractHighScore {
@@ -1329,6 +1368,7 @@ This source code, artwork, game design, and related assets are not licensed for 
         <div id="player"></div>
         <div id="gameOver">GAME OVER</div>
         <div id="bonusText"></div> <!-- New element for bonus display -->
+        <button id="cycleContinueButton" type="button">CONTINUE</button>
         <div id="screenFade"></div>
         <div id="gameOverlay"></div>
         <div id="instructionsWindow">
@@ -1368,7 +1408,7 @@ This source code, artwork, game design, and related assets are not licensed for 
             </div>
             <div id="storyPanel" class="menu-panel">
                 <div class="menu-panel-title">STORY</div>
-                <div id="storyPanelText">The Prism Grid was built to keep perfect order.<br><br>It learned. It adjusted. It protected its crystals until protection became panic.<br><br>Then perfection failed.<br><br>The repair blocks turned on their own pattern &mdash; sealing red, green, and blue behind walls of their own making. Every sector closed. No command could reach them now.<br><br>Only one thing still moves outside the pattern:<br><br>a rogue Orb.</div>
+                <div id="storyPanelText">The Prism Grid was built to keep perfect order.<br><br>Then protection became panic.<br><br>Its repair blocks turned on their own pattern, sealing red, green, and blue inside collapsing sectors.<br><br>Only one thing still moves outside the pattern:<br><br>a rogue Orb.</div>
                 <button id="storyBackButton" class="menu-back-button">Back</button>
             </div>
             <div id="settingsPanel" class="menu-panel">
@@ -1404,7 +1444,7 @@ This source code, artwork, game design, and related assets are not licensed for 
     <div id="copyrightFooter">© 2026 Marcus Couto</div>
 
     <script>
-        const BUILD_VERSION = 'Build v149';
+        const BUILD_VERSION = 'Build v150';
         document.getElementById('buildVersion').textContent = BUILD_VERSION;
 
         let lastGlobalTouchEndTime = 0;
@@ -1495,6 +1535,8 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.levelSelectGrid = document.getElementById('levelSelectGrid');
                 this.levelSelectCloseButton = document.getElementById('levelSelectCloseButton');
                 this.cycleHud = document.getElementById('cycleHud');
+                this.cycleContinueButton = document.getElementById('cycleContinueButton');
+                this.pendingCycleContinueToken = null;
 
                 // Game constants derived from the actual iPhone-sized board.
                 this.configureResponsivePlayfield();
@@ -1614,6 +1656,13 @@ This source code, artwork, game design, and related assets are not licensed for 
                     this.enableShakeBomb();
                     this.start();
                 });
+                if (this.cycleContinueButton) {
+                    this.cycleContinueButton.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        this.continueCycle();
+                    });
+                }
                 if (this.hudMenuButton) {
                     this.hudMenuButton.addEventListener('click', (e) => {
                         e.preventDefault();
@@ -2055,6 +2104,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.refreshGameOverlay();
                 if (this.menuButtons && this.scoringPanel && this.storyPanel && this.settingsPanel) this.showMainMenuButtons();
                 this.levelSelectWindow.style.display = 'none';
+                this.hideCycleContinueButton();
                 this.gameOverElement.style.opacity = '0';
                 this.bonusTextElement.classList.remove('countdownText', 'restoreText', 'resumeCountdownText');
                 this.bonusTextElement.style.opacity = '0';
@@ -2206,7 +2256,8 @@ This source code, artwork, game design, and related assets are not licensed for 
                     this.soundToggleButton,
                     this.musicToggleButton,
                     this.resetHighScoreButton,
-                    this.levelSelectCloseButton
+                    this.levelSelectCloseButton,
+                    this.cycleContinueButton
                 ].forEach(button => {
                     if (button && typeof button.blur === 'function') button.blur();
                 });
@@ -2469,6 +2520,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.clearMaxSwarmCueTimer();
                 this.clearPrismRelicCueTimer();
                 this.levelSelectWindow.style.display = 'none';
+                this.hideCycleContinueButton();
                 this.pauseWindow.style.display = 'none';
                 this.start();
             }
@@ -2504,6 +2556,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.pauseWindow.style.display = 'none';
                 if (this.menuButtons && this.scoringPanel && this.storyPanel && this.settingsPanel) this.showMainMenuButtons();
                 this.levelSelectWindow.style.display = 'none';
+                this.hideCycleContinueButton();
                 this.setGameOverlayVisible(false);
 
                 const loadToken = ++this.levelLoadToken;
@@ -4094,7 +4147,53 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.lifeGrid = []; // Clear grid
             }
 
-            // Complete the campaign cycle, then loop back to Level 1 in a harder cycle.
+            hideCycleContinueButton() {
+                this.pendingCycleContinueToken = null;
+                if (!this.cycleContinueButton) return;
+                this.cycleContinueButton.classList.remove('visible');
+                this.cycleContinueButton.style.display = 'none';
+            }
+
+            showCycleContinueButton(transitionToken) {
+                this.pendingCycleContinueToken = transitionToken;
+                if (!this.cycleContinueButton) return;
+                this.cycleContinueButton.style.display = 'block';
+                this.cycleContinueButton.classList.add('visible');
+                if (typeof this.cycleContinueButton.blur === 'function') this.cycleContinueButton.blur();
+            }
+
+            continueCycle() {
+                const transitionToken = this.pendingCycleContinueToken;
+                if (!this.cycleTransitionActive || !transitionToken || transitionToken !== this.levelLoadToken || this.isGameOver) return;
+
+                this.hideCycleContinueButton();
+                this.gameOverElement.style.opacity = '0';
+                this.bonusTextElement.style.opacity = '0';
+
+                setTimeout(() => {
+                    if (transitionToken !== this.levelLoadToken || this.isGameOver) return;
+
+                    this.gameOverElement.classList.remove('finalCycleText');
+                    this.bonusTextElement.classList.remove('finalCycleSubtext');
+                    this.gameOverElement.textContent = '';
+                    this.bonusTextElement.textContent = '';
+
+                    const loadToken = ++this.levelLoadToken;
+                    this.prepareLevelStart(1, false, { keepScreenFade: true });
+                    this.cycleTransitionActive = false;
+
+                    this.fadeScreenFromBlack(loadToken).then((fadeCompleted) => {
+                        if (!fadeCompleted || loadToken !== this.levelLoadToken || this.isGameOver) return;
+                        this.container.classList.remove('cycleStartPulse');
+                        void this.container.offsetWidth;
+                        this.container.classList.add('cycleStartPulse');
+                        setTimeout(() => this.container.classList.remove('cycleStartPulse'), 1200);
+                        this.startPreparedLevel(loadToken, { skipGridFade: true });
+                    });
+                }, 500);
+            }
+
+            // Complete the campaign cycle, then wait for player choice before restarting the next cycle.
             async finishGame(transitionToken = this.levelLoadToken) {
                 if (this.cycleTransitionActive || this.isGameOver) return;
 
@@ -4146,33 +4245,13 @@ BLOCK-A-ZOIDS RETURN`;
                 }
 
                 this.bonusTextElement.style.opacity = '1';
-                await this.wait(Math.max(3200, victoryDurationMs - 1300));
+                await this.wait(900);
                 if (transitionToken !== this.levelLoadToken || this.isGameOver) {
                     this.cycleTransitionActive = false;
                     return;
                 }
 
-                this.gameOverElement.style.opacity = '0';
-                this.bonusTextElement.style.opacity = '0';
-                await this.wait(500);
-
-                this.gameOverElement.classList.remove('finalCycleText');
-                this.bonusTextElement.classList.remove('finalCycleSubtext');
-                this.gameOverElement.textContent = '';
-                this.bonusTextElement.textContent = '';
-
-                const loadToken = ++this.levelLoadToken;
-                this.prepareLevelStart(1, false, { keepScreenFade: true });
-                this.cycleTransitionActive = false;
-
-                this.fadeScreenFromBlack(loadToken).then((fadeCompleted) => {
-                    if (!fadeCompleted || loadToken !== this.levelLoadToken || this.isGameOver) return;
-                    this.container.classList.remove('cycleStartPulse');
-                    void this.container.offsetWidth;
-                    this.container.classList.add('cycleStartPulse');
-                    setTimeout(() => this.container.classList.remove('cycleStartPulse'), 1200);
-                    this.startPreparedLevel(loadToken, { skipGridFade: true });
-                });
+                this.showCycleContinueButton(transitionToken);
             }
 
             // End the game with explosion and screen shake
@@ -6135,22 +6214,23 @@ BLOCK-A-ZOIDS RETURN`;
             // Update score display
             updateScore() {
                 if (this.scoreAlertActive) return;
-                const showingInitialStart = !this.game.hasStartedRun && !this.game.active && !this.game.isPaused && !this.game.isGameOver;
-                if (showingInitialStart) {
-                    this.scoreElement.textContent = `${this.game.highScore}`;
-                    this.scoreElement.classList.add('attractHighScore');
+                const showScore = (this.game.active && this.game.levelActionStarted) || this.game.showHudDuringSectorIntro;
+                if (!showScore) {
+                    this.scoreElement.textContent = '';
+                    this.scoreElement.classList.add('scoreHidden');
+                    this.scoreElement.classList.remove('attractHighScore');
                     return;
                 }
 
+                this.scoreElement.classList.remove('scoreHidden', 'attractHighScore');
                 this.scoreElement.textContent = `${this.game.score}`;
-                this.scoreElement.classList.remove('attractHighScore');
             }
 
             flashGridlockAlert() {
                 if (!this.scoreElement) return;
                 if (this.scoreAlertTimer) clearTimeout(this.scoreAlertTimer);
                 this.scoreAlertActive = true;
-                this.scoreElement.classList.remove('attractHighScore', 'highScoreFlash', 'bonusScoreCount', 'gridlockAlert');
+                this.scoreElement.classList.remove('scoreHidden', 'attractHighScore', 'highScoreFlash', 'bonusScoreCount', 'gridlockAlert');
                 this.scoreElement.textContent = 'GRIDLOCK';
                 void this.scoreElement.offsetWidth;
                 this.scoreElement.classList.add('gridlockAlert');
