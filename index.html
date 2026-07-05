@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v162: Adds developer-mode local balance telemetry export and clear tools behind the five-marquee-click unlock.
+Build v163: Lets Developer Mode export telemetry from the start screen, improves balance fields, and retunes Cosmic Zap into a 1950s sci-fi ray.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
-This source code, artwork,  game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
+This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
 -->
 <html>
 <head>
@@ -1797,7 +1797,7 @@ This source code, artwork,  game design, and related assets are not licensed for
     <div id="copyrightFooter">© 2026 Marcus Couto</div>
 
     <script>
-        const BUILD_VERSION = 'Build v162';
+        const BUILD_VERSION = 'Build v163';
         document.getElementById('buildVersion').textContent = BUILD_VERSION;
 
         let lastGlobalTouchEndTime = 0;
@@ -1995,6 +1995,7 @@ This source code, artwork,  game design, and related assets are not licensed for
                 this.telemetry = this.loadTelemetryData();
                 this.currentTelemetryRun = null;
                 this.currentTelemetrySector = null;
+                this.developerAttractMenuOpen = false;
 
                 // Audio and UI managers
                 this.audio = new AudioManager();      // Audio manager instance
@@ -2044,6 +2045,10 @@ This source code, artwork,  game design, and related assets are not licensed for
                         e.stopPropagation();
                         if (this.active && !this.isPaused && !this.isGameOver && this.levelActionStarted) {
                             this.pauseGame();
+                            return;
+                        }
+                        if (this.developerModeEnabled && this.isStartScreenVisible()) {
+                            this.openDeveloperMenuFromStartScreen();
                         }
                     });
                 }
@@ -2051,6 +2056,10 @@ This source code, artwork,  game design, and related assets are not licensed for
                     e.preventDefault();
                     e.stopPropagation();
                     if (this.shouldIgnoreFreshMenuInput()) return;
+                    if (this.developerAttractMenuOpen) {
+                        this.closeDeveloperMenuToStartScreen();
+                        return;
+                    }
                     this.resumeGame();
                 });
                 this.restartButton.addEventListener('click', (e) => {
@@ -2236,6 +2245,7 @@ This source code, artwork,  game design, and related assets are not licensed for
                 if (this.developerModeLabel) this.developerModeLabel.classList.toggle('visible', this.developerModeEnabled);
                 if (this.telemetryPanel && !this.developerModeEnabled) this.telemetryPanel.classList.remove('open');
                 this.updateTelemetrySummary();
+                if (this.ui && this.ui.updateHudMenuButton) this.ui.updateHudMenuButton();
             }
 
             enableDeveloperMode() {
@@ -2276,6 +2286,29 @@ This source code, artwork,  game design, and related assets are not licensed for
                 this.updateTelemetrySummary();
             }
 
+            getCurrentSpeedMultiplier() {
+                const levelBoost = (this.level - 1) * this.parameters.levelSpeedBoost;
+                const zapBoost = this.cosmicZapPressure * this.parameters.levelSpeedBoost;
+                return 1 + levelBoost + zapBoost;
+            }
+
+            getEffectiveEnemySpeedsSnapshot() {
+                const multiplier = this.getCurrentSpeedMultiplier();
+                return {
+                    small: Number((this.BASE_SPEEDS.small * multiplier).toFixed(4)),
+                    medium: Number((this.BASE_SPEEDS.medium * multiplier).toFixed(4)),
+                    large: Number((this.BASE_SPEEDS.large * multiplier).toFixed(4))
+                };
+            }
+
+            getRemainingCrystalsByColor() {
+                const counts = { red: 0, green: 0, blue: 0 };
+                this.crystals.forEach(crystal => {
+                    if (counts[crystal.color] !== undefined) counts[crystal.color]++;
+                });
+                return counts;
+            }
+
             captureTelemetryParameters() {
                 return {
                     build: BUILD_VERSION,
@@ -2289,7 +2322,15 @@ This source code, artwork,  game design, and related assets are not licensed for
                     normalBlockAZoidLimit: this.normalSwarmSize,
                     overtimeEnemyIntervalMs: this.parameters.overtimeEnemyIntervalMs,
                     baseSpeeds: Object.assign({}, this.parameters.baseSpeeds),
+                    responsiveBaseSpeeds: {
+                        small: Number(this.BASE_SPEEDS.small.toFixed(4)),
+                        medium: Number(this.BASE_SPEEDS.medium.toFixed(4)),
+                        large: Number(this.BASE_SPEEDS.large.toFixed(4))
+                    },
+                    speedMultiplier: Number(this.getCurrentSpeedMultiplier().toFixed(4)),
+                    effectiveSpeeds: this.getEffectiveEnemySpeedsSnapshot(),
                     levelSpeedBoost: this.parameters.levelSpeedBoost,
+                    cosmicZapPressure: this.cosmicZapPressure,
                     cosmicZapsAvailable: this.getCosmicZapsForCurrentCycle(),
                     blinkingCrystalCount: this.currentBlinkingCrystalCount,
                     prismRelicSpawnEnemyThreshold: this.prismRelicSpawnEnemyThreshold,
@@ -2352,6 +2393,7 @@ This source code, artwork,  game design, and related assets are not licensed for
                     entryCosmicZaps: this.cosmicZapsLeft,
                     startingCrystals: this.crystals.length,
                     parameters: this.captureTelemetryParameters(),
+                    startParameters: this.captureTelemetryParameters(),
                     result: null,
                     endedAt: null,
                     durationMs: 0,
@@ -2363,10 +2405,17 @@ This source code, artwork,  game design, and related assets are not licensed for
                     totalBlockAZoidsSpawned: 0,
                     spawnedBySize: { small: 0, medium: 0, large: 0 },
                     cosmicZapsUsed: 0,
+                    cosmicZapEvents: [],
                     crystalsCollected: 0,
                     colorGroupsCompleted: 0,
+                    colorGroupStartTimesMs: { red: 0, green: null, blue: null },
+                    colorGroupClearTimesMs: { red: null, green: null, blue: null },
+                    remainingCrystalsByColor: this.getRemainingCrystalsByColor(),
                     gridlockReached: false,
                     gridlockTimeMs: null,
+                    gridlockDurationMs: 0,
+                    timeInGridlockMs: 0,
+                    clearedAfterGridlock: false,
                     prismRelicAppeared: false,
                     prismRelicAppearTimeMs: null,
                     prismRelicCollected: false,
@@ -2410,20 +2459,49 @@ This source code, artwork,  game design, and related assets are not licensed for
                 this.currentTelemetrySector.prismRelicCollectTimeMs = this.telemetrySectorElapsedMs();
             }
 
-            noteTelemetryCosmicZap(clearedEnemies) {
+            noteTelemetryCosmicZap(clearedEnemies = []) {
                 if (!this.currentTelemetrySector || this.currentTelemetrySector.endedAt) return;
+                const clearedList = Array.isArray(clearedEnemies) ? clearedEnemies : [];
+                const clearedCount = clearedList.length || (Number.isFinite(clearedEnemies) ? clearedEnemies : 0);
                 this.currentTelemetrySector.cosmicZapsUsed++;
-                this.currentTelemetrySector.maxActiveBlockAZoids = Math.max(this.currentTelemetrySector.maxActiveBlockAZoids, clearedEnemies || 0);
+                this.currentTelemetrySector.maxActiveBlockAZoids = Math.max(this.currentTelemetrySector.maxActiveBlockAZoids, clearedCount);
+                this.currentTelemetrySector.cosmicZapEvents.push({
+                    sectorTimeMs: this.telemetrySectorElapsedMs(),
+                    activeBlockAZoids: clearedCount,
+                    blockAZoidsCleared: clearedCount,
+                    clearedBySize: clearedList.reduce((counts, enemy) => {
+                        const type = enemy && enemy.type ? enemy.type : 'unknown';
+                        counts[type] = (counts[type] || 0) + 1;
+                        return counts;
+                    }, { small: 0, medium: 0, large: 0 }),
+                    remainingCrystals: this.crystals.length,
+                    remainingCrystalsByColor: this.getRemainingCrystalsByColor(),
+                    currentColor: this.colorOrder[this.currentColorIndex] || null,
+                    gridlockActive: !!this.maxSwarmActive,
+                    secondsSinceGridlock: this.currentTelemetrySector.gridlockReached ? Math.round((this.telemetrySectorElapsedMs() - this.currentTelemetrySector.gridlockTimeMs) / 1000) : null,
+                    cosmicZapsLeftBeforeUse: this.cosmicZapsLeft
+                });
             }
 
             noteTelemetryCrystalCollected() {
                 if (!this.currentTelemetrySector || this.currentTelemetrySector.endedAt) return;
                 this.currentTelemetrySector.crystalsCollected++;
+                this.currentTelemetrySector.remainingCrystalsByColor = this.getRemainingCrystalsByColor();
             }
 
             noteTelemetryColorComplete() {
                 if (!this.currentTelemetrySector || this.currentTelemetrySector.endedAt) return;
+                const elapsed = this.telemetrySectorElapsedMs();
+                const completedColor = this.colorOrder[this.currentColorIndex] || null;
                 this.currentTelemetrySector.colorGroupsCompleted++;
+                if (completedColor && this.currentTelemetrySector.colorGroupClearTimesMs) {
+                    this.currentTelemetrySector.colorGroupClearTimesMs[completedColor] = elapsed;
+                    const nextColor = this.colorOrder[this.currentColorIndex + 1] || null;
+                    if (nextColor && this.currentTelemetrySector.colorGroupStartTimesMs) {
+                        this.currentTelemetrySector.colorGroupStartTimesMs[nextColor] = elapsed;
+                    }
+                }
+                this.currentTelemetrySector.remainingCrystalsByColor = this.getRemainingCrystalsByColor();
             }
 
             finishTelemetrySector(result, extra = {}) {
@@ -2435,11 +2513,19 @@ This source code, artwork,  game design, and related assets are not licensed for
                 sector.exitScore = this.score;
                 sector.exitCosmicZaps = this.cosmicZapsLeft;
                 sector.remainingCrystals = this.crystals.length;
+                sector.remainingCrystalsByColor = this.getRemainingCrystalsByColor();
                 sector.activeBlockAZoidsAtEnd = this.enemies.length;
                 sector.maxActiveBlockAZoids = Math.max(sector.maxActiveBlockAZoids, this.enemies.length);
+                if (sector.gridlockReached && sector.gridlockTimeMs !== null) {
+                    sector.gridlockDurationMs = Math.max(0, sector.durationMs - sector.gridlockTimeMs);
+                    sector.timeInGridlockMs = sector.gridlockDurationMs;
+                    sector.clearedAfterGridlock = result === 'completed';
+                }
                 sector.overtimeEnemiesAdded = this.overtimeEnemiesAdded;
                 sector.prismRelicRecovered = this.prismRelicRecoveredThisSector;
-                sector.finalParameters = this.captureTelemetryParameters();
+                const endParameters = this.captureTelemetryParameters();
+                sector.finalParameters = endParameters;
+                sector.endParameters = endParameters;
                 Object.assign(sector, extra);
                 this.currentTelemetrySector = null;
                 this.saveTelemetryData();
@@ -2502,21 +2588,35 @@ This source code, artwork,  game design, and related assets are not licensed for
                     this.setTelemetryStatus('Developer Mode required.');
                     return;
                 }
-                if (this.currentTelemetryRun && !this.currentTelemetryRun.endedAt) {
-                    this.currentTelemetryRun.liveSnapshot = {
-                        capturedAt: new Date().toISOString(),
-                        score: this.score,
-                        level: this.level,
-                        cycle: this.cycle,
-                        currentSectorElapsedMs: this.telemetrySectorElapsedMs()
-                    };
-                }
+                const ignoredActiveRun = this.currentTelemetryRun && !this.currentTelemetryRun.endedAt ? {
+                    reason: 'unfinished active run excluded from balance export',
+                    capturedAt: new Date().toISOString(),
+                    score: this.score,
+                    level: this.level,
+                    cycle: this.cycle,
+                    currentSectorElapsedMs: this.telemetrySectorElapsedMs(),
+                    currentSectorSnapshot: this.currentTelemetrySector ? {
+                        sector: this.currentTelemetrySector.sector,
+                        sectorName: this.currentTelemetrySector.sectorName,
+                        crystalsCollected: this.currentTelemetrySector.crystalsCollected,
+                        remainingCrystals: this.crystals.length,
+                        remainingCrystalsByColor: this.getRemainingCrystalsByColor(),
+                        activeBlockAZoids: this.enemies.length,
+                        totalBlockAZoidsSpawned: this.currentTelemetrySector.totalBlockAZoidsSpawned,
+                        cosmicZapsUsed: this.currentTelemetrySector.cosmicZapsUsed,
+                        currentColor: this.colorOrder[this.currentColorIndex] || null,
+                        gridlockReached: this.currentTelemetrySector.gridlockReached,
+                        prismRelicAppeared: this.currentTelemetrySector.prismRelicAppeared,
+                        prismRelicCollected: this.currentTelemetrySector.prismRelicCollected
+                    } : null
+                } : null;
                 const exportData = {
-                    schema: 'blockazoids-balance-export-v1',
+                    schema: 'blockazoids-balance-export-v2',
                     exportedAt: new Date().toISOString(),
                     build: BUILD_VERSION,
                     savedRuns: this.telemetry.runs,
-                    activeRun: this.currentTelemetryRun || null
+                    activeRun: null,
+                    ignoredActiveRun
                 };
                 const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
                 const url = URL.createObjectURL(blob);
@@ -2542,6 +2642,33 @@ This source code, artwork,  game design, and related assets are not licensed for
                 try { localStorage.removeItem(this.telemetryStorageKey); } catch (_) {}
                 this.updateTelemetrySummary();
                 this.setTelemetryStatus('Balance data cleared.');
+            }
+
+            isStartScreenVisible() {
+                return !!(this.instructionsWindow && this.instructionsWindow.style.display !== 'none' && !this.active && !this.isPaused);
+            }
+
+            openDeveloperMenuFromStartScreen() {
+                if (!this.developerModeEnabled || !this.isStartScreenVisible()) return;
+                this.developerAttractMenuOpen = true;
+                this.menuOpenedAt = performance.now();
+                this.showMainMenuButtons();
+                if (this.resumeButton) this.resumeButton.textContent = 'Close';
+                this.pauseWindow.style.display = 'flex';
+                this.setGameOverlayVisible(true);
+                requestAnimationFrame(() => this.clearMenuButtonFocus());
+            }
+
+            closeDeveloperMenuToStartScreen() {
+                this.developerAttractMenuOpen = false;
+                this.menuOpenedAt = 0;
+                if (this.resumeButton) this.resumeButton.textContent = 'Resume';
+                this.clearMenuButtonFocus();
+                this.pauseWindow.style.display = 'none';
+                if (this.menuButtons && this.scoringPanel && this.storyPanel && this.settingsPanel && this.telemetryPanel) this.showMainMenuButtons();
+                this.levelSelectWindow.style.display = 'none';
+                this.refreshGameOverlay();
+                this.ui.updateAll();
             }
 
             isAttractModeActive() {
@@ -2831,6 +2958,8 @@ This source code, artwork,  game design, and related assets are not licensed for
                 this.instructionsWindow.style.display = 'none';
                 this.setGameOverlayVisible(false);
                 this.menuOpenedAt = 0;
+                this.developerAttractMenuOpen = false;
+                if (this.resumeButton) this.resumeButton.textContent = 'Resume';
                 this.pauseWindow.style.display = 'none';
                 this.refreshGameOverlay();
                 if (this.menuButtons && this.scoringPanel && this.storyPanel && this.settingsPanel) this.showMainMenuButtons();
@@ -4541,12 +4670,12 @@ This source code, artwork,  game design, and related assets are not licensed for
                 for (const enemy of this.enemies) {
                     if (enemy.collidesWithPlayer()) { // Player-enemy collision
                         if (this.isCosmicZapProtectingOrb()) continue;
-                        this.endGame(); // End game
+                        this.endGame({ deathEnemySize: enemy.type || null }); // End game
                         return;
                     }
                 }
                 if (this.player.isOutOfBounds()) { // Player out of bounds
-                    this.endGame();
+                    this.endGame({ deathEnemySize: 'out-of-bounds' });
                     return;
                 }
 
@@ -4874,7 +5003,7 @@ This source code, artwork,  game design, and related assets are not licensed for
                     this.cosmicZapProtectionUntil = now + this.cosmicZapProtectionMs;
 
                     const clearedEnemies = this.enemies.slice();
-                    this.noteTelemetryCosmicZap(clearedEnemies.length);
+                    this.noteTelemetryCosmicZap(clearedEnemies);
 
                     this.cosmicZapsLeft--;
                     this.cosmicZapPressure++;
@@ -5193,7 +5322,7 @@ This source code, artwork,  game design, and related assets are not licensed for
             }
 
             // End the game with explosion and screen shake
-            endGame() {
+            endGame(deathDetails = {}) {
                 if (this.isGameOver) return; // Exit if already over
                 this.active = false; // Pause game
                 this.isGameOver = true;
@@ -5215,10 +5344,14 @@ This source code, artwork,  game design, and related assets are not licensed for
                     death: {
                         x: Math.round(this.player.x + this.player.size / 2),
                         y: Math.round(this.player.y + this.player.size / 2),
-                        sectorTimeMs: this.sectorElapsedMs,
+                        sectorTimeMs: this.telemetrySectorElapsedMs() || this.sectorElapsedMs,
                         activeBlockAZoids: this.enemies.length,
                         remainingCrystals: this.crystals.length,
-                        currentColor: this.colorOrder[this.currentColorIndex] || null
+                        remainingCrystalsByColor: this.getRemainingCrystalsByColor(),
+                        currentColor: this.colorOrder[this.currentColorIndex] || null,
+                        enemySize: deathDetails.deathEnemySize || null,
+                        inGridlock: !!this.maxSwarmActive,
+                        secondsSinceGridlockStarted: this.currentTelemetrySector && this.currentTelemetrySector.gridlockReached ? Math.round((this.telemetrySectorElapsedMs() - this.currentTelemetrySector.gridlockTimeMs) / 1000) : null
                     }
                 });
                 this.finishTelemetryRun('death');
@@ -5386,6 +5519,7 @@ This source code, artwork,  game design, and related assets are not licensed for
         class Enemy {
             constructor(game, type, spawnLocation = null) {
                 this.game = game; // Reference to game instance
+                this.type = type;
                 if (type === 'small') { // Small enemy
                     this.size = game.PLAYER_SIZE;
                     this.speed = game.getEnemySpeed('small');
@@ -6616,78 +6750,71 @@ This source code, artwork,  game design, and related assets are not licensed for
                 return durationMs;
             }
 
-            // Play Cosmic Zap sound: short vintage ray/phaser discharge, not an explosion.
+            // Play Cosmic Zap sound: 1950s/60s sci-fi ray-gun warble, not an explosion.
             playCosmicZapSound() {
                 this.ensureAudio();
                 const now = this.ctx.currentTime;
+                const duration = 0.38;
 
-                const rayOsc = this.ctx.createOscillator();
                 const rayGain = this.ctx.createGain();
-                rayOsc.type = 'sawtooth';
-                rayOsc.frequency.setValueAtTime(420, now);
-                rayOsc.frequency.exponentialRampToValueAtTime(2520, now + 0.095);
-                rayOsc.frequency.exponentialRampToValueAtTime(960, now + 0.22);
-                rayOsc.connect(rayGain);
-                this.connectOutput(rayGain);
                 rayGain.gain.setValueAtTime(0.001, now);
-                rayGain.gain.linearRampToValueAtTime(0.105, now + 0.012);
-                rayGain.gain.exponentialRampToValueAtTime(0.006, now + 0.24);
-                rayOsc.start(now);
-                rayOsc.stop(now + 0.26);
+                rayGain.gain.linearRampToValueAtTime(0.115, now + 0.018);
+                rayGain.gain.linearRampToValueAtTime(0.082, now + 0.18);
+                rayGain.gain.exponentialRampToValueAtTime(0.004, now + duration);
+                this.connectOutput(rayGain);
 
-                const phaserOsc = this.ctx.createOscillator();
-                const phaserGain = this.ctx.createGain();
-                phaserOsc.type = 'square';
-                phaserOsc.frequency.setValueAtTime(1680, now + 0.018);
-                phaserOsc.frequency.exponentialRampToValueAtTime(3360, now + 0.095);
-                phaserOsc.frequency.exponentialRampToValueAtTime(1260, now + 0.20);
-                phaserOsc.connect(phaserGain);
-                this.connectOutput(phaserGain);
-                phaserGain.gain.setValueAtTime(0.001, now + 0.018);
-                phaserGain.gain.linearRampToValueAtTime(0.052, now + 0.032);
-                phaserGain.gain.exponentialRampToValueAtTime(0.004, now + 0.21);
-                phaserOsc.start(now + 0.018);
-                phaserOsc.stop(now + 0.23);
+                const lfo = this.ctx.createOscillator();
+                const lfoGain = this.ctx.createGain();
+                lfo.type = 'sine';
+                lfo.frequency.setValueAtTime(28, now);
+                lfoGain.gain.setValueAtTime(115, now);
+                lfo.connect(lfoGain);
 
-                const tickTimes = [0.02, 0.065, 0.115];
-                tickTimes.forEach((offset, index) => {
-                    const tickStart = now + offset;
-                    const tick = this.ctx.createOscillator();
-                    const tickGain = this.ctx.createGain();
-                    tick.type = 'square';
-                    tick.frequency.setValueAtTime(index === 1 ? 2400 : 1800, tickStart);
-                    tick.connect(tickGain);
-                    this.connectOutput(tickGain);
-                    tickGain.gain.setValueAtTime(0.001, tickStart);
-                    tickGain.gain.linearRampToValueAtTime(0.036, tickStart + 0.004);
-                    tickGain.gain.exponentialRampToValueAtTime(0.003, tickStart + 0.036);
-                    tick.start(tickStart);
-                    tick.stop(tickStart + 0.045);
+                const carrier = this.ctx.createOscillator();
+                carrier.type = 'sine';
+                carrier.frequency.setValueAtTime(620, now);
+                carrier.frequency.linearRampToValueAtTime(1320, now + 0.13);
+                carrier.frequency.linearRampToValueAtTime(760, now + 0.27);
+                carrier.frequency.linearRampToValueAtTime(1040, now + duration);
+                lfoGain.connect(carrier.frequency);
+                carrier.connect(rayGain);
+                carrier.start(now);
+                carrier.stop(now + duration + 0.02);
+
+                const hollowGain = this.ctx.createGain();
+                hollowGain.gain.setValueAtTime(0.001, now + 0.025);
+                hollowGain.gain.linearRampToValueAtTime(0.045, now + 0.055);
+                hollowGain.gain.exponentialRampToValueAtTime(0.003, now + 0.31);
+                this.connectOutput(hollowGain);
+
+                const hollow = this.ctx.createOscillator();
+                hollow.type = 'square';
+                hollow.frequency.setValueAtTime(310, now + 0.025);
+                hollow.frequency.linearRampToValueAtTime(235, now + 0.21);
+                hollow.frequency.linearRampToValueAtTime(390, now + 0.32);
+                hollow.connect(hollowGain);
+                hollow.start(now + 0.025);
+                hollow.stop(now + 0.34);
+
+                lfo.start(now);
+                lfo.stop(now + duration + 0.02);
+
+                const shimmerTimes = [0.045, 0.095, 0.145, 0.205, 0.275];
+                shimmerTimes.forEach((offset, index) => {
+                    const t = now + offset;
+                    const ping = this.ctx.createOscillator();
+                    const pingGain = this.ctx.createGain();
+                    ping.type = index % 2 ? 'triangle' : 'sine';
+                    ping.frequency.setValueAtTime(index % 2 ? 1760 : 1480, t);
+                    ping.frequency.linearRampToValueAtTime(index % 2 ? 1320 : 1960, t + 0.035);
+                    ping.connect(pingGain);
+                    this.connectOutput(pingGain);
+                    pingGain.gain.setValueAtTime(0.001, t);
+                    pingGain.gain.linearRampToValueAtTime(0.028, t + 0.006);
+                    pingGain.gain.exponentialRampToValueAtTime(0.002, t + 0.055);
+                    ping.start(t);
+                    ping.stop(t + 0.065);
                 });
-
-                const duration = 0.14;
-                const noiseBuffer = this.ctx.createBuffer(1, Math.floor(this.ctx.sampleRate * duration), this.ctx.sampleRate);
-                const data = noiseBuffer.getChannelData(0);
-                for (let i = 0; i < data.length; i++) {
-                    const envelope = 1 - i / data.length;
-                    data[i] = (Math.random() * 2 - 1) * envelope;
-                }
-
-                const noise = this.ctx.createBufferSource();
-                const bandpass = this.ctx.createBiquadFilter();
-                const noiseGain = this.ctx.createGain();
-                noise.buffer = noiseBuffer;
-                bandpass.type = 'bandpass';
-                bandpass.frequency.setValueAtTime(1800, now);
-                bandpass.Q.setValueAtTime(8, now);
-                noise.connect(bandpass);
-                bandpass.connect(noiseGain);
-                this.connectOutput(noiseGain);
-                noiseGain.gain.setValueAtTime(0.001, now);
-                noiseGain.gain.linearRampToValueAtTime(0.038, now + 0.01);
-                noiseGain.gain.exponentialRampToValueAtTime(0.001, now + duration);
-                noise.start(now);
-                noise.stop(now + duration + 0.02);
             }
 
             // Play explosion sound
@@ -7365,7 +7492,9 @@ This source code, artwork,  game design, and related assets are not licensed for
             updateHudMenuButton() {
                 const menuButton = this.game.hudMenuButton;
                 if (!menuButton) return;
-                const shouldShowMenu = this.game.active && this.game.levelActionStarted && !this.game.isPaused && !this.game.isGameOver;
+                const developerStartMenu = this.game.developerModeEnabled && this.game.isStartScreenVisible && this.game.isStartScreenVisible();
+                const gameplayMenu = this.game.active && this.game.levelActionStarted && !this.game.isPaused && !this.game.isGameOver;
+                const shouldShowMenu = gameplayMenu || developerStartMenu;
                 menuButton.classList.toggle('visible', shouldShowMenu);
             }
 
