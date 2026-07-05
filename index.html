@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v161: Keeps restored gridlines visible when the end-cycle attract pattern and Continue button appear.
+Build v162: Adds developer-mode local balance telemetry export and clear tools behind the five-marquee-click unlock.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -1012,6 +1012,10 @@ This source code, artwork, game design, and related assets are not licensed for 
         .level-select-button:focus,
         #levelSelectCloseButton:focus,
         #startButton:focus,
+        #telemetryButton:focus,
+        #exportTelemetryButton:focus,
+        #clearTelemetryButton:focus,
+        #telemetryBackButton:focus,
         #hudMenuButton:focus {
             outline: none;
             background: #000;
@@ -1023,6 +1027,10 @@ This source code, artwork, game design, and related assets are not licensed for 
         .level-select-button:focus-visible,
         #levelSelectCloseButton:focus-visible,
         #startButton:focus-visible,
+        #telemetryButton:focus-visible,
+        #exportTelemetryButton:focus-visible,
+        #clearTelemetryButton:focus-visible,
+        #telemetryBackButton:focus-visible,
         #hudMenuButton:focus-visible {
             outline: 2px solid rgba(255, 255, 255, 0.65);
             outline-offset: 3px;
@@ -1139,6 +1147,47 @@ This source code, artwork, game design, and related assets are not licensed for 
             border: 1px solid #fff;
             box-shadow: 0 0 calc(var(--default-glow) * 0.45px) #fff;
             cursor: pointer;
+        }
+
+        .developer-mode-label {
+            display: none;
+            margin: 0 auto 8px;
+            padding: 5px 9px;
+            width: fit-content;
+            font-family: 'Orbitron', 'Courier New', monospace;
+            font-size: clamp(11px, 3vw, 14px);
+            letter-spacing: 1px;
+            color: rgba(255, 255, 255, 0.86);
+            border: 1px solid rgba(255, 255, 255, 0.72);
+            box-shadow: none;
+        }
+
+        .developer-mode-label.visible {
+            display: block;
+        }
+
+        .telemetry-summary {
+            margin: 8px 0 12px;
+            padding: 8px 8px;
+            border: 1px solid rgba(255, 255, 255, 0.72);
+            font-family: 'Orbitron', 'Courier New', monospace;
+            font-size: var(--menu-body-text-size);
+            line-height: 1.38;
+            color: #fff;
+            text-align: left;
+            white-space: pre-line;
+            opacity: 0.88;
+            overflow: auto;
+        }
+
+        .telemetry-status {
+            min-height: 16px;
+            margin-top: 6px;
+            font-family: 'Orbitron', 'Courier New', monospace;
+            font-size: clamp(10px, 3vw, 13px);
+            line-height: 1.25;
+            color: rgba(255, 255, 255, 0.76);
+            text-align: center;
         }
 
 
@@ -1288,12 +1337,20 @@ This source code, artwork, game design, and related assets are not licensed for 
             pointer-events: auto;
         }
 
+        #telemetryButton:focus,
+        #exportTelemetryButton:focus,
+        #clearTelemetryButton:focus,
+        #telemetryBackButton:focus,
         #hudMenuButton:focus {
             outline: none;
             background: #000;
             color: #fff;
         }
 
+        #telemetryButton:focus-visible,
+        #exportTelemetryButton:focus-visible,
+        #clearTelemetryButton:focus-visible,
+        #telemetryBackButton:focus-visible,
         #hudMenuButton:focus-visible {
             outline: 2px solid rgba(255, 255, 255, 0.65);
             outline-offset: 3px;
@@ -1702,7 +1759,17 @@ This source code, artwork, game design, and related assets are not licensed for 
                 <button id="soundToggleButton" class="menu-button settings-toggle">Sound: On</button>
                 <button id="musicToggleButton" class="menu-button settings-toggle">Music: On</button>
                 <button id="resetHighScoreButton" class="menu-button settings-toggle">Reset High Score</button>
+                <div id="developerModeLabel" class="developer-mode-label">DEVELOPER MODE</div>
+                <button id="telemetryButton" class="menu-button settings-toggle">Telemetry</button>
                 <button id="settingsBackButton" class="menu-back-button">Back</button>
+            </div>
+            <div id="telemetryPanel" class="menu-panel">
+                <div class="menu-panel-title">TELEMETRY</div>
+                <div id="telemetrySummary" class="telemetry-summary">Developer Mode required.</div>
+                <button id="exportTelemetryButton" class="menu-button settings-toggle">Export Balance Data</button>
+                <button id="clearTelemetryButton" class="menu-button settings-toggle">Clear Balance Data</button>
+                <div id="telemetryStatus" class="telemetry-status"></div>
+                <button id="telemetryBackButton" class="menu-back-button">Back</button>
             </div>
             <div id="buildVersion"></div>
         </div>
@@ -1730,7 +1797,7 @@ This source code, artwork, game design, and related assets are not licensed for 
     <div id="copyrightFooter">© 2026 Marcus Couto</div>
 
     <script>
-        const BUILD_VERSION = 'Build v161';
+        const BUILD_VERSION = 'Build v162';
         document.getElementById('buildVersion').textContent = BUILD_VERSION;
 
         let lastGlobalTouchEndTime = 0;
@@ -1817,6 +1884,14 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.musicToggleButton = document.getElementById('musicToggleButton');
                 this.highScoreHud = document.getElementById('highScoreHud');
                 this.resetHighScoreButton = document.getElementById('resetHighScoreButton');
+                this.developerModeLabel = document.getElementById('developerModeLabel');
+                this.telemetryButton = document.getElementById('telemetryButton');
+                this.telemetryPanel = document.getElementById('telemetryPanel');
+                this.telemetrySummary = document.getElementById('telemetrySummary');
+                this.exportTelemetryButton = document.getElementById('exportTelemetryButton');
+                this.clearTelemetryButton = document.getElementById('clearTelemetryButton');
+                this.telemetryStatus = document.getElementById('telemetryStatus');
+                this.telemetryBackButton = document.getElementById('telemetryBackButton');
                 this.resetHighScorePending = false;
                 this.resetHighScoreConfirmTimer = null;
                 this.menuButtons = document.getElementById('menuButtons');
@@ -1912,6 +1987,14 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.spawnedCount = { small: 0, medium: 0, large: 0 }; // Count of spawned enemies by size
                 this.pendingSpawnWarnings = [];      // Telegraphs queued before enemies materialize
                 this.spawnWarningDurationMs = 850;    // How long the warning flashes before spawn
+
+                // Local developer-only balance telemetry. It never leaves the browser unless exported by the user.
+                this.developerModeEnabled = false;
+                this.telemetryEnabled = false;
+                this.telemetryStorageKey = 'blockazoidsBalanceTelemetry';
+                this.telemetry = this.loadTelemetryData();
+                this.currentTelemetryRun = null;
+                this.currentTelemetrySector = null;
 
                 // Audio and UI managers
                 this.audio = new AudioManager();      // Audio manager instance
@@ -2032,6 +2115,35 @@ This source code, artwork, game design, and related assets are not licensed for 
                     e.stopPropagation();
                     this.requestHighScoreReset();
                 });
+                if (this.telemetryButton) {
+                    this.telemetryButton.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (this.shouldIgnoreFreshMenuInput()) return;
+                        this.showMenuPanel('telemetry');
+                    });
+                }
+                if (this.exportTelemetryButton) {
+                    this.exportTelemetryButton.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        this.exportTelemetryData();
+                    });
+                }
+                if (this.clearTelemetryButton) {
+                    this.clearTelemetryButton.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        this.clearTelemetryData();
+                    });
+                }
+                if (this.telemetryBackButton) {
+                    this.telemetryBackButton.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        this.showMenuPanel('settings');
+                    });
+                }
                 this.updateSoundToggleLabel();
                 this.updateMusicToggleLabel();
                 this.updateHighScoreDisplay();
@@ -2042,6 +2154,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 });
                 this.buildLevelSelectButtons();
                 this.updateLevelSelectUnlockState();
+                this.updateTelemetrySummary();
 
                 // Attract mode variables
                 this.attractInterval = null;          // Interval ID for attract mode
@@ -2102,9 +2215,8 @@ This source code, artwork, game design, and related assets are not licensed for 
                 if (this.marqueeUnlockTapResetTimer) clearTimeout(this.marqueeUnlockTapResetTimer);
 
                 if (this.marqueeUnlockTapCount >= 5) {
-                    this.levelSelectUnlocked = true;
+                    this.enableDeveloperMode();
                     this.marqueeUnlockTapCount = 0;
-                    this.updateLevelSelectUnlockState();
                     if (this.audio) {
                         this.audio.resume();
                         this.audio.playUnlockPiccoloArpeggio();
@@ -2119,8 +2231,317 @@ This source code, artwork, game design, and related assets are not licensed for 
             }
 
             updateLevelSelectUnlockState() {
-                if (!this.levelSelectButton) return;
-                this.levelSelectButton.style.display = this.levelSelectUnlocked ? '' : 'none';
+                if (this.levelSelectButton) this.levelSelectButton.style.display = this.levelSelectUnlocked ? '' : 'none';
+                if (this.telemetryButton) this.telemetryButton.style.display = this.developerModeEnabled ? '' : 'none';
+                if (this.developerModeLabel) this.developerModeLabel.classList.toggle('visible', this.developerModeEnabled);
+                if (this.telemetryPanel && !this.developerModeEnabled) this.telemetryPanel.classList.remove('open');
+                this.updateTelemetrySummary();
+            }
+
+            enableDeveloperMode() {
+                this.levelSelectUnlocked = true;
+                this.developerModeEnabled = true;
+                this.telemetryEnabled = true;
+                this.updateLevelSelectUnlockState();
+                this.setTelemetryStatus('Developer Mode: On. Telemetry recording enabled.');
+                if (this.marqueePreviewLabel) {
+                    this.marqueePreviewLabel.textContent = 'DEVELOPER MODE';
+                    this.marqueePreviewLabel.classList.add('visible');
+                    if (this.marqueePreviewLabelTimer) clearTimeout(this.marqueePreviewLabelTimer);
+                    this.marqueePreviewLabelTimer = setTimeout(() => {
+                        if (this.marqueePreviewLabel) this.marqueePreviewLabel.classList.remove('visible');
+                    }, 1500);
+                }
+            }
+
+            loadTelemetryData() {
+                try {
+                    const saved = JSON.parse(localStorage.getItem('blockazoidsBalanceTelemetry') || 'null');
+                    if (saved && Array.isArray(saved.runs)) return saved;
+                } catch (_) {}
+                return { schema: 'blockazoids-balance-v1', runs: [] };
+            }
+
+            saveTelemetryData() {
+                if (!this.telemetry || !Array.isArray(this.telemetry.runs)) return;
+                try {
+                    const maxRuns = 150;
+                    if (this.telemetry.runs.length > maxRuns) {
+                        this.telemetry.runs = this.telemetry.runs.slice(this.telemetry.runs.length - maxRuns);
+                    }
+                    localStorage.setItem(this.telemetryStorageKey, JSON.stringify(this.telemetry));
+                } catch (_) {
+                    this.setTelemetryStatus('Could not save telemetry locally.');
+                }
+                this.updateTelemetrySummary();
+            }
+
+            captureTelemetryParameters() {
+                return {
+                    build: BUILD_VERSION,
+                    playfieldSize: this.PLAYFIELD_SIZE,
+                    gridSize: this.GRID_SIZE,
+                    sector: this.level,
+                    sectorName: this.getLevelPatternName(this.level),
+                    cycle: this.cycle,
+                    spawnDelay: this.spawnDelay,
+                    spawnDelayLevelReduction: this.parameters.spawnDelayLevelReduction,
+                    normalBlockAZoidLimit: this.normalSwarmSize,
+                    overtimeEnemyIntervalMs: this.parameters.overtimeEnemyIntervalMs,
+                    baseSpeeds: Object.assign({}, this.parameters.baseSpeeds),
+                    levelSpeedBoost: this.parameters.levelSpeedBoost,
+                    cosmicZapsAvailable: this.getCosmicZapsForCurrentCycle(),
+                    blinkingCrystalCount: this.currentBlinkingCrystalCount,
+                    prismRelicSpawnEnemyThreshold: this.prismRelicSpawnEnemyThreshold,
+                    prismRelicSpawnEnemyMinRatio: this.parameters.prismRelicSpawnEnemyMinRatio,
+                    prismRelicSpawnEnemyMaxRatio: this.parameters.prismRelicSpawnEnemyMaxRatio,
+                    prismRelicCueDelayMs: this.prismRelicCueDelayMs,
+                    prismRelicLifetimeMs: this.parameters.prismRelicLifetimeMs,
+                    minSpawnDistance: this.MIN_SPAWN_DISTANCE
+                };
+            }
+
+            beginTelemetryRun(source = 'start') {
+                if (!this.telemetryEnabled) return;
+                if (this.currentTelemetryRun && !this.currentTelemetryRun.endedAt) {
+                    this.finishTelemetryRun('interrupted');
+                }
+                this.currentTelemetryRun = {
+                    id: `run-${Date.now()}-${Math.floor(Math.random() * 100000)}`,
+                    build: BUILD_VERSION,
+                    source,
+                    startedAt: new Date().toISOString(),
+                    startPerformanceMs: Math.round(performance.now()),
+                    device: {
+                        userAgent: navigator.userAgent || '',
+                        viewport: { width: window.innerWidth, height: window.innerHeight },
+                        playfieldSize: this.PLAYFIELD_SIZE
+                    },
+                    startingHighScore: this.highScore,
+                    sectors: [],
+                    cycleCompletions: 0,
+                    endedAt: null,
+                    endReason: null,
+                    finalScore: 0,
+                    highestSectorReached: 1,
+                    highestCycleReached: this.cycle
+                };
+                this.currentTelemetrySector = null;
+                this.setTelemetryStatus('Telemetry recording.');
+            }
+
+            ensureTelemetryRun(source = 'gameplay') {
+                if (!this.telemetryEnabled) return;
+                if (!this.currentTelemetryRun || this.currentTelemetryRun.endedAt) this.beginTelemetryRun(source);
+            }
+
+            startTelemetrySector(source = 'sector-start') {
+                if (!this.telemetryEnabled) return;
+                this.ensureTelemetryRun(source);
+                if (!this.currentTelemetryRun) return;
+                if (this.currentTelemetrySector && !this.currentTelemetrySector.endedAt) return;
+
+                const sector = {
+                    sector: this.level,
+                    sectorName: this.getLevelPatternName(this.level),
+                    cycle: this.cycle,
+                    source,
+                    startedAt: new Date().toISOString(),
+                    startPerformanceMs: performance.now(),
+                    entryScore: this.score,
+                    entryCosmicZaps: this.cosmicZapsLeft,
+                    startingCrystals: this.crystals.length,
+                    parameters: this.captureTelemetryParameters(),
+                    result: null,
+                    endedAt: null,
+                    durationMs: 0,
+                    exitScore: null,
+                    exitCosmicZaps: null,
+                    remainingCrystals: null,
+                    activeBlockAZoidsAtEnd: null,
+                    maxActiveBlockAZoids: this.enemies.length,
+                    totalBlockAZoidsSpawned: 0,
+                    spawnedBySize: { small: 0, medium: 0, large: 0 },
+                    cosmicZapsUsed: 0,
+                    crystalsCollected: 0,
+                    colorGroupsCompleted: 0,
+                    gridlockReached: false,
+                    gridlockTimeMs: null,
+                    prismRelicAppeared: false,
+                    prismRelicAppearTimeMs: null,
+                    prismRelicCollected: false,
+                    prismRelicCollectTimeMs: null,
+                    death: null
+                };
+
+                this.currentTelemetrySector = sector;
+                this.currentTelemetryRun.sectors.push(sector);
+                this.currentTelemetryRun.highestSectorReached = Math.max(this.currentTelemetryRun.highestSectorReached, this.level);
+                this.currentTelemetryRun.highestCycleReached = Math.max(this.currentTelemetryRun.highestCycleReached, this.cycle);
+            }
+
+            telemetrySectorElapsedMs() {
+                if (!this.currentTelemetrySector) return 0;
+                return Math.max(0, Math.round(performance.now() - this.currentTelemetrySector.startPerformanceMs));
+            }
+
+            noteTelemetryEnemySpawn(type) {
+                if (!this.currentTelemetrySector || this.currentTelemetrySector.endedAt) return;
+                this.currentTelemetrySector.totalBlockAZoidsSpawned++;
+                if (this.currentTelemetrySector.spawnedBySize[type] !== undefined) this.currentTelemetrySector.spawnedBySize[type]++;
+                this.currentTelemetrySector.maxActiveBlockAZoids = Math.max(this.currentTelemetrySector.maxActiveBlockAZoids, this.enemies.length);
+            }
+
+            noteTelemetryGridlock() {
+                if (!this.currentTelemetrySector || this.currentTelemetrySector.gridlockReached) return;
+                this.currentTelemetrySector.gridlockReached = true;
+                this.currentTelemetrySector.gridlockTimeMs = this.telemetrySectorElapsedMs();
+            }
+
+            noteTelemetryPrismRelicAppeared() {
+                if (!this.currentTelemetrySector || this.currentTelemetrySector.prismRelicAppeared) return;
+                this.currentTelemetrySector.prismRelicAppeared = true;
+                this.currentTelemetrySector.prismRelicAppearTimeMs = this.telemetrySectorElapsedMs();
+            }
+
+            noteTelemetryPrismRelicCollected() {
+                if (!this.currentTelemetrySector || this.currentTelemetrySector.prismRelicCollected) return;
+                this.currentTelemetrySector.prismRelicCollected = true;
+                this.currentTelemetrySector.prismRelicCollectTimeMs = this.telemetrySectorElapsedMs();
+            }
+
+            noteTelemetryCosmicZap(clearedEnemies) {
+                if (!this.currentTelemetrySector || this.currentTelemetrySector.endedAt) return;
+                this.currentTelemetrySector.cosmicZapsUsed++;
+                this.currentTelemetrySector.maxActiveBlockAZoids = Math.max(this.currentTelemetrySector.maxActiveBlockAZoids, clearedEnemies || 0);
+            }
+
+            noteTelemetryCrystalCollected() {
+                if (!this.currentTelemetrySector || this.currentTelemetrySector.endedAt) return;
+                this.currentTelemetrySector.crystalsCollected++;
+            }
+
+            noteTelemetryColorComplete() {
+                if (!this.currentTelemetrySector || this.currentTelemetrySector.endedAt) return;
+                this.currentTelemetrySector.colorGroupsCompleted++;
+            }
+
+            finishTelemetrySector(result, extra = {}) {
+                if (!this.currentTelemetrySector || this.currentTelemetrySector.endedAt) return;
+                const sector = this.currentTelemetrySector;
+                sector.result = result;
+                sector.endedAt = new Date().toISOString();
+                sector.durationMs = this.telemetrySectorElapsedMs();
+                sector.exitScore = this.score;
+                sector.exitCosmicZaps = this.cosmicZapsLeft;
+                sector.remainingCrystals = this.crystals.length;
+                sector.activeBlockAZoidsAtEnd = this.enemies.length;
+                sector.maxActiveBlockAZoids = Math.max(sector.maxActiveBlockAZoids, this.enemies.length);
+                sector.overtimeEnemiesAdded = this.overtimeEnemiesAdded;
+                sector.prismRelicRecovered = this.prismRelicRecoveredThisSector;
+                sector.finalParameters = this.captureTelemetryParameters();
+                Object.assign(sector, extra);
+                this.currentTelemetrySector = null;
+                this.saveTelemetryData();
+            }
+
+            noteTelemetryCycleComplete() {
+                if (!this.currentTelemetryRun || this.currentTelemetryRun.endedAt) return;
+                this.currentTelemetryRun.cycleCompletions = (this.currentTelemetryRun.cycleCompletions || 0) + 1;
+                this.currentTelemetryRun.highestCycleReached = Math.max(this.currentTelemetryRun.highestCycleReached || 1, this.cycle + 1);
+                this.saveTelemetryData();
+            }
+
+            finishTelemetryRun(reason) {
+                if (!this.currentTelemetryRun || this.currentTelemetryRun.endedAt) return;
+                if (this.currentTelemetrySector && !this.currentTelemetrySector.endedAt) {
+                    this.finishTelemetrySector(reason === 'death' ? 'death' : reason);
+                }
+                this.currentTelemetryRun.endedAt = new Date().toISOString();
+                this.currentTelemetryRun.durationMs = Math.max(0, Math.round(performance.now() - this.currentTelemetryRun.startPerformanceMs));
+                this.currentTelemetryRun.endReason = reason;
+                this.currentTelemetryRun.finalScore = this.score;
+                this.currentTelemetryRun.highestSectorReached = Math.max(this.currentTelemetryRun.highestSectorReached || 1, this.level);
+                this.currentTelemetryRun.highestCycleReached = Math.max(this.currentTelemetryRun.highestCycleReached || 1, this.cycle);
+                this.telemetry.runs.push(this.currentTelemetryRun);
+                this.currentTelemetryRun = null;
+                this.currentTelemetrySector = null;
+                this.saveTelemetryData();
+            }
+
+            formatTelemetryDuration(ms) {
+                const seconds = Math.round((ms || 0) / 1000);
+                const minutes = Math.floor(seconds / 60);
+                const remainder = seconds % 60;
+                return `${minutes}:${String(remainder).padStart(2, '0')}`;
+            }
+
+            updateTelemetrySummary() {
+                if (!this.telemetryButton && !this.telemetrySummary) return;
+                if (this.telemetryButton) this.telemetryButton.style.display = this.developerModeEnabled ? '' : 'none';
+                if (!this.telemetrySummary) return;
+                const runs = this.telemetry && Array.isArray(this.telemetry.runs) ? this.telemetry.runs : [];
+                const sectors = runs.flatMap(run => Array.isArray(run.sectors) ? run.sectors : []);
+                const completed = sectors.filter(sector => sector.result === 'completed').length;
+                const deaths = sectors.filter(sector => sector.result === 'death').length;
+                const gridlocks = sectors.filter(sector => sector.gridlockReached).length;
+                const zaps = sectors.reduce((sum, sector) => sum + (sector.cosmicZapsUsed || 0), 0);
+                const bestSector = runs.reduce((max, run) => Math.max(max, run.highestSectorReached || 0), 0);
+                const bestScore = runs.reduce((max, run) => Math.max(max, run.finalScore || 0), 0);
+                this.telemetrySummary.textContent = this.developerModeEnabled ?
+                    `Runs: ${runs.length}\nSector Attempts: ${sectors.length}\nCompleted Sectors: ${completed}\nDeaths: ${deaths}\nGridlock Reached: ${gridlocks}\nCosmic Zaps Used: ${zaps}\nBest Sector: ${bestSector}\nBest Score: ${bestScore}` :
+                    'Developer Mode required. Tap the marquee five times to unlock.';
+            }
+
+            setTelemetryStatus(message) {
+                if (this.telemetryStatus) this.telemetryStatus.textContent = message || '';
+            }
+
+            exportTelemetryData() {
+                if (!this.developerModeEnabled) {
+                    this.setTelemetryStatus('Developer Mode required.');
+                    return;
+                }
+                if (this.currentTelemetryRun && !this.currentTelemetryRun.endedAt) {
+                    this.currentTelemetryRun.liveSnapshot = {
+                        capturedAt: new Date().toISOString(),
+                        score: this.score,
+                        level: this.level,
+                        cycle: this.cycle,
+                        currentSectorElapsedMs: this.telemetrySectorElapsedMs()
+                    };
+                }
+                const exportData = {
+                    schema: 'blockazoids-balance-export-v1',
+                    exportedAt: new Date().toISOString(),
+                    build: BUILD_VERSION,
+                    savedRuns: this.telemetry.runs,
+                    activeRun: this.currentTelemetryRun || null
+                };
+                const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const safeStamp = new Date().toISOString().replace(/[:.]/g, '-');
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `blockazoids-balance-${BUILD_VERSION.replace(/\s+/g, '-').toLowerCase()}-${safeStamp}.json`;
+                document.body.appendChild(link);
+                link.click();
+                link.remove();
+                setTimeout(() => URL.revokeObjectURL(url), 1000);
+                this.setTelemetryStatus('Balance data export created.');
+            }
+
+            clearTelemetryData() {
+                if (!this.developerModeEnabled) {
+                    this.setTelemetryStatus('Developer Mode required.');
+                    return;
+                }
+                this.telemetry = { schema: 'blockazoids-balance-v1', runs: [] };
+                this.currentTelemetryRun = null;
+                this.currentTelemetrySector = null;
+                try { localStorage.removeItem(this.telemetryStorageKey); } catch (_) {}
+                this.updateTelemetrySummary();
+                this.setTelemetryStatus('Balance data cleared.');
             }
 
             isAttractModeActive() {
@@ -2528,6 +2949,8 @@ This source code, artwork, game design, and related assets are not licensed for 
             beginLevelAction() {
                 if (!this.active || this.isGameOver || this.isPaused || this.levelActionStarted) return;
 
+                this.ensureTelemetryRun('gameplay');
+                this.startTelemetrySector('sector-action-start');
                 this.levelActionStarted = true;
                 this.ui.updateAll();
                 this.lastFrameTime = performance.now();
@@ -2568,6 +2991,10 @@ This source code, artwork, game design, and related assets are not licensed for 
                     this.soundToggleButton,
                     this.musicToggleButton,
                     this.resetHighScoreButton,
+                    this.telemetryButton,
+                    this.exportTelemetryButton,
+                    this.clearTelemetryButton,
+                    this.telemetryBackButton,
                     this.levelSelectCloseButton,
                     this.cycleContinueButton
                 ].forEach(button => {
@@ -2590,6 +3017,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.scoringPanel.classList.remove('open');
                 this.storyPanel.classList.remove('open');
                 this.settingsPanel.classList.remove('open');
+                if (this.telemetryPanel) this.telemetryPanel.classList.remove('open');
                 this.clearMenuButtonFocus();
             }
 
@@ -2598,6 +3026,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.scoringPanel.classList.toggle('open', panelName === 'scoring');
                 this.storyPanel.classList.toggle('open', panelName === 'story');
                 this.settingsPanel.classList.toggle('open', panelName === 'settings');
+                if (this.telemetryPanel) this.telemetryPanel.classList.toggle('open', panelName === 'telemetry' && this.developerModeEnabled);
                 if (panelName !== 'settings') {
                     this.resetHighScoreConfirmationState();
                 }
@@ -2606,6 +3035,11 @@ This source code, artwork, game design, and related assets are not licensed for 
                     this.updateSoundToggleLabel();
                     this.updateMusicToggleLabel();
                     this.updateHighScoreDisplay();
+                    this.updateLevelSelectUnlockState();
+                }
+                if (panelName === 'telemetry') {
+                    this.updateTelemetrySummary();
+                    this.setTelemetryStatus(this.developerModeEnabled ? 'Local balance data only.' : 'Developer Mode required.');
                 }
                 this.clearMenuButtonFocus();
             }
@@ -2845,6 +3279,7 @@ This source code, artwork, game design, and related assets are not licensed for 
 
             restartRun() {
                 this.resetRestartConfirmationState();
+                if (this.currentTelemetryRun && !this.currentTelemetryRun.endedAt) this.finishTelemetryRun('restart');
                 this.audio.resume();
                 this.audio.stopBackgroundMusic();
                 this.audio.stopPrismRelicHum();
@@ -2959,6 +3394,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 if (resetScore) this.cycle = 1;
                 this.audio.resume();
                 this.audio.stopBackgroundMusic();
+                if (this.telemetryEnabled && resetScore) this.beginTelemetryRun('sector-select');
                 this.prepareLevelStart(targetLevel, resetScore);
                 this.showLevelJumpText(targetLevel);
                 this.startPreparedLevel(loadToken);
@@ -2977,6 +3413,7 @@ This source code, artwork, game design, and related assets are not licensed for 
 
                 this.hasStartedRun = true;
                 this.cycle = 1;
+                if (this.telemetryEnabled) this.beginTelemetryRun('start-game');
                 this.audio.resume(); // Unlock audio after the player's start tap
                 this.audio.stopBackgroundMusic(); // Stop any background music
                 this.prepareLevelStart(1, true); // Reset to level 1 with a fresh score
@@ -3464,6 +3901,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                     this.prismRelic = new PrismRelic(this, relicX, relicY);
                     this.prismRelicRemainingMs = this.parameters.prismRelicLifetimeMs;
                     this.prismRelicSpawnedThisSector = true;
+                    this.noteTelemetryPrismRelicAppeared();
                     this.audio.playPrismRelicAppear();
                     this.audio.startPrismRelicHum();
                 }, this.prismRelicCueDelayMs);
@@ -3492,6 +3930,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                         if (this.enemies.length < this.normalSwarmSize) return;
                         this.maxSwarmActive = true;
                         this.survivalistEarnedThisSector = true;
+                        this.noteTelemetryGridlock();
                         if (this.ui && this.ui.flashGridlockAlert) this.ui.flashGridlockAlert();
                         this.audio.playMaxSwarmCue();
                         this.startOvertime();
@@ -3573,6 +4012,7 @@ This source code, artwork, game design, and related assets are not licensed for 
 
                 this.removePrismRelic();
                 this.prismRelicRecoveredThisSector = true;
+                this.noteTelemetryPrismRelicCollected();
                 this.relicRecoveredBySector[this.getRelicSectorKey()] = true;
                 // Prism Relic points are awarded only if the sector is cleared.
                 this.audio.playPrismRelicCollect();
@@ -3830,6 +4270,7 @@ This source code, artwork, game design, and related assets are not licensed for 
 
                     const enemy = new Enemy(this, type, { x: location.x, y: location.y });
                     this.enemies.push(enemy);
+                    this.noteTelemetryEnemySpawn(type);
                     this.checkPrismRelicSpawnProgress();
                     this.checkMaxSwarmProgress();
                     if (enemy.size === this.PLAYER_SIZE) this.spawnedCount.small++;
@@ -3887,6 +4328,15 @@ This source code, artwork, game design, and related assets are not licensed for 
                 const cycleBonus = completedLevel >= this.MAX_LEVEL ? this.parameters.gameCycleBonus : 0;
                 const totalBonus = unusedCosmicZapBonus + survivalistBonus + perfectSectorBonus + relicRecoveredBonus + cycleBonus;
                 const bonusLines = this.buildSectorBonusLines(unusedCosmicZapBonus, survivalistBonus, perfectSectorBonus, relicRecoveredBonus, cycleBonus);
+                this.finishTelemetrySector('completed', {
+                    totalBonus,
+                    unusedCosmicZapBonus,
+                    survivalistBonus,
+                    perfectSectorBonus,
+                    prismRelicBonus: relicRecoveredBonus,
+                    cycleBonus
+                });
+                if (completedLevel >= this.MAX_LEVEL) this.noteTelemetryCycleComplete();
 
                 this.runGridRestoreSequence(completedLevel, transitionToken, { bonusLines, totalBonus }).then((sequenceCompleted) => {
                     if (!sequenceCompleted || transitionToken !== this.levelLoadToken || this.isGameOver) return;
@@ -4124,12 +4574,14 @@ This source code, artwork, game design, and related assets are not licensed for 
                     this.crystals.splice(i, 1); // Remove from array
 
                     this.addScore(10); // Blinking crystal collection
+                    this.noteTelemetryCrystalCollected();
                     this.lastCollectedPos = pos; // Anchor the next blink around the most recent collection.
                     this.audio.playCollect(); // Play collect sound
 
                     if (!this.crystals.some(crys => crys.color === this.colorOrder[this.currentColorIndex])) { // No more of current color
                         this.addScore(this.parameters.colorCompleteBonus); // Finished one RGB color set
                         this.colorGroupsCompletedThisSector++;
+                        this.noteTelemetryColorComplete();
                         this.currentColorIndex = (this.currentColorIndex + 1) % this.colorOrder.length; // Next color
                         this.nextCrystalOrder = 1; // Reset order
                         this.activeBlinkingCrystals = []; // Start a fresh random set for the new color
@@ -4422,6 +4874,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                     this.cosmicZapProtectionUntil = now + this.cosmicZapProtectionMs;
 
                     const clearedEnemies = this.enemies.slice();
+                    this.noteTelemetryCosmicZap(clearedEnemies.length);
 
                     this.cosmicZapsLeft--;
                     this.cosmicZapPressure++;
@@ -4758,6 +5211,17 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.setGameOverlayVisible(false);
                 this.audio.stopBackgroundMusic(); // Stop music
                 this.audio.stopCycleCompleteMusic();
+                this.finishTelemetrySector('death', {
+                    death: {
+                        x: Math.round(this.player.x + this.player.size / 2),
+                        y: Math.round(this.player.y + this.player.size / 2),
+                        sectorTimeMs: this.sectorElapsedMs,
+                        activeBlockAZoids: this.enemies.length,
+                        remainingCrystals: this.crystals.length,
+                        currentColor: this.colorOrder[this.currentColorIndex] || null
+                    }
+                });
+                this.finishTelemetryRun('death');
                 this.container.classList.remove('cycleCelebrationSequence', 'cycleRestoredIdle');
                 this.removeCycleRebootCells();
                 this.removePrismRelic();
