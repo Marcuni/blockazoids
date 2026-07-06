@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v163: Lets Developer Mode export telemetry from the start screen, improves balance fields, and retunes Cosmic Zap into a 1950s sci-fi ray.
+Build v164: Makes the Prism Relic a Gridlock-only bonus, adds crystal pickup telemetry, and updates sector names.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -1744,8 +1744,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 <div class="scoring-row"><span>Color Complete</span><span>100/ea</span></div>
                 <div class="scoring-row"><span>Time Alive</span><span>1/sec</span></div>
                 <div class="scoring-section-title">BONUS</div>
-                <div class="scoring-row"><span>Survivalist <span class="scoring-label-note">(Gridlock)</span></span><span>100</span></div>
-                <div class="scoring-row"><span>Prism Relic</span><span>200</span></div>
+                <div class="scoring-row"><span>Gridlock Bonus <span class="scoring-label-note">(Relic)</span></span><span>200</span></div>
                 <div class="scoring-row"><span>Cosmic Zaps <span class="scoring-label-note">(unused)</span></span><span>50/ea</span></div>
                 <div class="scoring-row"><span>Perfect Sector</span><span>100</span></div>
                 <button id="scoringBackButton" class="menu-back-button">Back</button>
@@ -1797,7 +1796,7 @@ This source code, artwork, game design, and related assets are not licensed for 
     <div id="copyrightFooter">© 2026 Marcus Couto</div>
 
     <script>
-        const BUILD_VERSION = 'Build v163';
+        const BUILD_VERSION = 'Build v164';
         document.getElementById('buildVersion').textContent = BUILD_VERSION;
 
         let lastGlobalTouchEndTime = 0;
@@ -1831,14 +1830,9 @@ This source code, artwork, game design, and related assets are not licensed for 
                     baseSpeeds: { small: 3, medium: 2, large: 1.5 }, // Base speeds for enemy sizes
                     baseCosmicZaps: 3,              // Starting number of Cosmic Zaps
                     unusedCosmicZapBonus: 50,       // End-of-level bonus for each unused Cosmic Zap
-                    perfectSectorBonus: 100,   // Extra bonus for clearing a sector with no Cosmic Zaps used, Gridlock survived, and the Prism Relic recovered
-                    survivalistBonus: 100,     // Extra bonus for surviving until the max active Block-A-Zoids are on screen
-                    prismRelicBonus: 200,       // Optional temporary Prism Relic pickup bonus
-                    prismRelicSpawnEnemyMinRatio: 0.60, // Random Prism Relic trigger window starts at 60% of the normal Block-A-Zoid limit
-                    prismRelicSpawnEnemyMaxRatio: 0.75, // Random Prism Relic trigger window ends at 75% of the normal Block-A-Zoid limit
-                    prismRelicCueDelayMinMs: 500, // Small random delay after the hidden Prism Relic threshold is reached
-                    prismRelicCueDelayMaxMs: 1500,
-                    prismRelicLifetimeMs: 6000, // Prism Relic disappears if not recovered in time
+                    perfectSectorBonus: 100,   // Extra bonus for clearing a sector with no Cosmic Zaps used and the Gridlock Relic recovered
+                    gridlockBonus: 200,       // Bonus for collecting the Prism Relic after surviving Gridlock
+                    gridlockRelicDelayMs: 2500, // Time the player must survive Gridlock before the Relic appears
                     gameCycleBonus: 500,       // Bonus when the campaign loops into a harder cycle
                     colorCompleteBonus: 100,   // Bonus for clearing all crystals in one color
                     levelSpeedBoost: 0.03      // Enemy speed increase per level; each Cosmic Zap adds one temporary level-speed notch
@@ -1915,13 +1909,14 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.enemies = [];                    // Array of active enemies
                 this.explosions = [];                 // Array of active explosions
                 this.crystals = [];                   // Array of collectible crystals
-                this.prismRelic = null;                 // Optional temporary Prism Relic pickup
-                this.relicRecoveredBySector = {};       // Tracks which sectors recovered the Prism Relic
+                this.prismRelic = null;                 // Gridlock-only Prism Relic pickup
+                this.relicRecoveredBySector = {};       // Tracks which sectors recovered the Gridlock Relic
                 this.colorGroupsCompletedThisSector = 0;
                 this.prismRelicSpawnedThisSector = false;
                 this.prismRelicRecoveredThisSector = false;
                 this.prismRelicRemainingMs = 0;
                 this.prismRelicInitialCrystalCount = 0;
+                this.gridlockRelicAttemptNumber = 0;
                 this.collectedPositions = [];         // Positions of collected crystals
                 this.lines = [];                      // Connection lines between crystals
                 this.attractSquares = [];             // Squares for attract mode
@@ -1964,7 +1959,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.activeBlinkingCrystals = [];     // Current selectable blinking crystals; kept stable between pickups
                 this.survivalScoreAccumulator = 0;   // Tracks active gameplay seconds for +1 point per second
                 this.sectorElapsedMs = 0;            // Total active time in the current sector
-                this.survivalistEarnedThisSector = false; // Scoring flag: stays earned after a Cosmic Zap once Gridlock was reached
+                this.survivalistEarnedThisSector = false; // Legacy flag: Gridlock reached this sector; scoring now uses the Gridlock Relic
                 this.maxSwarmActive = false; // Gameplay/audio flag: resets after Cosmic Zaps so Gridlock can trigger again
                 this.maxSwarmCueTimer = null;      // Delays the actual gridlock bonus trigger so it does not overlap the final spawn sound
                 this.maxSwarmCueDelayMs = 1000;    // One-second gap after the final enemy materializes
@@ -2333,11 +2328,11 @@ This source code, artwork, game design, and related assets are not licensed for 
                     cosmicZapPressure: this.cosmicZapPressure,
                     cosmicZapsAvailable: this.getCosmicZapsForCurrentCycle(),
                     blinkingCrystalCount: this.currentBlinkingCrystalCount,
-                    prismRelicSpawnEnemyThreshold: this.prismRelicSpawnEnemyThreshold,
-                    prismRelicSpawnEnemyMinRatio: this.parameters.prismRelicSpawnEnemyMinRatio,
-                    prismRelicSpawnEnemyMaxRatio: this.parameters.prismRelicSpawnEnemyMaxRatio,
+                    prismRelicSpawnMode: 'gridlock-only',
+                    prismRelicSpawnEnemyThreshold: this.normalSwarmSize,
+                    gridlockRelicDelayMs: this.parameters.gridlockRelicDelayMs,
                     prismRelicCueDelayMs: this.prismRelicCueDelayMs,
-                    prismRelicLifetimeMs: this.parameters.prismRelicLifetimeMs,
+                    prismRelicLifetimeMs: null,
                     minSpawnDistance: this.MIN_SPAWN_DISTANCE
                 };
             }
@@ -2407,12 +2402,16 @@ This source code, artwork, game design, and related assets are not licensed for 
                     cosmicZapsUsed: 0,
                     cosmicZapEvents: [],
                     crystalsCollected: 0,
+                    crystalPickups: [],
+                    lastCrystalPickupMs: null,
                     colorGroupsCompleted: 0,
                     colorGroupStartTimesMs: { red: 0, green: null, blue: null },
                     colorGroupClearTimesMs: { red: null, green: null, blue: null },
+                    colorPhaseStats: { red: null, green: null, blue: null },
                     remainingCrystalsByColor: this.getRemainingCrystalsByColor(),
                     gridlockReached: false,
                     gridlockTimeMs: null,
+                    gridlockEntries: [],
                     gridlockDurationMs: 0,
                     timeInGridlockMs: 0,
                     clearedAfterGridlock: false,
@@ -2420,6 +2419,11 @@ This source code, artwork, game design, and related assets are not licensed for 
                     prismRelicAppearTimeMs: null,
                     prismRelicCollected: false,
                     prismRelicCollectTimeMs: null,
+                    gridlockRelicAttempts: [],
+                    gridlockRelicAttemptCount: 0,
+                    gridlockRelicCanceledByZap: 0,
+                    gridlockBonusCollected: false,
+                    gridlockBonusCollectTimeMs: null,
                     death: null
                 };
 
@@ -2442,21 +2446,96 @@ This source code, artwork, game design, and related assets are not licensed for 
             }
 
             noteTelemetryGridlock() {
-                if (!this.currentTelemetrySector || this.currentTelemetrySector.gridlockReached) return;
-                this.currentTelemetrySector.gridlockReached = true;
-                this.currentTelemetrySector.gridlockTimeMs = this.telemetrySectorElapsedMs();
+                if (!this.currentTelemetrySector || this.currentTelemetrySector.endedAt) return;
+                const elapsed = this.telemetrySectorElapsedMs();
+                if (!this.currentTelemetrySector.gridlockReached) {
+                    this.currentTelemetrySector.gridlockReached = true;
+                    this.currentTelemetrySector.gridlockTimeMs = elapsed;
+                }
+                if (!Array.isArray(this.currentTelemetrySector.gridlockEntries)) this.currentTelemetrySector.gridlockEntries = [];
+                this.currentTelemetrySector.gridlockEntries.push({
+                    entry: this.currentTelemetrySector.gridlockEntries.length + 1,
+                    sectorTimeMs: elapsed,
+                    activeBlockAZoids: this.enemies.length,
+                    remainingCrystals: this.crystals.length,
+                    remainingCrystalsByColor: this.getRemainingCrystalsByColor()
+                });
             }
 
             noteTelemetryPrismRelicAppeared() {
-                if (!this.currentTelemetrySector || this.currentTelemetrySector.prismRelicAppeared) return;
-                this.currentTelemetrySector.prismRelicAppeared = true;
-                this.currentTelemetrySector.prismRelicAppearTimeMs = this.telemetrySectorElapsedMs();
+                if (!this.currentTelemetrySector || this.currentTelemetrySector.endedAt) return;
+                const elapsed = this.telemetrySectorElapsedMs();
+                if (!this.currentTelemetrySector.prismRelicAppeared) {
+                    this.currentTelemetrySector.prismRelicAppeared = true;
+                    this.currentTelemetrySector.prismRelicAppearTimeMs = elapsed;
+                }
+                const attemptNumber = this.gridlockRelicAttemptNumber || 1;
+                const attempts = this.currentTelemetrySector.gridlockRelicAttempts || [];
+                if (!attempts.some(attempt => attempt.attempt === attemptNumber)) {
+                    attempts.push({
+                        attempt: attemptNumber,
+                        appearTimeMs: elapsed,
+                        gridlockElapsedMs: this.currentTelemetrySector.gridlockTimeMs !== null ? Math.max(0, elapsed - this.currentTelemetrySector.gridlockTimeMs) : null,
+                        activeBlockAZoids: this.enemies.length,
+                        remainingCrystals: this.crystals.length,
+                        remainingCrystalsByColor: this.getRemainingCrystalsByColor(),
+                        collected: false,
+                        canceledBy: null,
+                        endedAtMs: null
+                    });
+                }
+                this.currentTelemetrySector.gridlockRelicAttempts = attempts;
+                this.currentTelemetrySector.gridlockRelicAttemptCount = Math.max(this.currentTelemetrySector.gridlockRelicAttemptCount || 0, attempts.length);
             }
 
             noteTelemetryPrismRelicCollected() {
-                if (!this.currentTelemetrySector || this.currentTelemetrySector.prismRelicCollected) return;
-                this.currentTelemetrySector.prismRelicCollected = true;
-                this.currentTelemetrySector.prismRelicCollectTimeMs = this.telemetrySectorElapsedMs();
+                if (!this.currentTelemetrySector || this.currentTelemetrySector.endedAt) return;
+                const elapsed = this.telemetrySectorElapsedMs();
+                if (!this.currentTelemetrySector.prismRelicCollected) {
+                    this.currentTelemetrySector.prismRelicCollected = true;
+                    this.currentTelemetrySector.prismRelicCollectTimeMs = elapsed;
+                }
+                this.currentTelemetrySector.gridlockBonusCollected = true;
+                this.currentTelemetrySector.gridlockBonusCollectTimeMs = elapsed;
+                const attempts = this.currentTelemetrySector.gridlockRelicAttempts || [];
+                const attempt = [...attempts].reverse().find(item => !item.collected && !item.canceledBy);
+                if (attempt) {
+                    attempt.collected = true;
+                    attempt.endedAtMs = elapsed;
+                    attempt.timeVisibleMs = Math.max(0, elapsed - (attempt.appearTimeMs || elapsed));
+                }
+            }
+
+            noteTelemetryPrismRelicCanceled(reason = 'canceled') {
+                if (!this.currentTelemetrySector || this.currentTelemetrySector.endedAt) return;
+                const elapsed = this.telemetrySectorElapsedMs();
+                const attempts = this.currentTelemetrySector.gridlockRelicAttempts || [];
+                let attempt = [...attempts].reverse().find(item => !item.collected && !item.canceledBy);
+                if (!attempt && this.gridlockRelicAttemptNumber > 0) {
+                    attempt = {
+                        attempt: this.gridlockRelicAttemptNumber,
+                        appearTimeMs: null,
+                        gridlockElapsedMs: this.currentTelemetrySector.gridlockTimeMs !== null ? Math.max(0, elapsed - this.currentTelemetrySector.gridlockTimeMs) : null,
+                        activeBlockAZoids: this.enemies.length,
+                        remainingCrystals: this.crystals.length,
+                        remainingCrystalsByColor: this.getRemainingCrystalsByColor(),
+                        collected: false,
+                        canceledBy: null,
+                        endedAtMs: null,
+                        canceledBeforeAppearance: true
+                    };
+                    attempts.push(attempt);
+                    this.currentTelemetrySector.gridlockRelicAttempts = attempts;
+                    this.currentTelemetrySector.gridlockRelicAttemptCount = Math.max(this.currentTelemetrySector.gridlockRelicAttemptCount || 0, attempts.length);
+                }
+                if (attempt) {
+                    attempt.canceledBy = reason;
+                    attempt.endedAtMs = elapsed;
+                    attempt.timeVisibleMs = attempt.appearTimeMs !== null && attempt.appearTimeMs !== undefined ? Math.max(0, elapsed - attempt.appearTimeMs) : null;
+                }
+                if (reason === 'cosmic-zap') {
+                    this.currentTelemetrySector.gridlockRelicCanceledByZap = (this.currentTelemetrySector.gridlockRelicCanceledByZap || 0) + 1;
+                }
             }
 
             noteTelemetryCosmicZap(clearedEnemies = []) {
@@ -2479,14 +2558,87 @@ This source code, artwork, game design, and related assets are not licensed for 
                     currentColor: this.colorOrder[this.currentColorIndex] || null,
                     gridlockActive: !!this.maxSwarmActive,
                     secondsSinceGridlock: this.currentTelemetrySector.gridlockReached ? Math.round((this.telemetrySectorElapsedMs() - this.currentTelemetrySector.gridlockTimeMs) / 1000) : null,
+                    relicAttemptCanceled: !this.prismRelicRecoveredThisSector && (this.maxSwarmActive || !!this.prismRelic || !!this.prismRelicCueTimer),
                     cosmicZapsLeftBeforeUse: this.cosmicZapsLeft
                 });
             }
 
-            noteTelemetryCrystalCollected() {
+            noteTelemetryCrystalCollected(crystal = null, position = null) {
                 if (!this.currentTelemetrySector || this.currentTelemetrySector.endedAt) return;
-                this.currentTelemetrySector.crystalsCollected++;
-                this.currentTelemetrySector.remainingCrystalsByColor = this.getRemainingCrystalsByColor();
+                const sector = this.currentTelemetrySector;
+                const elapsed = this.telemetrySectorElapsedMs();
+                const remainingByColor = this.getRemainingCrystalsByColor();
+                const center = { x: this.PLAYFIELD_SIZE / 2, y: this.PLAYFIELD_SIZE / 2 };
+                const pickups = Array.isArray(sector.crystalPickups) ? sector.crystalPickups : [];
+                const previousPickup = pickups.length > 0 ? pickups[pickups.length - 1] : null;
+                const previousPosition = previousPickup ? { x: previousPickup.x, y: previousPickup.y } : center;
+                const currentPosition = position || (crystal ? { x: crystal.x + crystal.size / 2, y: crystal.y + crystal.size / 2 } : center);
+                const color = crystal && crystal.color ? crystal.color : (this.colorOrder[this.currentColorIndex] || null);
+                const gridPosition = crystal ? this.getCrystalGridPosition(crystal) : {
+                    col: Math.round(currentPosition.x / this.GRID_SIZE),
+                    row: Math.round(currentPosition.y / this.GRID_SIZE)
+                };
+                const previousGrid = previousPickup ? { col: previousPickup.gridCol, row: previousPickup.gridRow } : { col: 5, row: 5 };
+                const timeSincePreviousPickupMs = previousPickup ? Math.max(0, elapsed - previousPickup.sectorTimeMs) : elapsed;
+                const distanceFromPreviousPickupPx = Math.round(Math.hypot(currentPosition.x - previousPosition.x, currentPosition.y - previousPosition.y));
+                const gridDistanceFromPreviousPickup = Math.abs(gridPosition.col - previousGrid.col) + Math.abs(gridPosition.row - previousGrid.row);
+                const colorRemainingAfterPickup = color && remainingByColor[color] !== undefined ? remainingByColor[color] : null;
+                const pickupRecord = {
+                    pickupIndex: pickups.length + 1,
+                    sectorTimeMs: elapsed,
+                    color,
+                    order: crystal && Number.isFinite(crystal.order) ? crystal.order : null,
+                    x: Math.round(currentPosition.x),
+                    y: Math.round(currentPosition.y),
+                    gridCol: gridPosition.col,
+                    gridRow: gridPosition.row,
+                    timeSincePreviousPickupMs,
+                    distanceFromPreviousPickupPx,
+                    gridDistanceFromPreviousPickup,
+                    activeBlockAZoids: this.enemies.length,
+                    pendingSpawns: this.pendingSpawnWarnings.length,
+                    inGridlock: !!this.maxSwarmActive,
+                    remainingCrystalsAfterPickup: this.crystals.length,
+                    remainingCrystalsByColorAfterPickup: Object.assign({}, remainingByColor),
+                    colorRemainingAfterPickup,
+                    isLastFiveOfColor: colorRemainingAfterPickup !== null ? colorRemainingAfterPickup <= 5 : false,
+                    isLastThreeOfColor: colorRemainingAfterPickup !== null ? colorRemainingAfterPickup <= 3 : false,
+                    isLastOfColor: colorRemainingAfterPickup === 0
+                };
+                pickups.push(pickupRecord);
+                sector.crystalPickups = pickups;
+                sector.crystalsCollected++;
+                sector.lastCrystalPickupMs = elapsed;
+                sector.remainingCrystalsByColor = remainingByColor;
+            }
+
+            getTelemetryBlinkingCrystalOptions() {
+                return this.activeBlinkingCrystals.map(crystal => {
+                    const centerX = crystal.x + crystal.size / 2;
+                    const centerY = crystal.y + crystal.size / 2;
+                    const grid = this.getCrystalGridPosition(crystal);
+                    return {
+                        color: crystal.color,
+                        order: crystal.order,
+                        x: Math.round(centerX),
+                        y: Math.round(centerY),
+                        gridCol: grid.col,
+                        gridRow: grid.row,
+                        distanceFromPlayerPx: Math.round(Math.hypot((this.player.x + this.player.size / 2) - centerX, (this.player.y + this.player.size / 2) - centerY))
+                    };
+                });
+            }
+
+            getNearestEnemyDistanceFromPlayer() {
+                if (!this.enemies.length) return null;
+                const playerCenterX = this.player.x + this.player.size / 2;
+                const playerCenterY = this.player.y + this.player.size / 2;
+                return Math.round(Math.min(...this.enemies.map(enemy => Math.hypot(playerCenterX - (enemy.x + enemy.size / 2), playerCenterY - (enemy.y + enemy.size / 2)))));
+            }
+
+            getLastCrystalPickupTelemetry() {
+                const pickups = this.currentTelemetrySector && Array.isArray(this.currentTelemetrySector.crystalPickups) ? this.currentTelemetrySector.crystalPickups : [];
+                return pickups.length > 0 ? pickups[pickups.length - 1] : null;
             }
 
             noteTelemetryColorComplete() {
@@ -2496,6 +2648,18 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.currentTelemetrySector.colorGroupsCompleted++;
                 if (completedColor && this.currentTelemetrySector.colorGroupClearTimesMs) {
                     this.currentTelemetrySector.colorGroupClearTimesMs[completedColor] = elapsed;
+                    const startTime = this.currentTelemetrySector.colorGroupStartTimesMs && this.currentTelemetrySector.colorGroupStartTimesMs[completedColor] !== null ? this.currentTelemetrySector.colorGroupStartTimesMs[completedColor] : 0;
+                    const colorPickups = Array.isArray(this.currentTelemetrySector.crystalPickups) ? this.currentTelemetrySector.crystalPickups.filter(pickup => pickup.color === completedColor) : [];
+                    if (this.currentTelemetrySector.colorPhaseStats) {
+                        this.currentTelemetrySector.colorPhaseStats[completedColor] = {
+                            startTimeMs: startTime,
+                            clearTimeMs: elapsed,
+                            durationMs: Math.max(0, elapsed - startTime),
+                            pickups: colorPickups.length,
+                            lastFiveDurationMs: colorPickups.length >= 5 ? Math.max(0, elapsed - colorPickups[Math.max(0, colorPickups.length - 5)].sectorTimeMs) : null,
+                            averagePickupGapMs: colorPickups.length > 0 ? Math.round((elapsed - startTime) / colorPickups.length) : null
+                        };
+                    }
                     const nextColor = this.colorOrder[this.currentColorIndex + 1] || null;
                     if (nextColor && this.currentTelemetrySector.colorGroupStartTimesMs) {
                         this.currentTelemetrySector.colorGroupStartTimesMs[nextColor] = elapsed;
@@ -2572,10 +2736,11 @@ This source code, artwork, game design, and related assets are not licensed for 
                 const deaths = sectors.filter(sector => sector.result === 'death').length;
                 const gridlocks = sectors.filter(sector => sector.gridlockReached).length;
                 const zaps = sectors.reduce((sum, sector) => sum + (sector.cosmicZapsUsed || 0), 0);
+                const relics = sectors.filter(sector => sector.prismRelicCollected || sector.gridlockBonusCollected).length;
                 const bestSector = runs.reduce((max, run) => Math.max(max, run.highestSectorReached || 0), 0);
                 const bestScore = runs.reduce((max, run) => Math.max(max, run.finalScore || 0), 0);
                 this.telemetrySummary.textContent = this.developerModeEnabled ?
-                    `Runs: ${runs.length}\nSector Attempts: ${sectors.length}\nCompleted Sectors: ${completed}\nDeaths: ${deaths}\nGridlock Reached: ${gridlocks}\nCosmic Zaps Used: ${zaps}\nBest Sector: ${bestSector}\nBest Score: ${bestScore}` :
+                    `Runs: ${runs.length}\nSector Attempts: ${sectors.length}\nCompleted Sectors: ${completed}\nDeaths: ${deaths}\nGridlock Reached: ${gridlocks}\nGridlock Bonuses: ${relics}\nCosmic Zaps Used: ${zaps}\nBest Sector: ${bestSector}\nBest Score: ${bestScore}` :
                     'Developer Mode required. Tap the marquee five times to unlock.';
             }
 
@@ -2611,7 +2776,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                     } : null
                 } : null;
                 const exportData = {
-                    schema: 'blockazoids-balance-export-v2',
+                    schema: 'blockazoids-balance-export-v3',
                     exportedAt: new Date().toISOString(),
                     build: BUILD_VERSION,
                     savedRuns: this.telemetry.runs,
@@ -2636,7 +2801,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                     this.setTelemetryStatus('Developer Mode required.');
                     return;
                 }
-                this.telemetry = { schema: 'blockazoids-balance-v1', runs: [] };
+                this.telemetry = { schema: 'blockazoids-balance-v3', runs: [] };
                 this.currentTelemetryRun = null;
                 this.currentTelemetrySector = null;
                 try { localStorage.removeItem(this.telemetryStorageKey); } catch (_) {}
@@ -2930,14 +3095,10 @@ This source code, artwork, game design, and related assets are not licensed for 
                 }
             }
 
-            // Choose a slightly different Prism Relic trigger per sector so center camping is less predictable.
+            // Gridlock Relic timing is deterministic so the bonus is easier to understand and tune.
             resetPrismRelicTiming() {
-                const minCount = Math.max(1, Math.ceil(this.normalSwarmSize * this.parameters.prismRelicSpawnEnemyMinRatio));
-                const maxCount = Math.max(minCount, Math.ceil(this.normalSwarmSize * this.parameters.prismRelicSpawnEnemyMaxRatio));
-                this.prismRelicSpawnEnemyThreshold = minCount + Math.floor(Math.random() * (maxCount - minCount + 1));
-                const delayMin = this.parameters.prismRelicCueDelayMinMs;
-                const delayMax = Math.max(delayMin, this.parameters.prismRelicCueDelayMaxMs);
-                this.prismRelicCueDelayMs = Math.round(delayMin + Math.random() * (delayMax - delayMin));
+                this.prismRelicSpawnEnemyThreshold = this.normalSwarmSize;
+                this.prismRelicCueDelayMs = this.parameters.gridlockRelicDelayMs;
             }
 
             // Reset state shared by a fresh level start or a testing jump.
@@ -2989,6 +3150,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.prismRelicRecoveredThisSector = false;
                 this.prismRelicRemainingMs = 0;
                 this.prismRelicInitialCrystalCount = 0;
+                this.gridlockRelicAttemptNumber = 0;
                 this.cosmicZapsLeft = this.getCosmicZapsForCurrentCycle();
                 this.currentBlinkingCrystalCount = this.BASE_BLINKING_CRYSTAL_COUNT;
                 this.cosmicZapPressure = 0;
@@ -3575,21 +3737,21 @@ This source code, artwork, game design, and related assets are not licensed for 
             // Human-readable names for testing feedback.
             getLevelPatternName(levelNumber = this.level) {
                 const names = [
-                    'Pylon',
-                    'Stratia',
-                    'Trilines',
-                    'Tesseris',
-                    'Obliquon',
-                    'Mirror Obliquon',
-                    'Cruxael',
-                    'Slantia',
-                    'Tetrax',
-                    'Rhombora',
-                    'Undulari',
-                    'Octron',
-                    'Fluxoth',
-                    'Scatterix',
-                    'Confettia'
+                    'Ordines',
+                    'Strata',
+                    'Lineae',
+                    'Tesserae',
+                    'Obliqua',
+                    'Reflexa',
+                    'Crux',
+                    'Declives',
+                    'Quadrata',
+                    'Rhombi',
+                    'Fluctus',
+                    'Octangulum',
+                    'Inaequalia',
+                    'Dispersa',
+                    'Fragmenta'
                 ];
                 return names[Math.max(0, Math.min(this.MAX_LEVEL - 1, levelNumber - 1))];
             }
@@ -3599,7 +3761,7 @@ This source code, artwork, game design, and related assets are not licensed for 
             // Difficulty can later be adjusted with enemy count, enemy speed, spawn timing, and Cosmic Zap pressure.
             getLevelPatternRows(levelNumber = this.level) {
                 const patterns = [
-                    // Grid Sector 1 — Columns / Pylon: clean vertical color zones.
+                    // Grid Sector 1 — Columns / Ordines: clean vertical color zones.
                     [
                         'RRRGGGBBB',
                         'RRRGGGBBB',
@@ -3611,7 +3773,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                         'RRRGGGBBB',
                         'RRRGGGBBB'
                     ],
-                    // Grid Sector 2 — Horizontal Rows / Stratia: long side-to-side sweeps.
+                    // Grid Sector 2 — Horizontal Rows / Strata: long side-to-side sweeps.
                     [
                         'RRRRRRRRR',
                         'GGGGGGGGG',
@@ -3623,7 +3785,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                         'GGGGGGGGG',
                         'BBBBBBBBB'
                     ],
-                    // Grid Sector 3 — Vertical Rows / Trilines: narrow repeating lanes.
+                    // Grid Sector 3 — Vertical Rows / Lineae: narrow repeating lanes.
                     [
                         'RGBRGBRGB',
                         'RGBRGBRGB',
@@ -4018,17 +4180,22 @@ This source code, artwork, game design, and related assets are not licensed for 
 
             spawnPrismRelic() {
                 if (this.prismRelicSpawnedThisSector || this.prismRelicRecoveredThisSector || this.prismRelic || this.prismRelicCueTimer) return;
+                if (!this.maxSwarmActive || this.enemies.length < this.normalSwarmSize) return;
 
+                this.gridlockRelicAttemptNumber++;
+                const attemptNumber = this.gridlockRelicAttemptNumber;
                 this.prismRelicCueTimer = setTimeout(() => {
                     this.prismRelicCueTimer = null;
+                    if (attemptNumber !== this.gridlockRelicAttemptNumber) return;
                     if (this.prismRelicSpawnedThisSector || this.prismRelicRecoveredThisSector || this.prismRelic) return;
                     if (!this.active || this.isPaused || this.isGameOver || !this.levelActionStarted) return;
+                    if (!this.maxSwarmActive || this.enemies.length < this.normalSwarmSize) return;
 
                     const center = this.PLAYFIELD_SIZE / 2;
                     const relicX = center - this.PRISM_RELIC_SIZE / 2;
                     const relicY = center - this.PRISM_RELIC_SIZE / 2;
                     this.prismRelic = new PrismRelic(this, relicX, relicY);
-                    this.prismRelicRemainingMs = this.parameters.prismRelicLifetimeMs;
+                    this.prismRelicRemainingMs = 0;
                     this.prismRelicSpawnedThisSector = true;
                     this.noteTelemetryPrismRelicAppeared();
                     this.audio.playPrismRelicAppear();
@@ -4039,11 +4206,18 @@ This source code, artwork, game design, and related assets are not licensed for 
             checkPrismRelicSpawnProgress() {
                 if (this.prismRelicSpawnedThisSector || this.prismRelicRecoveredThisSector || this.prismRelic || this.prismRelicCueTimer) return;
                 if (!this.active || this.isPaused || this.isGameOver || !this.levelActionStarted) return;
+                if (!this.maxSwarmActive || this.enemies.length < this.normalSwarmSize) return;
+                this.spawnPrismRelic();
+            }
 
-                if (!this.prismRelicSpawnEnemyThreshold) this.resetPrismRelicTiming();
-                if (this.enemies.length >= this.prismRelicSpawnEnemyThreshold) {
-                    this.spawnPrismRelic();
-                }
+            cancelGridlockRelicAttempt(reason = 'canceled') {
+                const hadPendingAttempt = !!this.prismRelic || !!this.prismRelicCueTimer || this.prismRelicSpawnedThisSector;
+                if (!hadPendingAttempt || this.prismRelicRecoveredThisSector) return;
+                this.noteTelemetryPrismRelicCanceled(reason);
+                this.clearPrismRelicCueTimer();
+                this.removePrismRelic();
+                this.prismRelicSpawnedThisSector = false;
+                this.prismRelicRemainingMs = 0;
             }
 
 
@@ -4063,6 +4237,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                         if (this.ui && this.ui.flashGridlockAlert) this.ui.flashGridlockAlert();
                         this.audio.playMaxSwarmCue();
                         this.startOvertime();
+                        this.checkPrismRelicSpawnProgress();
                     }, this.maxSwarmCueDelayMs);
                 }
             }
@@ -4128,12 +4303,9 @@ This source code, artwork, game design, and related assets are not licensed for 
             }
 
             updatePrismRelic(deltaTime) {
+                // The Gridlock Relic no longer expires by timer.
+                // It stays until collected, a Cosmic Zap cancels the attempt, the player dies, or the sector ends.
                 if (!this.prismRelic || this.prismRelicRecoveredThisSector) return;
-                this.prismRelicRemainingMs -= deltaTime;
-                if (this.prismRelicRemainingMs <= 0) {
-                    this.audio.playPrismRelicMissed();
-                    this.removePrismRelic();
-                }
             }
 
             collectPrismRelic() {
@@ -4270,11 +4442,10 @@ This source code, artwork, game design, and related assets are not licensed for 
             }
 
 
-            buildSectorBonusLines(unusedCosmicZapBonus, survivalistBonus, perfectSectorBonus, relicRecoveredBonus, cycleBonus) {
+            buildSectorBonusLines(unusedCosmicZapBonus, gridlockBonus, perfectSectorBonus, cycleBonus) {
                 const lines = [];
                 if (unusedCosmicZapBonus > 0) lines.push({ label: 'COSMIC ZAPS', value: unusedCosmicZapBonus });
-                if (survivalistBonus > 0) lines.push({ label: 'SURVIVALIST', value: survivalistBonus });
-                if (relicRecoveredBonus > 0) lines.push({ label: 'PRISM RELIC', value: relicRecoveredBonus });
+                if (gridlockBonus > 0) lines.push({ label: 'GRIDLOCK BONUS', value: gridlockBonus });
                 if (perfectSectorBonus > 0) lines.push({ label: 'PERFECT SECTOR', value: perfectSectorBonus, highlight: true });
                 if (cycleBonus > 0) lines.push({ label: 'GAME CYCLE', value: cycleBonus });
                 return lines;
@@ -4400,8 +4571,8 @@ This source code, artwork, game design, and related assets are not licensed for 
                     const enemy = new Enemy(this, type, { x: location.x, y: location.y });
                     this.enemies.push(enemy);
                     this.noteTelemetryEnemySpawn(type);
-                    this.checkPrismRelicSpawnProgress();
                     this.checkMaxSwarmProgress();
+                    this.checkPrismRelicSpawnProgress();
                     if (enemy.size === this.PLAYER_SIZE) this.spawnedCount.small++;
                     else if (enemy.size === this.PLAYER_SIZE * 2) this.spawnedCount.medium++;
                     else this.spawnedCount.large++;
@@ -4447,22 +4618,25 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.releaseWakeLock();
                 this.clearPendingSpawnWarnings();
                 this.clearOvertimeEnemyTimer();
+                if (!this.prismRelicRecoveredThisSector && (this.prismRelic || this.prismRelicCueTimer || this.prismRelicSpawnedThisSector)) {
+                    this.noteTelemetryPrismRelicCanceled('sector-complete');
+                }
                 this.removePrismRelic();
                 this.audio.stopBackgroundMusic();
 
                 const unusedCosmicZapBonus = this.cosmicZapsLeft * this.parameters.unusedCosmicZapBonus;
-                const survivalistBonus = this.survivalistEarnedThisSector ? this.parameters.survivalistBonus : 0;
-                const perfectSectorBonus = this.cosmicZapPressure === 0 && this.prismRelicRecoveredThisSector && this.survivalistEarnedThisSector ? this.parameters.perfectSectorBonus : 0;
-                const relicRecoveredBonus = this.prismRelicRecoveredThisSector ? this.parameters.prismRelicBonus : 0;
+                const gridlockBonus = this.prismRelicRecoveredThisSector ? this.parameters.gridlockBonus : 0;
+                const perfectSectorBonus = this.cosmicZapPressure === 0 && this.prismRelicRecoveredThisSector ? this.parameters.perfectSectorBonus : 0;
                 const cycleBonus = completedLevel >= this.MAX_LEVEL ? this.parameters.gameCycleBonus : 0;
-                const totalBonus = unusedCosmicZapBonus + survivalistBonus + perfectSectorBonus + relicRecoveredBonus + cycleBonus;
-                const bonusLines = this.buildSectorBonusLines(unusedCosmicZapBonus, survivalistBonus, perfectSectorBonus, relicRecoveredBonus, cycleBonus);
+                const totalBonus = unusedCosmicZapBonus + gridlockBonus + perfectSectorBonus + cycleBonus;
+                const bonusLines = this.buildSectorBonusLines(unusedCosmicZapBonus, gridlockBonus, perfectSectorBonus, cycleBonus);
                 this.finishTelemetrySector('completed', {
                     totalBonus,
                     unusedCosmicZapBonus,
-                    survivalistBonus,
+                    survivalistBonus: 0,
+                    gridlockBonus,
                     perfectSectorBonus,
-                    prismRelicBonus: relicRecoveredBonus,
+                    prismRelicBonus: gridlockBonus,
                     cycleBonus
                 });
                 if (completedLevel >= this.MAX_LEVEL) this.noteTelemetryCycleComplete();
@@ -4612,6 +4786,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.prismRelicRecoveredThisSector = false;
                 this.prismRelicRemainingMs = 0;
                 this.prismRelicInitialCrystalCount = 0;
+                this.gridlockRelicAttemptNumber = 0;
                 this.cosmicZapPressure = 0;
                 this.spawnedCount = { small: 0, medium: 0, large: 0 };
                 this.applyLevelParameters();
@@ -4703,7 +4878,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                     this.crystals.splice(i, 1); // Remove from array
 
                     this.addScore(10); // Blinking crystal collection
-                    this.noteTelemetryCrystalCollected();
+                    this.noteTelemetryCrystalCollected(crystal, pos);
                     this.lastCollectedPos = pos; // Anchor the next blink around the most recent collection.
                     this.audio.playCollect(); // Play collect sound
 
@@ -5004,6 +5179,9 @@ This source code, artwork, game design, and related assets are not licensed for 
 
                     const clearedEnemies = this.enemies.slice();
                     this.noteTelemetryCosmicZap(clearedEnemies);
+                    if (!this.prismRelicRecoveredThisSector && (this.maxSwarmActive || this.prismRelic || this.prismRelicCueTimer)) {
+                        this.cancelGridlockRelicAttempt('cosmic-zap');
+                    }
 
                     this.cosmicZapsLeft--;
                     this.cosmicZapPressure++;
@@ -5024,7 +5202,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                     }
                     this.clearPendingSpawnWarnings(true);
 
-                    // Cosmic Zaps clear the Overtime pressure but do not erase the earned Survivalist state.
+                    // Cosmic Zaps clear Overtime and cancel any uncollected Gridlock Relic attempt.
                     this.clearMaxSwarmCueTimer();
                     this.maxSwarmActive = false;
                     this.resetOvertimeState();
@@ -5340,6 +5518,9 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.setGameOverlayVisible(false);
                 this.audio.stopBackgroundMusic(); // Stop music
                 this.audio.stopCycleCompleteMusic();
+                if (!this.prismRelicRecoveredThisSector && (this.prismRelic || this.prismRelicCueTimer || this.prismRelicSpawnedThisSector)) {
+                    this.noteTelemetryPrismRelicCanceled('death');
+                }
                 this.finishTelemetrySector('death', {
                     death: {
                         x: Math.round(this.player.x + this.player.size / 2),
@@ -5351,7 +5532,14 @@ This source code, artwork, game design, and related assets are not licensed for 
                         currentColor: this.colorOrder[this.currentColorIndex] || null,
                         enemySize: deathDetails.deathEnemySize || null,
                         inGridlock: !!this.maxSwarmActive,
-                        secondsSinceGridlockStarted: this.currentTelemetrySector && this.currentTelemetrySector.gridlockReached ? Math.round((this.telemetrySectorElapsedMs() - this.currentTelemetrySector.gridlockTimeMs) / 1000) : null
+                        secondsSinceGridlockStarted: this.currentTelemetrySector && this.currentTelemetrySector.gridlockReached ? Math.round((this.telemetrySectorElapsedMs() - this.currentTelemetrySector.gridlockTimeMs) / 1000) : null,
+                        lastCrystalPickup: this.getLastCrystalPickupTelemetry(),
+                        timeSinceLastCrystalPickupMs: this.currentTelemetrySector && this.currentTelemetrySector.lastCrystalPickupMs !== null ? Math.max(0, this.telemetrySectorElapsedMs() - this.currentTelemetrySector.lastCrystalPickupMs) : null,
+                        nextBlinkingCrystals: this.getTelemetryBlinkingCrystalOptions(),
+                        nearestEnemyDistanceFromPlayerPx: this.getNearestEnemyDistanceFromPlayer(),
+                        prismRelicVisible: !!this.prismRelic,
+                        prismRelicCuePending: !!this.prismRelicCueTimer,
+                        gridlockRelicAttemptNumber: this.gridlockRelicAttemptNumber
                     }
                 });
                 this.finishTelemetryRun('death');
