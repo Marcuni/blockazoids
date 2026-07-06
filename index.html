@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v165: Separates Perfect Sector from the Gridlock Bonus, adds scoring and stalling telemetry, and keeps the Latin sector names.
+Build v166: Adds cycle rerun speed pressure and a gold star cycle-completion marker while keeping scoring and core rules unchanged.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -1382,6 +1382,41 @@ This source code, artwork, game design, and related assets are not licensed for 
             display: none;
         }
 
+        #cycleStarHud {
+            position: absolute;
+            right: var(--hud-menu-button-left, 13px);
+            top: 50%;
+            transform: translateY(-50%);
+            display: none;
+            align-items: center;
+            justify-content: flex-end;
+            gap: clamp(2px, 0.8vw, 4px);
+            min-width: clamp(34px, 12vw, 86px);
+            color: #ffd24a;
+            font-size: clamp(15px, 4.6vw, 24px);
+            line-height: 1;
+            letter-spacing: 0;
+            text-shadow: 0 0 calc(var(--default-glow) * 0.8px) #ffd24a, 0 0 calc(var(--default-glow) * 1.6px) #ff9f1a;
+            pointer-events: none;
+            z-index: 2;
+        }
+
+        #cycleStarHud.visible {
+            display: flex;
+        }
+
+        .cycle-star {
+            display: inline-block;
+            transform: scaleX(1.05);
+        }
+
+        .cycle-star-count {
+            display: inline-block;
+            margin-left: 2px;
+            font-size: 0.68em;
+            color: #ffd24a;
+        }
+
 
         .highScoreFlash {
             animation: highScoreFlashAnimation 0.9s ease-in-out 1;
@@ -1706,6 +1741,7 @@ This source code, artwork, game design, and related assets are not licensed for 
         <button id="hudMenuButton" aria-label="Open menu"><span class="hud-menu-line"></span><span class="hud-menu-line"></span><span class="hud-menu-line"></span></button>
         <div id="score">0</div>
         <div id="highScoreHud">0</div>
+        <div id="cycleStarHud" aria-label="Completed cycles"></div>
     </div>
     <!-- Main game container -->
     <div id="gameContainer">
@@ -1796,7 +1832,7 @@ This source code, artwork, game design, and related assets are not licensed for 
     <div id="copyrightFooter">© 2026 Marcus Couto</div>
 
     <script>
-        const BUILD_VERSION = 'Build v165';
+        const BUILD_VERSION = 'Build v166';
         document.getElementById('buildVersion').textContent = BUILD_VERSION;
 
         let lastGlobalTouchEndTime = 0;
@@ -1835,7 +1871,8 @@ This source code, artwork, game design, and related assets are not licensed for 
                     gridlockRelicDelayMs: 2500, // Time the player must survive Gridlock before the Relic appears
                     gameCycleBonus: 500,       // Bonus when the campaign loops into a harder cycle
                     colorCompleteBonus: 100,   // Bonus for clearing all crystals in one color
-                    levelSpeedBoost: 0.03      // Enemy speed increase per level; each Cosmic Zap adds one temporary level-speed notch
+                    levelSpeedBoost: 0.03,     // Enemy speed increase per level; each Cosmic Zap adds one temporary level-speed notch
+                    cycleSpeedBoost: 0.07      // Enemy speed increase per completed full campaign cycle
                 };
 
                 // Enemy spawn proportions
@@ -2283,8 +2320,9 @@ This source code, artwork, game design, and related assets are not licensed for 
 
             getCurrentSpeedMultiplier() {
                 const levelBoost = (this.level - 1) * this.parameters.levelSpeedBoost;
+                const cycleBoost = Math.max(0, this.cycle - 1) * this.parameters.cycleSpeedBoost;
                 const zapBoost = this.cosmicZapPressure * this.parameters.levelSpeedBoost;
-                return 1 + levelBoost + zapBoost;
+                return 1 + levelBoost + cycleBoost + zapBoost;
             }
 
             getEffectiveEnemySpeedsSnapshot() {
@@ -2325,6 +2363,8 @@ This source code, artwork, game design, and related assets are not licensed for 
                     speedMultiplier: Number(this.getCurrentSpeedMultiplier().toFixed(4)),
                     effectiveSpeeds: this.getEffectiveEnemySpeedsSnapshot(),
                     levelSpeedBoost: this.parameters.levelSpeedBoost,
+                    cycleSpeedBoost: this.parameters.cycleSpeedBoost,
+                    cycleSpeedBoostApplied: Number((Math.max(0, this.cycle - 1) * this.parameters.cycleSpeedBoost).toFixed(4)),
                     cosmicZapPressure: this.cosmicZapPressure,
                     cosmicZapsAvailable: this.getCosmicZapsForCurrentCycle(),
                     blinkingCrystalCount: this.currentBlinkingCrystalCount,
@@ -3137,13 +3177,10 @@ This source code, artwork, game design, and related assets are not licensed for 
                 return this.cycle >= 2 ? 2 : this.parameters.baseCosmicZaps;
             }
 
-            // Enemy speed uses one named tuning constant.
-            // Each Cosmic Zap adds one temporary level-speed notch for the current level only.
+            // Enemy speed uses named tuning constants for sector, cycle, and Cosmic Zap pressure.
+            // Each completed campaign cycle raises the whole sector ladder without changing its order.
             getEnemySpeed(type) {
-                const levelBoost = (this.level - 1) * this.parameters.levelSpeedBoost;
-                const cosmicZapBoost = this.cosmicZapPressure * this.parameters.levelSpeedBoost;
-                const multiplier = 1 + levelBoost + cosmicZapBoost;
-                return this.BASE_SPEEDS[type] * multiplier;
+                return this.BASE_SPEEDS[type] * this.getCurrentSpeedMultiplier();
             }
             // Try to keep the screen awake during active gameplay.
             async requestWakeLock() {
@@ -7759,7 +7796,8 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.scoreElement = document.getElementById('score'); // Score DOM element
                 this.cosmicZapIndicators = document.getElementById('cosmicZapIndicators'); // Cosmic Zap indicators container
                 this.levelIndicators = document.getElementById('levelIndicators'); // Level indicators container
-                this.cycleElement = document.getElementById('cycleHud'); // Cycle marker for harder loops
+                this.cycleElement = document.getElementById('cycleHud'); // Legacy bottom cycle marker; kept hidden
+                this.cycleStarElement = document.getElementById('cycleStarHud'); // Gold star markers for completed cycles
                 this.scoreAlertActive = false;
                 this.scoreAlertTimer = null;
             }
@@ -7836,16 +7874,35 @@ This source code, artwork, game design, and related assets are not licensed for 
                 setTimeout(() => this.scoreElement.classList.remove('highScoreFlash'), 700);
             }
 
-            // Show a persistent visual cue once the game has looped into a harder cycle.
+            // Show gold stars for completed campaign cycles without visible cycle wording.
             updateCycleIndicator() {
-                if (!this.cycleElement) return;
-                if (this.game.cycle > 1 && !this.game.cycleTransitionActive) {
-                    this.cycleElement.textContent = `CYCLE ${this.game.cycle}`;
-                    this.cycleElement.classList.add('visible');
-                } else {
+                if (this.cycleElement) {
                     this.cycleElement.textContent = '';
                     this.cycleElement.classList.remove('visible');
                 }
+
+                if (!this.cycleStarElement) return;
+
+                const completedCycles = Math.max(0, this.game.cycle - 1);
+                const shouldShowStars = completedCycles > 0 && !this.game.cycleTransitionActive && this.shouldShowGameplayHud();
+                if (!shouldShowStars) {
+                    this.cycleStarElement.innerHTML = '';
+                    this.cycleStarElement.classList.remove('visible');
+                    this.cycleStarElement.setAttribute('aria-label', 'Completed cycles');
+                    return;
+                }
+
+                const visibleStars = Math.min(completedCycles, 5);
+                let html = '';
+                for (let i = 0; i < visibleStars; i++) {
+                    html += '<span class="cycle-star">★</span>';
+                }
+                if (completedCycles > visibleStars) {
+                    html += `<span class="cycle-star-count">×${completedCycles}</span>`;
+                }
+                this.cycleStarElement.innerHTML = html;
+                this.cycleStarElement.classList.add('visible');
+                this.cycleStarElement.setAttribute('aria-label', `${completedCycles} completed cycle${completedCycles === 1 ? '' : 's'}`);
             }
 
             // Update Cosmic Zap indicators based on remaining Cosmic Zaps
