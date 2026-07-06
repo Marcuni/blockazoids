@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v164: Makes the Prism Relic a Gridlock-only bonus, adds crystal pickup telemetry, and updates sector names.
+Build v165: Separates Perfect Sector from the Gridlock Bonus, adds scoring and stalling telemetry, and keeps the Latin sector names.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -1746,7 +1746,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 <div class="scoring-section-title">BONUS</div>
                 <div class="scoring-row"><span>Gridlock Bonus <span class="scoring-label-note">(Relic)</span></span><span>200</span></div>
                 <div class="scoring-row"><span>Cosmic Zaps <span class="scoring-label-note">(unused)</span></span><span>50/ea</span></div>
-                <div class="scoring-row"><span>Perfect Sector</span><span>100</span></div>
+                <div class="scoring-row"><span>Perfect Sector <span class="scoring-label-note">(no Zap)</span></span><span>100</span></div>
                 <button id="scoringBackButton" class="menu-back-button">Back</button>
             </div>
             <div id="storyPanel" class="menu-panel">
@@ -1796,7 +1796,7 @@ This source code, artwork, game design, and related assets are not licensed for 
     <div id="copyrightFooter">© 2026 Marcus Couto</div>
 
     <script>
-        const BUILD_VERSION = 'Build v164';
+        const BUILD_VERSION = 'Build v165';
         document.getElementById('buildVersion').textContent = BUILD_VERSION;
 
         let lastGlobalTouchEndTime = 0;
@@ -1830,7 +1830,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                     baseSpeeds: { small: 3, medium: 2, large: 1.5 }, // Base speeds for enemy sizes
                     baseCosmicZaps: 3,              // Starting number of Cosmic Zaps
                     unusedCosmicZapBonus: 50,       // End-of-level bonus for each unused Cosmic Zap
-                    perfectSectorBonus: 100,   // Extra bonus for clearing a sector with no Cosmic Zaps used and the Gridlock Relic recovered
+                    perfectSectorBonus: 100,   // Extra bonus for clearing a sector with no Cosmic Zaps used
                     gridlockBonus: 200,       // Bonus for collecting the Prism Relic after surviving Gridlock
                     gridlockRelicDelayMs: 2500, // Time the player must survive Gridlock before the Relic appears
                     gameCycleBonus: 500,       // Bonus when the campaign loops into a harder cycle
@@ -2264,7 +2264,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                     const saved = JSON.parse(localStorage.getItem('blockazoidsBalanceTelemetry') || 'null');
                     if (saved && Array.isArray(saved.runs)) return saved;
                 } catch (_) {}
-                return { schema: 'blockazoids-balance-v1', runs: [] };
+                return { schema: 'blockazoids-balance-v4', runs: [] };
             }
 
             saveTelemetryData() {
@@ -2424,6 +2424,18 @@ This source code, artwork, game design, and related assets are not licensed for 
                     gridlockRelicCanceledByZap: 0,
                     gridlockBonusCollected: false,
                     gridlockBonusCollectTimeMs: null,
+                    perfectEligibleNoZapOnly: false,
+                    perfectEligibleWithGridlockRelic: false,
+                    scoringEligibility: {
+                        perfectSectorNoZapOnly: false,
+                        perfectSectorPreviousRelicRule: false
+                    },
+                    stallingStats: null,
+                    timeWithFiveOrFewerCrystalsMs: null,
+                    timeWithThreeOrFewerCrystalsMs: null,
+                    timeWithOneCrystalMs: null,
+                    timeAfterLastColorStartedBeforeSectorClearMs: null,
+                    timeBetweenLastCrystalAvailableAndPickupMs: null,
                     death: null
                 };
 
@@ -2448,6 +2460,7 @@ This source code, artwork, game design, and related assets are not licensed for 
             noteTelemetryGridlock() {
                 if (!this.currentTelemetrySector || this.currentTelemetrySector.endedAt) return;
                 const elapsed = this.telemetrySectorElapsedMs();
+                const colorState = this.getCurrentColorTelemetryState();
                 if (!this.currentTelemetrySector.gridlockReached) {
                     this.currentTelemetrySector.gridlockReached = true;
                     this.currentTelemetrySector.gridlockTimeMs = elapsed;
@@ -2458,13 +2471,23 @@ This source code, artwork, game design, and related assets are not licensed for 
                     sectorTimeMs: elapsed,
                     activeBlockAZoids: this.enemies.length,
                     remainingCrystals: this.crystals.length,
-                    remainingCrystalsByColor: this.getRemainingCrystalsByColor()
+                    remainingCrystalsByColor: colorState.remainingCrystalsByColor,
+                    currentColor: colorState.currentColor,
+                    currentColorRemaining: colorState.currentColorRemaining,
+                    timeSinceLastCrystalPickupMs: this.currentTelemetrySector.lastCrystalPickupMs !== null ? Math.max(0, elapsed - this.currentTelemetrySector.lastCrystalPickupMs) : null,
+                    nearestEnemyDistanceFromPlayerPx: this.getNearestEnemyDistanceFromPlayer()
                 });
             }
 
             noteTelemetryPrismRelicAppeared() {
                 if (!this.currentTelemetrySector || this.currentTelemetrySector.endedAt) return;
                 const elapsed = this.telemetrySectorElapsedMs();
+                const colorState = this.getCurrentColorTelemetryState();
+                const relicCenter = this.prismRelic ? {
+                    x: this.prismRelic.x + this.prismRelic.size / 2,
+                    y: this.prismRelic.y + this.prismRelic.size / 2
+                } : { x: this.PLAYFIELD_SIZE / 2, y: this.PLAYFIELD_SIZE / 2 };
+                const timeFromGridlockMs = this.currentTelemetrySector.gridlockTimeMs !== null ? Math.max(0, elapsed - this.currentTelemetrySector.gridlockTimeMs) : null;
                 if (!this.currentTelemetrySector.prismRelicAppeared) {
                     this.currentTelemetrySector.prismRelicAppeared = true;
                     this.currentTelemetrySector.prismRelicAppearTimeMs = elapsed;
@@ -2475,10 +2498,16 @@ This source code, artwork, game design, and related assets are not licensed for 
                     attempts.push({
                         attempt: attemptNumber,
                         appearTimeMs: elapsed,
-                        gridlockElapsedMs: this.currentTelemetrySector.gridlockTimeMs !== null ? Math.max(0, elapsed - this.currentTelemetrySector.gridlockTimeMs) : null,
+                        gridlockElapsedMs: timeFromGridlockMs,
+                        timeFromGridlockToRelicAppearanceMs: timeFromGridlockMs,
                         activeBlockAZoids: this.enemies.length,
                         remainingCrystals: this.crystals.length,
-                        remainingCrystalsByColor: this.getRemainingCrystalsByColor(),
+                        remainingCrystalsByColor: colorState.remainingCrystalsByColor,
+                        currentColor: colorState.currentColor,
+                        currentColorRemaining: colorState.currentColorRemaining,
+                        timeSinceLastCrystalPickupMs: this.currentTelemetrySector.lastCrystalPickupMs !== null ? Math.max(0, elapsed - this.currentTelemetrySector.lastCrystalPickupMs) : null,
+                        nearestEnemyDistanceAtRelicAppearancePx: this.getNearestEnemyDistanceFromPoint(relicCenter),
+                        nearestEnemyDistanceFromPlayerAtRelicAppearancePx: this.getNearestEnemyDistanceFromPlayer(),
                         collected: false,
                         canceledBy: null,
                         endedAtMs: null
@@ -2501,24 +2530,33 @@ This source code, artwork, game design, and related assets are not licensed for 
                 const attempt = [...attempts].reverse().find(item => !item.collected && !item.canceledBy);
                 if (attempt) {
                     attempt.collected = true;
+                    attempt.collectedAtMs = elapsed;
                     attempt.endedAtMs = elapsed;
                     attempt.timeVisibleMs = Math.max(0, elapsed - (attempt.appearTimeMs || elapsed));
+                    attempt.timeFromRelicAppearanceToCollectMs = attempt.appearTimeMs !== null && attempt.appearTimeMs !== undefined ? Math.max(0, elapsed - attempt.appearTimeMs) : null;
+                    attempt.timeFromGridlockToCollectMs = this.currentTelemetrySector.gridlockTimeMs !== null ? Math.max(0, elapsed - this.currentTelemetrySector.gridlockTimeMs) : null;
+                    attempt.nearestEnemyDistanceAtRelicCollectPx = this.getNearestEnemyDistanceFromPlayer();
                 }
             }
 
             noteTelemetryPrismRelicCanceled(reason = 'canceled') {
                 if (!this.currentTelemetrySector || this.currentTelemetrySector.endedAt) return;
                 const elapsed = this.telemetrySectorElapsedMs();
+                const colorState = this.getCurrentColorTelemetryState();
+                const timeFromGridlockMs = this.currentTelemetrySector.gridlockTimeMs !== null ? Math.max(0, elapsed - this.currentTelemetrySector.gridlockTimeMs) : null;
                 const attempts = this.currentTelemetrySector.gridlockRelicAttempts || [];
                 let attempt = [...attempts].reverse().find(item => !item.collected && !item.canceledBy);
                 if (!attempt && this.gridlockRelicAttemptNumber > 0) {
                     attempt = {
                         attempt: this.gridlockRelicAttemptNumber,
                         appearTimeMs: null,
-                        gridlockElapsedMs: this.currentTelemetrySector.gridlockTimeMs !== null ? Math.max(0, elapsed - this.currentTelemetrySector.gridlockTimeMs) : null,
+                        gridlockElapsedMs: timeFromGridlockMs,
+                        timeFromGridlockToCancelMs: timeFromGridlockMs,
                         activeBlockAZoids: this.enemies.length,
                         remainingCrystals: this.crystals.length,
-                        remainingCrystalsByColor: this.getRemainingCrystalsByColor(),
+                        remainingCrystalsByColor: colorState.remainingCrystalsByColor,
+                        currentColor: colorState.currentColor,
+                        currentColorRemaining: colorState.currentColorRemaining,
                         collected: false,
                         canceledBy: null,
                         endedAtMs: null,
@@ -2530,8 +2568,17 @@ This source code, artwork, game design, and related assets are not licensed for 
                 }
                 if (attempt) {
                     attempt.canceledBy = reason;
+                    attempt.canceledAtMs = elapsed;
                     attempt.endedAtMs = elapsed;
                     attempt.timeVisibleMs = attempt.appearTimeMs !== null && attempt.appearTimeMs !== undefined ? Math.max(0, elapsed - attempt.appearTimeMs) : null;
+                    attempt.timeFromRelicAppearanceToCancelMs = attempt.appearTimeMs !== null && attempt.appearTimeMs !== undefined ? Math.max(0, elapsed - attempt.appearTimeMs) : null;
+                    attempt.timeFromGridlockToCancelMs = timeFromGridlockMs;
+                    attempt.nearestEnemyDistanceAtCancelPx = this.getNearestEnemyDistanceFromPlayer();
+                    attempt.currentColorAtCancel = colorState.currentColor;
+                    attempt.currentColorRemainingAtCancel = colorState.currentColorRemaining;
+                    attempt.remainingCrystalsAtCancel = this.crystals.length;
+                    attempt.remainingCrystalsByColorAtCancel = colorState.remainingCrystalsByColor;
+                    attempt.timeSinceLastCrystalPickupAtCancelMs = this.currentTelemetrySector.lastCrystalPickupMs !== null ? Math.max(0, elapsed - this.currentTelemetrySector.lastCrystalPickupMs) : null;
                 }
                 if (reason === 'cosmic-zap') {
                     this.currentTelemetrySector.gridlockRelicCanceledByZap = (this.currentTelemetrySector.gridlockRelicCanceledByZap || 0) + 1;
@@ -2540,12 +2587,16 @@ This source code, artwork, game design, and related assets are not licensed for 
 
             noteTelemetryCosmicZap(clearedEnemies = []) {
                 if (!this.currentTelemetrySector || this.currentTelemetrySector.endedAt) return;
+                const elapsed = this.telemetrySectorElapsedMs();
                 const clearedList = Array.isArray(clearedEnemies) ? clearedEnemies : [];
                 const clearedCount = clearedList.length || (Number.isFinite(clearedEnemies) ? clearedEnemies : 0);
+                const colorState = this.getCurrentColorTelemetryState();
+                const firstZapThisSector = (this.currentTelemetrySector.cosmicZapsUsed || 0) === 0;
+                const timeSinceGridlockMs = this.currentTelemetrySector.gridlockReached && this.currentTelemetrySector.gridlockTimeMs !== null ? Math.max(0, elapsed - this.currentTelemetrySector.gridlockTimeMs) : null;
                 this.currentTelemetrySector.cosmicZapsUsed++;
                 this.currentTelemetrySector.maxActiveBlockAZoids = Math.max(this.currentTelemetrySector.maxActiveBlockAZoids, clearedCount);
                 this.currentTelemetrySector.cosmicZapEvents.push({
-                    sectorTimeMs: this.telemetrySectorElapsedMs(),
+                    sectorTimeMs: elapsed,
                     activeBlockAZoids: clearedCount,
                     blockAZoidsCleared: clearedCount,
                     clearedBySize: clearedList.reduce((counts, enemy) => {
@@ -2554,11 +2605,26 @@ This source code, artwork, game design, and related assets are not licensed for 
                         return counts;
                     }, { small: 0, medium: 0, large: 0 }),
                     remainingCrystals: this.crystals.length,
-                    remainingCrystalsByColor: this.getRemainingCrystalsByColor(),
-                    currentColor: this.colorOrder[this.currentColorIndex] || null,
+                    remainingCrystalsByColor: colorState.remainingCrystalsByColor,
+                    currentColor: colorState.currentColor,
+                    currentColorRemaining: colorState.currentColorRemaining,
+                    currentColorFiveOrFewer: colorState.currentColorRemaining !== null ? colorState.currentColorRemaining <= 5 : false,
+                    currentColorThreeOrFewer: colorState.currentColorRemaining !== null ? colorState.currentColorRemaining <= 3 : false,
+                    currentColorOneRemaining: colorState.currentColorRemaining === 1,
+                    totalCrystalsFiveOrFewer: this.crystals.length <= 5,
+                    totalCrystalsThreeOrFewer: this.crystals.length <= 3,
+                    totalCrystalsOneRemaining: this.crystals.length === 1,
+                    timeSincePreviousCrystalPickupMs: this.currentTelemetrySector.lastCrystalPickupMs !== null ? Math.max(0, elapsed - this.currentTelemetrySector.lastCrystalPickupMs) : null,
+                    nearestEnemyDistanceFromPlayerPx: this.getNearestEnemyDistanceFromPlayer(),
                     gridlockActive: !!this.maxSwarmActive,
-                    secondsSinceGridlock: this.currentTelemetrySector.gridlockReached ? Math.round((this.telemetrySectorElapsedMs() - this.currentTelemetrySector.gridlockTimeMs) / 1000) : null,
+                    secondsSinceGridlock: timeSinceGridlockMs !== null ? Math.round(timeSinceGridlockMs / 1000) : null,
+                    timeSinceGridlockMs,
+                    timeFromGridlockToZapMs: timeSinceGridlockMs,
+                    relicVisible: !!this.prismRelic,
+                    relicCuePending: !!this.prismRelicCueTimer,
                     relicAttemptCanceled: !this.prismRelicRecoveredThisSector && (this.maxSwarmActive || !!this.prismRelic || !!this.prismRelicCueTimer),
+                    firstZapThisSector,
+                    perfectNoZapLostByThisZap: firstZapThisSector,
                     cosmicZapsLeftBeforeUse: this.cosmicZapsLeft
                 });
             }
@@ -2636,6 +2702,47 @@ This source code, artwork, game design, and related assets are not licensed for 
                 return Math.round(Math.min(...this.enemies.map(enemy => Math.hypot(playerCenterX - (enemy.x + enemy.size / 2), playerCenterY - (enemy.y + enemy.size / 2)))));
             }
 
+            getNearestEnemyDistanceFromPoint(point = null) {
+                if (!point || !this.enemies.length) return null;
+                return Math.round(Math.min(...this.enemies.map(enemy => Math.hypot(point.x - (enemy.x + enemy.size / 2), point.y - (enemy.y + enemy.size / 2)))));
+            }
+
+            getCurrentColorTelemetryState() {
+                const currentColor = this.colorOrder[this.currentColorIndex] || null;
+                const remainingCrystalsByColor = this.getRemainingCrystalsByColor();
+                return {
+                    currentColor,
+                    currentColorRemaining: currentColor && remainingCrystalsByColor[currentColor] !== undefined ? remainingCrystalsByColor[currentColor] : null,
+                    remainingCrystalsByColor
+                };
+            }
+
+            getTelemetryStallingStats(durationMs = null) {
+                const sector = this.currentTelemetrySector;
+                const endMs = durationMs !== null && durationMs !== undefined ? durationMs : this.telemetrySectorElapsedMs();
+                const pickups = sector && Array.isArray(sector.crystalPickups) ? sector.crystalPickups : [];
+                const thresholdStart = (threshold) => {
+                    const pickup = pickups.find(record => record.remainingCrystalsAfterPickup <= threshold);
+                    return pickup ? pickup.sectorTimeMs : null;
+                };
+                const fiveOrFewerStartMs = thresholdStart(5);
+                const threeOrFewerStartMs = thresholdStart(3);
+                const oneCrystalStartMs = thresholdStart(1);
+                const penultimatePickup = pickups.find(record => record.remainingCrystalsAfterPickup === 1);
+                const finalPickup = pickups.find(record => record.remainingCrystalsAfterPickup === 0);
+                const lastColorStartMs = sector && sector.colorGroupStartTimesMs ? sector.colorGroupStartTimesMs.blue : null;
+                return {
+                    fiveOrFewerStartMs,
+                    threeOrFewerStartMs,
+                    oneCrystalStartMs,
+                    timeWithFiveOrFewerCrystalsMs: fiveOrFewerStartMs !== null ? Math.max(0, endMs - fiveOrFewerStartMs) : null,
+                    timeWithThreeOrFewerCrystalsMs: threeOrFewerStartMs !== null ? Math.max(0, endMs - threeOrFewerStartMs) : null,
+                    timeWithOneCrystalMs: oneCrystalStartMs !== null ? Math.max(0, endMs - oneCrystalStartMs) : null,
+                    timeAfterLastColorStartedBeforeSectorClearMs: lastColorStartMs !== null && lastColorStartMs !== undefined ? Math.max(0, endMs - lastColorStartMs) : null,
+                    timeBetweenLastCrystalAvailableAndPickupMs: penultimatePickup && finalPickup ? Math.max(0, finalPickup.sectorTimeMs - penultimatePickup.sectorTimeMs) : null
+                };
+            }
+
             getLastCrystalPickupTelemetry() {
                 const pickups = this.currentTelemetrySector && Array.isArray(this.currentTelemetrySector.crystalPickups) ? this.currentTelemetrySector.crystalPickups : [];
                 return pickups.length > 0 ? pickups[pickups.length - 1] : null;
@@ -2651,13 +2758,25 @@ This source code, artwork, game design, and related assets are not licensed for 
                     const startTime = this.currentTelemetrySector.colorGroupStartTimesMs && this.currentTelemetrySector.colorGroupStartTimesMs[completedColor] !== null ? this.currentTelemetrySector.colorGroupStartTimesMs[completedColor] : 0;
                     const colorPickups = Array.isArray(this.currentTelemetrySector.crystalPickups) ? this.currentTelemetrySector.crystalPickups.filter(pickup => pickup.color === completedColor) : [];
                     if (this.currentTelemetrySector.colorPhaseStats) {
+                        const colorDurationMs = Math.max(0, elapsed - startTime);
+                        const enemyPressureMs = colorPickups.reduce((sum, pickup, index) => {
+                            const previousTime = index > 0 ? colorPickups[index - 1].sectorTimeMs : startTime;
+                            return sum + (pickup.activeBlockAZoids || 0) * Math.max(0, pickup.sectorTimeMs - previousTime);
+                        }, 0);
+                        const activeEnemySamples = colorPickups.map(pickup => pickup.activeBlockAZoids || 0);
                         this.currentTelemetrySector.colorPhaseStats[completedColor] = {
                             startTimeMs: startTime,
                             clearTimeMs: elapsed,
-                            durationMs: Math.max(0, elapsed - startTime),
+                            durationMs: colorDurationMs,
                             pickups: colorPickups.length,
+                            firstFiveDurationMs: colorPickups.length >= 5 ? Math.max(0, colorPickups[4].sectorTimeMs - startTime) : null,
                             lastFiveDurationMs: colorPickups.length >= 5 ? Math.max(0, elapsed - colorPickups[Math.max(0, colorPickups.length - 5)].sectorTimeMs) : null,
-                            averagePickupGapMs: colorPickups.length > 0 ? Math.round((elapsed - startTime) / colorPickups.length) : null
+                            lastThreeDurationMs: colorPickups.length >= 3 ? Math.max(0, elapsed - colorPickups[Math.max(0, colorPickups.length - 3)].sectorTimeMs) : null,
+                            finalCrystalGapMs: colorPickups.length >= 1 ? Math.max(0, colorPickups[colorPickups.length - 1].timeSincePreviousPickupMs || 0) : null,
+                            averagePickupGapMs: colorPickups.length > 0 ? Math.round(colorDurationMs / colorPickups.length) : null,
+                            averageActiveBlockAZoids: activeEnemySamples.length > 0 ? Number((activeEnemySamples.reduce((sum, value) => sum + value, 0) / activeEnemySamples.length).toFixed(2)) : null,
+                            maxActiveBlockAZoids: activeEnemySamples.length > 0 ? Math.max(...activeEnemySamples) : null,
+                            enemyPressureSeconds: Number((enemyPressureMs / 1000).toFixed(2))
                         };
                     }
                     const nextColor = this.colorOrder[this.currentColorIndex + 1] || null;
@@ -2687,6 +2806,28 @@ This source code, artwork, game design, and related assets are not licensed for 
                 }
                 sector.overtimeEnemiesAdded = this.overtimeEnemiesAdded;
                 sector.prismRelicRecovered = this.prismRelicRecoveredThisSector;
+                const perfectEligibleNoZapOnly = result === 'completed' && (sector.cosmicZapsUsed || 0) === 0;
+                const perfectEligibleWithGridlockRelic = perfectEligibleNoZapOnly && !!this.prismRelicRecoveredThisSector;
+                sector.perfectEligibleNoZapOnly = perfectEligibleNoZapOnly;
+                sector.perfectEligibleWithGridlockRelic = perfectEligibleWithGridlockRelic;
+                sector.scoringEligibility = {
+                    perfectSectorNoZapOnly: perfectEligibleNoZapOnly,
+                    perfectSectorPreviousRelicRule: perfectEligibleWithGridlockRelic
+                };
+                const stallingStats = this.getTelemetryStallingStats(sector.durationMs);
+                sector.stallingStats = stallingStats;
+                sector.timeWithFiveOrFewerCrystalsMs = stallingStats.timeWithFiveOrFewerCrystalsMs;
+                sector.timeWithThreeOrFewerCrystalsMs = stallingStats.timeWithThreeOrFewerCrystalsMs;
+                sector.timeWithOneCrystalMs = stallingStats.timeWithOneCrystalMs;
+                sector.timeAfterLastColorStartedBeforeSectorClearMs = stallingStats.timeAfterLastColorStartedBeforeSectorClearMs;
+                sector.timeBetweenLastCrystalAvailableAndPickupMs = stallingStats.timeBetweenLastCrystalAvailableAndPickupMs;
+                const openRelicAttempts = Array.isArray(sector.gridlockRelicAttempts) ? sector.gridlockRelicAttempts.filter(attempt => !attempt.collected && !attempt.canceledBy) : [];
+                openRelicAttempts.forEach(attempt => {
+                    attempt.endedAtMs = sector.durationMs;
+                    attempt.endedBy = result;
+                    attempt.timeVisibleMs = attempt.appearTimeMs !== null && attempt.appearTimeMs !== undefined ? Math.max(0, sector.durationMs - attempt.appearTimeMs) : null;
+                    attempt.timeFromRelicAppearanceToSectorEndMs = attempt.appearTimeMs !== null && attempt.appearTimeMs !== undefined ? Math.max(0, sector.durationMs - attempt.appearTimeMs) : null;
+                });
                 const endParameters = this.captureTelemetryParameters();
                 sector.finalParameters = endParameters;
                 sector.endParameters = endParameters;
@@ -2772,11 +2913,12 @@ This source code, artwork, game design, and related assets are not licensed for 
                         currentColor: this.colorOrder[this.currentColorIndex] || null,
                         gridlockReached: this.currentTelemetrySector.gridlockReached,
                         prismRelicAppeared: this.currentTelemetrySector.prismRelicAppeared,
-                        prismRelicCollected: this.currentTelemetrySector.prismRelicCollected
+                        prismRelicCollected: this.currentTelemetrySector.prismRelicCollected,
+                        stallingStats: this.getTelemetryStallingStats(this.telemetrySectorElapsedMs())
                     } : null
                 } : null;
                 const exportData = {
-                    schema: 'blockazoids-balance-export-v3',
+                    schema: 'blockazoids-balance-export-v4',
                     exportedAt: new Date().toISOString(),
                     build: BUILD_VERSION,
                     savedRuns: this.telemetry.runs,
@@ -2801,7 +2943,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                     this.setTelemetryStatus('Developer Mode required.');
                     return;
                 }
-                this.telemetry = { schema: 'blockazoids-balance-v3', runs: [] };
+                this.telemetry = { schema: 'blockazoids-balance-v4', runs: [] };
                 this.currentTelemetryRun = null;
                 this.currentTelemetrySector = null;
                 try { localStorage.removeItem(this.telemetryStorageKey); } catch (_) {}
@@ -4626,7 +4768,7 @@ This source code, artwork, game design, and related assets are not licensed for 
 
                 const unusedCosmicZapBonus = this.cosmicZapsLeft * this.parameters.unusedCosmicZapBonus;
                 const gridlockBonus = this.prismRelicRecoveredThisSector ? this.parameters.gridlockBonus : 0;
-                const perfectSectorBonus = this.cosmicZapPressure === 0 && this.prismRelicRecoveredThisSector ? this.parameters.perfectSectorBonus : 0;
+                const perfectSectorBonus = this.cosmicZapPressure === 0 ? this.parameters.perfectSectorBonus : 0;
                 const cycleBonus = completedLevel >= this.MAX_LEVEL ? this.parameters.gameCycleBonus : 0;
                 const totalBonus = unusedCosmicZapBonus + gridlockBonus + perfectSectorBonus + cycleBonus;
                 const bonusLines = this.buildSectorBonusLines(unusedCosmicZapBonus, gridlockBonus, perfectSectorBonus, cycleBonus);
