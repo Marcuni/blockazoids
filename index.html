@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v166: Adds cycle rerun speed pressure and a gold star cycle-completion marker while keeping scoring and core rules unchanged.
+Build v168: Adds difficulty settings, pause-aware telemetry timing, and a ten-click developer-mode unlock.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -524,6 +524,14 @@ This source code, artwork, game design, and related assets are not licensed for 
             line-height: 1.08;
         }
 
+        #bonusText.countdownText .countdown-level-mode {
+            display: block;
+            margin-top: 10px;
+            font-size: clamp(14px, 3.8vw, 20px);
+            letter-spacing: 2px;
+            opacity: 0.78;
+        }
+
 
         /* Compact resume countdown shown after closing the pause menu */
         #bonusText.resumeCountdownText {
@@ -1001,7 +1009,36 @@ This source code, artwork, game design, and related assets are not licensed for 
             padding: 8px 12px;
         }
 
+        .mode-line {
+            font-family: 'Orbitron', 'Courier New', monospace;
+            font-size: clamp(12px, 3.3vw, 15px);
+            line-height: 1;
+            letter-spacing: 2px;
+            color: rgba(255, 255, 255, 0.78);
+            text-align: center;
+            text-shadow: none;
+        }
 
+        .start-mode-line {
+            margin: 0 0 10px;
+        }
+
+        .menu-mode-line {
+            margin: 0 0 2px;
+        }
+
+        .start-secondary-button {
+            margin-top: 8px;
+            padding: 7px 16px;
+            font-family: 'Orbitron', 'Courier New', monospace;
+            font-size: clamp(14px, 3.8vw, 18px);
+            color: #fff;
+            background: #000;
+            border: 2px solid #fff;
+            box-shadow: 0 0 calc(var(--default-glow) * 0.75px) #fff;
+            cursor: pointer;
+            letter-spacing: 1px;
+        }
 
         #settingsPanel .menu-back-button {
             margin-top: auto;
@@ -1012,6 +1049,8 @@ This source code, artwork, game design, and related assets are not licensed for 
         .level-select-button:focus,
         #levelSelectCloseButton:focus,
         #startButton:focus,
+        #startSettingsButton:focus,
+        #difficultyModeButton:focus,
         #telemetryButton:focus,
         #exportTelemetryButton:focus,
         #clearTelemetryButton:focus,
@@ -1027,6 +1066,8 @@ This source code, artwork, game design, and related assets are not licensed for 
         .level-select-button:focus-visible,
         #levelSelectCloseButton:focus-visible,
         #startButton:focus-visible,
+        #startSettingsButton:focus-visible,
+        #difficultyModeButton:focus-visible,
         #telemetryButton:focus-visible,
         #exportTelemetryButton:focus-visible,
         #clearTelemetryButton:focus-visible,
@@ -1758,10 +1799,13 @@ This source code, artwork, game design, and related assets are not licensed for 
                 Avoid moving blocks.<br>
                 Shake to Cosmic Zap.
             </div>
+            <div id="startModeLine" class="mode-line start-mode-line">MODE: NORMAL</div>
             <button id="startButton">Start Game</button>
+            <button id="startSettingsButton" class="start-secondary-button">Settings</button>
         </div>
         <div id="pauseWindow">
             <div id="menuButtons">
+                <div id="menuModeLine" class="mode-line menu-mode-line">MODE: NORMAL</div>
                 <button id="resumeButton" class="menu-button">Resume</button>
                 <button id="restartButton" class="menu-button">Restart</button>
                 <button id="scoringButton" class="menu-button">Scoring</button>
@@ -1771,7 +1815,7 @@ This source code, artwork, game design, and related assets are not licensed for 
             </div>
             <div id="scoringPanel" class="menu-panel">
                 <div class="scoring-record-area">
-                    <span class="scoring-record-label">HIGH SCORE</span>
+                    <span id="scoringHighScoreLabel" class="scoring-record-label">NORMAL HIGH SCORE</span>
                     <span id="scoringHighScoreValue" class="scoring-record-value">0</span>
                 </div>
                 <div class="scoring-divider"></div>
@@ -1793,6 +1837,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 <div class="menu-panel-title">SETTINGS</div>
                 <button id="soundToggleButton" class="menu-button settings-toggle">Sound: On</button>
                 <button id="musicToggleButton" class="menu-button settings-toggle">Music: On</button>
+                <button id="difficultyModeButton" class="menu-button settings-toggle">Difficulty: Normal</button>
                 <button id="resetHighScoreButton" class="menu-button settings-toggle">Reset High Score</button>
                 <div id="developerModeLabel" class="developer-mode-label">DEVELOPER MODE</div>
                 <button id="telemetryButton" class="menu-button settings-toggle">Telemetry</button>
@@ -1826,13 +1871,14 @@ This source code, artwork, game design, and related assets are not licensed for 
                 <div class="cosmic-zap-icon" id="cosmicZap1"></div>
                 <div class="cosmic-zap-icon" id="cosmicZap2"></div>
                 <div class="cosmic-zap-icon" id="cosmicZap3"></div>
+                <div class="cosmic-zap-icon" id="cosmicZap4"></div>
             </div>
         </div>
     </div>
     <div id="copyrightFooter">© 2026 Marcus Couto</div>
 
     <script>
-        const BUILD_VERSION = 'Build v167';
+        const BUILD_VERSION = 'Build v168';
         document.getElementById('buildVersion').textContent = BUILD_VERSION;
 
         let lastGlobalTouchEndTime = 0;
@@ -1890,8 +1936,11 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.screenFadeElement = document.getElementById('screenFade');
                 this.gameOverlayElement = document.getElementById('gameOverlay');
                 this.startButton = document.getElementById('startButton');
+                this.startSettingsButton = document.getElementById('startSettingsButton');
+                this.startModeLine = document.getElementById('startModeLine');
                 this.hudMenuButton = document.getElementById('hudMenuButton');
                 this.scoringHighScoreValue = document.getElementById('scoringHighScoreValue');
+                this.scoringHighScoreLabel = document.getElementById('scoringHighScoreLabel');
                 this.instructionsWindow = document.getElementById('instructionsWindow');
                 this.pauseWindow = document.getElementById('pauseWindow');
                 this.resumeButton = document.getElementById('resumeButton');
@@ -1913,6 +1962,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.settingsBackButton = document.getElementById('settingsBackButton');
                 this.soundToggleButton = document.getElementById('soundToggleButton');
                 this.musicToggleButton = document.getElementById('musicToggleButton');
+                this.difficultyModeButton = document.getElementById('difficultyModeButton');
                 this.highScoreHud = document.getElementById('highScoreHud');
                 this.resetHighScoreButton = document.getElementById('resetHighScoreButton');
                 this.developerModeLabel = document.getElementById('developerModeLabel');
@@ -1926,6 +1976,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.resetHighScorePending = false;
                 this.resetHighScoreConfirmTimer = null;
                 this.menuButtons = document.getElementById('menuButtons');
+                this.menuModeLine = document.getElementById('menuModeLine');
                 this.levelSelectWindow = document.getElementById('levelSelectWindow');
                 this.levelSelectGrid = document.getElementById('levelSelectGrid');
                 this.levelSelectCloseButton = document.getElementById('levelSelectCloseButton');
@@ -1960,7 +2011,16 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.level = 1;                       // Current level
                 this.cycle = 1;                      // Arcade loop/cycle. Cycle 2 starts after clearing the campaign.
                 this.score = 0;                       // Player score
-                this.highScore = this.loadHighScore(); // High score saved on this device/browser
+                this.difficultyStorageKey = 'blockazoidsDifficultyMode';
+                this.highScoreStorageKeyPrefix = 'blockazoidsHighScore';
+                this.difficultyProfiles = {
+                    easy: { label: 'Easy', enemySpeedMultiplier: 0.92, enemySpeedModifier: -0.08, baseCosmicZaps: 4, cosmicZapModifier: 1 },
+                    normal: { label: 'Normal', enemySpeedMultiplier: 1, enemySpeedModifier: 0, baseCosmicZaps: this.parameters.baseCosmicZaps, cosmicZapModifier: 0 },
+                    hard: { label: 'Hard', enemySpeedMultiplier: 1.07, enemySpeedModifier: 0.07, baseCosmicZaps: 2, cosmicZapModifier: -1 }
+                };
+                this.difficultyMode = this.loadDifficultyMode();
+                this.currentRunDifficultyMode = null;
+                this.highScore = this.loadHighScore(); // High score saved on this device/browser, separated by difficulty
                 this.highScoreTarget = this.highScore; // Saved score the current run must beat for the record fanfare
                 this.highScoreBeatenThisRun = this.highScoreTarget <= 0; // Avoid a record fanfare when no real score exists yet
                 this.cosmicZapsLeft = this.getCosmicZapsForCurrentCycle(); // Remaining Cosmic Zaps
@@ -2057,16 +2117,19 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.instructionsWindow.addEventListener('pointerdown', () => {
                     if (!this.active && !this.isPaused) this.enableShakeCosmicZap();
                 }, { passive: true });
-                document.addEventListener('visibilitychange', () => {
-                    if (document.visibilityState === 'visible' && this.active && !this.isPaused && !this.isGameOver) {
-                        this.requestWakeLock();
-                    }
-                });
+                document.addEventListener('visibilitychange', () => this.handleVisibilityChange());
                 this.startButton.addEventListener('click', (e) => {
                     e.preventDefault();
                     this.enableShakeCosmicZap();
                     this.start();
                 });
+                if (this.startSettingsButton) {
+                    this.startSettingsButton.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        this.openSettingsFromStartScreen();
+                    });
+                }
                 if (this.cycleContinueButton) {
                     this.cycleContinueButton.addEventListener('click', (e) => {
                         e.preventDefault();
@@ -2154,6 +2217,13 @@ This source code, artwork, game design, and related assets are not licensed for 
                         this.toggleMusicSetting();
                     });
                 }
+                if (this.difficultyModeButton) {
+                    this.difficultyModeButton.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        this.cycleDifficultyMode();
+                    });
+                }
                 this.resetHighScoreButton.addEventListener('click', (e) => {
                     e.preventDefault();
                     e.stopPropagation();
@@ -2190,6 +2260,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 }
                 this.updateSoundToggleLabel();
                 this.updateMusicToggleLabel();
+                this.updateDifficultyModeDisplay();
                 this.updateHighScoreDisplay();
                 this.levelSelectCloseButton.addEventListener('click', (e) => {
                     e.preventDefault();
@@ -2258,7 +2329,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.marqueeUnlockTapCount++;
                 if (this.marqueeUnlockTapResetTimer) clearTimeout(this.marqueeUnlockTapResetTimer);
 
-                if (this.marqueeUnlockTapCount >= 5) {
+                if (this.marqueeUnlockTapCount >= 10) {
                     this.enableDeveloperMode();
                     this.marqueeUnlockTapCount = 0;
                     if (this.audio) {
@@ -2301,7 +2372,7 @@ This source code, artwork, game design, and related assets are not licensed for 
 
             loadTelemetryData() {
                 const emptyTelemetry = {
-                    schema: 'blockazoids-balance-v5',
+                    schema: 'blockazoids-balance-v6',
                     runs: [],
                     restoredFromLocalStorage: false,
                     recoveredActiveRuns: 0,
@@ -2312,7 +2383,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                     if (!saved) return emptyTelemetry;
 
                     const telemetry = {
-                        schema: 'blockazoids-balance-v5',
+                        schema: 'blockazoids-balance-v6',
                         runs: Array.isArray(saved.runs) ? saved.runs.slice() : [],
                         restoredFromLocalStorage: true,
                         recoveredActiveRuns: 0,
@@ -2370,7 +2441,7 @@ This source code, artwork, game design, and related assets are not licensed for 
 
                 while (storedRuns.length >= 0) {
                     const payload = {
-                        schema: 'blockazoids-balance-v5',
+                        schema: 'blockazoids-balance-v6',
                         savedAt,
                         runs: storedRuns,
                         activeRun,
@@ -2400,7 +2471,8 @@ This source code, artwork, game design, and related assets are not licensed for 
                 const levelBoost = (this.level - 1) * this.parameters.levelSpeedBoost;
                 const cycleBoost = Math.max(0, this.cycle - 1) * this.parameters.cycleSpeedBoost;
                 const zapBoost = this.cosmicZapPressure * this.parameters.levelSpeedBoost;
-                return 1 + levelBoost + cycleBoost + zapBoost;
+                const difficultyMultiplier = this.getDifficultyProfile().enemySpeedMultiplier;
+                return Math.max(0.2, (1 + levelBoost + cycleBoost + zapBoost) * difficultyMultiplier);
             }
 
             getEffectiveEnemySpeedsSnapshot() {
@@ -2428,6 +2500,12 @@ This source code, artwork, game design, and related assets are not licensed for 
                     sector: this.level,
                     sectorName: this.getLevelPatternName(this.level),
                     cycle: this.cycle,
+                    difficultyMode: this.getActiveDifficultyMode(),
+                    difficultyLabel: this.getDifficultyLabel(this.getActiveDifficultyMode()),
+                    difficultyEnemySpeedModifier: this.getDifficultyProfile().enemySpeedModifier,
+                    difficultyEnemySpeedMultiplier: this.getDifficultyProfile().enemySpeedMultiplier,
+                    difficultyBaseCosmicZaps: this.getDifficultyProfile().baseCosmicZaps,
+                    difficultyCosmicZapModifier: this.getDifficultyProfile().cosmicZapModifier,
                     spawnDelay: this.spawnDelay,
                     spawnDelayLevelReduction: this.parameters.spawnDelayLevelReduction,
                     normalBlockAZoidLimit: this.normalSwarmSize,
@@ -2464,14 +2542,25 @@ This source code, artwork, game design, and related assets are not licensed for 
                     id: `run-${Date.now()}-${Math.floor(Math.random() * 100000)}`,
                     build: BUILD_VERSION,
                     source,
+                    difficultyMode: this.getActiveDifficultyMode(),
+                    difficultyLabel: this.getDifficultyLabel(this.getActiveDifficultyMode()),
+                    difficultyEnemySpeedModifier: this.getDifficultyProfile().enemySpeedModifier,
+                    difficultyEnemySpeedMultiplier: this.getDifficultyProfile().enemySpeedMultiplier,
+                    difficultyBaseCosmicZaps: this.getDifficultyProfile().baseCosmicZaps,
                     startedAt: new Date().toISOString(),
                     startPerformanceMs: Math.round(performance.now()),
+                    pausedDurationMs: 0,
+                    pauseEvents: [],
+                    pauseStartedAt: null,
+                    pauseStartPerformanceMs: null,
                     device: {
                         userAgent: navigator.userAgent || '',
                         viewport: { width: window.innerWidth, height: window.innerHeight },
                         playfieldSize: this.PLAYFIELD_SIZE
                     },
                     startingHighScore: this.highScore,
+                    highScoreMode: this.getActiveDifficultyMode(),
+                    selectedDifficultyModeAtStart: this.difficultyMode,
                     sectors: [],
                     cycleCompletions: 0,
                     endedAt: null,
@@ -2500,9 +2589,15 @@ This source code, artwork, game design, and related assets are not licensed for 
                     sector: this.level,
                     sectorName: this.getLevelPatternName(this.level),
                     cycle: this.cycle,
+                    difficultyMode: this.getActiveDifficultyMode(),
+                    difficultyLabel: this.getDifficultyLabel(this.getActiveDifficultyMode()),
                     source,
                     startedAt: new Date().toISOString(),
                     startPerformanceMs: performance.now(),
+                    pausedDurationMs: 0,
+                    pauseEvents: [],
+                    pauseStartedAt: null,
+                    pauseStartPerformanceMs: null,
                     entryScore: this.score,
                     entryCosmicZaps: this.cosmicZapsLeft,
                     startingCrystals: this.crystals.length,
@@ -2567,7 +2662,75 @@ This source code, artwork, game design, and related assets are not licensed for 
 
             telemetrySectorElapsedMs() {
                 if (!this.currentTelemetrySector) return 0;
-                return Math.max(0, Math.round(performance.now() - this.currentTelemetrySector.startPerformanceMs));
+                const now = performance.now();
+                const paused = this.currentTelemetrySector.pausedDurationMs || 0;
+                const openPause = this.currentTelemetrySector.pauseStartPerformanceMs ? Math.max(0, now - this.currentTelemetrySector.pauseStartPerformanceMs) : 0;
+                return Math.max(0, Math.round(now - this.currentTelemetrySector.startPerformanceMs - paused - openPause));
+            }
+
+            telemetryRunElapsedMs() {
+                if (!this.currentTelemetryRun) return 0;
+                const now = performance.now();
+                const paused = this.currentTelemetryRun.pausedDurationMs || 0;
+                const openPause = this.currentTelemetryRun.pauseStartPerformanceMs ? Math.max(0, now - this.currentTelemetryRun.pauseStartPerformanceMs) : 0;
+                return Math.max(0, Math.round(now - this.currentTelemetryRun.startPerformanceMs - paused - openPause));
+            }
+
+            beginTelemetryPause(reason = 'pause') {
+                if (!this.currentTelemetryRun || this.currentTelemetryRun.endedAt || this.currentTelemetryRun.pauseStartPerformanceMs) return;
+                const now = performance.now();
+                const startedAt = new Date().toISOString();
+                this.currentTelemetryRun.pauseStartPerformanceMs = now;
+                this.currentTelemetryRun.pauseStartedAt = startedAt;
+                this.currentTelemetryRun.pauseReason = reason;
+                if (Array.isArray(this.currentTelemetryRun.pauseEvents)) {
+                    this.currentTelemetryRun.pauseEvents.push({ reason, startedAt, endedAt: null, durationMs: 0 });
+                }
+                if (this.currentTelemetrySector && !this.currentTelemetrySector.endedAt && !this.currentTelemetrySector.pauseStartPerformanceMs) {
+                    this.currentTelemetrySector.pauseStartPerformanceMs = now;
+                    this.currentTelemetrySector.pauseStartedAt = startedAt;
+                    this.currentTelemetrySector.pauseReason = reason;
+                    if (Array.isArray(this.currentTelemetrySector.pauseEvents)) {
+                        this.currentTelemetrySector.pauseEvents.push({ reason, startedAt, endedAt: null, durationMs: 0 });
+                    }
+                }
+                this.saveTelemetryData();
+            }
+
+            endTelemetryPause(reason = 'resume') {
+                if (!this.currentTelemetryRun || this.currentTelemetryRun.endedAt || !this.currentTelemetryRun.pauseStartPerformanceMs) return;
+                const now = performance.now();
+                const endedAt = new Date().toISOString();
+                const runPauseMs = Math.max(0, Math.round(now - this.currentTelemetryRun.pauseStartPerformanceMs));
+                this.currentTelemetryRun.pausedDurationMs = (this.currentTelemetryRun.pausedDurationMs || 0) + runPauseMs;
+                if (Array.isArray(this.currentTelemetryRun.pauseEvents) && this.currentTelemetryRun.pauseEvents.length) {
+                    const event = this.currentTelemetryRun.pauseEvents[this.currentTelemetryRun.pauseEvents.length - 1];
+                    if (event && !event.endedAt) {
+                        event.endedAt = endedAt;
+                        event.durationMs = runPauseMs;
+                        event.resumeReason = reason;
+                    }
+                }
+                this.currentTelemetryRun.pauseStartPerformanceMs = null;
+                this.currentTelemetryRun.pauseStartedAt = null;
+                this.currentTelemetryRun.pauseReason = null;
+
+                if (this.currentTelemetrySector && !this.currentTelemetrySector.endedAt && this.currentTelemetrySector.pauseStartPerformanceMs) {
+                    const sectorPauseMs = Math.max(0, Math.round(now - this.currentTelemetrySector.pauseStartPerformanceMs));
+                    this.currentTelemetrySector.pausedDurationMs = (this.currentTelemetrySector.pausedDurationMs || 0) + sectorPauseMs;
+                    if (Array.isArray(this.currentTelemetrySector.pauseEvents) && this.currentTelemetrySector.pauseEvents.length) {
+                        const event = this.currentTelemetrySector.pauseEvents[this.currentTelemetrySector.pauseEvents.length - 1];
+                        if (event && !event.endedAt) {
+                            event.endedAt = endedAt;
+                            event.durationMs = sectorPauseMs;
+                            event.resumeReason = reason;
+                        }
+                    }
+                    this.currentTelemetrySector.pauseStartPerformanceMs = null;
+                    this.currentTelemetrySector.pauseStartedAt = null;
+                    this.currentTelemetrySector.pauseReason = null;
+                }
+                this.saveTelemetryData();
             }
 
             noteTelemetryEnemySpawn(type) {
@@ -2965,11 +3128,12 @@ This source code, artwork, game design, and related assets are not licensed for 
 
             finishTelemetryRun(reason) {
                 if (!this.currentTelemetryRun || this.currentTelemetryRun.endedAt) return;
+                if (this.currentTelemetryRun.pauseStartPerformanceMs) this.endTelemetryPause('run-end');
                 if (this.currentTelemetrySector && !this.currentTelemetrySector.endedAt) {
                     this.finishTelemetrySector(reason === 'death' ? 'death' : reason);
                 }
                 this.currentTelemetryRun.endedAt = new Date().toISOString();
-                this.currentTelemetryRun.durationMs = Math.max(0, Math.round(performance.now() - this.currentTelemetryRun.startPerformanceMs));
+                this.currentTelemetryRun.durationMs = this.telemetryRunElapsedMs();
                 this.currentTelemetryRun.endReason = reason;
                 this.currentTelemetryRun.finalScore = this.score;
                 this.currentTelemetryRun.highestSectorReached = Math.max(this.currentTelemetryRun.highestSectorReached || 1, this.level);
@@ -3003,7 +3167,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 const recoveredLine = this.telemetry && this.telemetry.recoveredActiveRuns ? `\nRecovered Runs: ${this.telemetry.recoveredActiveRuns}` : '';
                 this.telemetrySummary.textContent = this.developerModeEnabled ?
                     `Runs: ${runs.length}\nSector Attempts: ${sectors.length}\nCompleted Sectors: ${completed}\nDeaths: ${deaths}\nGridlock Reached: ${gridlocks}\nGridlock Bonuses: ${relics}\nCosmic Zaps Used: ${zaps}\nBest Sector: ${bestSector}\nBest Score: ${bestScore}${recoveredLine}` :
-                    'Developer Mode required. Tap the marquee five times to unlock.';
+                    'Developer Mode required. Tap the marquee ten times to unlock.';
             }
 
             setTelemetryStatus(message) {
@@ -3039,9 +3203,11 @@ This source code, artwork, game design, and related assets are not licensed for 
                     } : null
                 } : null;
                 const exportData = {
-                    schema: 'blockazoids-balance-export-v5',
+                    schema: 'blockazoids-balance-export-v6',
                     exportedAt: new Date().toISOString(),
                     build: BUILD_VERSION,
+                    selectedDifficultyMode: this.difficultyMode,
+                    selectedDifficultyLabel: this.getDifficultyLabel(this.difficultyMode),
                     restoredFromLocalStorage: !!(this.telemetry && this.telemetry.restoredFromLocalStorage),
                     recoveredActiveRuns: this.telemetry && this.telemetry.recoveredActiveRuns ? this.telemetry.recoveredActiveRuns : 0,
                     lastLocalSaveAt: this.telemetry && this.telemetry.lastSavedAt ? this.telemetry.lastSavedAt : null,
@@ -3067,7 +3233,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                     this.setTelemetryStatus('Developer Mode required.');
                     return;
                 }
-                this.telemetry = { schema: 'blockazoids-balance-v5', runs: [], restoredFromLocalStorage: false, recoveredActiveRuns: 0, lastSavedAt: null };
+                this.telemetry = { schema: 'blockazoids-balance-v6', runs: [], restoredFromLocalStorage: false, recoveredActiveRuns: 0, lastSavedAt: null };
                 this.currentTelemetryRun = null;
                 this.currentTelemetrySector = null;
                 try { localStorage.removeItem(this.telemetryStorageKey); } catch (_) {}
@@ -3100,6 +3266,17 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.levelSelectWindow.style.display = 'none';
                 this.refreshGameOverlay();
                 this.ui.updateAll();
+            }
+
+            openSettingsFromStartScreen() {
+                if (!this.isStartScreenVisible()) return;
+                this.developerAttractMenuOpen = true;
+                this.menuOpenedAt = performance.now();
+                this.showMenuPanel('settings');
+                if (this.resumeButton) this.resumeButton.textContent = 'Close';
+                this.pauseWindow.style.display = 'flex';
+                this.setGameOverlayVisible(true);
+                requestAnimationFrame(() => this.clearMenuButtonFocus());
             }
 
             isAttractModeActive() {
@@ -3258,7 +3435,8 @@ This source code, artwork, game design, and related assets are not licensed for 
             }
 
             getCosmicZapsForCurrentCycle() {
-                return this.cycle >= 2 ? 2 : this.parameters.baseCosmicZaps;
+                const baseZaps = this.getDifficultyProfile().baseCosmicZaps;
+                return this.cycle >= 2 ? Math.max(1, baseZaps - 1) : baseZaps;
             }
 
             // Enemy speed uses named tuning constants for sector, cycle, and Cosmic Zap pressure.
@@ -3468,7 +3646,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.bonusTextElement.classList.add('countdownText');
                 this.bonusTextElement.style.transition = 'opacity 0.12s ease-in-out';
                 this.bonusTextElement.style.opacity = '1';
-                this.bonusTextElement.innerHTML = `<span class="countdown-level-number">GRID SECTOR ${this.level}</span><span class="countdown-level-name">${levelName}</span>`;
+                this.bonusTextElement.innerHTML = `<span class="countdown-level-number">GRID SECTOR ${this.level}</span><span class="countdown-level-name">${levelName}</span><span class="countdown-level-mode">${this.getDifficultyLabel(this.getActiveDifficultyMode()).toUpperCase()}</span>`;
 
                 const cancelCountdown = () => {
                     this.showHudDuringSectorIntro = false;
@@ -3533,6 +3711,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 }
 
                 [
+                    this.startSettingsButton,
                     this.resumeButton,
                     this.restartButton,
                     this.scoringButton,
@@ -3544,6 +3723,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                     this.settingsBackButton,
                     this.soundToggleButton,
                     this.musicToggleButton,
+                    this.difficultyModeButton,
                     this.resetHighScoreButton,
                     this.telemetryButton,
                     this.exportTelemetryButton,
@@ -3588,6 +3768,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 if (panelName === 'settings') {
                     this.updateSoundToggleLabel();
                     this.updateMusicToggleLabel();
+                    this.updateDifficultyModeDisplay();
                     this.updateHighScoreDisplay();
                     this.updateLevelSelectUnlockState();
                 }
@@ -3620,30 +3801,108 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.updateMusicToggleLabel();
             }
 
-            loadHighScore() {
+            loadDifficultyMode() {
                 try {
-                    const saved = parseInt(localStorage.getItem('blockazoidsHighScore') || '0', 10);
-                    return Number.isFinite(saved) && saved > 0 ? saved : 0;
+                    const saved = localStorage.getItem(this.difficultyStorageKey) || 'normal';
+                    return this.difficultyProfiles && this.difficultyProfiles[saved] ? saved : 'normal';
+                } catch (error) {
+                    return 'normal';
+                }
+            }
+
+            saveDifficultyMode() {
+                try {
+                    localStorage.setItem(this.difficultyStorageKey, this.difficultyMode || 'normal');
+                } catch (error) {}
+            }
+
+            getDifficultyProfile(mode = this.getActiveDifficultyMode()) {
+                return (this.difficultyProfiles && this.difficultyProfiles[mode]) || this.difficultyProfiles.normal;
+            }
+
+            getDifficultyLabel(mode = this.getActiveDifficultyMode()) {
+                return this.getDifficultyProfile(mode).label;
+            }
+
+            getActiveDifficultyMode() {
+                return this.currentRunDifficultyMode || this.difficultyMode || 'normal';
+            }
+
+            getHighScoreMode() {
+                return this.currentRunDifficultyMode || this.difficultyMode || 'normal';
+            }
+
+            getHighScoreStorageKey(mode = this.getHighScoreMode()) {
+                return `${this.highScoreStorageKeyPrefix}.${mode || 'normal'}`;
+            }
+
+            loadHighScore(mode = this.getHighScoreMode()) {
+                try {
+                    let saved = localStorage.getItem(this.getHighScoreStorageKey(mode));
+                    if ((saved === null || saved === undefined) && mode === 'normal') {
+                        saved = localStorage.getItem('blockazoidsHighScore');
+                    }
+                    const parsed = parseInt(saved || '0', 10);
+                    return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
                 } catch (error) {
                     return 0;
                 }
             }
 
-            saveHighScore() {
+            saveHighScore(mode = this.getHighScoreMode()) {
                 try {
-                    localStorage.setItem('blockazoidsHighScore', String(this.highScore));
+                    localStorage.setItem(this.getHighScoreStorageKey(mode), String(this.highScore));
+                    if (mode === 'normal') localStorage.setItem('blockazoidsHighScore', String(this.highScore));
                 } catch (error) {}
             }
 
+            cycleDifficultyMode() {
+                const order = ['easy', 'normal', 'hard'];
+                const currentIndex = Math.max(0, order.indexOf(this.difficultyMode || 'normal'));
+                const nextMode = order[(currentIndex + 1) % order.length];
+                this.setDifficultyMode(nextMode);
+            }
+
+            setDifficultyMode(mode) {
+                if (!this.difficultyProfiles || !this.difficultyProfiles[mode]) return;
+                this.difficultyMode = mode;
+                this.saveDifficultyMode();
+                if (!this.currentRunDifficultyMode || (!this.active && !this.isPaused && !this.levelActionStarted && !this.isGameOver)) {
+                    this.currentRunDifficultyMode = null;
+                    this.highScore = this.loadHighScore(mode);
+                    this.highScoreTarget = this.highScore;
+                    this.highScoreBeatenThisRun = this.highScoreTarget <= 0;
+                }
+                this.updateDifficultyModeDisplay();
+                this.updateHighScoreDisplay();
+                if (this.ui) this.ui.updateAll();
+            }
+
+            updateDifficultyModeDisplay() {
+                const selectedLabel = this.getDifficultyLabel(this.difficultyMode || 'normal');
+                const activeLabel = this.getDifficultyLabel(this.getActiveDifficultyMode()).toUpperCase();
+                if (this.difficultyModeButton) {
+                    this.difficultyModeButton.textContent = `Difficulty: ${selectedLabel}`;
+                }
+                if (this.startModeLine) this.startModeLine.textContent = `MODE: ${selectedLabel.toUpperCase()}`;
+                if (this.menuModeLine) this.menuModeLine.textContent = `MODE: ${activeLabel}`;
+            }
+
             updateHighScoreDisplay() {
+                const mode = this.getHighScoreMode();
+                const label = this.getDifficultyLabel(mode).toUpperCase();
                 if (this.highScoreHud) {
                     this.highScoreHud.textContent = `${this.highScore}`;
+                }
+                if (this.scoringHighScoreLabel) {
+                    this.scoringHighScoreLabel.textContent = `${label} HIGH SCORE`;
                 }
                 if (this.scoringHighScoreValue) {
                     this.scoringHighScoreValue.textContent = `${this.highScore}`;
                 }
                 const scoringRecordArea = document.querySelector('.scoring-record-area');
                 if (scoringRecordArea) scoringRecordArea.style.display = this.highScore > 0 ? 'flex' : 'none';
+                this.updateDifficultyModeDisplay();
             }
 
             checkHighScore() {
@@ -3720,7 +3979,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.highScore = 0;
                 this.highScoreTarget = 0;
                 this.highScoreBeatenThisRun = true;
-                this.saveHighScore();
+                this.saveHighScore(this.getHighScoreMode());
                 this.updateHighScoreDisplay();
             }
 
@@ -3769,6 +4028,18 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.audio.resume();
                 this.hideLevelSelectMenu();
                 this.finishGame(transitionToken);
+            }
+
+            handleVisibilityChange() {
+                if (document.visibilityState === 'hidden') {
+                    this.beginTelemetryPause('page-hidden');
+                    return;
+                }
+                this.endTelemetryPause('page-visible');
+                if (this.active && !this.isPaused && !this.isGameOver) {
+                    this.lastFrameTime = performance.now();
+                    this.requestWakeLock();
+                }
             }
 
             setGameOverlayVisible(visible) {
@@ -3849,6 +4120,7 @@ This source code, artwork, game design, and related assets are not licensed for 
             pauseGame() {
                 if (!this.active || this.isGameOver || !this.levelActionStarted || this.isPaused) return;
 
+                this.beginTelemetryPause('manual-pause');
                 this.isPaused = true;
                 this.active = false;
                 this.ui.updateAll();
@@ -3917,6 +4189,7 @@ This source code, artwork, game design, and related assets are not licensed for 
             resumeLiveAction() {
                 if (!this.isPaused || this.isGameOver) return;
 
+                this.endTelemetryPause('manual-resume');
                 this.isPaused = false;
                 this.active = true;
                 this.ui.updateAll();
@@ -3945,7 +4218,12 @@ This source code, artwork, game design, and related assets are not licensed for 
                 const targetLevel = Math.max(1, Math.min(this.MAX_LEVEL, levelNumber));
                 const loadToken = ++this.levelLoadToken;
 
-                if (resetScore) this.cycle = 1;
+                if (resetScore) {
+                    this.cycle = 1;
+                    this.currentRunDifficultyMode = this.difficultyMode;
+                    this.highScore = this.loadHighScore(this.currentRunDifficultyMode);
+                    this.updateHighScoreDisplay();
+                }
                 this.audio.resume();
                 this.audio.stopBackgroundMusic();
                 if (this.telemetryEnabled && resetScore) this.beginTelemetryRun('sector-select');
@@ -3967,6 +4245,9 @@ This source code, artwork, game design, and related assets are not licensed for 
 
                 this.hasStartedRun = true;
                 this.cycle = 1;
+                this.currentRunDifficultyMode = this.difficultyMode;
+                this.highScore = this.loadHighScore(this.currentRunDifficultyMode);
+                this.updateHighScoreDisplay();
                 if (this.telemetryEnabled) this.beginTelemetryRun('start-game');
                 this.audio.resume(); // Unlock audio after the player's start tap
                 this.audio.stopBackgroundMusic(); // Stop any background music
@@ -5835,6 +6116,10 @@ This source code, artwork, game design, and related assets are not licensed for 
                         this.gameOverElement.style.opacity = '0'; // Fade out text
                         setTimeout(() => {
                             this.instructionsWindow.style.display = 'flex'; // Show instructions
+                            this.currentRunDifficultyMode = null;
+                            this.highScore = this.loadHighScore(this.difficultyMode);
+                            this.updateDifficultyModeDisplay();
+                            this.updateHighScoreDisplay();
                             this.startButton.textContent = 'Play Again'; // Update button
                             this.startAttractMode();
                 this.refreshGameOverlay(); // Restart attract mode
@@ -7931,6 +8216,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 const highScoreElement = document.getElementById('highScoreHud');
                 const scoringRecordArea = document.querySelector('.scoring-record-area');
                 if (highScoreElement) highScoreElement.textContent = `${this.game.highScore}`;
+                if (this.game.scoringHighScoreLabel) this.game.scoringHighScoreLabel.textContent = `${this.game.getDifficultyLabel(this.game.getHighScoreMode()).toUpperCase()} HIGH SCORE`;
                 if (this.game.scoringHighScoreValue) this.game.scoringHighScoreValue.textContent = `${this.game.highScore}`;
                 if (scoringRecordArea) scoringRecordArea.style.display = this.game.highScore > 0 ? 'flex' : 'none';
                 if (!((this.game.active && this.game.levelActionStarted) ||
@@ -8006,7 +8292,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 if (!this.cosmicZapIndicators) return;
                 this.cosmicZapIndicators.style.display = showCosmicZapHud ? 'flex' : 'none';
                 const zapIcons = this.cosmicZapIndicators.children;
-                for (let i = 0; i < 3; i++) {
+                for (let i = 0; i < zapIcons.length; i++) {
                     zapIcons[i].style.display = showCosmicZapHud && i < this.game.cosmicZapsLeft ? 'block' : 'none';
                 }
             }
