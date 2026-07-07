@@ -1832,7 +1832,7 @@ This source code, artwork, game design, and related assets are not licensed for 
     <div id="copyrightFooter">© 2026 Marcus Couto</div>
 
     <script>
-        const BUILD_VERSION = 'Build v166';
+        const BUILD_VERSION = 'Build v167';
         document.getElementById('buildVersion').textContent = BUILD_VERSION;
 
         let lastGlobalTouchEndTime = 0;
@@ -2027,6 +2027,9 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.telemetry = this.loadTelemetryData();
                 this.currentTelemetryRun = null;
                 this.currentTelemetrySector = null;
+                if (this.telemetry && this.telemetry.recoveredActiveRuns) {
+                    this.saveTelemetryData();
+                }
                 this.developerAttractMenuOpen = false;
 
                 // Audio and UI managers
@@ -2297,23 +2300,98 @@ This source code, artwork, game design, and related assets are not licensed for 
             }
 
             loadTelemetryData() {
+                const emptyTelemetry = {
+                    schema: 'blockazoids-balance-v5',
+                    runs: [],
+                    restoredFromLocalStorage: false,
+                    recoveredActiveRuns: 0,
+                    lastSavedAt: null
+                };
                 try {
-                    const saved = JSON.parse(localStorage.getItem('blockazoidsBalanceTelemetry') || 'null');
-                    if (saved && Array.isArray(saved.runs)) return saved;
+                    const saved = JSON.parse(localStorage.getItem(this.telemetryStorageKey) || 'null');
+                    if (!saved) return emptyTelemetry;
+
+                    const telemetry = {
+                        schema: 'blockazoids-balance-v5',
+                        runs: Array.isArray(saved.runs) ? saved.runs.slice() : [],
+                        restoredFromLocalStorage: true,
+                        recoveredActiveRuns: 0,
+                        lastSavedAt: saved.savedAt || null
+                    };
+
+                    const activeRun = saved.activeRun && !saved.activeRun.endedAt ? saved.activeRun : null;
+                    if (activeRun && Array.isArray(activeRun.sectors) && activeRun.sectors.length) {
+                        const alreadySaved = telemetry.runs.some(run => run && activeRun.id && run.id === activeRun.id);
+                        if (!alreadySaved) {
+                            const recoveredAt = new Date().toISOString();
+                            const savedAt = saved.savedAt || recoveredAt;
+                            const recoveredRun = JSON.parse(JSON.stringify(activeRun));
+                            const sectors = Array.isArray(recoveredRun.sectors) ? recoveredRun.sectors : [];
+                            const lastSector = sectors.length ? sectors[sectors.length - 1] : null;
+                            const lastEndedSector = [...sectors].reverse().find(sector => sector && sector.endedAt);
+                            const scoreSource = lastSector || lastEndedSector || null;
+
+                            recoveredRun.endedAt = savedAt;
+                            recoveredRun.endReason = 'refresh-recovered';
+                            recoveredRun.recoveredFromLocalStorage = true;
+                            recoveredRun.restoredFromLocalStorage = true;
+                            recoveredRun.recoveredAt = recoveredAt;
+                            recoveredRun.finalScore = Number.isFinite(recoveredRun.finalScore) && recoveredRun.finalScore > 0 ?
+                                recoveredRun.finalScore :
+                                (scoreSource && Number.isFinite(scoreSource.exitScore) ? scoreSource.exitScore : (scoreSource && Number.isFinite(scoreSource.entryScore) ? scoreSource.entryScore : 0));
+                            recoveredRun.highestSectorReached = sectors.reduce((max, sector) => Math.max(max, sector && Number.isFinite(sector.sector) ? sector.sector : 0), recoveredRun.highestSectorReached || 1);
+                            recoveredRun.highestCycleReached = sectors.reduce((max, sector) => Math.max(max, sector && Number.isFinite(sector.cycle) ? sector.cycle : 0), recoveredRun.highestCycleReached || 1);
+
+                            const openSector = [...sectors].reverse().find(sector => sector && !sector.endedAt);
+                            if (openSector) {
+                                openSector.endedAt = savedAt;
+                                openSector.result = openSector.result || 'refresh-recovered';
+                                openSector.recoveredFromLocalStorage = true;
+                                openSector.recoveryReason = 'page refreshed before sector ended';
+                                openSector.exitScore = Number.isFinite(openSector.exitScore) ? openSector.exitScore : recoveredRun.finalScore;
+                                openSector.exitCosmicZaps = Number.isFinite(openSector.exitCosmicZaps) ? openSector.exitCosmicZaps : null;
+                            }
+
+                            telemetry.runs.push(recoveredRun);
+                            telemetry.recoveredActiveRuns = 1;
+                        }
+                    }
+                    return telemetry;
                 } catch (_) {}
-                return { schema: 'blockazoids-balance-v4', runs: [] };
+                return emptyTelemetry;
             }
 
             saveTelemetryData() {
                 if (!this.telemetry || !Array.isArray(this.telemetry.runs)) return;
-                try {
-                    const maxRuns = 150;
-                    if (this.telemetry.runs.length > maxRuns) {
-                        this.telemetry.runs = this.telemetry.runs.slice(this.telemetry.runs.length - maxRuns);
+                const maxRuns = 20;
+                const activeRun = this.currentTelemetryRun && !this.currentTelemetryRun.endedAt ? this.currentTelemetryRun : null;
+                const savedAt = new Date().toISOString();
+                let storedRuns = this.telemetry.runs.slice(-maxRuns);
+
+                while (storedRuns.length >= 0) {
+                    const payload = {
+                        schema: 'blockazoids-balance-v5',
+                        savedAt,
+                        runs: storedRuns,
+                        activeRun,
+                        restoredFromLocalStorage: !!this.telemetry.restoredFromLocalStorage,
+                        recoveredActiveRuns: this.telemetry.recoveredActiveRuns || 0
+                    };
+                    try {
+                        localStorage.setItem(this.telemetryStorageKey, JSON.stringify(payload));
+                        this.telemetry.schema = payload.schema;
+                        this.telemetry.runs = storedRuns;
+                        this.telemetry.lastSavedAt = savedAt;
+                        this.updateTelemetrySummary();
+                        return;
+                    } catch (_) {
+                        if (storedRuns.length > 0) {
+                            storedRuns = storedRuns.slice(1);
+                            continue;
+                        }
+                        this.setTelemetryStatus('Could not save telemetry locally. Export this run before refreshing.');
+                        break;
                     }
-                    localStorage.setItem(this.telemetryStorageKey, JSON.stringify(this.telemetry));
-                } catch (_) {
-                    this.setTelemetryStatus('Could not save telemetry locally.');
                 }
                 this.updateTelemetrySummary();
             }
@@ -2404,6 +2482,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 };
                 this.currentTelemetrySector = null;
                 this.setTelemetryStatus('Telemetry recording.');
+                this.saveTelemetryData();
             }
 
             ensureTelemetryRun(source = 'gameplay') {
@@ -2483,6 +2562,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.currentTelemetryRun.sectors.push(sector);
                 this.currentTelemetryRun.highestSectorReached = Math.max(this.currentTelemetryRun.highestSectorReached, this.level);
                 this.currentTelemetryRun.highestCycleReached = Math.max(this.currentTelemetryRun.highestCycleReached, this.cycle);
+                this.saveTelemetryData();
             }
 
             telemetrySectorElapsedMs() {
@@ -2920,8 +3000,9 @@ This source code, artwork, game design, and related assets are not licensed for 
                 const relics = sectors.filter(sector => sector.prismRelicCollected || sector.gridlockBonusCollected).length;
                 const bestSector = runs.reduce((max, run) => Math.max(max, run.highestSectorReached || 0), 0);
                 const bestScore = runs.reduce((max, run) => Math.max(max, run.finalScore || 0), 0);
+                const recoveredLine = this.telemetry && this.telemetry.recoveredActiveRuns ? `\nRecovered Runs: ${this.telemetry.recoveredActiveRuns}` : '';
                 this.telemetrySummary.textContent = this.developerModeEnabled ?
-                    `Runs: ${runs.length}\nSector Attempts: ${sectors.length}\nCompleted Sectors: ${completed}\nDeaths: ${deaths}\nGridlock Reached: ${gridlocks}\nGridlock Bonuses: ${relics}\nCosmic Zaps Used: ${zaps}\nBest Sector: ${bestSector}\nBest Score: ${bestScore}` :
+                    `Runs: ${runs.length}\nSector Attempts: ${sectors.length}\nCompleted Sectors: ${completed}\nDeaths: ${deaths}\nGridlock Reached: ${gridlocks}\nGridlock Bonuses: ${relics}\nCosmic Zaps Used: ${zaps}\nBest Sector: ${bestSector}\nBest Score: ${bestScore}${recoveredLine}` :
                     'Developer Mode required. Tap the marquee five times to unlock.';
             }
 
@@ -2958,9 +3039,12 @@ This source code, artwork, game design, and related assets are not licensed for 
                     } : null
                 } : null;
                 const exportData = {
-                    schema: 'blockazoids-balance-export-v4',
+                    schema: 'blockazoids-balance-export-v5',
                     exportedAt: new Date().toISOString(),
                     build: BUILD_VERSION,
+                    restoredFromLocalStorage: !!(this.telemetry && this.telemetry.restoredFromLocalStorage),
+                    recoveredActiveRuns: this.telemetry && this.telemetry.recoveredActiveRuns ? this.telemetry.recoveredActiveRuns : 0,
+                    lastLocalSaveAt: this.telemetry && this.telemetry.lastSavedAt ? this.telemetry.lastSavedAt : null,
                     savedRuns: this.telemetry.runs,
                     activeRun: null,
                     ignoredActiveRun
@@ -2983,7 +3067,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                     this.setTelemetryStatus('Developer Mode required.');
                     return;
                 }
-                this.telemetry = { schema: 'blockazoids-balance-v4', runs: [] };
+                this.telemetry = { schema: 'blockazoids-balance-v5', runs: [], restoredFromLocalStorage: false, recoveredActiveRuns: 0, lastSavedAt: null };
                 this.currentTelemetryRun = null;
                 this.currentTelemetrySector = null;
                 try { localStorage.removeItem(this.telemetryStorageKey); } catch (_) {}
