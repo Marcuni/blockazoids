@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v172: Moves the compact HUD group slightly lower and replaces the start panel with bottom HUD play/pause controls.
+Build v173: Fixes the bottom play/pause control, centers it in the lower phone space, and limits level progress circles to ten grid-aligned positions.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -30,7 +30,9 @@ This source code, artwork, game design, and related assets are not licensed for 
             overflow: hidden;
             position: relative;
             width: 100%;
+            height: 100%;
             min-height: 100%;
+            box-sizing: border-box;
             touch-action: none;
             overscroll-behavior: none;
             user-select: none;
@@ -955,6 +957,12 @@ This source code, artwork, game design, and related assets are not licensed for 
             border: 2px solid #fff;
             box-shadow: 0 0 calc(var(--default-glow) * 0.85px) #fff;
             cursor: pointer;
+            opacity: 1;
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 3;
             transition: opacity 0.18s ease-in-out;
             -webkit-tap-highlight-color: transparent;
         }
@@ -1362,7 +1370,9 @@ This source code, artwork, game design, and related assets are not licensed for 
         }
 
         #hudMenuButton {
-            position: static;
+            position: absolute;
+            right: 0;
+            bottom: 0;
             transform: none;
             width: var(--grid-size, 60px);
             height: var(--grid-size, 60px);
@@ -1452,6 +1462,9 @@ This source code, artwork, game design, and related assets are not licensed for 
         }
 
         #cycleStarHud {
+            position: absolute;
+            left: 2px;
+            top: calc(var(--grid-size, 60px) * 0.88);
             display: none;
             align-items: center;
             justify-content: flex-start;
@@ -1496,14 +1509,13 @@ This source code, artwork, game design, and related assets are not licensed for 
         /* Bottom HUD below the playfield */
         #bottomHud {
             width: var(--playfield-outer-size, min(604px, calc(100vw - 8px)));
-            min-height: var(--grid-size, 60px);
+            flex: 1 1 auto;
+            min-height: calc(var(--grid-size, 60px) * 2.65);
             box-sizing: border-box;
-            display: grid;
-            grid-template-columns: 1fr var(--grid-size, 60px);
-            align-items: start;
-            column-gap: 0;
-            margin-top: clamp(4px, 1vw, 6px);
-            margin-bottom: 4px;
+            position: relative;
+            display: block;
+            margin-top: calc(var(--grid-size, 60px) * 0.14);
+            margin-bottom: max(8px, env(safe-area-inset-bottom));
             color: #fff;
             font-family: 'Orbitron', 'Courier New', monospace;
             letter-spacing: 2px;
@@ -1511,14 +1523,12 @@ This source code, artwork, game design, and related assets are not licensed for 
         }
 
         #bottomProgressPanel {
-            display: flex;
-            flex-direction: column;
-            align-items: flex-start;
-            justify-content: flex-start;
-            gap: 4px;
-            min-height: var(--grid-size, 60px);
+            position: absolute;
+            inset: 0;
+            display: block;
+            min-height: 100%;
             box-sizing: border-box;
-            padding-top: 6px;
+            padding-top: 0;
         }
 
         .hud-group {
@@ -1526,6 +1536,19 @@ This source code, artwork, game design, and related assets are not licensed for 
             align-items: center;
             gap: 10px;
         }
+
+        #levelHud {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: var(--grid-size, 60px);
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            pointer-events: none;
+        }
+
 
         #cosmicZapHud {
             position: absolute;
@@ -1583,9 +1606,13 @@ This source code, artwork, game design, and related assets are not licensed for 
         
         /* Level indicators container */
         #levelIndicators {
-            display: flex;
-            gap: 6px;
+            display: grid;
+            grid-template-columns: repeat(10, var(--grid-size, 60px));
+            width: calc(var(--grid-size, 60px) * 10);
+            margin-left: 2px;
+            gap: 0;
             align-items: center;
+            justify-items: center;
             z-index: 1000;
             box-shadow: none;
         }
@@ -1915,7 +1942,7 @@ This source code, artwork, game design, and related assets are not licensed for 
     <div id="copyrightFooter">© 2026 Marcus Couto</div>
 
     <script>
-        const BUILD_VERSION = 'Build v172';
+        const BUILD_VERSION = 'Build v173';
         document.getElementById('buildVersion').textContent = BUILD_VERSION;
 
         let lastGlobalTouchEndTime = 0;
@@ -8173,8 +8200,7 @@ This source code, artwork, game design, and related assets are not licensed for 
 
                 const canPause = this.game.active && this.game.levelActionStarted && !this.game.isPaused && !this.game.isGameOver;
                 const canResume = this.game.isPaused && this.game.levelActionStarted && !this.game.isGameOver;
-                const waitingForRunToBecomePlayable = !this.game.active && !this.game.isPaused && !this.game.restartReady;
-                const temporarilyBlocked = this.game.cycleTransitionActive || this.game.showHudDuringSectorIntro || this.game.resumeCountdownActive || waitingForRunToBecomePlayable || (this.game.isGameOver && !this.game.restartReady);
+                const temporarilyBlocked = this.game.cycleTransitionActive || this.game.showHudDuringSectorIntro || this.game.resumeCountdownActive || (this.game.isGameOver && !this.game.restartReady);
 
                 startButton.innerHTML = canPause
                     ? '<span class="pause-symbol"><span class="pause-bar"></span><span class="pause-bar"></span></span>'
@@ -8255,15 +8281,16 @@ This source code, artwork, game design, and related assets are not licensed for 
             // Do not reveal the total number of levels; only show progress so far.
             updateLevelIndicators() {
                 const showLevelHud = this.shouldShowGameplayHud();
-                if (this.levelIndicators) this.levelIndicators.style.display = showLevelHud ? 'flex' : 'none';
+                if (this.levelIndicators) this.levelIndicators.style.display = showLevelHud ? 'grid' : 'none';
                 this.levelIndicators.innerHTML = '';
                 if (!showLevelHud) return;
 
-                for (let i = 0; i < this.game.level; i++) {
+                const visibleLevelCount = Math.min(this.game.level, 10);
+                for (let i = 0; i < visibleLevelCount; i++) {
                     const circle = document.createElement('div');
                     circle.className = 'level-circle';
                     const levelNumber = i + 1;
-                    const isCompleted = i < this.game.level - 1;
+                    const isCompleted = i < Math.min(this.game.level - 1, 10);
                     if (isCompleted) circle.classList.add('completed');
                     if (isCompleted && this.game.relicRecoveredBySector[this.game.getRelicSectorKey(levelNumber)]) {
                         circle.classList.add('relic-recovered');
