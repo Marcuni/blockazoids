@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v169: Temporarily rolls back difficulty settings while keeping pause-aware telemetry timing and the ten-click developer-mode unlock.
+Build v171: Removes the marquee and rearranges the iPhone HUD around the upper playfield.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -1296,7 +1296,7 @@ This source code, artwork, game design, and related assets are not licensed for 
 
         /* Score display styling */
         #scoreHud {
-            width: min(604px, calc(100vw - 8px));
+            width: var(--playfield-outer-size, min(604px, calc(100vw - 8px)));
             min-height: clamp(30px, 8vw, 44px);
             box-sizing: border-box;
             position: relative;
@@ -1304,7 +1304,7 @@ This source code, artwork, game design, and related assets are not licensed for 
             justify-content: center;
             align-items: center;
             padding: 0 clamp(14px, 4vw, 30px);
-            margin: 2px 0 4px;
+            margin: clamp(4px, 1.2vh, 12px) 0 4px;
             color: #fff;
             font-family: 'Orbitron', 'Courier New', monospace;
             letter-spacing: 3px;
@@ -1313,14 +1313,12 @@ This source code, artwork, game design, and related assets are not licensed for 
         }
 
         #hudMenuButton {
-            position: absolute;
-            left: var(--hud-menu-button-left, 13px);
-            top: 50%;
-            transform: translateY(-50%);
-            width: var(--hud-menu-button-size, 38px);
-            height: var(--hud-menu-button-size, 38px);
-            min-width: var(--hud-menu-button-size, 38px);
-            min-height: var(--hud-menu-button-size, 38px);
+            position: static;
+            transform: none;
+            width: var(--grid-size, 60px);
+            height: var(--grid-size, 60px);
+            min-width: var(--grid-size, 60px);
+            min-height: var(--grid-size, 60px);
             padding: 0;
             box-sizing: border-box;
             display: flex;
@@ -1331,11 +1329,13 @@ This source code, artwork, game design, and related assets are not licensed for 
             color: #fff;
             background: #000;
             border: 2px solid #fff;
-            box-shadow: 0 0 calc(var(--default-glow) * 1px) #fff;
+            box-shadow: 0 0 calc(var(--default-glow) * 0.7px) #fff;
             opacity: 0;
             pointer-events: none;
             cursor: pointer;
             z-index: 2;
+            justify-self: end;
+            align-self: start;
         }
 
         #hudMenuButton .hud-menu-line {
@@ -1398,17 +1398,13 @@ This source code, artwork, game design, and related assets are not licensed for 
         }
 
         #cycleStarHud {
-            position: absolute;
-            right: var(--hud-menu-button-left, 13px);
-            top: 50%;
-            transform: translateY(-50%);
             display: none;
             align-items: center;
-            justify-content: flex-end;
+            justify-content: flex-start;
             gap: clamp(2px, 0.8vw, 4px);
-            min-width: clamp(34px, 12vw, 86px);
+            min-height: clamp(12px, 3.4vw, 18px);
             color: #ffd24a;
-            font-size: clamp(15px, 4.6vw, 24px);
+            font-size: clamp(13px, 3.8vw, 20px);
             line-height: 1;
             letter-spacing: 0;
             text-shadow: 0 0 calc(var(--default-glow) * 0.8px) #ffd24a, 0 0 calc(var(--default-glow) * 1.6px) #ff9f1a;
@@ -1445,11 +1441,14 @@ This source code, artwork, game design, and related assets are not licensed for 
         
         /* Bottom HUD below the playfield */
         #bottomHud {
-            width: min(604px, calc(100vw - 8px));
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-top: 6px;
+            width: var(--playfield-outer-size, min(604px, calc(100vw - 8px)));
+            min-height: var(--grid-size, 60px);
+            box-sizing: border-box;
+            display: grid;
+            grid-template-columns: 1fr var(--grid-size, 60px);
+            align-items: start;
+            column-gap: 0;
+            margin-top: 0;
             margin-bottom: 4px;
             color: #fff;
             font-family: 'Orbitron', 'Courier New', monospace;
@@ -1457,10 +1456,33 @@ This source code, artwork, game design, and related assets are not licensed for 
             text-shadow: none;
         }
 
+        #bottomProgressPanel {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            justify-content: flex-start;
+            gap: 4px;
+            min-height: var(--grid-size, 60px);
+            box-sizing: border-box;
+            padding-top: 6px;
+        }
+
         .hud-group {
             display: flex;
             align-items: center;
             gap: 10px;
+        }
+
+        #cosmicZapHud {
+            position: absolute;
+            right: clamp(4px, 1.3vw, 8px);
+            top: 50%;
+            transform: translateY(-50%);
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            min-width: clamp(70px, 20vw, 96px);
+            pointer-events: none;
         }
 
 
@@ -1741,22 +1763,24 @@ This source code, artwork, game design, and related assets are not licensed for 
             --green-color: #0F0;
             --blue-color: #00F;
             --menu-body-text-size: clamp(14px, 4.5vw, 18px);
+            --playfield-outer-size: min(604px, calc(100vw - 8px));
         }
     </style>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700&display=swap" rel="stylesheet">
 </head>
 <body>
-    <div id="marquee">
-        <img id="marqueeImage" src="marquee-top.png" alt="Block-A-Zoids marquee">
-        <div id="marqueePreviewLabel"></div>
-    </div>
-
     <!-- Score display -->
     <div id="scoreHud">
-        <button id="hudMenuButton" aria-label="Open menu"><span class="hud-menu-line"></span><span class="hud-menu-line"></span><span class="hud-menu-line"></span></button>
         <div id="score">0</div>
         <div id="highScoreHud">0</div>
-        <div id="cycleStarHud" aria-label="Completed cycles"></div>
+        <div class="hud-group" id="cosmicZapHud">
+            <div id="cosmicZapIndicators">
+                <div class="cosmic-zap-icon" id="cosmicZap1"></div>
+                <div class="cosmic-zap-icon" id="cosmicZap2"></div>
+                <div class="cosmic-zap-icon" id="cosmicZap3"></div>
+                <div class="cosmic-zap-icon" id="cosmicZap4"></div>
+            </div>
+        </div>
     </div>
     <!-- Main game container -->
     <div id="gameContainer">
@@ -1833,23 +1857,19 @@ This source code, artwork, game design, and related assets are not licensed for 
 
     <!-- Bottom HUD -->
     <div id="bottomHud">
-        <div class="hud-group" id="levelHud">
-            <div id="levelIndicators"></div>
-        </div>
-        <div class="hud-group" id="cycleHud"></div>
-        <div class="hud-group" id="cosmicZapHud">
-            <div id="cosmicZapIndicators">
-                <div class="cosmic-zap-icon" id="cosmicZap1"></div>
-                <div class="cosmic-zap-icon" id="cosmicZap2"></div>
-                <div class="cosmic-zap-icon" id="cosmicZap3"></div>
-                <div class="cosmic-zap-icon" id="cosmicZap4"></div>
+        <div id="bottomProgressPanel">
+            <div class="hud-group" id="levelHud">
+                <div id="levelIndicators"></div>
             </div>
+            <div id="cycleStarHud" aria-label="Completed cycles"></div>
+            <div class="hud-group" id="cycleHud"></div>
         </div>
+        <button id="hudMenuButton" aria-label="Open menu"><span class="hud-menu-line"></span><span class="hud-menu-line"></span><span class="hud-menu-line"></span></button>
     </div>
     <div id="copyrightFooter">© 2026 Marcus Couto</div>
 
     <script>
-        const BUILD_VERSION = 'Build v170';
+        const BUILD_VERSION = 'Build v171';
         document.getElementById('buildVersion').textContent = BUILD_VERSION;
 
         let lastGlobalTouchEndTime = 0;
@@ -2250,25 +2270,31 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.refreshGameOverlay();
             }
 
-            // Hidden marquee easter egg: shake the phone during attract mode to reveal the 1983 alternate for seven seconds.
+            // Hidden developer unlock target. The marquee can be absent in compact mobile layouts.
             setupMarqueePreviewCycler() {
-                if (!this.marqueeElement || !this.marqueeImageElement) return;
+                const unlockTarget = this.marqueeElement || document.getElementById('scoreHud');
 
-                this.marqueeImageElement.src = this.marqueeOriginalSrc;
-                const probe = new Image();
-                probe.onload = () => {
-                    this.marqueeAlternateAvailable = true;
-                };
-                probe.onerror = () => {
+                if (this.marqueeElement && this.marqueeImageElement) {
+                    this.marqueeImageElement.src = this.marqueeOriginalSrc;
+                    const probe = new Image();
+                    probe.onload = () => {
+                        this.marqueeAlternateAvailable = true;
+                    };
+                    probe.onerror = () => {
+                        this.marqueeAlternateAvailable = false;
+                    };
+                    probe.src = this.marqueeAlternateSrc;
+                } else {
                     this.marqueeAlternateAvailable = false;
-                };
-                probe.src = this.marqueeAlternateSrc;
+                }
 
                 // On iOS, motion permission still requires a touch gesture. This does not trigger the easter egg.
-                this.marqueeElement.addEventListener('pointerdown', () => {
-                    this.enableShakeCosmicZap();
-                    this.recordMarqueeUnlockTap();
-                }, { passive: true });
+                if (unlockTarget) {
+                    unlockTarget.addEventListener('pointerdown', () => {
+                        this.enableShakeCosmicZap();
+                        this.recordMarqueeUnlockTap();
+                    }, { passive: true });
+                }
             }
 
             recordMarqueeUnlockTap() {
@@ -3099,7 +3125,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 const recoveredLine = this.telemetry && this.telemetry.recoveredActiveRuns ? `\nRecovered Runs: ${this.telemetry.recoveredActiveRuns}` : '';
                 this.telemetrySummary.textContent = this.developerModeEnabled ?
                     `Runs: ${runs.length}\nSector Attempts: ${sectors.length}\nCompleted Sectors: ${completed}\nDeaths: ${deaths}\nGridlock Reached: ${gridlocks}\nGridlock Bonuses: ${relics}\nCosmic Zaps Used: ${zaps}\nBest Sector: ${bestSector}\nBest Score: ${bestScore}${recoveredLine}` :
-                    'Developer Mode required. Tap the marquee ten times to unlock.';
+                    'Developer Mode required. Tap the score ten times to unlock.';
             }
 
             setTelemetryStatus(message) {
@@ -3313,10 +3339,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.container.style.width = `${boardSize}px`;
                 this.container.style.height = `${boardSize}px`;
                 document.documentElement.style.setProperty('--grid-size', `${this.GRID_SIZE}px`);
-                const hudMenuButtonSize = Math.max(28, Math.min(38, Math.round(this.GRID_SIZE * 0.72)));
-                const hudMenuButtonLeft = Math.round(2 + this.GRID_SIZE / 2 - hudMenuButtonSize / 2);
-                document.documentElement.style.setProperty('--hud-menu-button-size', `${hudMenuButtonSize}px`);
-                document.documentElement.style.setProperty('--hud-menu-button-left', `${hudMenuButtonLeft}px`);
+                document.documentElement.style.setProperty('--playfield-outer-size', `${boardSize + 4}px`);
                 document.documentElement.style.setProperty('--player-size', `${this.PLAYER_SIZE}px`);
                 document.documentElement.style.setProperty('--crystal-size', `${this.CRYSTAL_SIZE}px`);
                 document.documentElement.style.setProperty('--prism-relic-size', `${this.PRISM_RELIC_SIZE}px`);
