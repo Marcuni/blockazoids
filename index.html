@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v179: Adds contextual side-menu buttons, high-score shortcut, game-over-only tips button, reference-style gear icon, aligned menu footer, and improved console button audio.
+Build v180: Adds Settings difficulty placeholder, high-score details, always-available Sector Select, faster hidden developer unlock, crystal-bullet help, cleaned Level Select, and balanced gear icon.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -1206,6 +1206,33 @@ This source code, artwork, game design, and related assets are not licensed for 
             font-size: var(--menu-body-text-size);
             line-height: 1.42;
             opacity: 0.92;
+            width: 100%;
+        }
+
+        .how-to-crystal-list {
+            margin: 0 auto;
+            padding: 0;
+            list-style: none;
+            text-align: left;
+            width: min(260px, 92%);
+        }
+
+        .how-to-crystal-list li {
+            position: relative;
+            padding-left: 24px;
+            margin: 8px 0;
+        }
+
+        .how-to-crystal-list li::before {
+            content: "";
+            position: absolute;
+            left: 2px;
+            top: 0.42em;
+            width: 10px;
+            height: 10px;
+            background: #fff;
+            box-shadow: 0 0 8px #fff;
+            transform: rotate(45deg);
         }
 
         .scoring-section-title {
@@ -1266,11 +1293,35 @@ This source code, artwork, game design, and related assets are not licensed for 
         }
 
         .high-score-panel-note {
-            margin: 0 auto;
+            margin: 0 auto 12px;
             font-size: var(--menu-body-text-size);
             line-height: 1.38;
             opacity: 0.78;
             text-align: center;
+        }
+
+        .high-score-panel-details {
+            width: min(280px, 92%);
+            margin: 0 auto;
+            font-size: clamp(12px, 3.6vw, 15px);
+            line-height: 1.45;
+            letter-spacing: 1px;
+            opacity: 0.82;
+        }
+
+        .high-score-detail-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            white-space: nowrap;
+        }
+
+        .high-score-detail-label {
+            opacity: 0.68;
+        }
+
+        .high-score-detail-value {
+            text-align: right;
         }
 
         .scoring-divider {
@@ -1320,7 +1371,7 @@ This source code, artwork, game design, and related assets are not licensed for 
         }
 
         .developer-mode-label.visible {
-            display: block;
+            display: none;
         }
 
         .telemetry-summary {
@@ -1390,8 +1441,7 @@ This source code, artwork, game design, and related assets are not licensed for 
             margin-bottom: 14px;
         }
 
-        .level-select-button,
-        #levelSelectCloseButton {
+        .level-select-button {
             padding: 8px 6px;
             font-family: 'Orbitron', 'Courier New', monospace;
             font-size: 16px;
@@ -2039,10 +2089,12 @@ This source code, artwork, game design, and related assets are not licensed for 
             <div id="howToPanel" class="menu-panel">
                 <div class="how-to-panel-title">HOW TO PLAY</div>
                 <div class="how-to-panel-body">
-                    Drag the white orb to move.<br>
-                    Collect blinking crystals.<br>
-                    Avoid moving blocks.<br>
-                    Shake to Cosmic Zap.
+                    <ul class="how-to-crystal-list">
+                        <li>Drag the white orb to move.</li>
+                        <li>Collect blinking crystals.</li>
+                        <li>Avoid moving blocks.</li>
+                        <li>Shake to Cosmic Zap.</li>
+                    </ul>
                 </div>
                 <button id="howToBackButton" class="menu-back-button">Back</button>
             </div>
@@ -2070,14 +2122,18 @@ This source code, artwork, game design, and related assets are not licensed for 
                 <div class="menu-panel-title">HIGH SCORE</div>
                 <div id="highScorePanelValue" class="high-score-panel-value">0</div>
                 <div class="high-score-panel-note">Best run saved on this device.</div>
+                <div id="highScorePanelDetails" class="high-score-panel-details">
+                    <div class="high-score-detail-row"><span class="high-score-detail-label">Highest Sector</span><span id="highScorePanelSector" class="high-score-detail-value">—</span></div>
+                    <div class="high-score-detail-row"><span class="high-score-detail-label">Game Time</span><span id="highScorePanelTime" class="high-score-detail-value">—</span></div>
+                </div>
                 <button id="highScoreBackButton" class="menu-back-button">Back</button>
             </div>
             <div id="settingsPanel" class="menu-panel">
                 <div class="menu-panel-title">SETTINGS</div>
                 <button id="soundToggleButton" class="menu-button settings-toggle">Sound: On</button>
                 <button id="musicToggleButton" class="menu-button settings-toggle">Music: On</button>
+                <button id="difficultyButton" class="menu-button settings-toggle">Difficulty</button>
                 <button id="resetHighScoreButton" class="menu-button settings-toggle">Reset High Score</button>
-                <div id="developerModeLabel" class="developer-mode-label">DEVELOPER MODE</div>
                 <button id="telemetryButton" class="menu-button settings-toggle">Telemetry</button>
                 <button id="settingsBackButton" class="menu-back-button">Back</button>
             </div>
@@ -2095,8 +2151,7 @@ This source code, artwork, game design, and related assets are not licensed for 
         <div id="levelSelectWindow">
             <div id="levelSelectTitle">SECTOR SELECT</div>
             <div id="levelSelectGrid"></div>
-            <button id="levelSelectCloseButton">Close</button>
-            <div class="buildVersionText">Build v179</div>
+            <div class="buildVersionText">Build v180</div>
             <div class="menuCopyright">© 2026 Marcus Couto</div>
         </div>
     </div>
@@ -2109,9 +2164,9 @@ This source code, artwork, game design, and related assets are not licensed for 
             </div>
             <div id="cycleStarHud" aria-label="Completed cycles"></div>
             <div id="bottomControlRow">
-                <button id="howToButton" class="bottom-control-button" type="button" aria-label="High Score"><span class="context-button-text" aria-hidden="true">★</span></button>
+                <button id="howToButton" class="bottom-control-button" type="button" aria-label="How to play"><span class="context-button-text" aria-hidden="true">?</span></button>
                 <button id="startButton" class="bottom-control-button" type="button" aria-label="Start game"><span class="play-triangle"></span></button>
-                <button id="settingsHudButton" class="bottom-control-button" type="button" aria-label="Settings"><span class="context-button-icon" aria-hidden="true"><svg viewBox="0 0 100 100" focusable="false"><path d="M58 6l5 14c2 1 4 2 6 3l14-6 10 17-11 9v7l11 9-10 17-14-6-6 3-5 14H42l-5-14-6-3-14 6L7 59l11-9v-7L7 34l10-17 14 6 6-3 5-14h16zM50 34a16 16 0 100 32 16 16 0 000-32z"/></svg></span></button>
+                <button id="settingsHudButton" class="bottom-control-button" type="button" aria-label="Settings"><span class="context-button-icon" aria-hidden="true"><svg viewBox="0 0 100 100" focusable="false"><g transform="translate(50 50)"><rect x="-8" y="-45" width="16" height="24" rx="2"/><rect x="-8" y="-45" width="16" height="24" rx="2" transform="rotate(45)"/><rect x="-8" y="-45" width="16" height="24" rx="2" transform="rotate(90)"/><rect x="-8" y="-45" width="16" height="24" rx="2" transform="rotate(135)"/><rect x="-8" y="-45" width="16" height="24" rx="2" transform="rotate(180)"/><rect x="-8" y="-45" width="16" height="24" rx="2" transform="rotate(225)"/><rect x="-8" y="-45" width="16" height="24" rx="2" transform="rotate(270)"/><rect x="-8" y="-45" width="16" height="24" rx="2" transform="rotate(315)"/><circle r="31"/><circle r="13" fill="#fff"/></g></svg></span></button>
             </div>
             <button id="devLevelSelectHudButton" class="bottom-control-button" type="button" aria-label="Sector Select"><span class="dev-level-grid-icon" aria-hidden="true"></span></button>
             <div class="hud-group" id="cycleHud"></div>
@@ -2120,7 +2175,7 @@ This source code, artwork, game design, and related assets are not licensed for 
     <div id="copyrightFooter">© 2026 Marcus Couto</div>
 
     <script>
-        const BUILD_VERSION = 'Build v179';
+        const BUILD_VERSION = 'Build v180';
         document.getElementById('buildVersion').textContent = BUILD_VERSION;
         document.querySelectorAll('.buildVersionText').forEach(el => { el.textContent = BUILD_VERSION; });
 
@@ -2196,13 +2251,17 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.settingsButton = document.getElementById('settingsButton');
                 this.levelSelectButton = document.getElementById('levelSelectButton');
                 this.devLevelSelectHudButton = document.getElementById('devLevelSelectHudButton');
-                this.levelSelectUnlocked = false;
+                this.levelSelectUnlocked = true;
                 this.marqueeUnlockTapCount = 0;
                 this.marqueeUnlockTapResetTimer = null;
+                this.marqueeUnlockFirstTapMs = 0;
+                this.marqueeUnlockLastTapMs = 0;
                 this.scoringPanel = document.getElementById('scoringPanel');
                 this.storyPanel = document.getElementById('storyPanel');
                 this.highScorePanel = document.getElementById('highScorePanel');
                 this.highScorePanelValue = document.getElementById('highScorePanelValue');
+                this.highScorePanelSector = document.getElementById('highScorePanelSector');
+                this.highScorePanelTime = document.getElementById('highScorePanelTime');
                 this.highScoreBackButton = document.getElementById('highScoreBackButton');
                 this.settingsPanel = document.getElementById('settingsPanel');
                 this.howToPanel = document.getElementById('howToPanel');
@@ -2212,6 +2271,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.settingsBackButton = document.getElementById('settingsBackButton');
                 this.soundToggleButton = document.getElementById('soundToggleButton');
                 this.musicToggleButton = document.getElementById('musicToggleButton');
+                this.difficultyButton = document.getElementById('difficultyButton');
                 this.highScoreHud = document.getElementById('highScoreHud');
                 this.resetHighScoreButton = document.getElementById('resetHighScoreButton');
                 this.developerModeLabel = document.getElementById('developerModeLabel');
@@ -2260,9 +2320,16 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.cycle = 1;                      // Arcade loop/cycle. Cycle 2 starts after clearing the campaign.
                 this.score = 0;                       // Player score
                 this.highScoreStorageKey = 'blockazoidsHighScore';
+                this.highScoreDetailsStorageKey = 'blockazoidsHighScoreDetails';
                 this.highScore = this.loadHighScore(); // High score saved on this device/browser
                 this.highScoreTarget = this.highScore; // Saved score the current run must beat for the record fanfare
                 this.highScoreBeatenThisRun = this.highScoreTarget <= 0; // Avoid a record fanfare when no real score exists yet
+                this.highScoreDetails = this.loadHighScoreDetails();
+                this.runRecordStartMs = 0;
+                this.runRecordPausedMs = 0;
+                this.runRecordPauseStartedMs = null;
+                this.runRecordHighestSector = 1;
+                this.runRecordHighestCycle = this.cycle;
                 this.cosmicZapsLeft = this.getCosmicZapsForCurrentCycle(); // Remaining Cosmic Zaps
                 this.cosmicZapPressure = 0;                // Extra danger added by Cosmic Zap use during the current level
                 this.active = false;                  // Game active state
@@ -2377,7 +2444,6 @@ This source code, artwork, game design, and related assets are not licensed for 
                     this.devLevelSelectHudButton.addEventListener('click', (e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        if (!this.levelSelectUnlocked) return;
                         this.playUiClick();
                         this.openDeveloperLevelSelectShortcut();
                     });
@@ -2497,6 +2563,14 @@ This source code, artwork, game design, and related assets are not licensed for 
                         this.toggleMusicSetting();
                     });
                 }
+                if (this.difficultyButton) {
+                    this.difficultyButton.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        this.playUiClick();
+                        this.showDifficultyPlaceholder();
+                    });
+                }
                 this.resetHighScoreButton.addEventListener('click', (e) => {
                     e.preventDefault();
                     e.stopPropagation();
@@ -2539,12 +2613,6 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.updateSoundToggleLabel();
                 this.updateMusicToggleLabel();
                 this.updateHighScoreDisplay();
-                this.levelSelectCloseButton.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    this.playUiClick();
-                    this.hideLevelSelectMenu();
-                });
                 this.buildLevelSelectButtons();
                 this.updateLevelSelectUnlockState();
                 this.updateTelemetrySummary();
@@ -2609,14 +2677,25 @@ This source code, artwork, game design, and related assets are not licensed for 
             }
 
             recordMarqueeUnlockTap() {
-                if (this.levelSelectUnlocked) return;
+                if (this.developerModeEnabled) return;
 
+                const now = performance.now();
+                const lastTap = this.marqueeUnlockLastTapMs || 0;
+                const firstTap = this.marqueeUnlockFirstTapMs || 0;
+                if (!lastTap || now - lastTap > 425 || (firstTap && now - firstTap > 3200)) {
+                    this.marqueeUnlockTapCount = 0;
+                    this.marqueeUnlockFirstTapMs = now;
+                }
+
+                this.marqueeUnlockLastTapMs = now;
                 this.marqueeUnlockTapCount++;
                 if (this.marqueeUnlockTapResetTimer) clearTimeout(this.marqueeUnlockTapResetTimer);
 
                 if (this.marqueeUnlockTapCount >= 10) {
                     this.enableDeveloperMode();
                     this.marqueeUnlockTapCount = 0;
+                    this.marqueeUnlockFirstTapMs = 0;
+                    this.marqueeUnlockLastTapMs = 0;
                     if (this.audio) {
                         this.audio.resume();
                         this.audio.playUnlockPiccoloArpeggio();
@@ -2626,15 +2705,17 @@ This source code, artwork, game design, and related assets are not licensed for 
 
                 this.marqueeUnlockTapResetTimer = setTimeout(() => {
                     this.marqueeUnlockTapCount = 0;
+                    this.marqueeUnlockFirstTapMs = 0;
+                    this.marqueeUnlockLastTapMs = 0;
                     this.marqueeUnlockTapResetTimer = null;
-                }, 2200);
+                }, 500);
             }
 
             updateLevelSelectUnlockState() {
-                if (this.levelSelectButton) this.levelSelectButton.style.display = this.levelSelectUnlocked ? '' : 'none';
+                if (this.levelSelectButton) this.levelSelectButton.style.display = '';
                 if (this.devLevelSelectHudButton) this.devLevelSelectHudButton.classList.remove('visible');
                 if (this.telemetryButton) this.telemetryButton.style.display = this.developerModeEnabled ? '' : 'none';
-                if (this.developerModeLabel) this.developerModeLabel.classList.toggle('visible', this.developerModeEnabled);
+                if (this.developerModeLabel) this.developerModeLabel.classList.remove('visible');
                 if (this.telemetryPanel && !this.developerModeEnabled) this.telemetryPanel.classList.remove('open');
                 this.updateTelemetrySummary();
                 if (this.ui && this.ui.updateHudMenuButton) this.ui.updateHudMenuButton();
@@ -3459,13 +3540,11 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.playUiClick();
 
                 if (action === 'levelSelect') {
-                    if (!this.levelSelectUnlocked) return;
                     this.openDeveloperLevelSelectShortcut();
                     return;
                 }
 
                 if (action === 'howTo') {
-                    if (!this.isGameOver) return;
                     this.openBottomHudPanel('howTo');
                     return;
                 }
@@ -3495,34 +3574,19 @@ This source code, artwork, game design, and related assets are not licensed for 
 
             getContextButtonOptions() {
                 const current = this.getCurrentMenuContext();
-                let options;
+                if (!current) return ['howTo', 'settings'];
 
-                if (this.isGameOver) {
-                    options = ['howTo', 'highScore', 'settings'];
-                    if (!current) return ['howTo', 'highScore'];
-                } else if (this.levelSelectUnlocked) {
-                    options = ['settings', 'highScore', 'levelSelect'];
-                    if (!current) return ['highScore', 'levelSelect'];
-                } else {
-                    options = ['settings', 'highScore'];
-                    if (!current) return ['highScore', 'settings'];
-                }
-
-                const available = options.filter(option => option !== current);
-                while (available.length < 2) {
-                    for (const option of options) {
-                        if (available.length >= 2) break;
-                        if (!available.includes(option)) available.push(option);
-                    }
-                    if (options.length === 0) break;
-                }
-                return available.slice(0, 2);
+                if (current === 'settings') return ['highScore', 'levelSelect'];
+                if (current === 'highScore') return ['settings', 'levelSelect'];
+                if (current === 'levelSelect') return ['settings', 'highScore'];
+                if (current === 'howTo') return ['highScore', 'settings'];
+                return ['howTo', 'settings'];
             }
 
             renderContextButton(button, action) {
                 if (!button) return;
                 const icons = {
-                    settings: '<span class="context-button-icon" aria-hidden="true"><svg viewBox="0 0 100 100" focusable="false"><path d="M58 6l5 14c2 1 4 2 6 3l14-6 10 17-11 9v7l11 9-10 17-14-6-6 3-5 14H42l-5-14-6-3-14 6L7 59l11-9v-7L7 34l10-17 14 6 6-3 5-14h16zM50 34a16 16 0 100 32 16 16 0 000-32z"/></svg></span>',
+                    settings: '<span class="context-button-icon" aria-hidden="true"><svg viewBox="0 0 100 100" focusable="false"><g transform="translate(50 50)"><rect x="-8" y="-45" width="16" height="24" rx="2"/><rect x="-8" y="-45" width="16" height="24" rx="2" transform="rotate(45)"/><rect x="-8" y="-45" width="16" height="24" rx="2" transform="rotate(90)"/><rect x="-8" y="-45" width="16" height="24" rx="2" transform="rotate(135)"/><rect x="-8" y="-45" width="16" height="24" rx="2" transform="rotate(180)"/><rect x="-8" y="-45" width="16" height="24" rx="2" transform="rotate(225)"/><rect x="-8" y="-45" width="16" height="24" rx="2" transform="rotate(270)"/><rect x="-8" y="-45" width="16" height="24" rx="2" transform="rotate(315)"/><circle r="31"/><circle r="13" fill="#fff"/></g></svg></span>',
                     highScore: '<span class="context-button-text" aria-hidden="true">★</span>',
                     levelSelect: '<span class="context-button-icon" aria-hidden="true"><svg viewBox="0 0 100 100" focusable="false"><path d="M12 12h22v22H12V12zm27 0h22v22H39V12zm27 0h22v22H66V12zM12 39h22v22H12V39zm27 0h22v22H39V39zm27 0h22v22H66V39zM12 66h22v22H12V66zm27 0h22v22H39V66zm27 0h22v22H66V66z"/></svg></span>',
                     howTo: '<span class="context-button-text" aria-hidden="true">?</span>'
@@ -3548,8 +3612,6 @@ This source code, artwork, game design, and related assets are not licensed for 
             openBottomHudPanel(panelName) {
                 if (this.cycleTransitionActive || this.showHudDuringSectorIntro || this.resumeCountdownActive) return;
                 if (this.isGameOver && !this.restartReady) return;
-                if (panelName === 'howTo' && !this.isGameOver) return;
-
                 this.enableShakeCosmicZap();
 
                 const panelMap = {
@@ -3568,6 +3630,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 }
 
                 this.menuOpenedAt = performance.now();
+                if (this.levelSelectWindow) this.levelSelectWindow.style.display = 'none';
                 this.startPauseMenuReactorHum();
                 this.showMenuPanel(panelName);
                 this.pauseWindow.style.display = 'flex';
@@ -3577,7 +3640,6 @@ This source code, artwork, game design, and related assets are not licensed for 
             }
 
             openDeveloperLevelSelectShortcut() {
-                if (!this.levelSelectUnlocked) return;
                 if (this.cycleTransitionActive || this.showHudDuringSectorIntro || this.resumeCountdownActive) return;
                 if (this.isGameOver && !this.restartReady) return;
 
@@ -3750,7 +3812,7 @@ This source code, artwork, game design, and related assets are not licensed for 
             }
 
             isMarqueeEasterEggUnlocked() {
-                return this.isAttractModeActive() && this.levelSelectUnlocked;
+                return this.isAttractModeActive() && this.developerModeEnabled;
             }
 
             resetMarqueeEasterEgg() {
@@ -4044,7 +4106,9 @@ This source code, artwork, game design, and related assets are not licensed for 
                     this.highScoreTarget = this.highScore;
                     this.highScoreBeatenThisRun = this.highScoreTarget <= 0;
                     this.relicRecoveredBySector = {};
+                    this.resetRunRecordTracking(this.level);
                 }
+                this.updateRunRecordProgress();
                 this.removePrismRelic();
                 this.colorGroupsCompletedThisSector = 0;
                 this.prismRelicSpawnedThisSector = false;
@@ -4142,6 +4206,7 @@ This source code, artwork, game design, and related assets are not licensed for 
 
                 this.ensureTelemetryRun('gameplay');
                 this.startTelemetrySector('sector-action-start');
+                this.updateRunRecordProgress();
                 this.levelActionStarted = true;
                 this.ui.updateAll();
                 this.lastFrameTime = performance.now();
@@ -4182,12 +4247,12 @@ This source code, artwork, game design, and related assets are not licensed for 
                     this.settingsBackButton,
                     this.soundToggleButton,
                     this.musicToggleButton,
+                    this.difficultyButton,
                     this.resetHighScoreButton,
                     this.telemetryButton,
                     this.exportTelemetryButton,
                     this.clearTelemetryButton,
                     this.telemetryBackButton,
-                    this.levelSelectCloseButton,
                     this.devLevelSelectHudButton,
                     this.cycleContinueButton,
                     this.howToButton,
@@ -4276,6 +4341,87 @@ This source code, artwork, game design, and related assets are not licensed for 
                 if (this.audio.isMusicMuted()) this.stopPauseMenuReactorHum();
             }
 
+            getEmptyHighScoreDetails() {
+                return {
+                    score: 0,
+                    highestSector: 0,
+                    highestSectorName: '',
+                    highestCycle: 1,
+                    gameTimeMs: 0
+                };
+            }
+
+            loadHighScoreDetails() {
+                try {
+                    const parsed = JSON.parse(localStorage.getItem(this.highScoreDetailsStorageKey) || 'null');
+                    if (!parsed || typeof parsed !== 'object') return this.getEmptyHighScoreDetails();
+                    return {
+                        score: Number.isFinite(parsed.score) ? parsed.score : this.highScore,
+                        highestSector: Number.isFinite(parsed.highestSector) ? parsed.highestSector : 0,
+                        highestSectorName: typeof parsed.highestSectorName === 'string' ? parsed.highestSectorName : '',
+                        highestCycle: Number.isFinite(parsed.highestCycle) ? parsed.highestCycle : 1,
+                        gameTimeMs: Number.isFinite(parsed.gameTimeMs) ? parsed.gameTimeMs : 0
+                    };
+                } catch (error) {
+                    return this.getEmptyHighScoreDetails();
+                }
+            }
+
+            saveHighScoreDetails() {
+                try {
+                    localStorage.setItem(this.highScoreDetailsStorageKey, JSON.stringify(this.highScoreDetails || this.getEmptyHighScoreDetails()));
+                } catch (error) {}
+            }
+
+            resetRunRecordTracking(startSector = 1) {
+                this.runRecordStartMs = performance.now();
+                this.runRecordPausedMs = 0;
+                this.runRecordPauseStartedMs = null;
+                this.runRecordHighestSector = Math.max(1, startSector || 1);
+                this.runRecordHighestCycle = this.cycle || 1;
+            }
+
+            updateRunRecordProgress() {
+                this.runRecordHighestSector = Math.max(this.runRecordHighestSector || 1, this.level || 1);
+                this.runRecordHighestCycle = Math.max(this.runRecordHighestCycle || 1, this.cycle || 1);
+            }
+
+            beginRunRecordPause() {
+                if (!this.runRecordStartMs || this.runRecordPauseStartedMs) return;
+                this.runRecordPauseStartedMs = performance.now();
+            }
+
+            endRunRecordPause() {
+                if (!this.runRecordPauseStartedMs) return;
+                this.runRecordPausedMs += Math.max(0, performance.now() - this.runRecordPauseStartedMs);
+                this.runRecordPauseStartedMs = null;
+            }
+
+            getRunRecordElapsedMs() {
+                if (!this.runRecordStartMs) return 0;
+                const openPause = this.runRecordPauseStartedMs ? Math.max(0, performance.now() - this.runRecordPauseStartedMs) : 0;
+                return Math.max(0, Math.round(performance.now() - this.runRecordStartMs - this.runRecordPausedMs - openPause));
+            }
+
+            captureCurrentHighScoreDetails() {
+                this.updateRunRecordProgress();
+                const sector = Math.max(1, this.runRecordHighestSector || this.level || 1);
+                return {
+                    score: this.highScore,
+                    highestSector: sector,
+                    highestSectorName: this.getLevelPatternName(sector),
+                    highestCycle: Math.max(1, this.runRecordHighestCycle || this.cycle || 1),
+                    gameTimeMs: this.getRunRecordElapsedMs()
+                };
+            }
+
+            saveRunRecordIfCurrentHighScore() {
+                if (this.score <= 0 || this.score !== this.highScore) return;
+                this.highScoreDetails = this.captureCurrentHighScoreDetails();
+                this.saveHighScoreDetails();
+                this.updateHighScoreDisplay();
+            }
+
             loadHighScore() {
                 try {
                     const parsed = parseInt(localStorage.getItem(this.highScoreStorageKey) || '0', 10);
@@ -4304,6 +4450,13 @@ This source code, artwork, game design, and related assets are not licensed for 
                 if (this.highScorePanelValue) {
                     this.highScorePanelValue.textContent = `${this.highScore}`;
                 }
+                const details = this.highScoreDetails || this.getEmptyHighScoreDetails();
+                if (this.highScorePanelSector) {
+                    this.highScorePanelSector.textContent = this.highScore > 0 && details.highestSector ? `${details.highestSector} — ${details.highestSectorName || this.getLevelPatternName(details.highestSector)}` : '—';
+                }
+                if (this.highScorePanelTime) {
+                    this.highScorePanelTime.textContent = this.highScore > 0 && details.gameTimeMs ? this.formatTelemetryDuration(details.gameTimeMs) : '—';
+                }
                 const scoringRecordArea = document.querySelector('.scoring-record-area');
                 if (scoringRecordArea) scoringRecordArea.style.display = this.highScore > 0 ? 'flex' : 'none';
             }
@@ -4311,7 +4464,9 @@ This source code, artwork, game design, and related assets are not licensed for 
             checkHighScore() {
                 if (this.score > this.highScore) {
                     this.highScore = this.score;
+                    this.highScoreDetails = this.captureCurrentHighScoreDetails();
                     this.saveHighScore();
+                    this.saveHighScoreDetails();
                     this.updateHighScoreDisplay();
                 }
 
@@ -4351,6 +4506,16 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.restartRun();
             }
 
+            showDifficultyPlaceholder() {
+                if (!this.difficultyButton) return;
+                this.difficultyButton.textContent = 'Difficulty: Coming Soon';
+                if (this.difficultyPlaceholderTimer) clearTimeout(this.difficultyPlaceholderTimer);
+                this.difficultyPlaceholderTimer = setTimeout(() => {
+                    if (this.difficultyButton) this.difficultyButton.textContent = 'Difficulty';
+                    this.difficultyPlaceholderTimer = null;
+                }, 1200);
+            }
+
             resetHighScoreConfirmationState() {
                 this.resetHighScorePending = false;
                 if (this.resetHighScoreConfirmTimer) {
@@ -4382,7 +4547,9 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.highScore = 0;
                 this.highScoreTarget = 0;
                 this.highScoreBeatenThisRun = true;
+                this.highScoreDetails = this.getEmptyHighScoreDetails();
                 this.saveHighScore();
+                this.saveHighScoreDetails();
                 this.updateHighScoreDisplay();
             }
 
@@ -4532,6 +4699,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 const showOverlay = !!options.showOverlay;
 
                 this.beginTelemetryPause('manual-pause');
+                this.beginRunRecordPause();
                 this.isPaused = true;
                 this.active = false;
                 this.ui.updateAll();
@@ -4609,6 +4777,7 @@ This source code, artwork, game design, and related assets are not licensed for 
 
                 this.stopPauseMenuReactorHum();
                 this.endTelemetryPause('manual-resume');
+                this.endRunRecordPause();
                 this.isPaused = false;
                 this.active = true;
                 this.ui.updateAll();
@@ -6530,6 +6699,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                     }
                 });
                 this.finishTelemetryRun('death');
+                this.saveRunRecordIfCurrentHighScore();
                 this.container.classList.remove('cycleCelebrationSequence', 'cycleRestoredIdle');
                 this.removeCycleRebootCells();
                 this.removePrismRelic();
@@ -6560,6 +6730,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                         setTimeout(() => {
                             this.instructionsWindow.style.display = 'none';
                             this.highScore = this.loadHighScore();
+                            this.highScoreDetails = this.loadHighScoreDetails();
                             this.updateHighScoreDisplay();
                             this.restartReady = true;
                             this.startAttractMode();
@@ -8807,6 +8978,9 @@ This source code, artwork, game design, and related assets are not licensed for 
                 if (this.game.scoringHighScoreLabel) this.game.scoringHighScoreLabel.textContent = 'HIGH SCORE';
                 if (this.game.scoringHighScoreValue) this.game.scoringHighScoreValue.textContent = `${this.game.highScore}`;
                 if (this.game.highScorePanelValue) this.game.highScorePanelValue.textContent = `${this.game.highScore}`;
+                const details = this.game.highScoreDetails || this.game.getEmptyHighScoreDetails();
+                if (this.game.highScorePanelSector) this.game.highScorePanelSector.textContent = this.game.highScore > 0 && details.highestSector ? `${details.highestSector} — ${details.highestSectorName || this.game.getLevelPatternName(details.highestSector)}` : '—';
+                if (this.game.highScorePanelTime) this.game.highScorePanelTime.textContent = this.game.highScore > 0 && details.gameTimeMs ? this.game.formatTelemetryDuration(details.gameTimeMs) : '—';
                 if (scoringRecordArea) scoringRecordArea.style.display = this.game.highScore > 0 ? 'flex' : 'none';
                 if (!((this.game.active && this.game.levelActionStarted) ||
                       (this.game.isPaused && this.game.levelActionStarted) ||
