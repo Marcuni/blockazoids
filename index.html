@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v186: Removes the circuit backdrop, fixes intro shake easter egg availability, restores scoring in How To Play, keeps HUD buttons solid during resume, and removes menu ambience.
+Build v187: Darkens the cabinet background, auto-triggers the intro easter egg after five seconds, removes scoring from How To Play, and keeps bottom HUD buttons visually solid while input is locked.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -16,13 +16,13 @@ This source code, artwork, game design, and related assets are not licensed for 
             width: 100%;
             height: 100%;
             overflow: hidden;
-            background: #555;
+            background: #222;
         }
 
         body {
             margin: 0;
             padding: max(6px, env(safe-area-inset-top)) 0 max(6px, env(safe-area-inset-bottom)) 0;
-            background: #555;
+            background: #222;
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -53,7 +53,7 @@ This source code, artwork, game design, and related assets are not licensed for 
 
         /* Flat cabinet background outside the playfield. */
         body::before {
-            background: #555;
+            background: #222;
             opacity: 1;
         }
 
@@ -990,7 +990,7 @@ This source code, artwork, game design, and related assets are not licensed for 
             cursor: pointer;
             opacity: 1;
             z-index: 3;
-            transition: opacity 0.12s ease-in-out, transform 0.06s ease-in-out;
+            transition: transform 0.06s ease-in-out;
             -webkit-tap-highlight-color: transparent;
             font-family: 'Orbitron', 'Courier New', monospace;
             font-weight: bold;
@@ -1003,7 +1003,7 @@ This source code, artwork, game design, and related assets are not licensed for 
         }
 
         .bottom-control-button.control-disabled {
-            opacity: 0.38;
+            opacity: 1;
             pointer-events: none;
         }
 
@@ -2310,15 +2310,6 @@ This source code, artwork, game design, and related assets are not licensed for 
                         <li>Avoid moving Block-A-Zoids.</li>
                         <li>Shake to Cosmic Zap.</li>
                     </ul>
-                    <div class="scoring-divider"></div>
-                    <div class="scoring-section-title scoring-main-title">SCORING</div>
-                    <div class="scoring-row"><span>Crystal</span><span>10</span></div>
-                    <div class="scoring-row"><span>Color Complete</span><span>100/ea</span></div>
-                    <div class="scoring-row"><span>Time Alive</span><span>1/sec</span></div>
-                    <div class="scoring-section-title">BONUS</div>
-                    <div class="scoring-row"><span>Gridlock Bonus <span class="scoring-label-note">(Relic)</span></span><span>200</span></div>
-                    <div class="scoring-row"><span>Cosmic Zaps <span class="scoring-label-note">(unused)</span></span><span>50/ea</span></div>
-                    <div class="scoring-row"><span>Perfect Sector <span class="scoring-label-note">(no Zap)</span></span><span>100</span></div>
                 </div>
                 <button id="howToBackButton" class="menu-back-button">Back</button>
             </div>
@@ -2374,7 +2365,7 @@ This source code, artwork, game design, and related assets are not licensed for 
         <div id="levelSelectWindow">
             <div id="levelSelectTitle">SECTOR SELECT</div>
             <div id="levelSelectGrid"></div>
-            <div class="buildVersionText">Build v186</div>
+            <div class="buildVersionText">Build v187</div>
             <div class="menuCopyright">© 2026 Marcus Couto</div>
         </div>
     </div>
@@ -2397,7 +2388,7 @@ This source code, artwork, game design, and related assets are not licensed for 
     <div id="copyrightFooter">© 2026 Marcus Couto</div>
 
     <script>
-        const BUILD_VERSION = 'Build v186';
+        const BUILD_VERSION = 'Build v187';
         document.getElementById('buildVersion').textContent = BUILD_VERSION;
         document.querySelectorAll('.buildVersionText').forEach(el => { el.textContent = BUILD_VERSION; });
 
@@ -2578,7 +2569,6 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.lastShakeCosmicZapTime = 0;           // Prevents one shake from firing multiple Cosmic Zaps
                 this.shakeCosmicZapCooldownMs = 1200;
                 this.shakeThreshold = 32;             // Higher = harder to trigger accidentally
-                this.splashShakeThreshold = 18;       // Easier test threshold for splash easter egg
                 this.lastMotionSample = null;
                 this.wakeLock = null;                 // Optional screen wake lock during active play
                 this.isGameOver = false;              // Game over state
@@ -2871,10 +2861,6 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.splashReturnTimer = null;
                 this.splashMidGlitchTimer = null;
                 this.splashEasterEggActive = false;
-                this.lastSplashEasterEggShakeTime = 0;
-                this.splashEasterEggShakeCooldownMs = 1500;
-                this.splashMotionPermissionPrimed = false;
-                this.splashSuppressNextClick = false;
 
                 // Initialize level parameters and start attract mode
                 this.setupMarqueePreviewCycler();
@@ -2894,38 +2880,17 @@ This source code, artwork, game design, and related assets are not licensed for 
 
                 this.splashIntroActive = true;
                 this.splashEasterEggReady = false;
-                this.splashMotionPermissionPrimed = false;
-                this.splashSuppressNextClick = false;
 
                 if (this.splashEasterEggTimer) clearTimeout(this.splashEasterEggTimer);
                 this.splashEasterEggTimer = setTimeout(() => {
                     if (!this.splashIntroActive) return;
                     this.splashEasterEggReady = true;
-                    this.enableShakeInput(false);
+                    this.triggerSplashEasterEgg();
                 }, 5000);
 
-                this.enableShakeInput(false);
-
-                const continueFromSplash = async (e) => {
+                const continueFromSplash = (e) => {
                     if (e && e.preventDefault) e.preventDefault();
                     if (e && e.stopPropagation) e.stopPropagation();
-                    if (e && e.type === 'click' && this.splashSuppressNextClick) {
-                        this.splashSuppressNextClick = false;
-                        return;
-                    }
-
-                    // After the five-second easter-egg window opens, the first tap on iOS grants motion permission
-                    // and keeps the intro visible so the shake can actually trigger before the screen dismisses.
-                    const shouldPrimeMotionOnly = this.splashEasterEggReady && !this.motionCosmicZapEnabled && !this.splashMotionPermissionPrimed;
-                    const motionReady = await this.enableShakeInput(true);
-                    if (shouldPrimeMotionOnly && motionReady) {
-                        this.splashMotionPermissionPrimed = true;
-                        this.splashSuppressNextClick = true;
-                        this.lastMotionSample = null;
-                        this.pulseSplashCrtGlitch(false);
-                        return;
-                    }
-
                     this.dismissSplashIntro();
                 };
 
@@ -2937,8 +2902,6 @@ This source code, artwork, game design, and related assets are not licensed for 
                 if (!this.splashIntroActive) return;
                 this.splashIntroActive = false;
                 this.splashEasterEggReady = false;
-                this.splashMotionPermissionPrimed = false;
-                this.splashSuppressNextClick = false;
                 if (this.splashEasterEggTimer) clearTimeout(this.splashEasterEggTimer);
                 this.splashEasterEggTimer = null;
                 this.resetSplashEasterEgg();
@@ -6589,14 +6552,7 @@ This source code, artwork, game design, and related assets are not licensed for 
 
                 const now = performance.now();
 
-                if (this.splashIntroActive) {
-                    if (delta < this.splashShakeThreshold) return;
-                    if (this.splashEasterEggReady && now - this.lastSplashEasterEggShakeTime >= this.splashEasterEggShakeCooldownMs) {
-                        this.lastSplashEasterEggShakeTime = now;
-                        this.triggerSplashEasterEgg();
-                    }
-                    return;
-                }
+                if (this.splashIntroActive) return;
 
                 if (delta < this.shakeThreshold) return;
 
