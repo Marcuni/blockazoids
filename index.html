@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v181: Adds attract-mode safety reset, pulsing Orb, subtle attract ambience, cleaner High Score/How To panels, and white cycle star HUD alignment.
+Build v182: Adds splash intro, moves computer ambience to pause/menu mode, and adds splash tap/shake energy.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -2063,6 +2063,138 @@ This source code, artwork, game design, and related assets are not licensed for 
         }
 
 
+        /* Full-screen launch splash: no tap instructions, just the cabinet waking up. */
+        #splashScreen {
+            position: fixed;
+            inset: 0;
+            z-index: 20000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            background: #000;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+            cursor: pointer;
+            opacity: 1;
+            transition: opacity 0.34s ease-in-out, visibility 0.34s ease-in-out;
+        }
+
+        #splashScreen.hidden {
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+        }
+
+        #splashScreen::before {
+            content: "";
+            position: absolute;
+            inset: -8%;
+            background-image:
+                linear-gradient(rgba(255, 255, 255, 0.34) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255, 255, 255, 0.34) 1px, transparent 1px);
+            background-size: clamp(42px, 10vw, 72px) clamp(42px, 10vw, 72px);
+            background-position: center;
+            opacity: 0.42;
+            animation: splashGridBreathe 4.8s ease-in-out infinite;
+        }
+
+        #splashScreen::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background:
+                radial-gradient(circle at center, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0.05) 28%, rgba(0,0,0,0) 68%),
+                linear-gradient(90deg, rgba(255,0,0,0.12), rgba(0,255,0,0.05) 48%, rgba(0,70,255,0.12));
+            opacity: 0.45;
+            mix-blend-mode: screen;
+            pointer-events: none;
+            animation: splashRgbEnergy 5.6s ease-in-out infinite;
+        }
+
+        #splashMarqueeImage {
+            position: relative;
+            z-index: 2;
+            width: min(92vw, 720px);
+            max-height: 56vh;
+            object-fit: contain;
+            filter: drop-shadow(0 0 18px rgba(255,255,255,0.58)) drop-shadow(0 0 42px rgba(255,255,255,0.26));
+            animation: splashMarqueePower 3.6s ease-in-out infinite;
+            user-select: none;
+            -webkit-user-drag: none;
+        }
+
+        #splashCopyright {
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: max(16px, env(safe-area-inset-bottom));
+            z-index: 3;
+            color: rgba(255,255,255,0.62);
+            font-family: 'Orbitron', 'Courier New', monospace;
+            font-size: clamp(10px, 2.8vw, 12px);
+            line-height: 1;
+            letter-spacing: 1px;
+            text-align: center;
+            pointer-events: none;
+            text-shadow: none;
+        }
+
+        #splashScreen.splash-shake-egg::before {
+            animation: splashGridBreathe 4.8s ease-in-out infinite, splashGridSurge 0.62s steps(3, end) 1;
+        }
+
+        #splashScreen.splash-shake-egg::after {
+            animation: splashRgbEnergy 5.6s ease-in-out infinite, splashRgbSurge 0.62s steps(3, end) 1;
+        }
+
+        #splashScreen.splash-shake-egg #splashMarqueeImage {
+            animation: splashMarqueePower 3.6s ease-in-out infinite, splashMarqueeGlitch 0.62s steps(2, end) 1;
+        }
+
+        @keyframes splashGridBreathe {
+            0% { opacity: 0.28; transform: scale(1); }
+            50% { opacity: 0.54; transform: scale(1.012); }
+            100% { opacity: 0.28; transform: scale(1); }
+        }
+
+        @keyframes splashRgbEnergy {
+            0% { opacity: 0.30; transform: translateX(-4px); filter: hue-rotate(0deg); }
+            50% { opacity: 0.55; transform: translateX(4px); filter: hue-rotate(8deg); }
+            100% { opacity: 0.30; transform: translateX(-4px); filter: hue-rotate(0deg); }
+        }
+
+        @keyframes splashMarqueePower {
+            0% { opacity: 0.90; transform: scale(0.996); }
+            50% { opacity: 1; transform: scale(1.006); }
+            100% { opacity: 0.90; transform: scale(0.996); }
+        }
+
+        @keyframes splashGridSurge {
+            0% { opacity: 0.30; transform: translate(0, 0) scale(1); }
+            24% { opacity: 0.88; transform: translate(-5px, 3px) scale(1.018); }
+            46% { opacity: 0.34; transform: translate(4px, -2px) scale(1.006); }
+            70% { opacity: 0.82; transform: translate(-2px, 1px) scale(1.02); }
+            100% { opacity: 0.42; transform: translate(0, 0) scale(1); }
+        }
+
+        @keyframes splashRgbSurge {
+            0% { opacity: 0.32; transform: translateX(0); }
+            22% { opacity: 0.92; transform: translateX(14px); }
+            44% { opacity: 0.30; transform: translateX(-8px); }
+            70% { opacity: 0.78; transform: translateX(7px); }
+            100% { opacity: 0.45; transform: translateX(0); }
+        }
+
+        @keyframes splashMarqueeGlitch {
+            0% { transform: scale(1.006) translateX(0); filter: drop-shadow(0 0 18px rgba(255,255,255,0.58)); }
+            18% { transform: scale(1.018) translateX(-7px) skewX(-1deg); filter: contrast(1.8) brightness(1.32) hue-rotate(-12deg); }
+            36% { transform: scale(1.004) translateX(5px); filter: contrast(0.92) brightness(0.82) hue-rotate(18deg); }
+            58% { transform: scale(1.012) translateX(-3px); filter: contrast(1.7) brightness(1.25); }
+            100% { transform: scale(1.006) translateX(0); filter: drop-shadow(0 0 18px rgba(255,255,255,0.58)) drop-shadow(0 0 42px rgba(255,255,255,0.26)); }
+        }
+
+
         /* Global CSS variables for RGB colors */
         :root {
             --red-color: #F00;
@@ -2075,6 +2207,10 @@ This source code, artwork, game design, and related assets are not licensed for 
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700&display=swap" rel="stylesheet">
 </head>
 <body>
+    <div id="splashScreen" aria-label="Block-A-Zoids intro">
+        <img id="splashMarqueeImage" src="marquee-top.png" alt="" draggable="false">
+        <div id="splashCopyright">© 2026 Marcus Couto</div>
+    </div>
     <!-- Score display -->
     <div id="scoreHud">
         <div id="score">0</div>
@@ -2171,7 +2307,7 @@ This source code, artwork, game design, and related assets are not licensed for 
         <div id="levelSelectWindow">
             <div id="levelSelectTitle">SECTOR SELECT</div>
             <div id="levelSelectGrid"></div>
-            <div class="buildVersionText">Build v181</div>
+            <div class="buildVersionText">Build v182</div>
             <div class="menuCopyright">© 2026 Marcus Couto</div>
         </div>
     </div>
@@ -2194,7 +2330,7 @@ This source code, artwork, game design, and related assets are not licensed for 
     <div id="copyrightFooter">© 2026 Marcus Couto</div>
 
     <script>
-        const BUILD_VERSION = 'Build v181';
+        const BUILD_VERSION = 'Build v182';
         document.getElementById('buildVersion').textContent = BUILD_VERSION;
         document.querySelectorAll('.buildVersionText').forEach(el => { el.textContent = BUILD_VERSION; });
 
@@ -2245,6 +2381,8 @@ This source code, artwork, game design, and related assets are not licensed for 
 
                 // DOM element references
                 this.container = document.getElementById('gameContainer');
+                this.splashScreen = document.getElementById('splashScreen');
+                this.splashMarqueeImage = document.getElementById('splashMarqueeImage');
                 this.marqueeElement = document.getElementById('marquee');
                 this.marqueeImageElement = document.getElementById('marqueeImage');
                 this.marqueePreviewLabel = document.getElementById('marqueePreviewLabel');
@@ -2657,14 +2795,77 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.marqueeEasterEggUnlockDelayMs = 20000;
                 this.attractModeStartedAt = 0;
                 this.marqueePreviewLabelTimer = null;
+                this.splashIntroActive = !!this.splashScreen;
+                this.splashEasterEggReady = false;
+                this.splashEasterEggTimer = null;
+                this.lastSplashEasterEggShakeTime = 0;
+                this.splashEasterEggShakeCooldownMs = 1500;
 
                 // Initialize level parameters and start attract mode
                 this.setupMarqueePreviewCycler();
+                this.setupSplashIntro();
                 this.applyLevelParameters();
                 this.resetPrismRelicTiming();
                 this.updateHighScoreDisplay();
                 this.startAttractMode();
                 this.refreshGameOverlay();
+            }
+
+            setupSplashIntro() {
+                if (!this.splashScreen) {
+                    this.splashIntroActive = false;
+                    return;
+                }
+
+                this.splashIntroActive = true;
+                this.splashEasterEggReady = false;
+
+                if (this.splashEasterEggTimer) clearTimeout(this.splashEasterEggTimer);
+                this.splashEasterEggTimer = setTimeout(() => {
+                    if (!this.splashIntroActive) return;
+                    this.splashEasterEggReady = true;
+                    this.enableShakeInput(false);
+                }, 10000);
+
+                this.enableShakeInput(false);
+
+                const continueFromSplash = (e) => {
+                    if (e && e.preventDefault) e.preventDefault();
+                    if (e && e.stopPropagation) e.stopPropagation();
+                    this.dismissSplashIntro();
+                };
+
+                this.splashScreen.addEventListener('pointerup', continueFromSplash, { passive: false });
+                this.splashScreen.addEventListener('click', continueFromSplash, { passive: false });
+            }
+
+            dismissSplashIntro() {
+                if (!this.splashIntroActive) return;
+                this.splashIntroActive = false;
+                this.splashEasterEggReady = false;
+                if (this.splashEasterEggTimer) clearTimeout(this.splashEasterEggTimer);
+                this.splashEasterEggTimer = null;
+
+                if (this.audio && typeof this.audio.playSplashWake === 'function') this.audio.playSplashWake();
+                this.enableShakeCosmicZap();
+
+                if (this.splashScreen) {
+                    this.splashScreen.classList.add('hidden');
+                    setTimeout(() => {
+                        if (this.splashScreen) this.splashScreen.style.display = 'none';
+                    }, 420);
+                }
+            }
+
+            triggerSplashEasterEgg() {
+                if (!this.splashIntroActive || !this.splashEasterEggReady || !this.splashScreen) return;
+                if (this.audio && typeof this.audio.playMarqueeGlitchZap === 'function') this.audio.playMarqueeGlitchZap();
+                this.splashScreen.classList.remove('splash-shake-egg');
+                void this.splashScreen.offsetWidth;
+                this.splashScreen.classList.add('splash-shake-egg');
+                setTimeout(() => {
+                    if (this.splashScreen) this.splashScreen.classList.remove('splash-shake-egg');
+                }, 760);
             }
 
             // Hidden developer unlock target. In compact mobile layouts, any tap outside the playfield can count.
@@ -3528,10 +3729,12 @@ This source code, artwork, game design, and related assets are not licensed for 
 
             startPauseMenuReactorHum() {
                 if (this.audio && typeof this.audio.startPauseMenuReactorHum === 'function') this.audio.startPauseMenuReactorHum();
+                if (this.audio && typeof this.audio.startAttractComputerAmbience === 'function') this.audio.startAttractComputerAmbience();
             }
 
             stopPauseMenuReactorHum() {
                 if (this.audio && typeof this.audio.stopPauseMenuReactorHum === 'function') this.audio.stopPauseMenuReactorHum();
+                if (this.audio && typeof this.audio.stopAttractComputerAmbience === 'function') this.audio.stopAttractComputerAmbience();
             }
 
             startAttractComputerAmbience() {
@@ -3543,11 +3746,8 @@ This source code, artwork, game design, and related assets are not licensed for 
             }
 
             syncAttractModeAudio() {
-                if (this.isAttractModeActive()) {
-                    this.startAttractComputerAmbience();
-                } else {
-                    this.stopAttractComputerAmbience();
-                }
+                // Browser audio is now focused on player-opened pause/menu panels, not fresh attract mode.
+                this.stopAttractComputerAmbience();
             }
 
             closeBottomPanelOverlay() {
@@ -6292,6 +6492,14 @@ This source code, artwork, game design, and related assets are not licensed for 
 
                 const now = performance.now();
 
+                if (this.splashIntroActive) {
+                    if (this.splashEasterEggReady && now - this.lastSplashEasterEggShakeTime >= this.splashEasterEggShakeCooldownMs) {
+                        this.lastSplashEasterEggShakeTime = now;
+                        this.triggerSplashEasterEgg();
+                    }
+                    return;
+                }
+
                 if (this.isAttractModeActive()) {
                     if (this.isMarqueeEasterEggUnlocked() && now - this.lastMarqueeEasterEggShakeTime >= this.marqueeEasterEggShakeCooldownMs) {
                         this.lastMarqueeEasterEggShakeTime = now;
@@ -7206,7 +7414,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.pauseMenuReactorOscillators = []; // Soft console-reactor ambience while paused or in menus
                 this.pauseMenuReactorGain = null;
                 this.pauseMenuReactorPlaying = false;
-                this.attractComputerAmbienceTimers = []; // Sparse random computer ticks while the idle attract screen is visible
+                this.attractComputerAmbienceTimers = []; // Sparse random computer ticks while pause/menu panels are visible
                 this.attractComputerAmbiencePlaying = false;
                 this.vintageMonitorHumOscillators = [];
                 this.vintageMonitorHumGain = null;
@@ -8310,6 +8518,48 @@ This source code, artwork, game design, and related assets are not licensed for 
             }
 
             // Short spaceship-console button press: firm mechanical thunk, quick electronic chirp, and tight contact snap.
+            playSplashWake() {
+                this.ensureAudio();
+                if (!this.ctx || this.muted) return;
+                const now = this.ctx.currentTime;
+                const mix = this.ctx.createGain();
+                mix.gain.setValueAtTime(0.001, now);
+                mix.gain.linearRampToValueAtTime(0.105, now + 0.012);
+                mix.gain.exponentialRampToValueAtTime(0.001, now + 0.32);
+                this.connectOutput(mix);
+
+                const low = this.ctx.createOscillator();
+                const lowGain = this.ctx.createGain();
+                low.type = 'triangle';
+                low.frequency.setValueAtTime(72, now);
+                low.frequency.exponentialRampToValueAtTime(148, now + 0.16);
+                lowGain.gain.setValueAtTime(0.38, now);
+                lowGain.gain.exponentialRampToValueAtTime(0.001, now + 0.30);
+                low.connect(lowGain);
+                lowGain.connect(mix);
+
+                const bright = this.ctx.createOscillator();
+                const brightGain = this.ctx.createGain();
+                const brightFilter = this.ctx.createBiquadFilter();
+                bright.type = 'square';
+                bright.frequency.setValueAtTime(520, now + 0.028);
+                bright.frequency.exponentialRampToValueAtTime(1760, now + 0.16);
+                brightFilter.type = 'bandpass';
+                brightFilter.frequency.setValueAtTime(1380, now);
+                brightFilter.Q.setValueAtTime(4.4, now);
+                brightGain.gain.setValueAtTime(0.001, now + 0.026);
+                brightGain.gain.linearRampToValueAtTime(0.12, now + 0.052);
+                brightGain.gain.exponentialRampToValueAtTime(0.001, now + 0.21);
+                bright.connect(brightFilter);
+                brightFilter.connect(brightGain);
+                brightGain.connect(mix);
+
+                low.start(now);
+                bright.start(now + 0.026);
+                low.stop(now + 0.34);
+                bright.stop(now + 0.24);
+            }
+
             playUiClick() {
                 this.ensureAudio();
                 const now = this.ctx.currentTime;
