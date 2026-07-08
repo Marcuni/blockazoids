@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v177: Sets the outer background gray, simplifies the settings icon, and prevents menu panel buttons from closing their own panel.
+Build v178: Adds dev level-select shortcut, restores font gear icon, aligns menu footer text, and adds game-over tips attention cue.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -1000,43 +1000,13 @@ This source code, artwork, game design, and related assets are not licensed for 
 
         #settingsHudButton .gear-symbol {
             display: block;
-            position: relative;
-            width: calc(var(--grid-size, 60px) * 0.48);
-            height: calc(var(--grid-size, 60px) * 0.48);
-            box-sizing: border-box;
-            border: calc(var(--grid-size, 60px) * 0.07) solid #000;
-            border-radius: 50%;
             color: #000;
-            background: transparent;
+            font-family: 'Orbitron', 'Courier New', monospace;
+            font-size: calc(var(--grid-size, 60px) * 0.72);
+            font-weight: bold;
             line-height: 1;
-            transform: none;
+            transform: translateY(-1px);
             pointer-events: none;
-        }
-
-        #settingsHudButton .gear-symbol::before,
-        #settingsHudButton .gear-symbol::after {
-            content: "";
-            position: absolute;
-            background: #000;
-            border-radius: 1px;
-        }
-
-        #settingsHudButton .gear-symbol::before {
-            left: 50%;
-            top: calc(var(--grid-size, 60px) * -0.22);
-            width: calc(var(--grid-size, 60px) * 0.09);
-            height: calc(var(--grid-size, 60px) * 0.20);
-            transform: translateX(-50%);
-            box-shadow: 0 calc(var(--grid-size, 60px) * 0.70) 0 #000;
-        }
-
-        #settingsHudButton .gear-symbol::after {
-            top: 50%;
-            left: calc(var(--grid-size, 60px) * -0.22);
-            width: calc(var(--grid-size, 60px) * 0.20);
-            height: calc(var(--grid-size, 60px) * 0.09);
-            transform: translateY(-50%);
-            box-shadow: calc(var(--grid-size, 60px) * 0.70) 0 0 #000;
         }
 
         #startButton .play-triangle {
@@ -1135,6 +1105,7 @@ This source code, artwork, game design, and related assets are not licensed for 
         .menu-back-button:focus,
         .level-select-button:focus,
         #levelSelectCloseButton:focus,
+        #devLevelSelectHudButton:focus,
         #optionsButton:focus,
         #telemetryButton:focus,
         #exportTelemetryButton:focus,
@@ -1155,12 +1126,14 @@ This source code, artwork, game design, and related assets are not licensed for 
         .menu-back-button:focus-visible,
         .level-select-button:focus-visible,
         #levelSelectCloseButton:focus-visible,
+        #devLevelSelectHudButton:focus-visible,
         #optionsButton:focus-visible,
         #telemetryButton:focus-visible,
         #exportTelemetryButton:focus-visible,
         #clearTelemetryButton:focus-visible,
         #telemetryBackButton:focus-visible,
-        #hudMenuButton:focus-visible {
+        #hudMenuButton:focus-visible,
+        #devLevelSelectHudButton:focus-visible {
             outline: 2px solid rgba(255, 255, 255, 0.65);
             outline-offset: 3px;
         }
@@ -1506,7 +1479,8 @@ This source code, artwork, game design, and related assets are not licensed for 
         #exportTelemetryButton:focus-visible,
         #clearTelemetryButton:focus-visible,
         #telemetryBackButton:focus-visible,
-        #hudMenuButton:focus-visible {
+        #hudMenuButton:focus-visible,
+        #devLevelSelectHudButton:focus-visible {
             outline: 2px solid rgba(255, 255, 255, 0.65);
             outline-offset: 3px;
         }
@@ -1629,6 +1603,47 @@ This source code, artwork, game design, and related assets are not licensed for 
         #bottomControlRow::after {
             display: none;
             content: none;
+        }
+
+        #devLevelSelectHudButton {
+            position: absolute;
+            right: 0;
+            top: 0;
+            width: calc(var(--grid-size, 60px) * 0.72);
+            height: calc(var(--grid-size, 60px) * 0.72);
+            min-width: calc(var(--grid-size, 60px) * 0.72);
+            min-height: calc(var(--grid-size, 60px) * 0.72);
+            opacity: 0;
+            pointer-events: none;
+            display: flex;
+            z-index: 4;
+        }
+
+        #devLevelSelectHudButton.visible {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .dev-level-grid-icon {
+            width: 54%;
+            height: 54%;
+            box-sizing: border-box;
+            border: 2px solid #000;
+            background:
+                linear-gradient(90deg, transparent 30%, #000 30%, #000 36%, transparent 36%, transparent 64%, #000 64%, #000 70%, transparent 70%),
+                linear-gradient(0deg, transparent 30%, #000 30%, #000 36%, transparent 36%, transparent 64%, #000 64%, #000 70%, transparent 70%);
+            pointer-events: none;
+        }
+
+        #howToButton.game-over-tip-pulse {
+            animation: howToGameOverTipPulse 0.68s ease-in-out 2;
+        }
+
+        @keyframes howToGameOverTipPulse {
+            0% { transform: scale(1); }
+            28% { transform: scale(1.08) rotate(-3deg); box-shadow: 0 0 10px #fff, 0 0 22px rgba(255,255,255,0.82); }
+            56% { transform: scale(0.98) rotate(3deg); }
+            100% { transform: scale(1); box-shadow: none; }
         }
 
         .hud-group {
@@ -1903,18 +1918,20 @@ This source code, artwork, game design, and related assets are not licensed for 
 
         #buildVersion {
             position: absolute;
-            right: clamp(8px, 2.4vw, 16px);
-            bottom: clamp(8px, 2.4vw, 16px);
+            left: clamp(18px, 5vw, 34px);
+            bottom: calc(clamp(18px, 5vw, 32px) + 15px);
             transform: none;
-            color: #fff;
+            color: #8a8a8a;
             font-family: 'Orbitron', 'Courier New', monospace;
-            font-size: 9px;
-            letter-spacing: 0.7px;
-            opacity: 0.52;
+            font-size: clamp(10px, 2.8vw, 12px);
+            line-height: 1;
+            letter-spacing: 1px;
+            opacity: 0.70;
             text-shadow: none;
             pointer-events: none;
             white-space: nowrap;
-            text-align: right;
+            text-align: left;
+            z-index: 1007;
         }
 
         #copyrightFooter {
@@ -2050,15 +2067,16 @@ This source code, artwork, game design, and related assets are not licensed for 
             <div id="bottomControlRow">
                 <button id="howToButton" class="bottom-control-button" type="button" aria-label="How to play">?</button>
                 <button id="startButton" class="bottom-control-button" type="button" aria-label="Start game"><span class="play-triangle"></span></button>
-                <button id="settingsHudButton" class="bottom-control-button" type="button" aria-label="Settings"><span class="gear-symbol" aria-hidden="true"></span></button>
+                <button id="settingsHudButton" class="bottom-control-button" type="button" aria-label="Settings"><span class="gear-symbol" aria-hidden="true">⚙</span></button>
             </div>
+            <button id="devLevelSelectHudButton" class="bottom-control-button" type="button" aria-label="Sector Select"><span class="dev-level-grid-icon" aria-hidden="true"></span></button>
             <div class="hud-group" id="cycleHud"></div>
         </div>
     </div>
     <div id="copyrightFooter">© 2026 Marcus Couto</div>
 
     <script>
-        const BUILD_VERSION = 'Build v177';
+        const BUILD_VERSION = 'Build v178';
         document.getElementById('buildVersion').textContent = BUILD_VERSION;
 
         let lastGlobalTouchEndTime = 0;
@@ -2132,6 +2150,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.storyButton = document.getElementById('storyButton');
                 this.settingsButton = document.getElementById('settingsButton');
                 this.levelSelectButton = document.getElementById('levelSelectButton');
+                this.devLevelSelectHudButton = document.getElementById('devLevelSelectHudButton');
                 this.levelSelectUnlocked = false;
                 this.marqueeUnlockTapCount = 0;
                 this.marqueeUnlockTapResetTimer = null;
@@ -2306,6 +2325,15 @@ This source code, artwork, game design, and related assets are not licensed for 
                         e.stopPropagation();
                         this.playUiClick();
                         this.openBottomHudPanel('settings');
+                    });
+                }
+                if (this.devLevelSelectHudButton) {
+                    this.devLevelSelectHudButton.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (!this.levelSelectUnlocked) return;
+                        this.playUiClick();
+                        this.openDeveloperLevelSelectShortcut();
                     });
                 }
                 if (this.optionsButton) {
@@ -2536,6 +2564,7 @@ This source code, artwork, game design, and related assets are not licensed for 
 
             updateLevelSelectUnlockState() {
                 if (this.levelSelectButton) this.levelSelectButton.style.display = this.levelSelectUnlocked ? '' : 'none';
+                if (this.devLevelSelectHudButton) this.devLevelSelectHudButton.classList.toggle('visible', this.levelSelectUnlocked);
                 if (this.telemetryButton) this.telemetryButton.style.display = this.developerModeEnabled ? '' : 'none';
                 if (this.developerModeLabel) this.developerModeLabel.classList.toggle('visible', this.developerModeEnabled);
                 if (this.telemetryPanel && !this.developerModeEnabled) this.telemetryPanel.classList.remove('open');
@@ -3378,6 +3407,39 @@ This source code, artwork, game design, and related assets are not licensed for 
                 requestAnimationFrame(() => this.clearMenuButtonFocus());
             }
 
+            openDeveloperLevelSelectShortcut() {
+                if (!this.levelSelectUnlocked) return;
+                if (this.cycleTransitionActive || this.showHudDuringSectorIntro || this.resumeCountdownActive) return;
+                if (this.isGameOver && !this.restartReady) return;
+
+                this.enableShakeCosmicZap();
+
+                if (this.active && this.levelActionStarted && !this.isPaused && !this.isGameOver) {
+                    this.pauseGame({ showOverlay: false });
+                }
+
+                this.menuOpenedAt = performance.now();
+                if (this.pauseWindow) this.pauseWindow.style.display = 'none';
+                if (this.menuButtons) this.menuButtons.style.display = 'none';
+                if (this.howToPanel) this.howToPanel.classList.remove('open');
+                if (this.scoringPanel) this.scoringPanel.classList.remove('open');
+                if (this.storyPanel) this.storyPanel.classList.remove('open');
+                if (this.settingsPanel) this.settingsPanel.classList.remove('open');
+                if (this.telemetryPanel) this.telemetryPanel.classList.remove('open');
+                this.showLevelSelectMenu();
+                requestAnimationFrame(() => this.clearMenuButtonFocus());
+            }
+
+            pulseHowToButtonForGameOver() {
+                if (!this.howToButton) return;
+                this.howToButton.classList.remove('game-over-tip-pulse');
+                void this.howToButton.offsetWidth;
+                this.howToButton.classList.add('game-over-tip-pulse');
+                setTimeout(() => {
+                    if (this.howToButton) this.howToButton.classList.remove('game-over-tip-pulse');
+                }, 1450);
+            }
+
             updateTelemetrySummary() {
                 if (!this.telemetryButton && !this.telemetrySummary) return;
                 if (this.telemetryButton) this.telemetryButton.style.display = this.developerModeEnabled ? '' : 'none';
@@ -3953,6 +4015,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                     this.clearTelemetryButton,
                     this.telemetryBackButton,
                     this.levelSelectCloseButton,
+                    this.devLevelSelectHudButton,
                     this.cycleContinueButton,
                     this.howToButton,
                     this.settingsHudButton,
@@ -6314,6 +6377,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                             this.restartReady = true;
                             this.startAttractMode();
                             this.ui.updateAll();
+                            this.pulseHowToButtonForGameOver();
                             this.refreshGameOverlay(); // Restart attract mode
                         }, 500);
                     }, 2000);
@@ -8584,7 +8648,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 if (menuButton) menuButton.classList.remove('visible');
 
                 const temporarilyBlocked = this.game.cycleTransitionActive || this.game.showHudDuringSectorIntro || this.game.resumeCountdownActive || (this.game.isGameOver && !this.game.restartReady);
-                [this.game.howToButton, this.game.settingsHudButton].forEach(button => {
+                [this.game.howToButton, this.game.settingsHudButton, this.game.devLevelSelectHudButton].forEach(button => {
                     if (button) button.classList.toggle('control-disabled', !!temporarilyBlocked);
                 });
             }
