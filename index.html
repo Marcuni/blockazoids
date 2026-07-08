@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v173: Fixes the bottom play/pause control, centers it in the lower phone space, and limits level progress circles to ten grid-aligned positions.
+Build v174: Moves playfield menu actions to the bottom control row, adds How-to and Settings buttons, soft UI clicks, and subtle gray playfield framing.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -48,8 +48,11 @@ This source code, artwork, game design, and related assets are not licensed for 
             background: #000;
             position: relative;
             overflow: hidden;
-            border: 2px solid #fff;
-            box-shadow: 0 0 calc(var(--default-glow) * 1px) #fff;
+            border: 2px solid #d0d0d0;
+            box-shadow:
+                0 0 0 3px #242424,
+                0 0 0 5px #8a8a8a,
+                0 0 calc(var(--default-glow) * 0.65px) rgba(210, 210, 210, 0.78);
             margin-left: 0;
             margin-right: 0;
             --default-glow: 10;
@@ -940,13 +943,8 @@ This source code, artwork, game design, and related assets are not licensed for 
             text-shadow: none;
         }
 
-        /* Bottom HUD play/pause control */
-        #startButton {
-            width: calc(var(--grid-size, 60px) * 2);
-            height: calc(var(--grid-size, 60px) * 2);
-            min-width: calc(var(--grid-size, 60px) * 2);
-            min-height: calc(var(--grid-size, 60px) * 2);
-            margin-top: clamp(3px, 0.9vw, 5px);
+        /* Bottom HUD control buttons */
+        .bottom-control-button {
             padding: 0;
             box-sizing: border-box;
             display: inline-flex;
@@ -958,13 +956,61 @@ This source code, artwork, game design, and related assets are not licensed for 
             box-shadow: 0 0 calc(var(--default-glow) * 0.85px) #fff;
             cursor: pointer;
             opacity: 1;
-            position: absolute;
-            left: 50%;
-            top: 50%;
-            transform: translate(-50%, -50%);
             z-index: 3;
-            transition: opacity 0.18s ease-in-out;
+            transition: opacity 0.12s ease-in-out, transform 0.08s ease-in-out;
             -webkit-tap-highlight-color: transparent;
+            font-family: 'Orbitron', 'Courier New', monospace;
+            font-weight: bold;
+            line-height: 1;
+        }
+
+        .bottom-control-button:active {
+            transform: scale(0.96);
+        }
+
+        .bottom-control-button.control-disabled {
+            opacity: 0.38;
+            pointer-events: none;
+        }
+
+        .bottom-control-button:focus {
+            outline: none;
+            background: #fff;
+            color: #000;
+        }
+
+        .bottom-control-button:focus-visible {
+            outline: 2px solid rgba(255, 255, 255, 0.65);
+            outline-offset: 3px;
+        }
+
+        #startButton {
+            width: calc(var(--grid-size, 60px) * 2);
+            height: calc(var(--grid-size, 60px) * 2);
+            min-width: calc(var(--grid-size, 60px) * 2);
+            min-height: calc(var(--grid-size, 60px) * 2);
+        }
+
+        #howToButton,
+        #settingsHudButton {
+            width: calc(var(--grid-size, 60px) * 1.33);
+            height: calc(var(--grid-size, 60px) * 1.33);
+            min-width: calc(var(--grid-size, 60px) * 1.33);
+            min-height: calc(var(--grid-size, 60px) * 1.33);
+            font-size: calc(var(--grid-size, 60px) * 0.68);
+        }
+
+        #settingsHudButton {
+            flex-direction: column;
+            gap: calc(var(--grid-size, 60px) * 0.105);
+        }
+
+        #settingsHudButton .hud-menu-line {
+            display: block;
+            width: 46%;
+            height: max(2px, calc(var(--grid-size, 60px) * 0.045));
+            background: #000;
+            pointer-events: none;
         }
 
         #startButton .play-triangle {
@@ -989,22 +1035,6 @@ This source code, artwork, game design, and related assets are not licensed for 
             background: #000;
         }
 
-        #startButton.control-disabled {
-            opacity: 0.38;
-            pointer-events: none;
-        }
-
-        #startButton:focus {
-            outline: none;
-            background: #fff;
-            color: #000;
-        }
-
-        #startButton:focus-visible {
-            outline: 2px solid rgba(255, 255, 255, 0.65);
-            outline-offset: 3px;
-        }
-
 
         /* Full playfield pause/menu overlay */
         #pauseWindow {
@@ -1026,6 +1056,7 @@ This source code, artwork, game design, and related assets are not licensed for 
         }
 
         #menuButtons {
+            display: none !important;
             position: absolute;
             top: 50%;
             left: 50%;
@@ -1139,6 +1170,24 @@ This source code, artwork, game design, and related assets are not licensed for 
             font-size: clamp(15px, 4.4vw, 20px);
             margin-bottom: 8px;
             letter-spacing: 2px;
+        }
+
+        #howToPanel {
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            gap: 14px;
+        }
+
+        .how-to-panel-title {
+            font-size: clamp(18px, 5vw, 26px);
+            letter-spacing: 2px;
+        }
+
+        .how-to-panel-body {
+            font-size: var(--menu-body-text-size);
+            line-height: 1.42;
+            opacity: 0.92;
         }
 
         .scoring-section-title {
@@ -1361,7 +1410,7 @@ This source code, artwork, game design, and related assets are not licensed for 
             justify-content: center;
             align-items: center;
             padding: 0 clamp(14px, 4vw, 30px);
-            margin: calc(var(--grid-size, 60px) * 0.92) 0 clamp(4px, 1vw, 6px);
+            margin: calc(var(--grid-size, 60px) * 0.95) 0 clamp(6px, 1.35vw, 8px);
             color: #fff;
             font-family: 'Orbitron', 'Courier New', monospace;
             letter-spacing: 3px;
@@ -1407,8 +1456,8 @@ This source code, artwork, game design, and related assets are not licensed for 
         }
 
         #hudMenuButton.visible {
-            opacity: 1;
-            pointer-events: auto;
+            opacity: 0;
+            pointer-events: none;
         }
 
         #telemetryButton:focus,
@@ -1529,6 +1578,18 @@ This source code, artwork, game design, and related assets are not licensed for 
             min-height: 100%;
             box-sizing: border-box;
             padding-top: 0;
+        }
+
+        #bottomControlRow {
+            position: absolute;
+            left: 50%;
+            top: 55%;
+            transform: translate(-50%, -50%);
+            width: min(96%, calc(var(--grid-size, 60px) * 6.2));
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: calc(var(--grid-size, 60px) * 0.42);
         }
 
         .hud-group {
@@ -1881,6 +1942,16 @@ This source code, artwork, game design, and related assets are not licensed for 
                 <button id="settingsButton" class="menu-button">Settings</button>
                 <button id="levelSelectButton" class="menu-button">Sector Select</button>
             </div>
+            <div id="howToPanel" class="menu-panel">
+                <div class="how-to-panel-title">HOW TO PLAY</div>
+                <div class="how-to-panel-body">
+                    Drag the white orb to move.<br>
+                    Collect blinking crystals.<br>
+                    Avoid moving blocks.<br>
+                    Shake to Cosmic Zap.
+                </div>
+                <button id="howToBackButton" class="menu-back-button">Back</button>
+            </div>
             <div id="scoringPanel" class="menu-panel">
                 <div class="scoring-record-area">
                     <span id="scoringHighScoreLabel" class="scoring-record-label">HIGH SCORE</span>
@@ -1934,15 +2005,18 @@ This source code, artwork, game design, and related assets are not licensed for 
                 <div id="levelIndicators"></div>
             </div>
             <div id="cycleStarHud" aria-label="Completed cycles"></div>
-            <button id="startButton" type="button" aria-label="Start game"><span class="play-triangle"></span></button>
+            <div id="bottomControlRow">
+                <button id="howToButton" class="bottom-control-button" type="button" aria-label="How to play">?</button>
+                <button id="startButton" class="bottom-control-button" type="button" aria-label="Start game"><span class="play-triangle"></span></button>
+                <button id="settingsHudButton" class="bottom-control-button" type="button" aria-label="Settings"><span class="hud-menu-line"></span><span class="hud-menu-line"></span><span class="hud-menu-line"></span></button>
+            </div>
             <div class="hud-group" id="cycleHud"></div>
         </div>
-        <button id="hudMenuButton" aria-label="Open menu"><span class="hud-menu-line"></span><span class="hud-menu-line"></span><span class="hud-menu-line"></span></button>
     </div>
     <div id="copyrightFooter">© 2026 Marcus Couto</div>
 
     <script>
-        const BUILD_VERSION = 'Build v173';
+        const BUILD_VERSION = 'Build v174';
         document.getElementById('buildVersion').textContent = BUILD_VERSION;
 
         let lastGlobalTouchEndTime = 0;
@@ -2000,6 +2074,8 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.screenFadeElement = document.getElementById('screenFade');
                 this.gameOverlayElement = document.getElementById('gameOverlay');
                 this.startButton = document.getElementById('startButton');
+                this.howToButton = document.getElementById('howToButton');
+                this.settingsHudButton = document.getElementById('settingsHudButton');
                 this.optionsButton = document.getElementById('optionsButton');
                 this.hudMenuButton = document.getElementById('hudMenuButton');
                 this.scoringHighScoreValue = document.getElementById('scoringHighScoreValue');
@@ -2020,6 +2096,8 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.scoringPanel = document.getElementById('scoringPanel');
                 this.storyPanel = document.getElementById('storyPanel');
                 this.settingsPanel = document.getElementById('settingsPanel');
+                this.howToPanel = document.getElementById('howToPanel');
+                this.howToBackButton = document.getElementById('howToBackButton');
                 this.scoringBackButton = document.getElementById('scoringBackButton');
                 this.storyBackButton = document.getElementById('storyBackButton');
                 this.settingsBackButton = document.getElementById('settingsBackButton');
@@ -2172,6 +2250,22 @@ This source code, artwork, game design, and related assets are not licensed for 
                 }, { passive: true });
                 document.addEventListener('visibilitychange', () => this.handleVisibilityChange());
                 this.startButton.addEventListener('click', (e) => this.handlePlayPauseControlClick(e));
+                if (this.howToButton) {
+                    this.howToButton.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        this.playUiClick();
+                        this.openBottomHudPanel('howTo');
+                    });
+                }
+                if (this.settingsHudButton) {
+                    this.settingsHudButton.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        this.playUiClick();
+                        this.openBottomHudPanel('settings');
+                    });
+                }
                 if (this.optionsButton) {
                     this.optionsButton.addEventListener('click', (e) => {
                         e.preventDefault();
@@ -2235,20 +2329,29 @@ This source code, artwork, game design, and related assets are not licensed for 
                     if (this.shouldIgnoreFreshMenuInput()) return;
                     this.showLevelSelectMenu();
                 });
+                if (this.howToBackButton) {
+                    this.howToBackButton.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        this.playUiClick();
+                        this.closeBottomPanelOverlay();
+                    });
+                }
                 this.scoringBackButton.addEventListener('click', (e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    this.showMainMenuButtons();
+                    this.closeBottomPanelOverlay();
                 });
                 this.storyBackButton.addEventListener('click', (e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    this.showMainMenuButtons();
+                    this.closeBottomPanelOverlay();
                 });
                 this.settingsBackButton.addEventListener('click', (e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    this.showMainMenuButtons();
+                    this.playUiClick();
+                    this.closeBottomPanelOverlay();
                 });
                 this.soundToggleButton.addEventListener('click', (e) => {
                     e.preventDefault();
@@ -3178,6 +3281,43 @@ This source code, artwork, game design, and related assets are not licensed for 
                 return `${minutes}:${String(remainder).padStart(2, '0')}`;
             }
 
+
+            playUiClick() {
+                if (this.audio && typeof this.audio.playUiClick === 'function') this.audio.playUiClick();
+            }
+
+            closeBottomPanelOverlay() {
+                this.menuOpenedAt = 0;
+                this.clearMenuButtonFocus();
+                if (this.pauseWindow) this.pauseWindow.style.display = 'none';
+                if (this.menuButtons) this.menuButtons.style.display = 'none';
+                if (this.howToPanel) this.howToPanel.classList.remove('open');
+                if (this.scoringPanel) this.scoringPanel.classList.remove('open');
+                if (this.storyPanel) this.storyPanel.classList.remove('open');
+                if (this.settingsPanel) this.settingsPanel.classList.remove('open');
+                if (this.telemetryPanel) this.telemetryPanel.classList.remove('open');
+                this.levelSelectWindow.style.display = 'none';
+                this.refreshGameOverlay();
+                this.ui.updateAll();
+            }
+
+            openBottomHudPanel(panelName) {
+                if (this.cycleTransitionActive || this.showHudDuringSectorIntro || this.resumeCountdownActive) return;
+                if (this.isGameOver && !this.restartReady) return;
+
+                this.enableShakeCosmicZap();
+
+                if (this.active && this.levelActionStarted && !this.isPaused && !this.isGameOver) {
+                    this.pauseGame({ showOverlay: false });
+                }
+
+                this.menuOpenedAt = performance.now();
+                this.showMenuPanel(panelName);
+                this.pauseWindow.style.display = 'flex';
+                this.setGameOverlayVisible(true);
+                requestAnimationFrame(() => this.clearMenuButtonFocus());
+            }
+
             updateTelemetrySummary() {
                 if (!this.telemetryButton && !this.telemetrySummary) return;
                 if (this.telemetryButton) this.telemetryButton.style.display = this.developerModeEnabled ? '' : 'none';
@@ -3267,7 +3407,7 @@ This source code, artwork, game design, and related assets are not licensed for 
             }
 
             isStartScreenVisible() {
-                return !!(this.instructionsWindow && this.instructionsWindow.style.display !== 'none' && !this.active && !this.isPaused);
+                return !this.hasStartedRun && !this.active && !this.isPaused && !this.isGameOver;
             }
 
             openDeveloperMenuFromStartScreen() {
@@ -3305,10 +3445,9 @@ This source code, artwork, game design, and related assets are not licensed for 
             }
 
             isAttractModeActive() {
-                const showingStartPanel = this.instructionsWindow && this.instructionsWindow.style.display !== 'none';
                 const showingPause = this.pauseWindow && this.pauseWindow.style.display === 'flex';
                 const showingLevelSelect = this.levelSelectWindow && this.levelSelectWindow.style.display === 'flex';
-                return !!this.attractInterval && showingStartPanel && !this.active && !this.isPaused && !showingPause && !showingLevelSelect;
+                return !!this.attractInterval && !this.active && !this.isPaused && !showingPause && !showingLevelSelect;
             }
 
             isMarqueeEasterEggUnlocked() {
@@ -3750,7 +3889,10 @@ This source code, artwork, game design, and related assets are not licensed for 
                     this.clearTelemetryButton,
                     this.telemetryBackButton,
                     this.levelSelectCloseButton,
-                    this.cycleContinueButton
+                    this.cycleContinueButton,
+                    this.howToButton,
+                    this.settingsHudButton,
+                    this.howToBackButton
                 ].forEach(button => {
                     if (button && typeof button.blur === 'function') button.blur();
                 });
@@ -3764,12 +3906,13 @@ This source code, artwork, game design, and related assets are not licensed for 
             }
 
             showMainMenuButtons() {
-                this.menuButtons.style.display = 'flex';
+                this.menuButtons.style.display = 'none';
                 if (this.resumeButton) this.resumeButton.textContent = this.developerAttractMenuOpen ? 'Close' : 'Resume';
-                if (this.restartButton) this.restartButton.style.display = this.developerAttractMenuOpen ? 'none' : '';
+                if (this.restartButton) this.restartButton.style.display = 'none';
                 this.updateLevelSelectUnlockState();
                 this.resetHighScoreConfirmationState();
                 this.resetRestartConfirmationState();
+                if (this.howToPanel) this.howToPanel.classList.remove('open');
                 this.scoringPanel.classList.remove('open');
                 this.storyPanel.classList.remove('open');
                 this.settingsPanel.classList.remove('open');
@@ -3779,6 +3922,7 @@ This source code, artwork, game design, and related assets are not licensed for 
 
             showMenuPanel(panelName) {
                 this.menuButtons.style.display = 'none';
+                if (this.howToPanel) this.howToPanel.classList.toggle('open', panelName === 'howTo');
                 this.scoringPanel.classList.toggle('open', panelName === 'scoring');
                 this.storyPanel.classList.toggle('open', panelName === 'story');
                 this.settingsPanel.classList.toggle('open', panelName === 'settings');
@@ -4063,8 +4207,9 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.start();
             }
 
-            pauseGame() {
+            pauseGame(options = {}) {
                 if (!this.active || this.isGameOver || !this.levelActionStarted || this.isPaused) return;
+                const showOverlay = !!options.showOverlay;
 
                 this.beginTelemetryPause('manual-pause');
                 this.isPaused = true;
@@ -4079,11 +4224,16 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.audio.stopBackgroundMusic();
                 this.audio.stopPrismRelicHum();
                 this.releaseWakeLock();
-                this.menuOpenedAt = performance.now();
-                this.showMainMenuButtons();
-                this.pauseWindow.style.display = 'flex';
-                this.setGameOverlayVisible(true);
-                requestAnimationFrame(() => this.clearMenuButtonFocus());
+
+                if (showOverlay) {
+                    this.menuOpenedAt = performance.now();
+                    this.showMainMenuButtons();
+                    this.pauseWindow.style.display = 'flex';
+                    this.setGameOverlayVisible(true);
+                    requestAnimationFrame(() => this.clearMenuButtonFocus());
+                } else {
+                    this.closeBottomPanelOverlay();
+                }
             }
 
             async resumeGame() {
@@ -4190,20 +4340,23 @@ This source code, artwork, game design, and related assets are not licensed for 
                 if (this.cycleTransitionActive || this.showHudDuringSectorIntro || this.resumeCountdownActive) return;
                 if (this.isGameOver && !this.restartReady) return;
 
+                this.playUiClick();
                 this.enableShakeCosmicZap();
 
                 if (this.active && this.levelActionStarted && !this.isPaused && !this.isGameOver) {
-                    this.pauseGame();
+                    this.pauseGame({ showOverlay: false });
                     return;
                 }
 
                 if (this.isPaused && this.levelActionStarted && !this.isGameOver) {
+                    this.closeBottomPanelOverlay();
                     this.resumeGame();
                     this.ui.updateAll();
                     return;
                 }
 
                 if (!this.active) {
+                    this.closeBottomPanelOverlay();
                     this.start();
                 }
             }
@@ -7602,6 +7755,33 @@ This source code, artwork, game design, and related assets are not licensed for 
                 });
             }
 
+            // Quick soft click for bottom HUD controls.
+            playUiClick() {
+                this.ensureAudio();
+                const now = this.ctx.currentTime;
+
+                const osc = this.ctx.createOscillator();
+                const gainNode = this.ctx.createGain();
+                const filter = this.ctx.createBiquadFilter();
+
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(520, now);
+                osc.frequency.exponentialRampToValueAtTime(260, now + 0.055);
+                filter.type = 'lowpass';
+                filter.frequency.setValueAtTime(950, now);
+
+                osc.connect(filter);
+                filter.connect(gainNode);
+                this.connectOutput(gainNode);
+
+                gainNode.gain.setValueAtTime(0.001, now);
+                gainNode.gain.linearRampToValueAtTime(0.045, now + 0.006);
+                gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.075);
+
+                osc.start(now);
+                osc.stop(now + 0.085);
+            }
+
             // Play consistent Block-A-Zoid spawn sound
             playSpawn() {
                 this.ensureAudio();
@@ -8211,9 +8391,12 @@ This source code, artwork, game design, and related assets are not licensed for 
 
             updateHudMenuButton() {
                 const menuButton = this.game.hudMenuButton;
-                if (!menuButton) return;
-                const gameplayMenu = this.game.active && this.game.levelActionStarted && !this.game.isPaused && !this.game.isGameOver;
-                menuButton.classList.toggle('visible', gameplayMenu);
+                if (menuButton) menuButton.classList.remove('visible');
+
+                const temporarilyBlocked = this.game.cycleTransitionActive || this.game.showHudDuringSectorIntro || this.game.resumeCountdownActive || (this.game.isGameOver && !this.game.restartReady);
+                [this.game.howToButton, this.game.settingsHudButton].forEach(button => {
+                    if (button) button.classList.toggle('control-disabled', !!temporarilyBlocked);
+                });
             }
 
             // Flash the current score when the saved high score is beaten.
