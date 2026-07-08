@@ -1025,6 +1025,7 @@ This source code, artwork, game design, and related assets are not licensed for 
         .level-select-button:focus,
         #levelSelectCloseButton:focus,
         #startButton:focus,
+        #optionsButton:focus,
         #telemetryButton:focus,
         #exportTelemetryButton:focus,
         #clearTelemetryButton:focus,
@@ -1040,6 +1041,7 @@ This source code, artwork, game design, and related assets are not licensed for 
         .level-select-button:focus-visible,
         #levelSelectCloseButton:focus-visible,
         #startButton:focus-visible,
+        #optionsButton:focus-visible,
         #telemetryButton:focus-visible,
         #exportTelemetryButton:focus-visible,
         #clearTelemetryButton:focus-visible,
@@ -1772,6 +1774,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 Shake to Cosmic Zap.
             </div>
             <button id="startButton">Start Game</button>
+            <button id="optionsButton" class="start-secondary-button">Options</button>
         </div>
         <div id="pauseWindow">
             <div id="menuButtons">
@@ -1846,7 +1849,7 @@ This source code, artwork, game design, and related assets are not licensed for 
     <div id="copyrightFooter">© 2026 Marcus Couto</div>
 
     <script>
-        const BUILD_VERSION = 'Build v169';
+        const BUILD_VERSION = 'Build v170';
         document.getElementById('buildVersion').textContent = BUILD_VERSION;
 
         let lastGlobalTouchEndTime = 0;
@@ -1904,6 +1907,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.screenFadeElement = document.getElementById('screenFade');
                 this.gameOverlayElement = document.getElementById('gameOverlay');
                 this.startButton = document.getElementById('startButton');
+                this.optionsButton = document.getElementById('optionsButton');
                 this.hudMenuButton = document.getElementById('hudMenuButton');
                 this.scoringHighScoreValue = document.getElementById('scoringHighScoreValue');
                 this.scoringHighScoreLabel = document.getElementById('scoringHighScoreLabel');
@@ -2079,6 +2083,13 @@ This source code, artwork, game design, and related assets are not licensed for 
                     this.enableShakeCosmicZap();
                     this.start();
                 });
+                if (this.optionsButton) {
+                    this.optionsButton.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        this.openDeveloperMenuFromStartScreen();
+                    });
+                }
                 if (this.cycleContinueButton) {
                     this.cycleContinueButton.addEventListener('click', (e) => {
                         e.preventDefault();
@@ -2092,10 +2103,6 @@ This source code, artwork, game design, and related assets are not licensed for 
                         e.stopPropagation();
                         if (this.active && !this.isPaused && !this.isGameOver && this.levelActionStarted) {
                             this.pauseGame();
-                            return;
-                        }
-                        if (this.isStartScreenVisible()) {
-                            this.openDeveloperMenuFromStartScreen();
                         }
                     });
                 }
@@ -3634,6 +3641,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 }
 
                 [
+                    this.optionsButton,
                     this.resumeButton,
                     this.restartButton,
                     this.scoringButton,
@@ -3666,6 +3674,8 @@ This source code, artwork, game design, and related assets are not licensed for 
 
             showMainMenuButtons() {
                 this.menuButtons.style.display = 'flex';
+                if (this.resumeButton) this.resumeButton.textContent = this.developerAttractMenuOpen ? 'Close' : 'Resume';
+                if (this.restartButton) this.restartButton.style.display = this.developerAttractMenuOpen ? 'none' : '';
                 this.updateLevelSelectUnlockState();
                 this.resetHighScoreConfirmationState();
                 this.resetRestartConfirmationState();
@@ -8065,10 +8075,8 @@ This source code, artwork, game design, and related assets are not licensed for 
             updateHudMenuButton() {
                 const menuButton = this.game.hudMenuButton;
                 if (!menuButton) return;
-                const startMenu = this.game.isStartScreenVisible && this.game.isStartScreenVisible();
                 const gameplayMenu = this.game.active && this.game.levelActionStarted && !this.game.isPaused && !this.game.isGameOver;
-                const shouldShowMenu = gameplayMenu || startMenu;
-                menuButton.classList.toggle('visible', shouldShowMenu);
+                menuButton.classList.toggle('visible', gameplayMenu);
             }
 
             // Flash the current score when the saved high score is beaten.
