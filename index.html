@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v198: Adds circular button-clearance HUD border, fixes crystal gauge startup progress, darkens inactive vertical notches, and refines gauge sizing.
+Build v199: Reworks alien numeral instruments into stacked 5-slot gauges, moves the alarm into the left instrument stack, fixes crystal progress counting, and stabilizes the bottom HUD border.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -1775,12 +1775,14 @@ This source code, artwork, game design, and related assets are not licensed for 
             --hud-clearance: var(--hud-side-inset);
             --hud-gauge-width: calc(var(--grid-size, 60px) * 1.21);
             --hud-meter-top: calc(var(--hud-side-inset) + (var(--grid-size, 60px) * 0.44) + var(--hud-clearance));
-            --alien-gauge-height: calc(var(--grid-size, 60px) * 0.94);
-            --alien-gauge-width: calc(var(--alien-gauge-height) * 3);
-            --alien-glyph-size: calc(var(--grid-size, 60px) * 0.72);
-            --alien-glyph-gap: calc(var(--grid-size, 60px) * 0.055);
-            --alien-gauge-padding-x: calc((var(--alien-gauge-width) - (var(--alien-glyph-size) * 3) - (var(--alien-glyph-gap) * 2)) / 2);
-            --proximity-alert-size: calc(var(--grid-size, 60px) * 0.72);
+            --alien-gauge-height: calc(var(--grid-size, 60px) * 0.98);
+            --alien-gauge-width: calc(var(--alien-gauge-height) * 5);
+            --alien-glyph-size: calc(var(--grid-size, 60px) * 0.70);
+            --alien-glyph-gap: calc(var(--grid-size, 60px) * 0.045);
+            --alien-gauge-padding-x: calc((var(--alien-gauge-width) - (var(--alien-glyph-size) * 5) - (var(--alien-glyph-gap) * 4)) / 2);
+            --alien-stack-left: calc(var(--hud-side-inset) + var(--hud-gauge-width) + var(--hud-clearance));
+            --alien-second-top: calc(var(--hud-meter-top) + var(--alien-gauge-height) + var(--hud-clearance));
+            --proximity-alert-size: calc(var(--grid-size, 60px) * 0.96);
             position: absolute;
             inset: 0;
             display: block;
@@ -1788,20 +1790,13 @@ This source code, artwork, game design, and related assets are not licensed for 
             box-sizing: border-box;
             padding: calc(var(--grid-size, 60px) * 0.18) calc(var(--grid-size, 60px) * 0.16);
             background: #000;
-            border: none;
-            box-shadow: none;
+            border: 2px solid #fff;
+            box-shadow: 0 0 calc(var(--default-glow) * 0.75px) #fff;
             overflow: hidden;
         }
 
         #bottomHudBorder {
-            position: absolute;
-            inset: 0;
-            width: 100%;
-            height: 100%;
-            display: block;
-            overflow: visible;
-            pointer-events: none;
-            z-index: 5;
+            display: none;
         }
 
         #bottomHudBorder path {
@@ -2006,13 +2001,15 @@ This source code, artwork, game design, and related assets are not licensed for 
         }
 
         #alienLevelHud {
-            left: calc(50% - (var(--grid-size, 60px) * 1.78));
-            transform: translateX(-50%);
+            left: var(--alien-stack-left);
+            top: var(--hud-meter-top);
+            transform: none;
         }
 
         #alienRelicHud {
-            left: calc(50% + (var(--grid-size, 60px) * 1.78));
-            transform: translateX(-50%);
+            left: var(--alien-stack-left);
+            top: var(--alien-second-top);
+            transform: none;
         }
 
         .alien-instrument.visible {
@@ -2155,9 +2152,9 @@ This source code, artwork, game design, and related assets are not licensed for 
 
         #proximityAlert {
             position: absolute;
-            left: 50%;
-            top: calc(var(--hud-meter-top) + ((var(--alien-gauge-height) - var(--proximity-alert-size)) / 2));
-            transform: translateX(-50%);
+            left: calc(var(--alien-stack-left) + var(--alien-gauge-width) + var(--hud-clearance));
+            top: calc(var(--hud-meter-top) + var(--alien-gauge-height) + (var(--hud-clearance) / 2) - (var(--proximity-alert-size) / 2));
+            transform: none;
             width: var(--proximity-alert-size);
             height: var(--proximity-alert-size);
             box-sizing: border-box;
@@ -2675,7 +2672,7 @@ This source code, artwork, game design, and related assets are not licensed for 
         <div id="levelSelectWindow">
             <div id="levelSelectTitle">SECTOR SELECT</div>
             <div id="levelSelectGrid"></div>
-            <div class="buildVersionText">Build v198</div>
+            <div class="buildVersionText">Build v199</div>
             <div class="menuCopyright">© 2026 Marcus Couto</div>
         </div>
     </div>
@@ -2713,7 +2710,7 @@ This source code, artwork, game design, and related assets are not licensed for 
     <div id="copyrightFooter">© 2026 Marcus Couto</div>
 
     <script>
-        const BUILD_VERSION = 'Build v198';
+        const BUILD_VERSION = 'Build v199';
         document.getElementById('buildVersion').textContent = BUILD_VERSION;
         document.querySelectorAll('.buildVersionText').forEach(el => { el.textContent = BUILD_VERSION; });
 
@@ -9824,19 +9821,11 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 const safeTotal = Math.max(0, total);
                 if (safeTotal <= 0) return { collected: 0, total: 0 };
 
-                const liveCrystalArray = Array.isArray(this.game.crystals) ? this.game.crystals : null;
-
-                // Do not treat the temporarily-empty crystal array during start/intro setup as 100% collected.
-                // The gauge begins at zero and only fills after live sector action has actually started.
-                if (!this.game.levelActionStarted && !this.game.isGameOver) {
-                    return { collected: 0, total: safeTotal };
-                }
-
-                const remaining = liveCrystalArray ? liveCrystalArray.length : safeTotal;
-                return {
-                    collected: Math.max(0, Math.min(safeTotal, safeTotal - remaining)),
-                    total: safeTotal
-                };
+                // Count real pickups only. The crystal array can be temporarily empty during
+                // setup/transition, so deriving progress from remaining crystals can falsely show 100%.
+                const collectedPositions = Array.isArray(this.game.collectedPositions) ? this.game.collectedPositions.length : 0;
+                const collected = Math.max(0, Math.min(safeTotal, collectedPositions));
+                return { collected, total: safeTotal };
             }
 
             renderVerticalCrystalGauge(container) {
@@ -9939,80 +9928,10 @@ startMaxSwarmBeat(delaySeconds = 0) {
 
             updateBottomHudBorder() {
                 if (!this.bottomProgressPanel || !this.bottomHudBorder || !this.bottomHudBorderPath) return;
-
                 const panelRect = this.bottomProgressPanel.getBoundingClientRect();
                 if (!panelRect.width || !panelRect.height) return;
-
-                const buttons = [this.game.howToButton, this.game.startButton, this.game.settingsHudButton].filter(Boolean);
-                if (!buttons.length) return;
-
-                const clearance = Math.max(8, (this.game.GRID_SIZE || 60) * 0.34);
-                const strokeInset = 1;
-                const bottomY = Math.max(strokeInset, panelRect.height - strokeInset);
-                const rightX = Math.max(strokeInset, panelRect.width - strokeInset);
-                const circles = buttons.map(button => {
-                    const rect = button.getBoundingClientRect();
-                    return {
-                        cx: rect.left - panelRect.left + rect.width / 2,
-                        cy: rect.top - panelRect.top + rect.height / 2,
-                        r: Math.max(rect.width, rect.height) / 2 + clearance
-                    };
-                });
-
-                const signature = [
-                    Math.round(panelRect.width),
-                    Math.round(panelRect.height),
-                    Math.round(clearance),
-                    ...circles.flatMap(circle => [Math.round(circle.cx), Math.round(circle.cy), Math.round(circle.r)])
-                ].join('|');
-                if (signature === this.bottomHudBorderSignature) return;
-                this.bottomHudBorderSignature = signature;
-
                 this.bottomHudBorder.setAttribute('viewBox', `0 0 ${panelRect.width.toFixed(2)} ${panelRect.height.toFixed(2)}`);
-
-                let leftCut = rightX;
-                let rightCut = strokeInset;
-                circles.forEach(circle => {
-                    const dy = bottomY - circle.cy;
-                    if (Math.abs(dy) >= circle.r) return;
-                    const dx = Math.sqrt(Math.max(0, circle.r * circle.r - dy * dy));
-                    leftCut = Math.min(leftCut, circle.cx - dx);
-                    rightCut = Math.max(rightCut, circle.cx + dx);
-                });
-
-                leftCut = Math.max(strokeInset, Math.min(leftCut, rightX));
-                rightCut = Math.max(strokeInset, Math.min(rightCut, rightX));
-                if (rightCut <= leftCut + 4) {
-                    this.bottomHudBorderPath.setAttribute('d', `M ${strokeInset} ${strokeInset} H ${rightX} V ${bottomY} H ${strokeInset} Z`);
-                    return;
-                }
-
-                const samples = 90;
-                const points = [];
-                for (let i = 0; i <= samples; i++) {
-                    const t = i / samples;
-                    const x = leftCut + (rightCut - leftCut) * t;
-                    let y = bottomY;
-                    circles.forEach(circle => {
-                        const dx = x - circle.cx;
-                        if (Math.abs(dx) > circle.r) return;
-                        const candidateY = circle.cy - Math.sqrt(Math.max(0, circle.r * circle.r - dx * dx));
-                        y = Math.min(y, candidateY);
-                    });
-                    points.push([x, Math.max(strokeInset, Math.min(bottomY, y))]);
-                }
-
-                const d = [
-                    `M ${strokeInset} ${strokeInset}`,
-                    `H ${rightX}`,
-                    `V ${bottomY}`,
-                    `H ${rightCut.toFixed(2)}`
-                ];
-                for (let i = points.length - 1; i >= 0; i--) {
-                    d.push(`L ${points[i][0].toFixed(2)} ${points[i][1].toFixed(2)}`);
-                }
-                d.push(`H ${strokeInset}`, 'Z');
-                this.bottomHudBorderPath.setAttribute('d', d.join(' '));
+                this.bottomHudBorderPath.setAttribute('d', `M 1 1 H ${(panelRect.width - 1).toFixed(2)} V ${(panelRect.height - 1).toFixed(2)} H 1 Z`);
             }
 
             updateDynamicHud() {
