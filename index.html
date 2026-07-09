@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v205: Lowers the bottom buttons to the cockpit border, slightly widens the button cockpit arch, narrows the side gauges, and resizes the alarm gauge below the sector gauge.
+Build v206: Adds gauge symbols, centers the alarm, adds relic count and timer instruments in alien font, makes the collision indicators circular, narrows/shortens the side gauges, and slightly widens/lowers the cockpit button arch.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -1853,7 +1853,7 @@ This source code, artwork, game design, and related assets are not licensed for 
             --hud-bottom-inset: calc(var(--grid-size, 60px) * 0.14);
             --hud-control-bottom-inset: 0px;
             --hud-clearance: var(--hud-side-inset);
-            --hud-gauge-width: calc(var(--grid-size, 60px) * 1.12);
+            --hud-gauge-width: calc(var(--grid-size, 60px) * 1.04);
             --hud-meter-top: calc(var(--hud-side-inset) + (var(--grid-size, 60px) * 0.44) + var(--hud-clearance));
             --alien-gauge-height: calc(var(--grid-size, 60px) * 1.07);
             --alien-gauge-width: calc(100% - (2 * var(--hud-side-inset)) - (2 * var(--hud-gauge-width)) - (2 * var(--hud-clearance)));
@@ -1863,7 +1863,13 @@ This source code, artwork, game design, and related assets are not licensed for 
             --alien-stack-left: calc(var(--hud-side-inset) + var(--hud-gauge-width) + var(--hud-clearance));
             --alien-second-top: calc(var(--hud-meter-top) + var(--alien-gauge-height) + var(--hud-clearance));
             --proximity-alert-size: calc(var(--grid-size, 60px) * 0.96);
-            --proximity-alert-width: calc(var(--grid-size, 60px) * 0.86);
+            --proximity-alert-width: calc(var(--alien-gauge-width) * 0.34);
+            --hud-gauge-icon-size: calc(var(--grid-size, 60px) * 0.44);
+            --hud-gauge-icon-space: calc(var(--hud-gauge-icon-size) + (var(--grid-size, 60px) * 0.18));
+            --status-row-top: var(--alien-second-top);
+            --status-panel-height: calc(var(--alien-gauge-height) * 0.82);
+            --status-gap: calc(var(--grid-size, 60px) * 0.12);
+            --status-side-width: calc((var(--alien-gauge-width) - var(--proximity-alert-width) - (var(--status-gap) * 2)) / 2);
             position: absolute;
             inset: 0;
             display: block;
@@ -2212,7 +2218,7 @@ This source code, artwork, game design, and related assets are not licensed for 
         .crystal-vertical-gauge {
             position: absolute;
             top: var(--hud-meter-top);
-            bottom: var(--hud-bottom-inset);
+            bottom: var(--hud-gauge-icon-space);
             width: var(--hud-gauge-width);
             box-sizing: border-box;
             display: grid;
@@ -2237,6 +2243,46 @@ This source code, artwork, game design, and related assets are not licensed for 
             --gauge-inactive-color: var(--dark-blue-color);
         }
 
+
+        .gauge-measure-icon {
+            position: absolute;
+            bottom: var(--hud-bottom-inset);
+            width: var(--hud-gauge-width);
+            height: var(--hud-gauge-icon-size);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            pointer-events: none;
+            z-index: 4;
+        }
+
+        #greenCrystalGaugeIcon {
+            left: var(--hud-side-inset);
+            color: var(--green-color);
+        }
+
+        #blueCrystalGaugeIcon {
+            right: var(--hud-side-inset);
+            color: var(--blue-color);
+        }
+
+        .gauge-icon-diamond {
+            width: calc(var(--hud-gauge-icon-size) * 0.56);
+            height: calc(var(--hud-gauge-icon-size) * 0.56);
+            transform: rotate(45deg);
+            border: 2px solid currentColor;
+            box-shadow: 0 0 calc(var(--default-glow) * 0.70px) currentColor, inset 0 0 calc(var(--default-glow) * 0.18px) rgba(255,255,255,0.72);
+            background: rgba(255,255,255,0.02);
+        }
+
+        .gauge-icon-zap {
+            width: calc(var(--hud-gauge-icon-size) * 0.54);
+            height: calc(var(--hud-gauge-icon-size) * 0.72);
+            background: currentColor;
+            clip-path: polygon(58% 0%, 18% 54%, 45% 54%, 32% 100%, 84% 39%, 56% 39%);
+            box-shadow: 0 0 calc(var(--default-glow) * 0.70px) currentColor;
+        }
+
         .crystal-gauge-segment {
             width: 100%;
             height: 100%;
@@ -2255,29 +2301,32 @@ This source code, artwork, game design, and related assets are not licensed for 
 
         #proximityAlert {
             position: absolute;
-            left: var(--alien-stack-left);
-            top: var(--alien-second-top);
+            left: calc(var(--alien-stack-left) + ((var(--alien-gauge-width) - var(--proximity-alert-width)) / 2));
+            top: var(--status-row-top);
             bottom: auto;
             transform: none;
-            width: calc(var(--alien-gauge-width) * 0.50);
-            height: calc(var(--alien-gauge-height) * 0.84);
+            width: var(--proximity-alert-width);
+            height: var(--status-panel-height);
             box-sizing: border-box;
             display: grid;
             grid-template-columns: repeat(3, 1fr);
             gap: calc(var(--grid-size, 60px) * 0.040);
-            padding: calc(var(--grid-size, 60px) * 0.07);
+            padding: calc(var(--grid-size, 60px) * 0.11) calc(var(--grid-size, 60px) * 0.08) calc(var(--grid-size, 60px) * 0.07);
             border: 2px solid #fff;
             border-radius: 0;
             background: #000;
             box-shadow: none;
             pointer-events: none;
             z-index: 8;
+            align-items: center;
         }
 
         .proximity-alert-cell {
             display: block;
             width: 100%;
-            height: 100%;
+            aspect-ratio: 1 / 1;
+            height: auto;
+            border-radius: 50%;
             background: var(--dark-red-color);
             box-shadow: inset 0 0 calc(var(--default-glow) * 0.20px) var(--dark-red-color);
             opacity: 0.95;
@@ -2302,14 +2351,92 @@ This source code, artwork, game design, and related assets are not licensed for 
         #proximityAlert[aria-label]::before {
             content: 'ALARM';
             position: absolute;
-            left: calc(var(--grid-size, 60px) * 0.12);
-            top: 50%;
-            transform: translateY(-50%);
+            left: 50%;
+            top: calc(var(--grid-size, 60px) * 0.05);
+            transform: translateX(-50%);
             color: rgba(255,255,255,0.88);
             font-family: 'Orbitron', 'Courier New', monospace;
-            font-size: calc(var(--alien-gauge-height) * 0.16);
+            font-size: calc(var(--alien-gauge-height) * 0.15);
             letter-spacing: 1px;
             text-shadow: 0 0 calc(var(--default-glow) * 0.28px) #fff;
+            white-space: nowrap;
+        }
+
+
+        .status-side-instrument {
+            position: absolute;
+            top: var(--status-row-top);
+            width: var(--status-side-width);
+            height: var(--status-panel-height);
+            box-sizing: border-box;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: calc(var(--grid-size, 60px) * 0.10);
+            padding: calc(var(--grid-size, 60px) * 0.10) calc(var(--grid-size, 60px) * 0.12) calc(var(--grid-size, 60px) * 0.06);
+            border: 2px solid #fff;
+            background: #000;
+            box-shadow: none;
+            pointer-events: none;
+            z-index: 8;
+            overflow: hidden;
+        }
+
+        #relicCounterHud {
+            left: var(--alien-stack-left);
+            justify-content: flex-start;
+        }
+
+        #timerHud {
+            right: calc(100% - (var(--alien-stack-left) + var(--alien-gauge-width)));
+            justify-content: center;
+        }
+
+        .status-side-instrument::before {
+            position: absolute;
+            left: 50%;
+            top: calc(var(--grid-size, 60px) * 0.04);
+            transform: translateX(-50%);
+            font-family: 'Orbitron', 'Courier New', monospace;
+            font-size: calc(var(--alien-gauge-height) * 0.15);
+            letter-spacing: 1px;
+            color: rgba(255,255,255,0.88);
+            text-shadow: 0 0 calc(var(--default-glow) * 0.28px) #fff;
+            white-space: nowrap;
+        }
+
+        #relicCounterHud::before { content: 'RELIC'; }
+        #timerHud::before { content: 'TIME'; }
+
+        .status-relic-icon {
+            width: calc(var(--status-panel-height) * 0.32);
+            height: calc(var(--status-panel-height) * 0.32);
+            transform: rotate(45deg);
+            border: 2px solid var(--yellow-color);
+            box-shadow: 0 0 calc(var(--default-glow) * 0.66px) var(--yellow-color), inset 0 0 calc(var(--default-glow) * 0.18px) rgba(255,255,255,0.78);
+            margin-top: calc(var(--status-panel-height) * 0.16);
+            flex: 0 0 auto;
+        }
+
+        .alien-status-value {
+            margin-top: calc(var(--status-panel-height) * 0.16);
+            font-family: 'BlockAZoidsAlien', 'Orbitron', 'Courier New', monospace;
+            font-size: calc(var(--status-panel-height) * 0.42);
+            line-height: 1;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            text-align: center;
+            text-shadow: 0 0 calc(var(--default-glow) * 0.75px) currentColor, 0 0 calc(var(--default-glow) * 1.55px) currentColor;
+            white-space: nowrap;
+        }
+
+        #relicCounterValue {
+            color: var(--yellow-color);
+        }
+
+        #timerValue {
+            color: var(--blue-color);
+            font-size: calc(var(--status-panel-height) * 0.34);
         }
 
         @keyframes proximityAlertFrameFlash {
@@ -2837,10 +2964,19 @@ This source code, artwork, game design, and related assets are not licensed for 
             </div>
             <div id="greenCrystalGauge" class="crystal-vertical-gauge" aria-label="Green crystals collected"></div>
             <div id="blueCrystalGauge" class="crystal-vertical-gauge" aria-label="Cosmic Zaps remaining"></div>
+            <div id="greenCrystalGaugeIcon" class="gauge-measure-icon" aria-hidden="true"><span class="gauge-icon-diamond"></span></div>
+            <div id="blueCrystalGaugeIcon" class="gauge-measure-icon" aria-hidden="true"><span class="gauge-icon-zap"></span></div>
+            <div id="relicCounterHud" class="status-side-instrument" aria-label="Collected relic count">
+                <span class="status-relic-icon" aria-hidden="true"></span>
+                <span id="relicCounterValue" class="alien-status-value">0</span>
+            </div>
             <div id="proximityAlert" aria-label="Alarm gauge">
                 <span class="proximity-alert-cell"></span>
                 <span class="proximity-alert-cell"></span>
                 <span class="proximity-alert-cell"></span>
+            </div>
+            <div id="timerHud" class="status-side-instrument" aria-label="Run timer">
+                <span id="timerValue" class="alien-status-value">00:00</span>
             </div>
             <div id="bottomControlRow">
                 <button id="howToButton" class="bottom-control-button" type="button" aria-label="How to play"><span class="context-button-text" aria-hidden="true">?</span></button>
@@ -2853,7 +2989,7 @@ This source code, artwork, game design, and related assets are not licensed for 
     <div id="copyrightFooter">© 2026 Marcus Couto</div>
 
     <script>
-        const BUILD_VERSION = 'Build v205';
+        const BUILD_VERSION = 'Build v206';
         document.getElementById('buildVersion').textContent = BUILD_VERSION;
         document.querySelectorAll('.buildVersionText').forEach(el => { el.textContent = BUILD_VERSION; });
 
@@ -9960,6 +10096,26 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 if (this.alienRelicGlyphs) this.alienRelicGlyphs.innerHTML = '';
             }
 
+            updateRelicCounterInstrument() {
+                const relicCount = this.getRelicCountForInstrument();
+                if (this.relicCounterValue) this.relicCounterValue.textContent = String(relicCount);
+                if (this.relicCounterHud) this.relicCounterHud.setAttribute('aria-label', `${relicCount} collected relic${relicCount === 1 ? '' : 's'}`);
+            }
+
+            formatHudTimer() {
+                const elapsedMs = this.game && this.game.getRunRecordElapsedMs ? this.game.getRunRecordElapsedMs() : 0;
+                const totalSeconds = Math.max(0, Math.floor(elapsedMs / 1000));
+                const minutes = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
+                const seconds = (totalSeconds % 60).toString().padStart(2, '0');
+                return `${minutes}:${seconds}`;
+            }
+
+            updateTimerInstrument() {
+                const displayValue = this.formatHudTimer();
+                if (this.timerValue) this.timerValue.textContent = displayValue;
+                if (this.timerHud) this.timerHud.setAttribute('aria-label', `Run timer ${displayValue}`);
+            }
+
             countLevelCrystalsTotal() {
                 const inRunContext = this.game.hasStartedRun ||
                                      this.game.active ||
@@ -10109,13 +10265,13 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 const clearance = Math.max(10, parseFloat(computed.getPropertyValue('--hud-clearance')) || this.game.GRID_SIZE * 0.34);
                 const buttonsLeft = Math.min(howToRect.left, buttonRect.left, settingsRect.left) - panelRect.left;
                 const buttonsRight = Math.max(howToRect.right, buttonRect.right, settingsRect.right) - panelRect.left;
-                const buttonFrameMargin = clearance * 0.62;
+                const buttonFrameMargin = clearance * 0.68;
 
                 const cutoutLeft = Math.max(inset + clearance, buttonsLeft - buttonFrameMargin);
                 const cutoutRight = Math.min(width - inset - clearance, buttonsRight + buttonFrameMargin);
                 const buttonTop = buttonRect.top - panelRect.top;
-                const cutoutTop = Math.max(inset + clearance * 2.35, buttonTop - clearance * 0.72);
-                const bowTop = Math.max(inset + clearance * 1.72, cutoutTop - clearance * 0.58);
+                const cutoutTop = Math.max(inset + clearance * 2.45, buttonTop - clearance * 0.60);
+                const bowTop = Math.max(inset + clearance * 1.88, cutoutTop - clearance * 0.44);
                 const bottom = height - inset;
                 const right = width - inset;
 
@@ -10137,6 +10293,10 @@ startMaxSwarmBeat(delaySeconds = 0) {
             updateDynamicHud() {
                 this.updateBottomHudBorder();
                 this.updateCrystalGauges();
+                this.updateAlienLevelInstrument();
+                this.updateAlienRelicInstrument();
+                this.updateRelicCounterInstrument();
+                this.updateTimerInstrument();
                 this.updateProximityAlert();
             }
 
