@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v212: Makes the timer red, larger, and brighter, aligns the relic gauge bottom with the Cosmic Zap gauge, and increases relic count readability.
+Build v213: Adds printed-board trace lines from beneath the radar toward the crystal gauge, and improves relic/timer alien number rendering with larger monospaced slots and better spacing.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -2403,7 +2403,7 @@ This source code, artwork, game design, and related assets are not licensed for 
             bottom: var(--hud-gauge-icon-space);
             justify-content: center;
             align-items: center;
-            gap: calc(var(--grid-size, 60px) * 0.15);
+            gap: calc(var(--grid-size, 60px) * 0.26);
         }
 
         .status-side-instrument::before {
@@ -2412,8 +2412,8 @@ This source code, artwork, game design, and related assets are not licensed for 
         }
 
         .status-relic-icon {
-            width: calc(var(--status-panel-height) * 0.24);
-            height: calc(var(--status-panel-height) * 0.24);
+            width: calc(var(--status-panel-height) * 0.21);
+            height: calc(var(--status-panel-height) * 0.21);
             transform: rotate(45deg);
             border: 2px solid #fff;
             box-shadow: 0 0 calc(var(--default-glow) * 0.62px) rgba(255,255,255,0.78), inset 0 0 calc(var(--default-glow) * 0.18px) rgba(255,255,255,0.78);
@@ -2431,21 +2431,69 @@ This source code, artwork, game design, and related assets are not licensed for 
             white-space: nowrap;
         }
 
+
+        .alien-mono-row {
+            display: inline-grid;
+            grid-auto-flow: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .alien-mono-slot {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 0.72em;
+            min-width: 0.72em;
+            height: 1em;
+            line-height: 1;
+            text-align: center;
+            box-sizing: border-box;
+        }
+
+        .alien-mono-slot.punct {
+            width: 0.34em;
+            min-width: 0.34em;
+        }
+
         #relicCounterValue {
             color: var(--green-color);
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            font-size: calc(var(--status-panel-height) * 0.50);
+            font-size: calc(var(--status-panel-height) * 0.62);
             line-height: 1;
-            text-shadow: 0 0 calc(var(--default-glow) * 1.05px) var(--green-color), 0 0 calc(var(--default-glow) * 2.15px) rgba(0,255,0,0.86), 0 0 calc(var(--default-glow) * 3.20px) rgba(0,255,0,0.48);
-            transform: translateY(0.02em);
+            text-shadow: 0 0 calc(var(--default-glow) * 1.18px) var(--green-color), 0 0 calc(var(--default-glow) * 2.35px) rgba(0,255,0,0.88), 0 0 calc(var(--default-glow) * 3.50px) rgba(0,255,0,0.52);
+            transform: translateY(0.01em);
+        }
+
+        #relicCounterValue .alien-mono-row {
+            column-gap: 0.02em;
+        }
+
+        #relicCounterValue .alien-mono-slot {
+            width: 0.76em;
+            min-width: 0.76em;
         }
 
         #timerValue {
             color: var(--red-color);
             font-size: calc(var(--status-panel-height) * 0.58);
             text-shadow: 0 0 calc(var(--default-glow) * 1.15px) var(--red-color), 0 0 calc(var(--default-glow) * 2.30px) rgba(255,0,0,0.92), 0 0 calc(var(--default-glow) * 3.65px) rgba(255,0,0,0.58);
+        }
+
+        #timerValue .alien-mono-row {
+            column-gap: 0.03em;
+        }
+
+        #timerValue .alien-mono-slot {
+            width: 0.70em;
+            min-width: 0.70em;
+        }
+
+        #timerValue .alien-mono-slot.punct {
+            width: 0.30em;
+            min-width: 0.30em;
         }
 
 
@@ -3045,7 +3093,7 @@ This source code, artwork, game design, and related assets are not licensed for 
         <div id="levelSelectWindow">
             <div id="levelSelectTitle">SECTOR SELECT</div>
             <div id="levelSelectGrid"></div>
-            <div class="buildVersionText">Build v212</div>
+            <div class="buildVersionText">Build v213</div>
             <div class="menuCopyright">© 2026 Marcus Couto</div>
         </div>
     </div>
@@ -3082,6 +3130,10 @@ This source code, artwork, game design, and related assets are not licensed for 
                 <span class="radar-alarm-tick t4"></span>
                 <span class="radar-alarm-core"></span>
             </div>
+            <div id="cpRadarTraces" aria-hidden="true">
+                <span class="cp-radar-trace trace-a"></span>
+                <span class="cp-radar-trace trace-b"></span>
+            </div>
             <div id="proximityAlert" aria-label="Alarm gauge">
                 <span class="proximity-alert-cell"></span>
                 <span class="proximity-alert-cell"></span>
@@ -3098,7 +3150,7 @@ This source code, artwork, game design, and related assets are not licensed for 
     <div id="copyrightFooter">© 2026 Marcus Couto</div>
 
     <script>
-        const BUILD_VERSION = 'Build v212';
+        const BUILD_VERSION = 'Build v213';
         document.getElementById('buildVersion').textContent = BUILD_VERSION;
         document.querySelectorAll('.buildVersionText').forEach(el => { el.textContent = BUILD_VERSION; });
 
@@ -10257,9 +10309,27 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 if (this.alienRelicGlyphs) this.alienRelicGlyphs.innerHTML = '';
             }
 
+            renderAlienMonoText(container, textValue) {
+                if (!container) return;
+                const stringValue = String(textValue ?? '');
+                if (container.dataset.renderedAlienMono === stringValue) return;
+                container.dataset.renderedAlienMono = stringValue;
+                container.innerHTML = '';
+                const row = document.createElement('span');
+                row.className = 'alien-mono-row';
+                for (const char of stringValue) {
+                    const slot = document.createElement('span');
+                    slot.className = 'alien-mono-slot';
+                    if (/[^0-9A-Z]/.test(char)) slot.classList.add('punct');
+                    slot.textContent = char;
+                    row.appendChild(slot);
+                }
+                container.appendChild(row);
+            }
+
             updateRelicCounterInstrument() {
                 const relicCount = this.getRelicCountForInstrument();
-                if (this.relicCounterValue) this.relicCounterValue.textContent = String(relicCount);
+                if (this.relicCounterValue) this.renderAlienMonoText(this.relicCounterValue, String(relicCount));
                 if (this.relicCounterHud) this.relicCounterHud.setAttribute('aria-label', `${relicCount} collected relic${relicCount === 1 ? '' : 's'}`);
             }
 
@@ -10273,7 +10343,7 @@ startMaxSwarmBeat(delaySeconds = 0) {
 
             updateTimerInstrument() {
                 const displayValue = this.formatHudTimer();
-                if (this.timerValue) this.timerValue.textContent = displayValue;
+                if (this.timerValue) this.renderAlienMonoText(this.timerValue, displayValue);
                 if (this.timerHud) this.timerHud.setAttribute('aria-label', `Run timer ${displayValue}`);
             }
 
