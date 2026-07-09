@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v195: Narrows and spaces the vertical meters, applies consistent cockpit clearance, and tightens the alien numeral gauge proportions.
+Build v196: Adds three-glyph alien numeral capacity, aligns cockpit instruments to the side meters, shows a standby crystal tick, and switches the Zap meter to blue.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -1774,6 +1774,12 @@ This source code, artwork, game design, and related assets are not licensed for 
             --hud-bottom-inset: calc(var(--grid-size, 60px) * 0.34);
             --hud-clearance: var(--hud-side-inset);
             --hud-gauge-width: calc(var(--grid-size, 60px) * 1.21);
+            --hud-meter-top: calc(var(--hud-side-inset) + (var(--grid-size, 60px) * 0.44) + var(--hud-clearance));
+            --alien-glyph-size: calc(var(--grid-size, 60px) * 0.42);
+            --alien-glyph-gap: calc(var(--grid-size, 60px) * 0.035);
+            --alien-gauge-padding-x: calc(var(--grid-size, 60px) * 0.09);
+            --alien-gauge-width: calc(var(--alien-glyph-size) + var(--alien-glyph-size) + var(--alien-glyph-size) + var(--alien-glyph-gap) + var(--alien-glyph-gap) + var(--alien-gauge-padding-x) + var(--alien-gauge-padding-x));
+            --alien-gauge-height: calc(var(--grid-size, 60px) * 0.72);
             position: absolute;
             inset: 0;
             display: block;
@@ -1962,14 +1968,14 @@ This source code, artwork, game design, and related assets are not licensed for 
 
         .alien-instrument {
             position: absolute;
-            top: calc(var(--grid-size, 60px) * 1.38);
-            width: calc(var(--grid-size, 60px) * 1.68);
-            height: calc(var(--grid-size, 60px) * 0.84);
+            top: var(--hud-meter-top);
+            width: var(--alien-gauge-width);
+            height: var(--alien-gauge-height);
             box-sizing: border-box;
             display: none;
             align-items: center;
             justify-content: flex-start;
-            padding: 0 calc(var(--grid-size, 60px) * 0.09);
+            padding: 0 var(--alien-gauge-padding-x);
             background: #000;
             border: 1px solid #fff;
             box-shadow: none;
@@ -1998,7 +2004,7 @@ This source code, artwork, game design, and related assets are not licensed for 
             display: flex;
             align-items: center;
             justify-content: flex-start;
-            gap: calc(var(--grid-size, 60px) * 0.045);
+            gap: var(--alien-glyph-gap);
             width: 100%;
             min-width: 0;
             height: 100%;
@@ -2008,9 +2014,9 @@ This source code, artwork, game design, and related assets are not licensed for 
         .alien-glyph-cell {
             position: relative;
             display: inline-block;
-            width: calc(var(--grid-size, 60px) * 0.54);
-            height: calc(var(--grid-size, 60px) * 0.54);
-            flex: 0 0 calc(var(--grid-size, 60px) * 0.54);
+            width: var(--alien-glyph-size);
+            height: var(--alien-glyph-size);
+            flex: 0 0 var(--alien-glyph-size);
             box-sizing: border-box;
             color: currentColor;
         }
@@ -2084,7 +2090,7 @@ This source code, artwork, game design, and related assets are not licensed for 
 
         .crystal-vertical-gauge {
             position: absolute;
-            top: calc(var(--hud-side-inset) + (var(--grid-size, 60px) * 0.44) + var(--hud-clearance));
+            top: var(--hud-meter-top);
             bottom: var(--hud-bottom-inset);
             width: var(--hud-gauge-width);
             box-sizing: border-box;
@@ -2105,7 +2111,7 @@ This source code, artwork, game design, and related assets are not licensed for 
 
         #blueCrystalGauge {
             right: var(--hud-side-inset);
-            color: var(--red-color);
+            color: var(--blue-color);
         }
 
         .crystal-gauge-segment {
@@ -2127,7 +2133,7 @@ This source code, artwork, game design, and related assets are not licensed for 
         #proximityAlert {
             position: absolute;
             left: 50%;
-            top: calc(var(--grid-size, 60px) * 1.72);
+            top: var(--hud-meter-top);
             transform: translateX(-50%);
             width: calc(var(--grid-size, 60px) * 0.72);
             height: calc(var(--grid-size, 60px) * 0.72);
@@ -2646,7 +2652,7 @@ This source code, artwork, game design, and related assets are not licensed for 
         <div id="levelSelectWindow">
             <div id="levelSelectTitle">SECTOR SELECT</div>
             <div id="levelSelectGrid"></div>
-            <div class="buildVersionText">Build v195</div>
+            <div class="buildVersionText">Build v196</div>
             <div class="menuCopyright">© 2026 Marcus Couto</div>
         </div>
     </div>
@@ -2681,7 +2687,7 @@ This source code, artwork, game design, and related assets are not licensed for 
     <div id="copyrightFooter">© 2026 Marcus Couto</div>
 
     <script>
-        const BUILD_VERSION = 'Build v195';
+        const BUILD_VERSION = 'Build v196';
         document.getElementById('buildVersion').textContent = BUILD_VERSION;
         document.querySelectorAll('.buildVersionText').forEach(el => { el.textContent = BUILD_VERSION; });
 
@@ -9812,9 +9818,10 @@ startMaxSwarmBeat(delaySeconds = 0) {
                     }
                     container.dataset.segmentCount = String(segmentCount);
                 }
+                const visualCollected = segmentCount > 0 ? Math.max(1, collected) : 0;
                 [...container.children].forEach((segment, index) => {
                     const fromBottom = segmentCount - 1 - index;
-                    segment.classList.toggle('filled', fromBottom < collected);
+                    segment.classList.toggle('filled', fromBottom < visualCollected);
                 });
                 container.setAttribute('aria-label', `${collected} of ${segmentCount} crystals collected`);
             }
