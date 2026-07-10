@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v228: Keeps the four pause-page symbols over full-size menu pages, removes the pause X control, standardizes the High Score title and detail sizing, and keeps Super Gridlock bonuses on one line.
+Build v229: Makes the corner menus available before play and after game over, limits visible copyright/build text to the splash screen, and matches Super Gridlock presentation to Gridlock.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -3129,6 +3129,7 @@ This source code, artwork, game design, and related assets are not licensed for 
 
         #score.gridlockAlert {
             min-width: 8.5ch;
+            white-space: nowrap;
             box-sizing: border-box;
             padding: 0;
             color: #fff;
@@ -3715,11 +3716,14 @@ This source code, artwork, game design, and related assets are not licensed for 
 
     </style>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700&display=swap" rel="stylesheet">
+        /* v229: no X close controls on menu pages. */
+        #levelSelectCloseButton { display: none !important; }
+
 </head>
 <body>
     <div id="splashScreen" aria-label="Block-A-Zoids intro">
         <img id="splashMarqueeImage" src="marquee-top.png" alt="" draggable="false">
-        <div id="splashCopyright">© 2026 Marcus Couto</div>
+        <div id="splashCopyright"><span id="splashBuildVersion"></span> · © 2026 Marcus Couto</div>
     </div>
     <!-- Score display -->
     <div id="scoreHud">
@@ -3857,15 +3861,11 @@ This source code, artwork, game design, and related assets are not licensed for 
                     <span class="pause-grid-icon developer-wave-icon" aria-hidden="true"><svg viewBox="0 0 100 100" focusable="false"><polyline points="8,54 25,54 35,31 48,72 61,40 70,54 92,54"/></svg></span>
                 </button>
             </div>
-            <div id="buildVersion"></div>
-            <div class="menuCopyright">© 2026 Marcus Couto</div>
         </div>
         <div id="levelSelectWindow">
             <button id="levelSelectCloseButton" class="menu-close-button" type="button" aria-label="Close sector select">X</button>
             <div id="levelSelectTitle">SECTOR SELECT</div>
             <div id="levelSelectGrid"></div>
-            <div class="buildVersionText">Build v222</div>
-            <div class="menuCopyright">© 2026 Marcus Couto</div>
         </div>
     </div>
 
@@ -3961,12 +3961,11 @@ This source code, artwork, game design, and related assets are not licensed for 
             </div>
         </div>
     </div>
-    <div id="copyrightFooter">© 2026 Marcus Couto</div>
 
     <script>
-        const BUILD_VERSION = 'Build v228';
-        document.getElementById('buildVersion').textContent = BUILD_VERSION;
-        document.querySelectorAll('.buildVersionText').forEach(el => { el.textContent = BUILD_VERSION; });
+        const BUILD_VERSION = 'Build v229';
+        const splashBuildVersion = document.getElementById('splashBuildVersion');
+        if (splashBuildVersion) splashBuildVersion.textContent = BUILD_VERSION;
 
         let lastGlobalTouchEndTime = 0;
         document.addEventListener('touchend', (e) => {
@@ -4586,6 +4585,12 @@ This source code, artwork, game design, and related assets are not licensed for 
                         if (this.splashScreen) this.splashScreen.style.display = 'none';
                     }, 420);
                 }
+
+                // The four direct menu controls become available as soon as the cabinet reaches Activate mode.
+                this.showMainMenuButtons();
+                this.updatePauseGridMenu();
+                this.refreshGameOverlay();
+                this.ui.updateAll();
             }
 
             resetSplashEasterEgg() {
@@ -5542,11 +5547,23 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.stopAttractComputerAmbience();
             }
 
-            updatePauseGridMenu() {
-                const showingPauseMenu = !!(this.pauseWindow && this.pauseWindow.style.display === 'flex');
-                if (this.pauseGridMenu) this.pauseGridMenu.classList.toggle('visible', showingPauseMenu);
+            isCornerMenuAvailable() {
+                const showingLevelSelect = !!(this.levelSelectWindow && this.levelSelectWindow.style.display === 'flex');
+                const blocked = this.splashIntroActive || showingLevelSelect || this.cycleTransitionActive ||
+                                this.showHudDuringSectorIntro || this.resumeCountdownActive || this.startInputLocked;
+                if (blocked) return false;
+                if (this.isPaused && !this.isGameOver) return true;
+                if (this.active && this.levelActionStarted && !this.isPaused && !this.isGameOver) return false;
+                if (this.isGameOver) return !!this.restartReady;
+                return !this.active;
+            }
 
-                const developerVisible = showingPauseMenu && !!this.developerModeEnabled;
+            updatePauseGridMenu() {
+                const menuAvailable = this.isCornerMenuAvailable();
+                if (this.pauseWindow) this.pauseWindow.style.display = menuAvailable ? 'flex' : 'none';
+                if (this.pauseGridMenu) this.pauseGridMenu.classList.toggle('visible', menuAvailable);
+
+                const developerVisible = menuAvailable && !!this.developerModeEnabled;
                 if (this.pauseDeveloperButton) {
                     this.pauseDeveloperButton.classList.toggle('developer-visible', developerVisible);
                     this.pauseDeveloperButton.setAttribute('aria-hidden', developerVisible ? 'false' : 'true');
@@ -5574,8 +5591,8 @@ This source code, artwork, game design, and related assets are not licensed for 
 
                 if (this.getCurrentMenuContext() === panelName) {
                     this.showMainMenuButtons();
-                    this.setGameOverlayVisible(true);
                     this.updatePauseGridMenu();
+                    this.refreshGameOverlay();
                     this.ui.updateAll();
                     requestAnimationFrame(() => this.clearMenuButtonFocus());
                     return;
@@ -5602,8 +5619,8 @@ This source code, artwork, game design, and related assets are not licensed for 
                 if (this.settingsPanel) this.settingsPanel.classList.remove('open');
                 if (this.telemetryPanel) this.telemetryPanel.classList.remove('open');
                 this.levelSelectWindow.style.display = 'none';
-                this.refreshGameOverlay();
                 this.updatePauseGridMenu();
+                this.refreshGameOverlay();
                 this.ui.updateAll();
             }
 
@@ -6961,7 +6978,9 @@ This source code, artwork, game design, and related assets are not licensed for 
 
             refreshGameOverlay() {
                 const showingInstructions = this.instructionsWindow && this.instructionsWindow.style.display !== 'none';
-                const showingPause = this.pauseWindow && this.pauseWindow.style.display === 'flex';
+                const showingPauseShell = this.pauseWindow && this.pauseWindow.style.display === 'flex';
+                const showingMenuPanel = !!this.getCurrentMenuContext();
+                const showingPause = showingPauseShell && (this.isPaused || showingMenuPanel);
                 const showingLevelSelect = this.levelSelectWindow && this.levelSelectWindow.style.display === 'flex';
                 const showingMessagePanel = this.isMessagePanelVisible();
 
@@ -11253,21 +11272,19 @@ startMaxSwarmBeat(delaySeconds = 0) {
             }
 
             flashSuperGridlockBonus(points) {
-                const alertElement = this.superGridlockHudAlert;
-                if (!alertElement) return;
+                if (!this.scoreElement) return;
                 if (this.scoreAlertTimer) clearTimeout(this.scoreAlertTimer);
                 this.scoreAlertActive = true;
-                alertElement.classList.remove('visible');
-                alertElement.textContent = `SUPER GRIDLOCK +${Math.max(0, Math.floor(points || 0))}`;
-                void alertElement.offsetWidth;
-                alertElement.classList.add('visible');
+                this.scoreElement.classList.remove('scoreHidden', 'attractHighScore', 'highScoreFlash', 'bonusScoreCount', 'gridlockAlert', 'superGridlockAlert');
+                this.scoreElement.textContent = 'SUPER GRIDLOCK';
+                void this.scoreElement.offsetWidth;
+                this.scoreElement.classList.add('gridlockAlert');
                 this.scoreAlertTimer = setTimeout(() => {
-                    alertElement.classList.remove('visible');
-                    alertElement.textContent = '';
                     this.scoreAlertActive = false;
+                    this.scoreElement.classList.remove('gridlockAlert');
                     this.updateScore();
                     this.scoreAlertTimer = null;
-                }, 1450);
+                }, 2300);
             }
 
             // High score is separated in the Scoring menu and shown on the opening screen only after a record exists.
