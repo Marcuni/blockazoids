@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v217: Removes the two-circle warning, swaps timer and relic gauge positions, increases Cosmic Zap icon size, expands high-score detail spacing, and boosts yellow sector-name glow.
+Build v218: Replaces the relic counter with a radar-sized circular Orbital Tally featuring 15 orbital markers and a relic-responsive pulsing core.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -2412,13 +2412,161 @@ This source code, artwork, game design, and related assets are not licensed for 
             justify-content: center;
         }
 
-        #relicCounterHud {
-            right: calc(100% - (var(--alien-stack-left) + var(--alien-gauge-width)));
+        #orbitalTallyHud {
+            position: absolute;
+            right: calc((100% - (var(--alien-stack-left) + var(--alien-gauge-width))) + ((var(--status-side-width) - var(--radar-alarm-size)) / 2));
             top: var(--status-row-top);
-            bottom: auto;
-            justify-content: center;
-            align-items: center;
-            gap: calc(var(--grid-size, 60px) * 0.26);
+            width: var(--radar-alarm-size);
+            height: var(--radar-alarm-size);
+            box-sizing: border-box;
+            border: 2px solid var(--cp-outline-color);
+            border-radius: 50%;
+            background: #000;
+            box-shadow: inset 0 0 calc(var(--default-glow, 10) * 0.26px) rgba(255,255,255,0.12);
+            pointer-events: none;
+            z-index: 8;
+            overflow: hidden;
+            isolation: isolate;
+        }
+
+        #orbitalTallyHud::before {
+            content: "";
+            position: absolute;
+            inset: 7%;
+            border: 1px solid rgba(255,255,255,0.10);
+            border-radius: 50%;
+            box-shadow: inset 0 0 calc(var(--default-glow, 10) * 0.24px) rgba(255,255,255,0.08);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .orbital-tally-ring {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            box-sizing: border-box;
+            border: 1px solid rgba(255,255,0,0.19);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 0 calc(var(--default-glow, 10) * 0.16px) rgba(255,255,0,0.16);
+            opacity: 0.78;
+            z-index: 1;
+        }
+
+        .orbital-tally-ring.inner { width: 44%; height: 44%; }
+        .orbital-tally-ring.middle { width: 66%; height: 66%; }
+        .orbital-tally-ring.outer { width: 88%; height: 88%; }
+
+        .orbital-tally-ring.ring-complete {
+            border-color: rgba(255,255,0,0.68);
+            box-shadow: 0 0 calc(var(--default-glow, 10) * 0.52px) rgba(255,255,0,0.62), inset 0 0 calc(var(--default-glow, 10) * 0.18px) rgba(255,255,0,0.22);
+            opacity: 1;
+        }
+
+        #orbitalTallyMarkers {
+            position: absolute;
+            inset: 0;
+            z-index: 3;
+        }
+
+        .orbital-tally-marker {
+            position: absolute;
+            left: var(--marker-x);
+            top: var(--marker-y);
+            width: 6.2%;
+            aspect-ratio: 1;
+            box-sizing: border-box;
+            border: 1px solid rgba(255,255,0,0.44);
+            background: #000;
+            box-shadow: inset 0 0 calc(var(--default-glow, 10) * 0.10px) rgba(255,255,0,0.10);
+            transform: translate(-50%, -50%) rotate(45deg);
+            opacity: 0.72;
+        }
+
+        .orbital-tally-marker.collected {
+            border-color: rgba(255,255,255,0.92);
+            background: var(--yellow-color);
+            box-shadow: 0 0 calc(var(--default-glow, 10) * 0.62px) var(--yellow-color), 0 0 calc(var(--default-glow, 10) * 1.15px) rgba(255,255,0,0.68), inset 0 0 calc(var(--default-glow, 10) * 0.18px) rgba(255,255,255,0.86);
+            opacity: 1;
+        }
+
+        .orbital-tally-marker.newly-collected {
+            animation: orbitalTallyMarkerCollect 0.62s ease-out 1;
+        }
+
+        #orbitalTallyOrb {
+            --orbital-pulse-duration: 2.40s;
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            width: 18%;
+            aspect-ratio: 1;
+            border-radius: 50%;
+            border: 1px solid rgba(255,255,255,0.94);
+            background: rgba(255,255,0,0.88);
+            box-shadow: 0 0 calc(var(--default-glow, 10) * 0.85px) #fff, 0 0 calc(var(--default-glow, 10) * 1.55px) var(--yellow-color), 0 0 calc(var(--default-glow, 10) * 2.55px) rgba(255,255,0,0.46);
+            transform: translate(-50%, -50%);
+            transform-origin: center;
+            animation: orbitalTallyPulse var(--orbital-pulse-duration) ease-in-out infinite;
+            z-index: 5;
+        }
+
+        #orbitalTallyOrb.relic-absorbed {
+            animation: orbitalTallyPulse var(--orbital-pulse-duration) ease-in-out infinite,
+                       orbitalTallyOrbAbsorb 0.48s ease-out 1;
+        }
+
+        #orbitalTallyHud.tally-complete {
+            box-shadow: 0 0 calc(var(--default-glow, 10) * 0.72px) rgba(255,255,0,0.58), inset 0 0 calc(var(--default-glow, 10) * 0.32px) rgba(255,255,0,0.18);
+        }
+
+        #orbitalTallyHud.tally-complete #orbitalTallyOrb {
+            box-shadow: 0 0 calc(var(--default-glow, 10) * 1.18px) #fff, 0 0 calc(var(--default-glow, 10) * 2.18px) var(--yellow-color), 0 0 calc(var(--default-glow, 10) * 3.55px) rgba(255,255,0,0.78);
+        }
+
+        .orbital-tally-charge-line {
+            position: absolute;
+            left: var(--charge-left);
+            top: var(--charge-top);
+            width: var(--charge-width);
+            height: 2px;
+            background: linear-gradient(90deg, var(--yellow-color), #fff);
+            box-shadow: 0 0 calc(var(--default-glow, 10) * 0.55px) #fff, 0 0 calc(var(--default-glow, 10) * 1.05px) rgba(255,255,0,0.72);
+            transform-origin: left center;
+            transform: rotate(var(--charge-angle)) scaleX(0);
+            opacity: 0;
+            z-index: 4;
+            animation: orbitalTallyChargeTravel 0.44s ease-out forwards;
+        }
+
+        @keyframes orbitalTallyPulse {
+            0%, 100% {
+                transform: translate(-50%, -50%) scale(0.88);
+                opacity: 0.70;
+            }
+            50% {
+                transform: translate(-50%, -50%) scale(1.14);
+                opacity: 1;
+            }
+        }
+
+        @keyframes orbitalTallyMarkerCollect {
+            0% { transform: translate(-50%, -50%) rotate(45deg) scale(0.45); filter: brightness(4); }
+            42% { transform: translate(-50%, -50%) rotate(45deg) scale(1.75); filter: brightness(2.2); }
+            100% { transform: translate(-50%, -50%) rotate(45deg) scale(1); filter: brightness(1); }
+        }
+
+        @keyframes orbitalTallyOrbAbsorb {
+            0% { filter: brightness(1); }
+            36% { filter: brightness(3.2); box-shadow: 0 0 18px #fff, 0 0 36px var(--yellow-color), 0 0 64px rgba(255,255,0,0.86); }
+            100% { filter: brightness(1); }
+        }
+
+        @keyframes orbitalTallyChargeTravel {
+            0% { opacity: 0; transform: rotate(var(--charge-angle)) scaleX(0); }
+            18% { opacity: 1; }
+            78% { opacity: 0.92; transform: rotate(var(--charge-angle)) scaleX(1); }
+            100% { opacity: 0; transform: rotate(var(--charge-angle)) scaleX(1); }
         }
 
         .status-side-instrument::before {
@@ -2426,14 +2574,6 @@ This source code, artwork, game design, and related assets are not licensed for 
             content: none;
         }
 
-        .status-relic-icon {
-            width: calc(var(--status-panel-height) * 0.21);
-            height: calc(var(--status-panel-height) * 0.21);
-            transform: rotate(45deg);
-            border: 2px solid #fff;
-            box-shadow: 0 0 calc(var(--default-glow) * 0.62px) rgba(255,255,255,0.78), inset 0 0 calc(var(--default-glow) * 0.18px) rgba(255,255,255,0.78);
-            flex: 0 0 auto;
-        }
 
         .alien-status-value {
             font-family: 'BlockAZoidsAlien', 'Orbitron', 'Courier New', monospace;
@@ -2471,25 +2611,8 @@ This source code, artwork, game design, and related assets are not licensed for 
             min-width: 0.34em;
         }
 
-        #relicCounterValue {
-            color: var(--yellow-color);
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            font-size: calc(var(--status-panel-height) * 0.62);
-            line-height: 1;
-            text-shadow: 0 0 calc(var(--default-glow) * 1.18px) var(--yellow-color), 0 0 calc(var(--default-glow) * 2.35px) rgba(255,255,0,0.88), 0 0 calc(var(--default-glow) * 3.50px) rgba(255,255,0,0.52);
-            transform: translateY(0.01em);
-        }
 
-        #relicCounterValue .alien-mono-row {
-            column-gap: 0.02em;
-        }
 
-        #relicCounterValue .alien-mono-slot {
-            width: 0.76em;
-            min-width: 0.76em;
-        }
 
         #timerValue {
             color: var(--green-color);
@@ -3117,7 +3240,7 @@ This source code, artwork, game design, and related assets are not licensed for 
         <div id="levelSelectWindow">
             <div id="levelSelectTitle">SECTOR SELECT</div>
             <div id="levelSelectGrid"></div>
-            <div class="buildVersionText">Build v217</div>
+            <div class="buildVersionText">Build v218</div>
             <div class="menuCopyright">© 2026 Marcus Couto</div>
         </div>
     </div>
@@ -3141,9 +3264,28 @@ This source code, artwork, game design, and related assets are not licensed for 
             <div id="blueCrystalGauge" class="crystal-vertical-gauge" aria-label="Cosmic Zaps remaining"></div>
             <div id="greenCrystalGaugeIcon" class="gauge-measure-icon" aria-hidden="true"><span class="gauge-icon-diamond"></span></div>
             <div id="blueCrystalGaugeIcon" class="gauge-measure-icon" aria-hidden="true"><span class="gauge-icon-zap"></span></div>
-            <div id="relicCounterHud" class="status-side-instrument" aria-label="Collected relic count">
-                <span class="status-relic-icon" aria-hidden="true"></span>
-                <span id="relicCounterValue" class="alien-status-value">0</span>
+            <div id="orbitalTallyHud" aria-label="Orbital Tally: 0 of 15 relics collected">
+                <span class="orbital-tally-ring inner" aria-hidden="true"></span>
+                <span class="orbital-tally-ring middle" aria-hidden="true"></span>
+                <span class="orbital-tally-ring outer" aria-hidden="true"></span>
+                <span id="orbitalTallyMarkers" aria-hidden="true">
+                <span class="orbital-tally-marker" data-index="1" data-x="50.000" data-y="28.000" style="--marker-x:50.000%;--marker-y:28.000%;"></span>
+                <span class="orbital-tally-marker" data-index="2" data-x="70.923" data-y="43.202" style="--marker-x:70.923%;--marker-y:43.202%;"></span>
+                <span class="orbital-tally-marker" data-index="3" data-x="62.931" data-y="67.798" style="--marker-x:62.931%;--marker-y:67.798%;"></span>
+                <span class="orbital-tally-marker" data-index="4" data-x="37.069" data-y="67.798" style="--marker-x:37.069%;--marker-y:67.798%;"></span>
+                <span class="orbital-tally-marker" data-index="5" data-x="29.077" data-y="43.202" style="--marker-x:29.077%;--marker-y:43.202%;"></span>
+                <span class="orbital-tally-marker" data-index="6" data-x="63.422" data-y="19.853" style="--marker-x:63.422%;--marker-y:19.853%;"></span>
+                <span class="orbital-tally-marker" data-index="7" data-x="82.819" data-y="53.449" style="--marker-x:82.819%;--marker-y:53.449%;"></span>
+                <span class="orbital-tally-marker" data-index="8" data-x="56.861" data-y="82.279" style="--marker-x:56.861%;--marker-y:82.279%;"></span>
+                <span class="orbital-tally-marker" data-index="9" data-x="21.421" data-y="66.500" style="--marker-x:21.421%;--marker-y:66.500%;"></span>
+                <span class="orbital-tally-marker" data-index="10" data-x="25.476" data-y="27.919" style="--marker-x:25.476%;--marker-y:27.919%;"></span>
+                <span class="orbital-tally-marker" data-index="11" data-x="82.698" data-y="20.558" style="--marker-x:82.698%;--marker-y:20.558%;"></span>
+                <span class="orbital-tally-marker" data-index="12" data-x="88.105" data-y="72.000" style="--marker-x:88.105%;--marker-y:72.000%;"></span>
+                <span class="orbital-tally-marker" data-index="13" data-x="40.852" data-y="93.038" style="--marker-x:40.852%;--marker-y:93.038%;"></span>
+                <span class="orbital-tally-marker" data-index="14" data-x="6.241" data-y="54.599" style="--marker-x:6.241%;--marker-y:54.599%;"></span>
+                <span class="orbital-tally-marker" data-index="15" data-x="32.104" data-y="9.804" style="--marker-x:32.104%;--marker-y:9.804%;"></span>
+                </span>
+                <span id="orbitalTallyOrb" aria-hidden="true"></span>
             </div>
             <div id="radarAlarmHud" aria-label="Radar collision alarm">
                 <span class="radar-alarm-line diag-a"></span>
@@ -3166,7 +3308,7 @@ This source code, artwork, game design, and related assets are not licensed for 
     <div id="copyrightFooter">© 2026 Marcus Couto</div>
 
     <script>
-        const BUILD_VERSION = 'Build v217';
+        const BUILD_VERSION = 'Build v218';
         document.getElementById('buildVersion').textContent = BUILD_VERSION;
         document.querySelectorAll('.buildVersionText').forEach(el => { el.textContent = BUILD_VERSION; });
 
@@ -6734,7 +6876,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.relicRecoveredBySector[this.getRelicSectorKey()] = true;
                 // Prism Relic points are awarded only if the sector is cleared.
                 this.audio.playPrismRelicCollect();
-                if (this.ui && this.ui.updateRelicCounterInstrument) this.ui.updateRelicCounterInstrument();
+                if (this.ui && this.ui.updateOrbitalTallyInstrument) this.ui.updateOrbitalTallyInstrument();
                 this.ui.updateLevelIndicators();
             }
 
@@ -10116,8 +10258,11 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 this.alienRelicGlyphs = document.getElementById('alienRelicGlyphs'); // Alien relic glyphs
                 this.greenCrystalGauge = document.getElementById('greenCrystalGauge'); // Green crystal collection gauge
                 this.blueCrystalGauge = document.getElementById('blueCrystalGauge'); // Blue crystal collection gauge
-                this.relicCounterHud = document.getElementById('relicCounterHud'); // Relic count instrument
-                this.relicCounterValue = document.getElementById('relicCounterValue'); // Relic count value
+                this.orbitalTallyHud = document.getElementById('orbitalTallyHud'); // Circular 15-relic Orbital Tally
+                this.orbitalTallyMarkers = document.getElementById('orbitalTallyMarkers'); // Fixed orbital relic markers
+                this.orbitalTallyOrb = document.getElementById('orbitalTallyOrb'); // Relic-responsive pulsing core
+                this.orbitalTallyRings = this.orbitalTallyHud ? [...this.orbitalTallyHud.querySelectorAll('.orbital-tally-ring')] : [];
+                this.lastOrbitalTallyCount = null;
                 this.timerHud = document.getElementById('timerHud'); // Timer instrument
                 this.timerValue = document.getElementById('timerValue'); // Timer value
                 this.proximityAlert = document.getElementById('proximityAlert'); // Alarm gauge shown below sector gauge
@@ -10399,10 +10544,59 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 container.appendChild(row);
             }
 
-            updateRelicCounterInstrument() {
-                const relicCount = this.getRelicCountForInstrument();
-                if (this.relicCounterValue) this.renderAlienMonoText(this.relicCounterValue, String(relicCount));
-                if (this.relicCounterHud) this.relicCounterHud.setAttribute('aria-label', `${relicCount} collected relic${relicCount === 1 ? '' : 's'}`);
+            playOrbitalTallyCollectionEffect(marker) {
+                if (!marker || !this.orbitalTallyHud || !this.orbitalTallyOrb) return;
+
+                marker.classList.remove('newly-collected');
+                void marker.offsetWidth;
+                marker.classList.add('newly-collected');
+                window.setTimeout(() => marker.classList.remove('newly-collected'), 680);
+
+                this.orbitalTallyOrb.classList.remove('relic-absorbed');
+                void this.orbitalTallyOrb.offsetWidth;
+                this.orbitalTallyOrb.classList.add('relic-absorbed');
+                window.setTimeout(() => this.orbitalTallyOrb.classList.remove('relic-absorbed'), 520);
+
+                const x = Number(marker.dataset.x);
+                const y = Number(marker.dataset.y);
+                if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+                const dx = 50 - x;
+                const dy = 50 - y;
+                const distance = Math.hypot(dx, dy);
+                const angle = Math.atan2(dy, dx) * 180 / Math.PI;
+                const chargeLine = document.createElement('span');
+                chargeLine.className = 'orbital-tally-charge-line';
+                chargeLine.style.setProperty('--charge-left', `${x}%`);
+                chargeLine.style.setProperty('--charge-top', `${y}%`);
+                chargeLine.style.setProperty('--charge-width', `${distance}%`);
+                chargeLine.style.setProperty('--charge-angle', `${angle}deg`);
+                this.orbitalTallyHud.appendChild(chargeLine);
+                window.setTimeout(() => chargeLine.remove(), 520);
+            }
+
+            updateOrbitalTallyInstrument() {
+                const relicCount = Math.max(0, Math.min(15, this.getRelicCountForInstrument()));
+                const markers = this.orbitalTallyMarkers ? [...this.orbitalTallyMarkers.querySelectorAll('.orbital-tally-marker')] : [];
+                markers.forEach((marker, index) => marker.classList.toggle('collected', index < relicCount));
+
+                this.orbitalTallyRings.forEach((ring, index) => {
+                    ring.classList.toggle('ring-complete', relicCount >= ((index + 1) * 5));
+                });
+
+                const pulseDuration = 2.40 - (1.75 * (relicCount / 15));
+                if (this.orbitalTallyOrb) {
+                    this.orbitalTallyOrb.style.setProperty('--orbital-pulse-duration', `${pulseDuration.toFixed(3)}s`);
+                }
+                if (this.orbitalTallyHud) {
+                    this.orbitalTallyHud.classList.toggle('tally-complete', relicCount >= 15);
+                    this.orbitalTallyHud.setAttribute('aria-label', `Orbital Tally: ${relicCount} of 15 relics collected`);
+                }
+
+                if (this.lastOrbitalTallyCount !== null && relicCount > this.lastOrbitalTallyCount) {
+                    const newestMarker = markers[Math.max(0, relicCount - 1)];
+                    this.playOrbitalTallyCollectionEffect(newestMarker);
+                }
+                this.lastOrbitalTallyCount = relicCount;
             }
 
             formatHudTimer() {
@@ -10628,7 +10822,7 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 this.updateCrystalGauges();
                 this.updateAlienLevelInstrument();
                 this.updateAlienRelicInstrument();
-                this.updateRelicCounterInstrument();
+                this.updateOrbitalTallyInstrument();
                 this.updateTimerInstrument();
                 this.updateProximityAlert();
             }
