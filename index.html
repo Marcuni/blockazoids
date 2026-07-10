@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v227: Physically removes the legacy top-HUD menu control so gameplay shows only cycle stars, while pause menus remain available from the four grid-corner controls.
+Build v228: Keeps the four pause-page symbols over full-size menu pages, removes the pause X control, standardizes the High Score title and detail sizing, and keeps Super Gridlock bonuses on one line.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -1491,6 +1491,15 @@ This source code, artwork, game design, and related assets are not licensed for 
             opacity: 0.72;
         }
 
+        #scoringHighScoreLabel {
+            color: #fff;
+            opacity: 1;
+            font-size: clamp(24px, 7vw, 34px);
+            font-weight: bold;
+            line-height: 1;
+            letter-spacing: 2px;
+        }
+
         .scoring-record-value {
             display: block;
             font-size: clamp(31px, 9.4vw, 48px);
@@ -1534,7 +1543,7 @@ This source code, artwork, game design, and related assets are not licensed for 
             margin-left: auto;
             margin-right: auto;
             text-align: left;
-            font-size: clamp(12px, 3.45vw, 16px);
+            font-size: clamp(11px, 3.1vw, 15px);
             line-height: 1.45;
             letter-spacing: 1px;
             opacity: 0.86;
@@ -3293,7 +3302,7 @@ This source code, artwork, game design, and related assets are not licensed for 
             font-size: clamp(18px, 5.8vw, 31px);
             letter-spacing: 1px;
             line-height: 1.05;
-            white-space: pre-line;
+            white-space: nowrap;
             transform-origin: center;
             opacity: 1;
             animation: superGridlockBurst 0.62s ease-in-out 2;
@@ -3504,6 +3513,7 @@ This source code, artwork, game design, and related assets are not licensed for 
             transform: translate(-50%, -50%) scale(1);
             z-index: 5;
             min-width: 12ch;
+            max-width: calc(100% - 12px);
             box-sizing: border-box;
             padding: 2px 8px;
             color: #fff;
@@ -3514,7 +3524,7 @@ This source code, artwork, game design, and related assets are not licensed for 
             line-height: 1.05;
             letter-spacing: 1px;
             text-align: center;
-            white-space: pre-line;
+            white-space: nowrap;
             text-shadow: 0 0 calc(var(--default-glow) * 1.45px) #fff,
                          0 0 calc(var(--default-glow) * 2.9px) rgba(255,255,255,0.92),
                          0 0 calc(var(--default-glow) * 4.8px) rgba(255,255,255,0.58);
@@ -3679,12 +3689,12 @@ This source code, artwork, game design, and related assets are not licensed for 
         }
 
         #pauseWindow .menu-panel {
-            inset: var(--grid-size, 60px);
-            width: auto;
-            height: auto;
+            inset: 0;
+            width: 100%;
+            height: 100%;
             min-height: 0;
-            padding: clamp(9px, 2.6vw, 16px) clamp(11px, 3vw, 20px);
-            border: 1px solid rgba(255,255,255,0.78);
+            padding: clamp(12px, 3.6vw, 22px) clamp(16px, 4.5vw, 30px) clamp(14px, 4vw, 26px);
+            border: none;
             background: #000;
             overflow-x: hidden;
             overflow-y: auto;
@@ -3736,7 +3746,6 @@ This source code, artwork, game design, and related assets are not licensed for 
         <div id="gameOverlay"></div>
         <div id="instructionsWindow" style="display: none;"></div>
         <div id="pauseWindow">
-            <button id="pauseMenuCloseButton" class="menu-close-button" type="button" aria-label="Close menu">X</button>
             <div id="menuButtons">
                 <button id="resumeButton" class="menu-button">Resume</button>
                 <button id="restartButton" class="menu-button">Restart</button>
@@ -3955,7 +3964,7 @@ This source code, artwork, game design, and related assets are not licensed for 
     <div id="copyrightFooter">© 2026 Marcus Couto</div>
 
     <script>
-        const BUILD_VERSION = 'Build v227';
+        const BUILD_VERSION = 'Build v228';
         document.getElementById('buildVersion').textContent = BUILD_VERSION;
         document.querySelectorAll('.buildVersionText').forEach(el => { el.textContent = BUILD_VERSION; });
 
@@ -5562,6 +5571,16 @@ This source code, artwork, game design, and related assets are not licensed for 
                 if (!this.pauseWindow || this.pauseWindow.style.display !== 'flex') return;
                 if (panelName === 'telemetry' && !this.developerModeEnabled) return;
                 this.playUiClick();
+
+                if (this.getCurrentMenuContext() === panelName) {
+                    this.showMainMenuButtons();
+                    this.setGameOverlayVisible(true);
+                    this.updatePauseGridMenu();
+                    this.ui.updateAll();
+                    requestAnimationFrame(() => this.clearMenuButtonFocus());
+                    return;
+                }
+
                 this.showMenuPanel(panelName);
                 this.setGameOverlayVisible(true);
                 this.updatePauseGridMenu();
@@ -11239,7 +11258,7 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 if (this.scoreAlertTimer) clearTimeout(this.scoreAlertTimer);
                 this.scoreAlertActive = true;
                 alertElement.classList.remove('visible');
-                alertElement.textContent = `SUPER GRIDLOCK\n+${Math.max(0, Math.floor(points || 0))}`;
+                alertElement.textContent = `SUPER GRIDLOCK +${Math.max(0, Math.floor(points || 0))}`;
                 void alertElement.offsetWidth;
                 alertElement.classList.add('visible');
                 this.scoreAlertTimer = setTimeout(() => {
