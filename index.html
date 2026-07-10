@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v219: Adds cockpit activation behavior, fixes cumulative Orbital Tally relic tracking, separates high scores by difficulty, expands record details, narrows the sector-name gauge, and removes the cycle star.
+Build v220: Dims inactive cockpit instruments, pulses ACTIVATE, aligns high-score detail groups, locks sector selection during runs, and adds menu close controls.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -1341,6 +1341,37 @@ This source code, artwork, game design, and related assets are not licensed for 
             display: flex;
         }
 
+        .menu-close-button {
+            position: absolute;
+            top: clamp(9px, 2.6vw, 16px);
+            right: clamp(9px, 2.6vw, 16px);
+            width: clamp(34px, 9vw, 42px);
+            height: clamp(34px, 9vw, 42px);
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            background: #000;
+            border: 2px solid #fff;
+            box-shadow: 0 0 calc(var(--default-glow) * 0.62px) rgba(255,255,255,0.88);
+            font-family: 'Orbitron', 'Courier New', monospace;
+            font-size: clamp(20px, 5.8vw, 28px);
+            font-weight: bold;
+            line-height: 1;
+            cursor: pointer;
+            z-index: 1200;
+        }
+
+        .menu-close-button:focus {
+            outline: none;
+        }
+
+        .menu-close-button:focus-visible {
+            outline: 2px solid rgba(255,255,255,0.72);
+            outline-offset: 3px;
+        }
+
         .menu-panel-title {
             font-size: clamp(24px, 7vw, 34px);
             margin-bottom: clamp(10px, 3vw, 16px);
@@ -1473,31 +1504,38 @@ This source code, artwork, game design, and related assets are not licensed for 
         }
 
         .high-score-run-line {
-            display: block;
-            width: 100%;
-            text-align: center;
-            white-space: pre-line;
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+            column-gap: clamp(30px, 10vw, 74px);
+            width: min(390px, 96%);
+            margin-left: auto;
+            margin-right: auto;
+            text-align: left;
             font-size: clamp(12px, 3.45vw, 16px);
-            line-height: 1.55;
+            line-height: 1.45;
             letter-spacing: 1px;
-            word-spacing: clamp(2px, 0.8vw, 5px);
             opacity: 0.86;
         }
 
-        .high-score-detail-row {
-            display: flex;
-            justify-content: space-between;
-            gap: 16px;
-            white-space: nowrap;
-            margin: 2px 0;
+        .high-score-detail-group {
+            display: grid;
+            grid-template-columns: auto minmax(1.5em, 1fr);
+            column-gap: clamp(8px, 2.2vw, 14px);
+            row-gap: clamp(5px, 1.4vw, 8px);
+            align-items: baseline;
+            min-width: 0;
         }
 
         .high-score-detail-label {
             opacity: 0.68;
+            text-align: left;
+            white-space: nowrap;
         }
 
         .high-score-detail-value {
-            text-align: right;
+            text-align: left;
+            white-space: nowrap;
+            min-width: 0;
         }
 
         .scoring-divider {
@@ -2504,8 +2542,53 @@ This source code, artwork, game design, and related assets are not licensed for 
         }
 
         #timerHud.powered-off #timerValue {
-            opacity: 0;
-            text-shadow: none;
+            color: var(--dark-green-color);
+            opacity: 0.92;
+            text-shadow: 0 0 calc(var(--default-glow) * 0.28px) rgba(0,90,0,0.72);
+        }
+
+        #greenCrystalGauge.powered-off {
+            opacity: 0.42;
+        }
+
+        #greenCrystalGauge.powered-off .crystal-gauge-segment {
+            background: var(--dark-green-color);
+            box-shadow: none;
+            opacity: 0.52;
+        }
+
+        #greenCrystalGaugeIcon.powered-off {
+            color: var(--dark-green-color);
+            opacity: 0.72;
+        }
+
+        #greenCrystalGaugeIcon.powered-off .gauge-icon-diamond {
+            box-shadow: none;
+            background: rgba(0,59,0,0.10);
+        }
+
+        #alienLevelHud.waiting-activate {
+            border-color: rgba(143,143,143,0.48);
+            box-shadow: none;
+        }
+
+        #alienLevelGlyphs.activate-pulse {
+            animation: cockpitActivateWordPulse 1.15s ease-in-out infinite;
+        }
+
+        @keyframes cockpitActivateWordPulse {
+            0%, 100% {
+                color: var(--dark-yellow-color);
+                opacity: 0.68;
+                text-shadow: 0 0 calc(var(--default-glow) * 0.48px) rgba(110,110,0,0.72);
+            }
+            50% {
+                color: var(--yellow-color);
+                opacity: 1;
+                text-shadow: 0 0 calc(var(--default-glow) * 1.55px) var(--yellow-color),
+                             0 0 calc(var(--default-glow) * 3.2px) rgba(255,255,0,0.90),
+                             0 0 calc(var(--default-glow) * 5.2px) rgba(255,255,150,0.58);
+            }
         }
 
         #blueCrystalGauge.powered-off {
@@ -2705,6 +2788,22 @@ This source code, artwork, game design, and related assets are not licensed for 
         .radar-alarm-tick.t2 { right: 9%; top: 21%; transform: rotate(35deg); }
         .radar-alarm-tick.t3 { left: 9%; bottom: 21%; transform: rotate(35deg); }
         .radar-alarm-tick.t4 { right: 9%; bottom: 21%; transform: rotate(-35deg); }
+
+        #radarAlarmHud.powered-off {
+            border-color: rgba(143,143,143,0.42);
+            box-shadow: none;
+            opacity: 0.48;
+        }
+
+        #radarAlarmHud.powered-off::before,
+        #radarAlarmHud.powered-off::after,
+        #radarAlarmHud.powered-off .radar-alarm-line,
+        #radarAlarmHud.powered-off .radar-alarm-tick,
+        #radarAlarmHud.powered-off .radar-alarm-core {
+            background: var(--dark-red-color);
+            box-shadow: none;
+            opacity: 0.72;
+        }
 
         #radarAlarmHud.radar-active {
             animation: radarAlarmFramePulse 0.16s steps(1, end) infinite;
@@ -3152,6 +3251,7 @@ This source code, artwork, game design, and related assets are not licensed for 
         <div id="gameOverlay"></div>
         <div id="instructionsWindow" style="display: none;"></div>
         <div id="pauseWindow">
+            <button id="pauseMenuCloseButton" class="menu-close-button" type="button" aria-label="Close menu">X</button>
             <div id="menuButtons">
                 <button id="resumeButton" class="menu-button">Resume</button>
                 <button id="restartButton" class="menu-button">Restart</button>
@@ -3176,7 +3276,16 @@ This source code, artwork, game design, and related assets are not licensed for 
                 <div class="scoring-record-area">
                     <span id="scoringHighScoreLabel" class="scoring-record-label">HIGH SCORE</span>
                     <span id="scoringHighScoreValue" class="scoring-record-value">0</span>
-                    <span id="scoringHighScoreRunLine" class="high-score-run-line scoring-high-score-run-line">CYCLE —&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;SECTOR —<br>RELICS —&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;TIME —</span>
+                    <div id="scoringHighScoreRunLine" class="high-score-run-line scoring-high-score-run-line">
+                        <div class="high-score-detail-group">
+                            <span class="high-score-detail-label">CYCLE</span><span class="high-score-detail-value" data-high-score-field="cycle">—</span>
+                            <span class="high-score-detail-label">RELICS</span><span class="high-score-detail-value" data-high-score-field="relics">—</span>
+                        </div>
+                        <div class="high-score-detail-group">
+                            <span class="high-score-detail-label">SECTOR</span><span class="high-score-detail-value" data-high-score-field="sector">—</span>
+                            <span class="high-score-detail-label">TIME</span><span class="high-score-detail-value" data-high-score-field="time">—</span>
+                        </div>
+                    </div>
                 </div>
                 <div class="scoring-divider"></div>
                 <div class="scoring-section-title scoring-main-title">SCORING RULES</div>
@@ -3197,7 +3306,16 @@ This source code, artwork, game design, and related assets are not licensed for 
                 <div class="menu-panel-title">HIGH SCORE</div>
                 <div id="highScorePanelValue" class="high-score-panel-value">0</div>
                 <div id="highScorePanelDetails" class="high-score-panel-details">
-                    <span id="highScorePanelRunLine" class="high-score-run-line">CYCLE —&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;SECTOR —<br>RELICS —&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;TIME —</span>
+                    <div id="highScorePanelRunLine" class="high-score-run-line">
+                        <div class="high-score-detail-group">
+                            <span class="high-score-detail-label">CYCLE</span><span class="high-score-detail-value" data-high-score-field="cycle">—</span>
+                            <span class="high-score-detail-label">RELICS</span><span class="high-score-detail-value" data-high-score-field="relics">—</span>
+                        </div>
+                        <div class="high-score-detail-group">
+                            <span class="high-score-detail-label">SECTOR</span><span class="high-score-detail-value" data-high-score-field="sector">—</span>
+                            <span class="high-score-detail-label">TIME</span><span class="high-score-detail-value" data-high-score-field="time">—</span>
+                        </div>
+                    </div>
                     <span id="highScorePanelSector" class="high-score-detail-value" style="display:none">—</span>
                     <span id="highScorePanelTime" class="high-score-detail-value" style="display:none">—</span>
                 </div>
@@ -3239,9 +3357,10 @@ This source code, artwork, game design, and related assets are not licensed for 
             <div class="menuCopyright">© 2026 Marcus Couto</div>
         </div>
         <div id="levelSelectWindow">
+            <button id="levelSelectCloseButton" class="menu-close-button" type="button" aria-label="Close sector select">X</button>
             <div id="levelSelectTitle">SECTOR SELECT</div>
             <div id="levelSelectGrid"></div>
-            <div class="buildVersionText">Build v219</div>
+            <div class="buildVersionText">Build v220</div>
             <div class="menuCopyright">© 2026 Marcus Couto</div>
         </div>
     </div>
@@ -3309,7 +3428,7 @@ This source code, artwork, game design, and related assets are not licensed for 
     <div id="copyrightFooter">© 2026 Marcus Couto</div>
 
     <script>
-        const BUILD_VERSION = 'Build v219';
+        const BUILD_VERSION = 'Build v220';
         document.getElementById('buildVersion').textContent = BUILD_VERSION;
         document.querySelectorAll('.buildVersionText').forEach(el => { el.textContent = BUILD_VERSION; });
 
@@ -3379,6 +3498,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.scoringHighScoreRunLine = document.getElementById('scoringHighScoreRunLine');
                 this.instructionsWindow = document.getElementById('instructionsWindow');
                 this.pauseWindow = document.getElementById('pauseWindow');
+                this.pauseMenuCloseButton = document.getElementById('pauseMenuCloseButton');
                 this.resumeButton = document.getElementById('resumeButton');
                 this.restartButton = document.getElementById('restartButton');
                 this.restartConfirmPending = false;
@@ -3622,6 +3742,24 @@ This source code, artwork, game design, and related assets are not licensed for 
                         e.preventDefault();
                         e.stopPropagation();
                         this.handleTopHudMenuButtonClick();
+                    });
+                }
+                if (this.pauseMenuCloseButton) {
+                    this.pauseMenuCloseButton.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        this.playUiClick();
+                        if (this.developerAttractMenuOpen) this.closeDeveloperMenuToStartScreen();
+                        else this.closeBottomPanelOverlay();
+                    });
+                }
+                if (this.levelSelectCloseButton) {
+                    this.levelSelectCloseButton.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        this.playUiClick();
+                        if (this.developerAttractMenuOpen) this.closeDeveloperMenuToStartScreen();
+                        else this.closeBottomPanelOverlay();
                     });
                 }
                 this.resumeButton.addEventListener('click', (e) => {
@@ -5607,7 +5745,9 @@ This source code, artwork, game design, and related assets are not licensed for 
                     this.howToButton,
                     this.settingsHudButton,
                     this.hudMenuButton,
-                    this.howToBackButton
+                    this.howToBackButton,
+                    this.pauseMenuCloseButton,
+                    this.levelSelectCloseButton
                 ].forEach(button => {
                     if (button && typeof button.blur === 'function') button.blur();
                 });
@@ -5691,7 +5831,15 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.stopPauseMenuReactorHum();
             }
 
+            canChangeSectorSelection() {
+                return !this.hasStartedRun && !this.active && !this.isPaused && !this.isGameOver && !this.showHudDuringSectorIntro;
+            }
+
             adjustSelectedStartSector(direction) {
+                if (!this.canChangeSectorSelection()) {
+                    this.updateSettingsSectorLabel();
+                    return;
+                }
                 const total = this.MAX_LEVEL || 15;
                 const current = Math.max(1, Math.min(total, this.selectedStartSector || this.level || 1));
                 this.selectedStartSector = ((current - 1 + direction + total) % total) + 1;
@@ -5703,6 +5851,24 @@ This source code, artwork, game design, and related assets are not licensed for 
                 const sector = Math.max(1, Math.min(this.MAX_LEVEL || 15, this.selectedStartSector || this.level || 1));
                 this.selectedStartSector = sector;
                 this.settingsSectorValue.textContent = `${sector}`;
+                const canChange = this.canChangeSectorSelection();
+                const control = document.getElementById('sectorSettingControl');
+                if (control) control.classList.toggle('locked', !canChange);
+                [this.sectorDecreaseButton, this.sectorIncreaseButton].forEach(button => {
+                    if (!button) return;
+                    button.disabled = !canChange;
+                    button.setAttribute('aria-disabled', canChange ? 'false' : 'true');
+                });
+                this.updateLevelSelectButtonLockState();
+            }
+
+            updateLevelSelectButtonLockState() {
+                const canChange = this.canChangeSectorSelection();
+                if (!this.levelSelectGrid) return;
+                [...this.levelSelectGrid.querySelectorAll('.level-select-button')].forEach(button => {
+                    button.disabled = !canChange;
+                    button.setAttribute('aria-disabled', canChange ? 'false' : 'true');
+                });
             }
 
             loadDifficultyMode() {
@@ -5912,13 +6078,30 @@ This source code, artwork, game design, and related assets are not licensed for 
                 } catch (error) {}
             }
 
+            getHighScoreRunValues(details) {
+                if (!this.highScore || this.highScore <= 0) {
+                    return { cycle: '—', relics: '—', sector: '—', time: '—' };
+                }
+                return {
+                    cycle: details && details.highestCycle ? details.highestCycle : 1,
+                    relics: details && Number.isFinite(details.relics) ? details.relics : 0,
+                    sector: details && details.highestSector ? details.highestSector : '—',
+                    time: details && details.gameTimeMs ? this.formatTelemetryDuration(details.gameTimeMs) : '—'
+                };
+            }
+
+            renderHighScoreRunDetails(container, details) {
+                if (!container) return;
+                const values = this.getHighScoreRunValues(details);
+                Object.entries(values).forEach(([field, value]) => {
+                    const target = container.querySelector(`[data-high-score-field="${field}"]`);
+                    if (target) target.textContent = `${value}`;
+                });
+            }
+
             formatHighScoreRunLine(details) {
-                if (!this.highScore || this.highScore <= 0) return 'CYCLE —      SECTOR —\nRELICS —      TIME —';
-                const cycle = details && details.highestCycle ? details.highestCycle : 1;
-                const sector = details && details.highestSector ? details.highestSector : '—';
-                const relics = details && Number.isFinite(details.relics) ? details.relics : 0;
-                const time = details && details.gameTimeMs ? this.formatTelemetryDuration(details.gameTimeMs) : '—';
-                return `CYCLE ${cycle}      SECTOR ${sector}\nRELICS ${relics}      TIME ${time}`;
+                const values = this.getHighScoreRunValues(details);
+                return `CYCLE ${values.cycle}      SECTOR ${values.sector}\nRELICS ${values.relics}      TIME ${values.time}`;
             }
 
             updateHighScoreDisplay() {
@@ -5933,7 +6116,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 }
                 const details = this.highScoreDetails || this.getEmptyHighScoreDetails();
                 if (this.scoringHighScoreRunLine) {
-                    this.scoringHighScoreRunLine.textContent = this.formatHighScoreRunLine(details);
+                    this.renderHighScoreRunDetails(this.scoringHighScoreRunLine, details);
                 }
                 if (this.highScorePanelValue) {
                     this.highScorePanelValue.textContent = `${this.highScore}`;
@@ -5945,7 +6128,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                     this.highScorePanelTime.textContent = this.highScore > 0 && details.gameTimeMs ? this.formatTelemetryDuration(details.gameTimeMs) : '—';
                 }
                 if (this.highScorePanelRunLine) {
-                    this.highScorePanelRunLine.textContent = this.formatHighScoreRunLine(details);
+                    this.renderHighScoreRunDetails(this.highScorePanelRunLine, details);
                 }
                 const scoringRecordArea = document.querySelector('.scoring-record-area');
                 if (scoringRecordArea) scoringRecordArea.style.display = this.highScore > 0 ? 'flex' : 'none';
@@ -6043,6 +6226,10 @@ This source code, artwork, game design, and related assets are not licensed for 
                     button.addEventListener('click', (e) => {
                         e.preventDefault();
                         e.stopPropagation();
+                        if (!this.canChangeSectorSelection()) {
+                            this.updateLevelSelectButtonLockState();
+                            return;
+                        }
                         this.playUiClick();
                         this.hideLevelSelectMenu();
                         this.jumpToLevel(levelNumber, true);
@@ -6056,14 +6243,20 @@ This source code, artwork, game design, and related assets are not licensed for 
                 endButton.addEventListener('click', (e) => {
                     e.preventDefault();
                     e.stopPropagation();
+                    if (!this.canChangeSectorSelection()) {
+                        this.updateLevelSelectButtonLockState();
+                        return;
+                    }
                     this.playUiClick();
                     this.startEndCycleTest();
                 });
                 this.levelSelectGrid.appendChild(endButton);
+                this.updateLevelSelectButtonLockState();
 
             }
 
             showLevelSelectMenu() {
+                this.updateLevelSelectButtonLockState();
                 this.levelSelectWindow.style.display = 'flex';
                 this.stopAttractComputerAmbience();
                 this.startPauseMenuReactorHum();
@@ -10305,6 +10498,7 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 this.alienRelicHud = document.getElementById('alienRelicHud'); // Alien-Roman relic count instrument
                 this.alienRelicGlyphs = document.getElementById('alienRelicGlyphs'); // Alien relic glyphs
                 this.greenCrystalGauge = document.getElementById('greenCrystalGauge'); // Green crystal collection gauge
+                this.greenCrystalGaugeIcon = document.getElementById('greenCrystalGaugeIcon'); // Crystal gauge icon
                 this.blueCrystalGauge = document.getElementById('blueCrystalGauge'); // Blue crystal collection gauge
                 this.blueCrystalGaugeIcon = document.getElementById('blueCrystalGaugeIcon'); // Cosmic Zap gauge icon
                 this.orbitalTallyHud = document.getElementById('orbitalTallyHud'); // Circular 15-relic Orbital Tally
@@ -10373,11 +10567,11 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 if (this.game.scoringHighScoreLabel) this.game.scoringHighScoreLabel.textContent = 'HIGH SCORE';
                 if (this.game.scoringHighScoreValue) this.game.scoringHighScoreValue.textContent = `${this.game.highScore}`;
                 const details = this.game.highScoreDetails || this.game.getEmptyHighScoreDetails();
-                if (this.game.scoringHighScoreRunLine) this.game.scoringHighScoreRunLine.textContent = this.game.formatHighScoreRunLine(details);
+                if (this.game.scoringHighScoreRunLine) this.game.renderHighScoreRunDetails(this.game.scoringHighScoreRunLine, details);
                 if (this.game.highScorePanelValue) this.game.highScorePanelValue.textContent = `${this.game.highScore}`;
                 if (this.game.highScorePanelSector) this.game.highScorePanelSector.textContent = this.game.highScore > 0 && details.highestSector ? `${details.highestSector}` : '—';
                 if (this.game.highScorePanelTime) this.game.highScorePanelTime.textContent = this.game.highScore > 0 && details.gameTimeMs ? this.game.formatTelemetryDuration(details.gameTimeMs) : '—';
-                if (this.game.highScorePanelRunLine) this.game.highScorePanelRunLine.textContent = this.game.formatHighScoreRunLine(details);
+                if (this.game.highScorePanelRunLine) this.game.renderHighScoreRunDetails(this.game.highScorePanelRunLine, details);
                 if (scoringRecordArea) scoringRecordArea.style.display = this.game.highScore > 0 ? 'flex' : 'none';
                 if (!((this.game.active && this.game.levelActionStarted) ||
                       (this.game.isPaused && this.game.levelActionStarted) ||
@@ -10527,9 +10721,12 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 if (!this.alienLevelGlyphs) return;
 
                 const displayName = String(this.game.cockpitSectorDisplayName || 'ACTIVATE').toUpperCase();
+                const waitingForActivation = !this.game.cockpitActivated && displayName === 'ACTIVATE';
                 this.alienLevelGlyphs.classList.add('alien-level-name-text');
+                this.alienLevelGlyphs.classList.toggle('activate-pulse', waitingForActivation);
                 this.alienLevelGlyphs.textContent = displayName;
                 if (this.alienLevelHud) {
+                    this.alienLevelHud.classList.toggle('waiting-activate', waitingForActivation);
                     const displayLevel = this.game.cockpitSectorDisplayLevel;
                     this.alienLevelHud.setAttribute('aria-label', displayLevel ? `Sector ${displayLevel}: ${displayName}` : displayName);
                 }
@@ -10632,7 +10829,7 @@ startMaxSwarmBeat(delaySeconds = 0) {
 
             updateTimerInstrument() {
                 const powered = !!this.game.cockpitActivated;
-                const displayValue = powered ? this.formatHudTimer() : '';
+                const displayValue = powered ? this.formatHudTimer() : '00:00';
                 if (this.timerValue) this.renderAlienMonoText(this.timerValue, displayValue);
                 if (this.timerHud) {
                     this.timerHud.classList.toggle('powered-off', !powered);
@@ -10667,6 +10864,9 @@ startMaxSwarmBeat(delaySeconds = 0) {
 
             renderVerticalCrystalGauge(container) {
                 if (!container) return;
+                const powered = !!this.game.cockpitActivated;
+                container.classList.toggle('powered-off', !powered);
+                if (this.greenCrystalGaugeIcon) this.greenCrystalGaugeIcon.classList.toggle('powered-off', !powered);
                 const { collected, total } = this.getCollectedCrystalProgress();
                 const segmentCount = Math.max(0, total);
                 if (container.dataset.segmentCount !== String(segmentCount)) {
@@ -10762,14 +10962,16 @@ startMaxSwarmBeat(delaySeconds = 0) {
             }
 
             updateProximityAlert() {
-                const active = this.hasHeadOnCollisionWarning();
+                const powered = !!this.game.cockpitActivated;
+                const active = powered && this.hasHeadOnCollisionWarning();
                 if (this.proximityAlert) {
                     this.proximityAlert.classList.toggle('alert-active', active);
                     this.proximityAlert.setAttribute('aria-label', active ? 'Alarm gauge active' : 'Alarm gauge idle');
                 }
                 if (this.radarAlarmHud) {
+                    this.radarAlarmHud.classList.toggle('powered-off', !powered);
                     this.radarAlarmHud.classList.toggle('radar-active', active);
-                    this.radarAlarmHud.setAttribute('aria-label', active ? 'Radar collision alarm active' : 'Radar collision alarm idle');
+                    this.radarAlarmHud.setAttribute('aria-label', !powered ? 'Radar collision alarm dimmed' : (active ? 'Radar collision alarm active' : 'Radar collision alarm idle'));
                 }
             }
 
