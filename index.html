@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v230: Restores the v228 vertical layout, raises the Scoring Rules section slightly, removes the remaining menu X control, and routes Gridlock and Super Gridlock through one shared visual presentation.
+Build v231: Replaces the green crystal meter with a 9-vertebra Crystal Spine containing 81 segments, adds a crystal-collection energy pulse, and reduces the Gridlock and Super Gridlock alert type by one size step.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -2533,6 +2533,204 @@ This source code, artwork, game design, and related assets are not licensed for 
             opacity: 1;
         }
 
+
+        /* Alien Crystal Spine: nine angular vertebrae with nine crystal cells each. */
+        #greenCrystalGauge.crystal-spine {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-between;
+            gap: calc(var(--grid-size, 60px) * 0.014);
+            padding: calc(var(--grid-size, 60px) * 0.055) calc(var(--grid-size, 60px) * 0.065);
+            overflow: hidden;
+            isolation: isolate;
+            box-shadow: inset 0 0 calc(var(--default-glow) * 0.28px) rgba(0, 92, 0, 0.52);
+        }
+
+        #greenCrystalGauge.crystal-spine::before {
+            content: "";
+            position: absolute;
+            left: 50%;
+            top: 4%;
+            bottom: 4%;
+            width: 2px;
+            transform: translateX(-50%);
+            background: linear-gradient(180deg, rgba(0, 42, 0, 0.35), var(--dark-green-color) 12%, var(--dark-green-color) 88%, rgba(0, 42, 0, 0.35));
+            box-shadow: 0 0 calc(var(--default-glow) * 0.34px) rgba(0, 120, 0, 0.62);
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        #greenCrystalGauge.crystal-spine::after {
+            content: "";
+            position: absolute;
+            left: 50%;
+            top: 92%;
+            width: 4px;
+            height: 13%;
+            transform: translateX(-50%);
+            background: linear-gradient(180deg, rgba(255,255,255,0), #fff 24%, var(--green-color) 50%, #fff 72%, rgba(255,255,255,0));
+            box-shadow: 0 0 calc(var(--default-glow) * 0.90px) #fff,
+                        0 0 calc(var(--default-glow) * 1.65px) var(--green-color),
+                        0 0 calc(var(--default-glow) * 2.45px) rgba(0,255,0,0.72);
+            opacity: 0;
+            z-index: 5;
+            pointer-events: none;
+        }
+
+        #greenCrystalGauge.crystal-spine.energy-pulse::after {
+            animation: crystalSpineEnergySweep 0.42s ease-out 1;
+        }
+
+        .crystal-spine-vertebra {
+            position: relative;
+            width: 88%;
+            min-height: 0;
+            flex: 1 1 0;
+            box-sizing: border-box;
+            background: rgba(143,143,143,0.92);
+            clip-path: polygon(14% 0%, 86% 0%, 100% 25%, 88% 50%, 100% 75%, 86% 100%, 14% 100%, 0% 75%, 12% 50%, 0% 25%);
+            filter: drop-shadow(0 0 calc(var(--default-glow) * 0.16px) rgba(143,143,143,0.62));
+            transition: background-color 0.12s ease-out, filter 0.12s ease-out, transform 0.12s ease-out;
+            z-index: 2;
+            overflow: hidden;
+        }
+
+        .crystal-spine-vertebra::before {
+            content: "";
+            position: absolute;
+            inset: 1px;
+            background: #000;
+            clip-path: polygon(14% 0%, 86% 0%, 100% 25%, 88% 50%, 100% 75%, 86% 100%, 14% 100%, 0% 75%, 12% 50%, 0% 25%);
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        .crystal-spine-vertebra::after {
+            content: "";
+            position: absolute;
+            left: 50%;
+            top: 0;
+            bottom: 0;
+            width: 1px;
+            transform: translateX(-50%);
+            background: rgba(0, 76, 0, 0.72);
+            box-shadow: 0 0 calc(var(--default-glow) * 0.22px) rgba(0,120,0,0.55);
+            z-index: 1;
+            pointer-events: none;
+        }
+
+        .crystal-spine-vertebra.active {
+            background: rgba(0, 152, 0, 0.88);
+            filter: drop-shadow(0 0 calc(var(--default-glow) * 0.34px) rgba(0,255,0,0.62));
+        }
+
+        .crystal-spine-vertebra.complete {
+            background: var(--green-color);
+            filter: drop-shadow(0 0 calc(var(--default-glow) * 0.68px) var(--green-color))
+                    drop-shadow(0 0 calc(var(--default-glow) * 1.20px) rgba(0,255,0,0.72));
+        }
+
+        .crystal-spine-vertebra.complete::before {
+            background: rgba(0, 22, 0, 0.96);
+        }
+
+        .crystal-spine-segments {
+            position: absolute;
+            left: 17%;
+            right: 17%;
+            top: 15%;
+            bottom: 15%;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-template-rows: repeat(3, 1fr);
+            gap: 1px;
+            z-index: 3;
+            pointer-events: none;
+        }
+
+        .crystal-spine-segment {
+            min-width: 0;
+            min-height: 0;
+            border: 1px solid rgba(0, 78, 0, 0.62);
+            background: rgba(0, 32, 0, 0.92);
+            clip-path: polygon(18% 0%, 100% 0%, 82% 100%, 0% 100%);
+            opacity: 0.86;
+            box-shadow: inset 0 0 calc(var(--default-glow) * 0.10px) rgba(0,110,0,0.42);
+            transition: background-color 0.10s ease-out, box-shadow 0.10s ease-out, opacity 0.10s ease-out, filter 0.10s ease-out;
+        }
+
+        .crystal-spine-segment:nth-child(even) {
+            clip-path: polygon(0% 0%, 82% 0%, 100% 100%, 18% 100%);
+        }
+
+        .crystal-spine-segment.filled {
+            border-color: rgba(195,255,195,0.92);
+            background: var(--green-color);
+            opacity: 1;
+            box-shadow: 0 0 calc(var(--default-glow) * 0.55px) var(--green-color),
+                        0 0 calc(var(--default-glow) * 1.00px) rgba(0,255,0,0.78),
+                        inset 0 0 calc(var(--default-glow) * 0.18px) #fff;
+            filter: brightness(1.08);
+        }
+
+        #greenCrystalGauge.crystal-spine.energy-pulse .crystal-spine-vertebra {
+            animation: crystalSpineVertebraPulse 0.24s ease-out 1;
+        }
+
+        #greenCrystalGauge.crystal-spine.energy-pulse .crystal-spine-vertebra:nth-child(9) { animation-delay: 0.000s; }
+        #greenCrystalGauge.crystal-spine.energy-pulse .crystal-spine-vertebra:nth-child(8) { animation-delay: 0.022s; }
+        #greenCrystalGauge.crystal-spine.energy-pulse .crystal-spine-vertebra:nth-child(7) { animation-delay: 0.044s; }
+        #greenCrystalGauge.crystal-spine.energy-pulse .crystal-spine-vertebra:nth-child(6) { animation-delay: 0.066s; }
+        #greenCrystalGauge.crystal-spine.energy-pulse .crystal-spine-vertebra:nth-child(5) { animation-delay: 0.088s; }
+        #greenCrystalGauge.crystal-spine.energy-pulse .crystal-spine-vertebra:nth-child(4) { animation-delay: 0.110s; }
+        #greenCrystalGauge.crystal-spine.energy-pulse .crystal-spine-vertebra:nth-child(3) { animation-delay: 0.132s; }
+        #greenCrystalGauge.crystal-spine.energy-pulse .crystal-spine-vertebra:nth-child(2) { animation-delay: 0.154s; }
+        #greenCrystalGauge.crystal-spine.energy-pulse .crystal-spine-vertebra:nth-child(1) { animation-delay: 0.176s; }
+
+        #greenCrystalGauge.crystal-spine.powered-off::before {
+            background: rgba(0, 44, 0, 0.46);
+            box-shadow: none;
+        }
+
+        #greenCrystalGauge.crystal-spine.powered-off::after {
+            display: none;
+        }
+
+        #greenCrystalGauge.crystal-spine.powered-off .crystal-spine-vertebra,
+        #greenCrystalGauge.crystal-spine.powered-off .crystal-spine-vertebra.active,
+        #greenCrystalGauge.crystal-spine.powered-off .crystal-spine-vertebra.complete {
+            background: rgba(92,92,92,0.52);
+            filter: none;
+        }
+
+        #greenCrystalGauge.crystal-spine.powered-off .crystal-spine-vertebra::before,
+        #greenCrystalGauge.crystal-spine.powered-off .crystal-spine-vertebra.complete::before {
+            background: #000;
+        }
+
+        #greenCrystalGauge.crystal-spine.powered-off .crystal-spine-segment,
+        #greenCrystalGauge.crystal-spine.powered-off .crystal-spine-segment.filled {
+            border-color: rgba(0,64,0,0.44);
+            background: var(--dark-green-color);
+            box-shadow: none;
+            filter: none;
+            opacity: 0.50;
+        }
+
+        @keyframes crystalSpineEnergySweep {
+            0% { top: 92%; opacity: 0; transform: translateX(-50%) scaleY(0.35); }
+            12% { opacity: 1; }
+            78% { opacity: 0.96; }
+            100% { top: -13%; opacity: 0; transform: translateX(-50%) scaleY(1); }
+        }
+
+        @keyframes crystalSpineVertebraPulse {
+            0% { transform: scaleX(1); }
+            42% { transform: scaleX(1.08); filter: brightness(2.8) drop-shadow(0 0 calc(var(--default-glow) * 0.92px) #fff) drop-shadow(0 0 calc(var(--default-glow) * 1.55px) var(--green-color)); }
+            100% { transform: scaleX(1); }
+        }
+
         #proximityAlert {
             display: none !important;
             position: absolute;
@@ -3139,7 +3337,7 @@ This source code, artwork, game design, and related assets are not licensed for 
             text-shadow: 0 0 calc(var(--default-glow) * 1.6px) #fff,
                          0 0 calc(var(--default-glow) * 3.2px) rgba(255, 255, 255, 0.94),
                          0 0 calc(var(--default-glow) * 5.4px) rgba(255, 255, 255, 0.62);
-            font-size: clamp(27px, 8.4vw, 46px);
+            font-size: clamp(24px, 7.4vw, 40px);
             letter-spacing: 2px;
             line-height: 1;
             transform-origin: center;
@@ -3300,7 +3498,7 @@ This source code, artwork, game design, and related assets are not licensed for 
             text-shadow: 0 0 calc(var(--default-glow) * 1.45px) #fff,
                          0 0 calc(var(--default-glow) * 2.9px) rgba(255,255,255,0.92),
                          0 0 calc(var(--default-glow) * 4.8px) rgba(255,255,255,0.58);
-            font-size: clamp(18px, 5.8vw, 31px);
+            font-size: clamp(16px, 5.1vw, 27px);
             letter-spacing: 1px;
             line-height: 1.05;
             white-space: nowrap;
@@ -3520,7 +3718,7 @@ This source code, artwork, game design, and related assets are not licensed for 
             color: #fff;
             background: #000;
             font-family: 'Orbitron', 'Courier New', monospace;
-            font-size: clamp(18px, 5.8vw, 31px);
+            font-size: clamp(16px, 5.1vw, 27px);
             font-weight: bold;
             line-height: 1.05;
             letter-spacing: 1px;
@@ -3880,7 +4078,7 @@ This source code, artwork, game design, and related assets are not licensed for 
             <div id="alienRelicHud" class="alien-instrument" aria-label="Hidden relic gauge">
                 <div id="alienRelicGlyphs" class="alien-glyph-row"></div>
             </div>
-            <div id="greenCrystalGauge" class="crystal-vertical-gauge" aria-label="Green crystals collected"></div>
+            <div id="greenCrystalGauge" class="crystal-vertical-gauge crystal-spine" aria-label="Crystal Spine: 0 of 81 crystals collected"></div>
             <div id="greenCrystalGaugeIcon" class="gauge-measure-icon" aria-hidden="true"><span class="gauge-icon-diamond"></span></div>
             <div id="recursionGlyphEngine" aria-label="Recursion Glyph Engine, cycle 1">
                 <svg viewBox="0 0 100 360" preserveAspectRatio="none" aria-hidden="true" focusable="false">
@@ -3959,7 +4157,7 @@ This source code, artwork, game design, and related assets are not licensed for 
     </div>
 
     <script>
-        const BUILD_VERSION = 'Build v230';
+        const BUILD_VERSION = 'Build v231';
         const splashBuildVersion = document.getElementById('splashBuildVersion');
         if (splashBuildVersion) splashBuildVersion.textContent = BUILD_VERSION;
 
@@ -11594,32 +11792,69 @@ startMaxSwarmBeat(delaySeconds = 0) {
             renderVerticalCrystalGauge(container) {
                 if (!container) return;
                 const powered = !!this.game.cockpitActivated;
+                const spineCapacity = 81;
+                const vertebraCount = 9;
+                const segmentsPerVertebra = 9;
+                const { collected } = this.getCollectedCrystalProgress();
+                const visibleCollected = Math.max(0, Math.min(spineCapacity, collected));
+
+                container.classList.add('crystal-spine');
                 container.classList.toggle('powered-off', !powered);
                 if (this.greenCrystalGaugeIcon) this.greenCrystalGaugeIcon.classList.toggle('powered-off', !powered);
-                const { collected, total } = this.getCollectedCrystalProgress();
-                const segmentCount = Math.max(0, total);
-                if (container.dataset.segmentCount !== String(segmentCount)) {
+
+                if (container.dataset.spineBuilt !== 'true') {
                     container.innerHTML = '';
-                    container.style.gridTemplateRows = segmentCount > 0 ? `repeat(${segmentCount}, 1fr)` : 'none';
-                    for (let i = 0; i < segmentCount; i++) {
-                        const segment = document.createElement('span');
-                        segment.className = 'crystal-gauge-segment';
-                        container.appendChild(segment);
+                    container.style.gridTemplateRows = 'none';
+                    for (let vertebraIndex = 0; vertebraIndex < vertebraCount; vertebraIndex++) {
+                        const vertebra = document.createElement('div');
+                        vertebra.className = 'crystal-spine-vertebra';
+                        vertebra.dataset.vertebra = String(vertebraIndex + 1);
+
+                        const segmentGrid = document.createElement('div');
+                        segmentGrid.className = 'crystal-spine-segments';
+                        const localFillOrder = [7, 6, 8, 4, 3, 5, 1, 0, 2];
+                        for (let segmentIndex = 0; segmentIndex < segmentsPerVertebra; segmentIndex++) {
+                            const segment = document.createElement('span');
+                            segment.className = 'crystal-gauge-segment crystal-spine-segment';
+                            segment.dataset.fillOrder = String(localFillOrder[segmentIndex]);
+                            segmentGrid.appendChild(segment);
+                        }
+
+                        vertebra.appendChild(segmentGrid);
+                        container.appendChild(vertebra);
                     }
-                    container.dataset.segmentCount = String(segmentCount);
+                    container.dataset.spineBuilt = 'true';
                 }
-                [...container.children].forEach((segment, index) => {
-                    const fromBottom = segmentCount - 1 - index;
-                    segment.classList.toggle('filled', fromBottom < collected);
+
+                const vertebrae = [...container.querySelectorAll('.crystal-spine-vertebra')];
+                vertebrae.forEach((vertebra, topIndex) => {
+                    const groupFromBottom = vertebraCount - 1 - topIndex;
+                    const crystalsInVertebra = Math.max(0, Math.min(segmentsPerVertebra, visibleCollected - (groupFromBottom * segmentsPerVertebra)));
+                    vertebra.classList.toggle('active', powered && crystalsInVertebra > 0);
+                    vertebra.classList.toggle('complete', powered && crystalsInVertebra === segmentsPerVertebra);
+                    [...vertebra.querySelectorAll('.crystal-spine-segment')].forEach(segment => {
+                        const fillOrder = Number(segment.dataset.fillOrder) || 0;
+                        segment.classList.toggle('filled', powered && fillOrder < crystalsInVertebra);
+                    });
                 });
-                if (powered && Number.isFinite(this.lastCrystalGaugeCount) && collected > this.lastCrystalGaugeCount && this.greenCrystalGaugeIcon) {
-                    this.greenCrystalGaugeIcon.classList.remove('collect-flash');
-                    void this.greenCrystalGaugeIcon.offsetWidth;
-                    this.greenCrystalGaugeIcon.classList.add('collect-flash');
-                    window.setTimeout(() => this.greenCrystalGaugeIcon && this.greenCrystalGaugeIcon.classList.remove('collect-flash'), 430);
+
+                if (powered && Number.isFinite(this.lastCrystalGaugeCount) && visibleCollected > this.lastCrystalGaugeCount) {
+                    container.classList.remove('energy-pulse');
+                    void container.offsetWidth;
+                    container.classList.add('energy-pulse');
+                    window.setTimeout(() => container && container.classList.remove('energy-pulse'), 620);
+
+                    if (this.greenCrystalGaugeIcon) {
+                        this.greenCrystalGaugeIcon.classList.remove('collect-flash');
+                        void this.greenCrystalGaugeIcon.offsetWidth;
+                        this.greenCrystalGaugeIcon.classList.add('collect-flash');
+                        window.setTimeout(() => this.greenCrystalGaugeIcon && this.greenCrystalGaugeIcon.classList.remove('collect-flash'), 430);
+                    }
                 }
-                this.lastCrystalGaugeCount = powered ? collected : 0;
-                container.setAttribute('aria-label', `${collected} of ${segmentCount} crystals collected`);
+
+                this.lastCrystalGaugeCount = powered ? visibleCollected : 0;
+                const completedVertebrae = Math.floor(visibleCollected / segmentsPerVertebra);
+                container.setAttribute('aria-label', `Crystal Spine: ${visibleCollected} of ${spineCapacity} crystals collected; ${completedVertebrae} of ${vertebraCount} vertebrae fully illuminated`);
             }
 
             getZapGaugeCapacity() {
