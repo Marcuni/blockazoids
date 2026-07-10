@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v220: Dims inactive cockpit instruments, pulses ACTIVATE, aligns high-score detail groups, locks sector selection during runs, and adds menu close controls.
+Build v221: Combines crystal and Zap energy into one left gauge, adds the Recursion Spine cycle instrument, reduces close-X glyph size, and letterboxes the fixed portrait layout during rotation.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -1356,7 +1356,7 @@ This source code, artwork, game design, and related assets are not licensed for 
             border: 2px solid #fff;
             box-shadow: 0 0 calc(var(--default-glow) * 0.62px) rgba(255,255,255,0.88);
             font-family: 'Orbitron', 'Courier New', monospace;
-            font-size: clamp(20px, 5.8vw, 28px);
+            font-size: clamp(10px, 2.9vw, 14px);
             font-weight: bold;
             line-height: 1;
             cursor: pointer;
@@ -1852,6 +1852,180 @@ This source code, artwork, game design, and related assets are not licensed for 
             transform-origin: center;
         }
         
+
+        /* Fixed internal portrait layout. Landscape uses uniform letterboxing without recalculating game geometry. */
+        #portraitStage {
+            width: var(--playfield-outer-size, min(604px, calc(100vw - 8px)));
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            flex: 0 0 auto;
+            transform: none;
+            transform-origin: center center;
+        }
+
+        body.landscape-letterbox #portraitStage {
+            position: fixed;
+            left: 50%;
+            top: 50%;
+            width: var(--locked-portrait-stage-width, var(--playfield-outer-size));
+            height: var(--locked-portrait-stage-height, auto);
+            transform: translate(-50%, -50%) scale(var(--landscape-stage-scale, 1));
+            transform-origin: center center;
+            margin: 0;
+        }
+
+        /* One framed dual-energy meter: Zap power above, crystal progress below. */
+        .combined-energy-gauge {
+            position: absolute;
+            left: var(--hud-side-inset);
+            top: var(--hud-meter-top);
+            bottom: var(--hud-bottom-inset);
+            width: var(--hud-gauge-width);
+            box-sizing: border-box;
+            border: 2px solid var(--cp-outline-color);
+            background: #000;
+            box-shadow: inset 0 0 calc(var(--default-glow) * 0.18px) rgba(255,255,255,0.08);
+            pointer-events: none;
+            z-index: 4;
+            overflow: hidden;
+        }
+
+        .combined-gauge-zone {
+            position: absolute;
+            left: 12%;
+            right: 12%;
+            box-sizing: border-box;
+            display: grid;
+            align-content: stretch;
+            gap: calc(var(--grid-size, 60px) * 0.008);
+            padding: 0;
+            background: #000;
+            border: none;
+            pointer-events: none;
+        }
+
+        #blueCrystalGauge {
+            top: 12%;
+            height: 33%;
+            color: var(--blue-color);
+            --gauge-inactive-color: var(--dark-blue-color);
+        }
+
+        #greenCrystalGauge {
+            bottom: 12%;
+            height: 39%;
+            color: var(--green-color);
+            --gauge-inactive-color: var(--dark-green-color);
+        }
+
+        .combined-gauge-divider {
+            position: absolute;
+            left: 10%;
+            right: 10%;
+            top: 48.5%;
+            height: 1px;
+            background: rgba(255,255,255,0.72);
+            box-shadow: 0 0 calc(var(--default-glow) * 0.35px) rgba(255,255,255,0.55);
+        }
+
+        .combined-gauge-icon {
+            position: absolute;
+            left: 0;
+            width: 100%;
+            height: 11%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            pointer-events: none;
+            z-index: 2;
+            color: #fff;
+        }
+
+        #blueCrystalGaugeIcon { top: 1.5%; }
+        #greenCrystalGaugeIcon { bottom: 1.5%; }
+
+        .combined-gauge-icon .gauge-icon-zap {
+            width: 36%;
+            height: 72%;
+        }
+
+        .combined-gauge-icon .gauge-icon-diamond {
+            width: 27%;
+            height: 48%;
+        }
+
+        /* Right-side Recursion Spine. One new angular branch appears per completed campaign cycle. */
+        #recursionSpineHud {
+            position: absolute;
+            right: var(--hud-side-inset);
+            top: var(--hud-meter-top);
+            bottom: var(--hud-bottom-inset);
+            width: var(--hud-gauge-width);
+            box-sizing: border-box;
+            border: 2px solid var(--cp-outline-color);
+            background: #000;
+            box-shadow: inset 0 0 calc(var(--default-glow) * 0.18px) rgba(255,255,255,0.08);
+            pointer-events: none;
+            z-index: 4;
+            overflow: hidden;
+        }
+
+        #recursionSpineSvg {
+            width: 100%;
+            height: 100%;
+            display: block;
+            overflow: visible;
+            filter: drop-shadow(0 0 calc(var(--default-glow) * 0.38px) rgba(255,255,255,0.70));
+        }
+
+        #recursionSpinePath,
+        .recursion-spine-branch {
+            fill: none;
+            stroke: #fff;
+            stroke-width: 3;
+            vector-effect: non-scaling-stroke;
+            stroke-linecap: square;
+            stroke-linejoin: miter;
+        }
+
+        #recursionSpinePath {
+            opacity: 0.62;
+        }
+
+        .recursion-spine-branch {
+            opacity: 0.82;
+        }
+
+        .recursion-spine-branch.newly-grown {
+            stroke-dasharray: 120;
+            stroke-dashoffset: 120;
+            animation: recursionBranchGrow 0.72s ease-out forwards;
+        }
+
+        #recursionSpineHud.powered-off #recursionSpineSvg {
+            opacity: 0.26;
+            filter: none;
+        }
+
+        #recursionSpineHud.cycle-advanced #recursionSpineSvg {
+            animation: recursionSpineCyclePulse 0.92s ease-out 1;
+        }
+
+        @keyframes recursionBranchGrow {
+            0% { stroke-dashoffset: 120; opacity: 0.15; }
+            58% { opacity: 1; }
+            100% { stroke-dashoffset: 0; opacity: 0.82; }
+        }
+
+        @keyframes recursionSpineCyclePulse {
+            0% { opacity: 0.72; filter: drop-shadow(0 0 3px rgba(255,255,255,0.55)); }
+            34% { opacity: 1; filter: drop-shadow(0 0 10px #fff) drop-shadow(0 0 22px rgba(255,255,255,0.92)); }
+            100% { opacity: 1; filter: drop-shadow(0 0 calc(var(--default-glow) * 0.38px) rgba(255,255,255,0.70)); }
+        }
+
         /* Bottom HUD below the playfield */
         #bottomHud {
             width: var(--playfield-outer-size, min(604px, calc(100vw - 8px)));
@@ -2248,55 +2422,10 @@ This source code, artwork, game design, and related assets are not licensed for 
             box-shadow: calc(var(--grid-size, 60px) * 0.16) 0 0 currentColor;
         }
 
-        .crystal-vertical-gauge {
-            position: absolute;
-            top: var(--hud-meter-top);
-            bottom: var(--hud-gauge-icon-space);
-            width: var(--hud-gauge-width);
-            box-sizing: border-box;
-            display: grid;
-            align-content: stretch;
-            gap: calc(var(--grid-size, 60px) * 0.008);
-            padding: calc(var(--grid-size, 60px) * 0.07);
-            border: 2px solid var(--cp-outline-color);
-            background: #000;
-            pointer-events: none;
-            z-index: 3;
-        }
-
-        #greenCrystalGauge {
-            left: var(--hud-side-inset);
-            color: var(--green-color);
-            --gauge-inactive-color: var(--dark-green-color);
-        }
-
-        #blueCrystalGauge {
-            right: var(--hud-side-inset);
-            color: var(--blue-color);
-            --gauge-inactive-color: var(--dark-blue-color);
-        }
-
-
+        /* Legacy standalone gauge shell is no longer used in v221. */
+        .crystal-vertical-gauge,
         .gauge-measure-icon {
-            position: absolute;
-            bottom: var(--hud-bottom-inset);
-            width: var(--hud-gauge-width);
-            height: var(--hud-gauge-icon-size);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            pointer-events: none;
-            z-index: 4;
-        }
-
-        #greenCrystalGaugeIcon {
-            left: var(--hud-side-inset);
-            color: #fff;
-        }
-
-        #blueCrystalGaugeIcon {
-            right: var(--hud-side-inset);
-            color: #fff;
+            display: none;
         }
 
         .gauge-icon-diamond,
@@ -2305,8 +2434,6 @@ This source code, artwork, game design, and related assets are not licensed for 
         }
 
         .gauge-icon-diamond {
-            width: calc(var(--hud-gauge-icon-size) * 0.36);
-            height: calc(var(--hud-gauge-icon-size) * 0.36);
             transform: rotate(45deg);
             border: 2px solid currentColor;
             background: rgba(255,255,255,0.02);
@@ -2314,8 +2441,6 @@ This source code, artwork, game design, and related assets are not licensed for 
         }
 
         .gauge-icon-zap {
-            width: calc(var(--hud-gauge-icon-size) * 0.68);
-            height: calc(var(--hud-gauge-icon-size) * 0.68);
             background: currentColor;
             clip-path: polygon(58% 0%, 18% 54%, 45% 54%, 32% 100%, 84% 39%, 56% 39%);
         }
@@ -3227,6 +3352,7 @@ This source code, artwork, game design, and related assets are not licensed for 
         <img id="splashMarqueeImage" src="marquee-top.png" alt="" draggable="false">
         <div id="splashCopyright">© 2026 Marcus Couto</div>
     </div>
+    <div id="portraitStage">
     <!-- Score display -->
     <div id="scoreHud">
         <button id="hudMenuButton" class="top-menu-button" type="button" aria-label="Settings menu"></button>
@@ -3360,7 +3486,7 @@ This source code, artwork, game design, and related assets are not licensed for 
             <button id="levelSelectCloseButton" class="menu-close-button" type="button" aria-label="Close sector select">X</button>
             <div id="levelSelectTitle">SECTOR SELECT</div>
             <div id="levelSelectGrid"></div>
-            <div class="buildVersionText">Build v220</div>
+            <div class="buildVersionText">Build v221</div>
             <div class="menuCopyright">© 2026 Marcus Couto</div>
         </div>
     </div>
@@ -3380,10 +3506,19 @@ This source code, artwork, game design, and related assets are not licensed for 
             <div id="alienRelicHud" class="alien-instrument" aria-label="Hidden relic gauge">
                 <div id="alienRelicGlyphs" class="alien-glyph-row"></div>
             </div>
-            <div id="greenCrystalGauge" class="crystal-vertical-gauge" aria-label="Green crystals collected"></div>
-            <div id="blueCrystalGauge" class="crystal-vertical-gauge" aria-label="Cosmic Zaps remaining"></div>
-            <div id="greenCrystalGaugeIcon" class="gauge-measure-icon" aria-hidden="true"><span class="gauge-icon-diamond"></span></div>
-            <div id="blueCrystalGaugeIcon" class="gauge-measure-icon" aria-hidden="true"><span class="gauge-icon-zap"></span></div>
+            <div id="combinedEnergyGauge" class="combined-energy-gauge" aria-label="Crystal progress and Cosmic Zap power">
+                <div id="blueCrystalGaugeIcon" class="combined-gauge-icon" aria-hidden="true"><span class="gauge-icon-zap"></span></div>
+                <div id="blueCrystalGauge" class="combined-gauge-zone" aria-label="Cosmic Zaps remaining"></div>
+                <span class="combined-gauge-divider" aria-hidden="true"></span>
+                <div id="greenCrystalGauge" class="combined-gauge-zone" aria-label="Green crystals collected"></div>
+                <div id="greenCrystalGaugeIcon" class="combined-gauge-icon" aria-hidden="true"><span class="gauge-icon-diamond"></span></div>
+            </div>
+            <div id="recursionSpineHud" aria-label="Recursion Spine: no completed cycles">
+                <svg id="recursionSpineSvg" viewBox="0 0 100 300" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+                    <path id="recursionSpinePath" d="M50 286 L50 14 M50 14 L43 24 M50 14 L57 24 M50 286 L43 276 M50 286 L57 276"></path>
+                    <g id="recursionSpineBranches"></g>
+                </svg>
+            </div>
             <div id="orbitalTallyHud" aria-label="Orbital Tally: 0 of 15 relics collected">
                 <span class="orbital-tally-ring inner" aria-hidden="true"></span>
                 <span class="orbital-tally-ring middle" aria-hidden="true"></span>
@@ -3426,9 +3561,10 @@ This source code, artwork, game design, and related assets are not licensed for 
         </div>
     </div>
     <div id="copyrightFooter">© 2026 Marcus Couto</div>
+    </div>
 
     <script>
-        const BUILD_VERSION = 'Build v220';
+        const BUILD_VERSION = 'Build v221';
         document.getElementById('buildVersion').textContent = BUILD_VERSION;
         document.querySelectorAll('.buildVersionText').forEach(el => { el.textContent = BUILD_VERSION; });
 
@@ -5352,8 +5488,10 @@ This source code, artwork, game design, and related assets are not licensed for 
 
             // Size the board directly for iPhone instead of clipping or transform-scaling a 600px board.
             configureResponsivePlayfield() {
-                const availableWidth = Math.max(300, Math.min(600, window.innerWidth - 8));
-                const availableHeight = Math.max(300, Math.min(600, window.innerHeight - 178));
+                const portraitViewportWidth = Math.min(window.innerWidth, window.innerHeight);
+                const portraitViewportHeight = Math.max(window.innerWidth, window.innerHeight);
+                const availableWidth = Math.max(300, Math.min(600, portraitViewportWidth - 8));
+                const availableHeight = Math.max(300, Math.min(600, portraitViewportHeight - 178));
                 const boardSize = Math.max(300, Math.floor(Math.min(availableWidth, availableHeight) / 10) * 10);
                 const scale = boardSize / this.parameters.playfieldSize;
 
@@ -8426,9 +8564,11 @@ This source code, artwork, game design, and related assets are not licensed for 
             // Convert browser coordinates into the actual board coordinate system.
             getBoardPoint(clientX, clientY) {
                 const rect = this.game.container.getBoundingClientRect();
+                const scaleX = rect.width > 0 ? this.game.PLAYFIELD_SIZE / rect.width : 1;
+                const scaleY = rect.height > 0 ? this.game.PLAYFIELD_SIZE / rect.height : 1;
                 return {
-                    x: Math.max(0, Math.min(this.game.PLAYFIELD_SIZE, clientX - rect.left)),
-                    y: Math.max(0, Math.min(this.game.PLAYFIELD_SIZE, clientY - rect.top))
+                    x: Math.max(0, Math.min(this.game.PLAYFIELD_SIZE, (clientX - rect.left) * scaleX)),
+                    y: Math.max(0, Math.min(this.game.PLAYFIELD_SIZE, (clientY - rect.top) * scaleY))
                 };
             }
 
@@ -10501,6 +10641,10 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 this.greenCrystalGaugeIcon = document.getElementById('greenCrystalGaugeIcon'); // Crystal gauge icon
                 this.blueCrystalGauge = document.getElementById('blueCrystalGauge'); // Blue crystal collection gauge
                 this.blueCrystalGaugeIcon = document.getElementById('blueCrystalGaugeIcon'); // Cosmic Zap gauge icon
+                this.recursionSpineHud = document.getElementById('recursionSpineHud'); // Cycle-growth Recursion Spine
+                this.recursionSpineBranches = document.getElementById('recursionSpineBranches');
+                this.lastRecursionSpineCycle = null;
+                this.recursionSpinePulseTimer = null;
                 this.orbitalTallyHud = document.getElementById('orbitalTallyHud'); // Circular 15-relic Orbital Tally
                 this.orbitalTallyMarkers = document.getElementById('orbitalTallyMarkers'); // Fixed orbital relic markers
                 this.orbitalTallyOrb = document.getElementById('orbitalTallyOrb'); // Relic-responsive pulsing core
@@ -10917,6 +11061,60 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 container.setAttribute('aria-label', `${visibleZaps} of ${segmentCount} Cosmic Zaps remaining`);
             }
 
+            updateRecursionSpine() {
+                if (!this.recursionSpineHud || !this.recursionSpineBranches) return;
+
+                const powered = !!this.game.cockpitActivated;
+                const currentCycle = Math.max(1, Number(this.game.cycle) || 1);
+                const completedCycles = Math.max(0, currentCycle - 1);
+                const visibleBranches = Math.min(24, completedCycles);
+                const previousCycle = this.lastRecursionSpineCycle;
+                const cycleAdvanced = previousCycle !== null && currentCycle > previousCycle;
+
+                this.recursionSpineHud.classList.toggle('powered-off', !powered);
+
+                if (this.recursionSpineBranches.dataset.branchCount !== String(visibleBranches)) {
+                    this.recursionSpineBranches.innerHTML = '';
+                    const verticalSlots = 12;
+                    const yBottom = 268;
+                    const yTop = 38;
+                    const step = (yBottom - yTop) / Math.max(1, verticalSlots - 1);
+
+                    for (let index = 0; index < visibleBranches; index++) {
+                        const layer = Math.floor(index / verticalSlots);
+                        const slot = index % verticalSlots;
+                        const y = yBottom - (slot * step);
+                        const leftSide = ((index + layer) % 2) === 0;
+                        const direction = leftSide ? -1 : 1;
+                        const elbow = 14 + layer * 4;
+                        const reach = 30 + layer * 5;
+                        const rise = 9 + (index % 3) * 2;
+                        const branch = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+                        branch.setAttribute('points', `50,${y.toFixed(2)} ${(50 + direction * elbow).toFixed(2)},${(y - rise).toFixed(2)} ${(50 + direction * reach).toFixed(2)},${(y - rise * 2).toFixed(2)}`);
+                        branch.setAttribute('class', 'recursion-spine-branch');
+                        if (cycleAdvanced && index === visibleBranches - 1) branch.classList.add('newly-grown');
+                        this.recursionSpineBranches.appendChild(branch);
+                    }
+                    this.recursionSpineBranches.dataset.branchCount = String(visibleBranches);
+                }
+
+                if (cycleAdvanced) {
+                    if (this.recursionSpinePulseTimer) clearTimeout(this.recursionSpinePulseTimer);
+                    this.recursionSpineHud.classList.remove('cycle-advanced');
+                    void this.recursionSpineHud.offsetWidth;
+                    this.recursionSpineHud.classList.add('cycle-advanced');
+                    this.recursionSpinePulseTimer = setTimeout(() => {
+                        if (this.recursionSpineHud) this.recursionSpineHud.classList.remove('cycle-advanced');
+                    }, 980);
+                }
+
+                this.recursionSpineHud.setAttribute(
+                    'aria-label',
+                    completedCycles === 0 ? 'Recursion Spine: no completed cycles' : `Recursion Spine: ${completedCycles} completed cycle${completedCycles === 1 ? '' : 's'}`
+                );
+                this.lastRecursionSpineCycle = currentCycle;
+            }
+
             updateCrystalGauges() {
                 this.renderVerticalCrystalGauge(this.greenCrystalGauge);
                 this.renderZapGauge(this.blueCrystalGauge);
@@ -10978,13 +11176,17 @@ startMaxSwarmBeat(delaySeconds = 0) {
             updateBottomHudBorder() {
                 if (!this.bottomProgressPanel || !this.bottomHudBorder || !this.bottomHudBorderPath) return;
                 const panelRect = this.bottomProgressPanel.getBoundingClientRect();
-                if (!panelRect.width || !panelRect.height) return;
+                const panelWidth = this.bottomProgressPanel.offsetWidth || panelRect.width;
+                const panelHeight = this.bottomProgressPanel.offsetHeight || panelRect.height;
+                const panelScaleX = panelRect.width > 0 ? panelRect.width / panelWidth : 1;
+                const panelScaleY = panelRect.height > 0 ? panelRect.height / panelHeight : 1;
+                if (!panelWidth || !panelHeight) return;
 
                 const buttonRow = document.getElementById('bottomControlRow');
                 const startButton = document.getElementById('startButton');
                 if (!buttonRow || !startButton) {
-                    const width = panelRect.width;
-                    const height = panelRect.height;
+                    const width = panelWidth;
+                    const height = panelHeight;
                     const inset = 1;
                     const right = width - inset;
                     const bottom = height - inset;
@@ -11007,18 +11209,18 @@ startMaxSwarmBeat(delaySeconds = 0) {
 
                 const rowRect = buttonRow.getBoundingClientRect();
                 const buttonRect = startButton.getBoundingClientRect();
-                const width = panelRect.width;
-                const height = panelRect.height;
+                const width = panelWidth;
+                const height = panelHeight;
                 const inset = 1;
                 const computed = getComputedStyle(this.bottomProgressPanel);
                 const clearance = Math.max(10, parseFloat(computed.getPropertyValue('--hud-clearance')) || this.game.GRID_SIZE * 0.34);
-                const buttonsLeft = buttonRect.left - panelRect.left;
-                const buttonsRight = buttonRect.right - panelRect.left;
+                const buttonsLeft = (buttonRect.left - panelRect.left) / Math.max(0.0001, panelScaleX);
+                const buttonsRight = (buttonRect.right - panelRect.left) / Math.max(0.0001, panelScaleX);
                 const buttonFrameMargin = clearance * 0.68;
 
                 const cutoutLeft = Math.max(inset + clearance, buttonsLeft - buttonFrameMargin);
                 const cutoutRight = Math.min(width - inset - clearance, buttonsRight + buttonFrameMargin);
-                const buttonTop = buttonRect.top - panelRect.top;
+                const buttonTop = (buttonRect.top - panelRect.top) / Math.max(0.0001, panelScaleY);
                 const cutoutTop = Math.max(inset + clearance * 2.45, buttonTop - clearance * 0.70);
                 const bottom = height - inset;
                 const right = width - inset;
@@ -11052,6 +11254,7 @@ startMaxSwarmBeat(delaySeconds = 0) {
             updateDynamicHud() {
                 this.updateBottomHudBorder();
                 this.updateCrystalGauges();
+                this.updateRecursionSpine();
                 this.updateAlienLevelInstrument();
                 this.updateAlienRelicInstrument();
                 this.updateOrbitalTallyInstrument();
@@ -11076,7 +11279,55 @@ startMaxSwarmBeat(delaySeconds = 0) {
 
         // Initialize and start the game
         const game = new Game();
-        window.addEventListener('orientationchange', () => setTimeout(() => window.location.reload(), 300));
+
+        const portraitStage = document.getElementById('portraitStage');
+        let lockedPortraitStageWidth = 0;
+        let lockedPortraitStageHeight = 0;
+        let orientationLayoutTimer = null;
+
+        function updateFixedPortraitPresentation() {
+            if (!portraitStage) return;
+            const landscape = window.innerWidth > window.innerHeight;
+
+            document.body.classList.remove('landscape-letterbox');
+            portraitStage.style.removeProperty('--landscape-stage-scale');
+
+            if (!landscape) {
+                requestAnimationFrame(() => {
+                    lockedPortraitStageWidth = portraitStage.offsetWidth || lockedPortraitStageWidth || game.PLAYFIELD_SIZE + 4;
+                    lockedPortraitStageHeight = portraitStage.scrollHeight || portraitStage.offsetHeight || lockedPortraitStageHeight;
+                    portraitStage.style.setProperty('--locked-portrait-stage-width', `${lockedPortraitStageWidth}px`);
+                    portraitStage.style.setProperty('--locked-portrait-stage-height', `${lockedPortraitStageHeight}px`);
+                    if (game.ui) game.ui.updateBottomHudBorder();
+                });
+                return;
+            }
+
+            if (!lockedPortraitStageWidth) lockedPortraitStageWidth = portraitStage.offsetWidth || game.PLAYFIELD_SIZE + 4;
+            if (!lockedPortraitStageHeight) lockedPortraitStageHeight = portraitStage.scrollHeight || portraitStage.offsetHeight;
+
+            const usableWidth = Math.max(1, window.innerWidth - 8);
+            const usableHeight = Math.max(1, window.innerHeight - 8);
+            const stageScale = Math.min(1, usableWidth / lockedPortraitStageWidth, usableHeight / lockedPortraitStageHeight);
+
+            portraitStage.style.setProperty('--locked-portrait-stage-width', `${lockedPortraitStageWidth}px`);
+            portraitStage.style.setProperty('--locked-portrait-stage-height', `${lockedPortraitStageHeight}px`);
+            portraitStage.style.setProperty('--landscape-stage-scale', stageScale.toFixed(5));
+            document.body.classList.add('landscape-letterbox');
+            requestAnimationFrame(() => {
+                if (game.ui) game.ui.updateBottomHudBorder();
+            });
+        }
+
+        function scheduleFixedPortraitPresentation() {
+            if (orientationLayoutTimer) clearTimeout(orientationLayoutTimer);
+            orientationLayoutTimer = setTimeout(updateFixedPortraitPresentation, 90);
+        }
+
+        requestAnimationFrame(updateFixedPortraitPresentation);
+        window.addEventListener('orientationchange', scheduleFixedPortraitPresentation, { passive: true });
+        window.addEventListener('resize', scheduleFixedPortraitPresentation, { passive: true });
+        if (window.visualViewport) window.visualViewport.addEventListener('resize', scheduleFixedPortraitPresentation, { passive: true });
     </script>
 </body>
 </html>
