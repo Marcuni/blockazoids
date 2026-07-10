@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v218: Replaces the relic counter with a radar-sized circular Orbital Tally featuring 15 orbital markers and a relic-responsive pulsing core.
+Build v219: Adds cockpit activation behavior, fixes cumulative Orbital Tally relic tracking, separates high scores by difficulty, expands record details, narrows the sector-name gauge, and removes the cycle star.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -1446,10 +1446,6 @@ This source code, artwork, game design, and related assets are not licensed for 
             text-shadow: 0 0 calc(var(--default-glow) * 0.95px) #fff, 0 0 calc(var(--default-glow) * 1.7px) rgba(255,255,255,0.86);
         }
 
-        #highScorePanel .menu-panel-title {
-            font-size: clamp(24px, 7vw, 34px);
-        }
-
         .high-score-panel-value {
             margin: clamp(12px, 3vw, 18px) auto clamp(8px, 2.1vw, 12px);
             font-size: clamp(62px, 19vw, 116px);
@@ -1480,9 +1476,9 @@ This source code, artwork, game design, and related assets are not licensed for 
             display: block;
             width: 100%;
             text-align: center;
-            white-space: nowrap;
+            white-space: pre-line;
             font-size: clamp(12px, 3.45vw, 16px);
-            line-height: 1.18;
+            line-height: 1.55;
             letter-spacing: 1px;
             word-spacing: clamp(2px, 0.8vw, 5px);
             opacity: 0.86;
@@ -1808,48 +1804,6 @@ This source code, artwork, game design, and related assets are not licensed for 
             display: none;
         }
 
-        #cycleStarHud {
-            position: absolute;
-            left: 2px;
-            top: 50%;
-            transform: translateY(-50%);
-            display: none;
-            align-items: center;
-            justify-content: center;
-            gap: clamp(2px, 0.8vw, 4px);
-            min-width: var(--grid-size, 60px);
-            height: var(--grid-size, 60px);
-            color: #fff;
-            font-size: clamp(16px, 4.3vw, 19px);
-            line-height: 1;
-            letter-spacing: 0;
-            text-shadow: 0 0 calc(var(--default-glow) * 0.45px) #fff;
-            pointer-events: none;
-            z-index: 2;
-        }
-
-        #cycleStarHud.visible {
-            display: flex;
-        }
-
-        .cycle-star {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            width: clamp(16px, 4.3vw, 19px);
-            height: clamp(16px, 4.3vw, 19px);
-            color: #fff;
-            transform: none;
-        }
-
-        .cycle-star-count {
-            display: inline-block;
-            margin-left: 2px;
-            font-size: 0.68em;
-            color: #fff;
-        }
-
-
         .highScoreFlash {
             animation: highScoreFlashAnimation 0.9s ease-in-out 1;
             transform-origin: center;
@@ -1886,6 +1840,7 @@ This source code, artwork, game design, and related assets are not licensed for 
             --hud-meter-top: calc(var(--hud-side-inset) + (var(--grid-size, 60px) * 0.44) + var(--hud-clearance));
             --alien-gauge-height: calc(var(--grid-size, 60px) * 1.07);
             --alien-gauge-width: calc(100% - (2 * var(--hud-side-inset)) - (2 * var(--hud-gauge-width)) - (2 * var(--hud-clearance)));
+            --sector-gauge-width: calc(var(--alien-gauge-width) * 0.82);
             --alien-glyph-size: calc(var(--alien-gauge-height) * 0.86);
             --alien-glyph-gap: calc(var(--alien-gauge-height) * 0.055);
             --alien-gauge-padding-x: calc(var(--alien-gauge-height) * 0.075);
@@ -2134,8 +2089,9 @@ This source code, artwork, game design, and related assets are not licensed for 
         }
 
         #alienLevelHud {
-            left: var(--alien-stack-left);
+            left: calc(var(--alien-stack-left) + ((var(--alien-gauge-width) - var(--sector-gauge-width)) / 2));
             top: var(--hud-meter-top);
+            width: var(--sector-gauge-width);
             transform: none;
         }
 
@@ -2522,6 +2478,52 @@ This source code, artwork, game design, and related assets are not licensed for 
 
         #orbitalTallyHud.tally-complete #orbitalTallyOrb {
             box-shadow: 0 0 calc(var(--default-glow, 10) * 1.18px) #fff, 0 0 calc(var(--default-glow, 10) * 2.18px) var(--yellow-color), 0 0 calc(var(--default-glow, 10) * 3.55px) rgba(255,255,0,0.78);
+        }
+
+
+        #orbitalTallyHud.powered-off .orbital-tally-ring {
+            border-color: rgba(255,255,255,0.08);
+            box-shadow: none;
+            opacity: 0.28;
+        }
+
+        #orbitalTallyHud.powered-off .orbital-tally-marker {
+            border-color: rgba(255,255,255,0.10);
+            background: #000;
+            box-shadow: none;
+            opacity: 0.28;
+        }
+
+        #orbitalTallyHud.powered-off #orbitalTallyOrb {
+            animation: none;
+            background: rgba(255,255,255,0.08);
+            border-color: rgba(255,255,255,0.16);
+            box-shadow: none;
+            opacity: 0.34;
+            transform: translate(-50%, -50%) scale(0.92);
+        }
+
+        #timerHud.powered-off #timerValue {
+            opacity: 0;
+            text-shadow: none;
+        }
+
+        #blueCrystalGauge.powered-off {
+            opacity: 0.38;
+        }
+
+        #blueCrystalGauge.powered-off .crystal-gauge-segment {
+            background: #050505;
+            box-shadow: none;
+            opacity: 0.34;
+        }
+
+        #blueCrystalGaugeIcon.powered-off {
+            opacity: 0.32;
+        }
+
+        #blueCrystalGaugeIcon.powered-off .gauge-icon-zap {
+            box-shadow: none;
         }
 
         .orbital-tally-charge-line {
@@ -3131,7 +3133,6 @@ This source code, artwork, game design, and related assets are not licensed for 
         <button id="hudMenuButton" class="top-menu-button" type="button" aria-label="Settings menu"></button>
         <div id="score">0</div>
         <div id="highScoreHud">0</div>
-        <div id="cycleStarHud" aria-label="Completed cycles"></div>
         <div class="hud-group" id="cosmicZapHud">
             <div id="cosmicZapIndicators">
                 <div class="cosmic-zap-icon" id="cosmicZap1"></div>
@@ -3175,7 +3176,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 <div class="scoring-record-area">
                     <span id="scoringHighScoreLabel" class="scoring-record-label">HIGH SCORE</span>
                     <span id="scoringHighScoreValue" class="scoring-record-value">0</span>
-                    <span id="scoringHighScoreRunLine" class="high-score-run-line scoring-high-score-run-line">LEVEL —&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;RELICS —&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;TIME —</span>
+                    <span id="scoringHighScoreRunLine" class="high-score-run-line scoring-high-score-run-line">CYCLE —&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;SECTOR —<br>RELICS —&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;TIME —</span>
                 </div>
                 <div class="scoring-divider"></div>
                 <div class="scoring-section-title scoring-main-title">SCORING RULES</div>
@@ -3196,7 +3197,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 <div class="menu-panel-title">HIGH SCORE</div>
                 <div id="highScorePanelValue" class="high-score-panel-value">0</div>
                 <div id="highScorePanelDetails" class="high-score-panel-details">
-                    <span id="highScorePanelRunLine" class="high-score-run-line">LEVEL —&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;RELICS —&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;TIME —</span>
+                    <span id="highScorePanelRunLine" class="high-score-run-line">CYCLE —&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;SECTOR —<br>RELICS —&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;TIME —</span>
                     <span id="highScorePanelSector" class="high-score-detail-value" style="display:none">—</span>
                     <span id="highScorePanelTime" class="high-score-detail-value" style="display:none">—</span>
                 </div>
@@ -3240,7 +3241,7 @@ This source code, artwork, game design, and related assets are not licensed for 
         <div id="levelSelectWindow">
             <div id="levelSelectTitle">SECTOR SELECT</div>
             <div id="levelSelectGrid"></div>
-            <div class="buildVersionText">Build v218</div>
+            <div class="buildVersionText">Build v219</div>
             <div class="menuCopyright">© 2026 Marcus Couto</div>
         </div>
     </div>
@@ -3308,7 +3309,7 @@ This source code, artwork, game design, and related assets are not licensed for 
     <div id="copyrightFooter">© 2026 Marcus Couto</div>
 
     <script>
-        const BUILD_VERSION = 'Build v218';
+        const BUILD_VERSION = 'Build v219';
         document.getElementById('buildVersion').textContent = BUILD_VERSION;
         document.querySelectorAll('.buildVersionText').forEach(el => { el.textContent = BUILD_VERSION; });
 
@@ -3450,6 +3451,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.crystals = [];                   // Array of collectible crystals
                 this.prismRelic = null;                 // Gridlock-only Prism Relic pickup
                 this.relicRecoveredBySector = {};       // Tracks which sectors recovered the Gridlock Relic
+                this.relicsCollectedThisRun = 0;             // Cumulative tally for the current run; resets only on a new run
                 this.colorGroupsCompletedThisSector = 0;
                 this.prismRelicSpawnedThisSector = false;
                 this.prismRelicRecoveredThisSector = false;
@@ -3466,9 +3468,9 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.difficultyMode = this.loadDifficultyMode();
                 this.cycle = 1;                      // Arcade loop/cycle. Cycle 2 starts after clearing the campaign.
                 this.score = 0;                       // Player score
-                this.highScoreStorageKey = 'blockazoidsHighScore';
-                this.highScoreDetailsStorageKey = 'blockazoidsHighScoreDetails';
-                this.highScore = this.loadHighScore(); // High score saved on this device/browser
+                this.refreshHighScoreStorageKeys();
+                this.migrateLegacyHighScoreToCurrentDifficulty();
+                this.highScore = this.loadHighScore(); // Difficulty-specific high score saved on this device/browser
                 this.highScoreTarget = this.highScore; // Saved score the current run must beat for the record fanfare
                 this.highScoreBeatenThisRun = this.highScoreTarget <= 0; // Avoid a record fanfare when no real score exists yet
                 this.highScoreDetails = this.loadHighScoreDetails();
@@ -3484,6 +3486,9 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.active = false;                  // Game active state
                 this.levelActionStarted = false;      // Enemy spawning/game loop has started for the current level
                 this.showHudDuringSectorIntro = false; // Keep bottom HUD visible while sector name/number is displayed
+                this.cockpitActivated = false;          // Clock, Orbital Tally core, and Zap gauge power on after PLAY
+                this.cockpitSectorDisplayName = 'ACTIVATE';
+                this.cockpitSectorDisplayLevel = null;
                 this.startInputLocked = false;        // Blocks stray menu/start taps while a sector is starting
                 this.isPaused = false;                // Temporary pause-screen state
                 this.hasStartedRun = false;           // Distinguishes first Start Game attract mode from Play Again.
@@ -5433,6 +5438,8 @@ This source code, artwork, game design, and related assets are not licensed for 
                     this.highScoreTarget = this.highScore;
                     this.highScoreBeatenThisRun = this.highScoreTarget <= 0;
                     this.relicRecoveredBySector = {};
+                    this.relicsCollectedThisRun = 0;
+                    if (this.ui) this.ui.lastOrbitalTallyCount = 0;
                     this.resetRunRecordTracking(this.level);
                 }
                 this.updateRunRecordProgress();
@@ -5527,6 +5534,8 @@ This source code, artwork, game design, and related assets are not licensed for 
                 await wait(150);
                 this.bonusTextElement.classList.remove('countdownText');
                 this.bonusTextElement.textContent = '';
+                this.cockpitSectorDisplayName = levelName;
+                this.cockpitSectorDisplayLevel = this.level;
                 this.showHudDuringSectorIntro = false;
                 this.startInputLocked = false;
                 this.ui.updateAll();
@@ -5722,8 +5731,14 @@ This source code, artwork, game design, and related assets are not licensed for 
                 const currentIndex = Math.max(0, options.indexOf(this.difficultyMode));
                 this.difficultyMode = options[(currentIndex + direction + options.length) % options.length];
                 this.saveDifficultyMode();
+                this.refreshHighScoreStorageKeys();
+                this.highScore = this.loadHighScore();
+                this.highScoreDetails = this.loadHighScoreDetails();
+                this.highScoreTarget = this.highScore;
+                this.highScoreBeatenThisRun = this.highScoreTarget <= 0;
                 this.applyLevelParameters();
                 this.updateDifficultyLabel();
+                this.updateHighScoreDisplay();
             }
 
             updateDifficultyLabel() {
@@ -5742,6 +5757,34 @@ This source code, artwork, game design, and related assets are not licensed for 
                 if (this.difficultyMode === 'Easy') return { speedMultiplier: 0.92, spawnDelayOffset: 0.6, cosmicZapOffset: 1 };
                 if (this.difficultyMode === 'Hard') return { speedMultiplier: 1.12, spawnDelayOffset: -0.45, cosmicZapOffset: -1 };
                 return { speedMultiplier: 1, spawnDelayOffset: 0, cosmicZapOffset: 0 };
+            }
+
+            getDifficultyStorageSuffix(mode = this.difficultyMode) {
+                return String(mode || 'Normal').trim().toLowerCase();
+            }
+
+            refreshHighScoreStorageKeys() {
+                const suffix = this.getDifficultyStorageSuffix();
+                this.highScoreStorageKey = `blockazoidsHighScore_${suffix}`;
+                this.highScoreDetailsStorageKey = `blockazoidsHighScoreDetails_${suffix}`;
+            }
+
+            migrateLegacyHighScoreToCurrentDifficulty() {
+                try {
+                    const migrationKey = 'blockazoidsHighScoreDifficultyMigrationV219';
+                    if (localStorage.getItem(migrationKey)) return;
+
+                    const legacyScoreRaw = localStorage.getItem('blockazoidsHighScore');
+                    const legacyScore = parseInt(legacyScoreRaw || '0', 10);
+                    if (localStorage.getItem(this.highScoreStorageKey) === null && Number.isFinite(legacyScore) && legacyScore > 0) {
+                        localStorage.setItem(this.highScoreStorageKey, String(legacyScore));
+                        const legacyDetails = localStorage.getItem('blockazoidsHighScoreDetails');
+                        if (legacyDetails && localStorage.getItem(this.highScoreDetailsStorageKey) === null) {
+                            localStorage.setItem(this.highScoreDetailsStorageKey, legacyDetails);
+                        }
+                    }
+                    localStorage.setItem(migrationKey, this.difficultyMode || 'Normal');
+                } catch (error) {}
             }
 
             getEmptyHighScoreDetails() {
@@ -5812,8 +5855,7 @@ This source code, artwork, game design, and related assets are not licensed for 
             }
 
             getRecoveredRelicCount() {
-                if (!this.relicRecoveredBySector) return 0;
-                return Object.keys(this.relicRecoveredBySector).filter(key => this.relicRecoveredBySector[key]).length;
+                return Math.max(0, Math.min(15, Math.floor(this.relicsCollectedThisRun || 0)));
             }
 
             beginRunRecordPause() {
@@ -5871,11 +5913,12 @@ This source code, artwork, game design, and related assets are not licensed for 
             }
 
             formatHighScoreRunLine(details) {
-                if (!this.highScore || this.highScore <= 0) return 'LEVEL —      RELICS —      TIME —';
-                const level = details && details.highestSector ? details.highestSector : '—';
+                if (!this.highScore || this.highScore <= 0) return 'CYCLE —      SECTOR —\nRELICS —      TIME —';
+                const cycle = details && details.highestCycle ? details.highestCycle : 1;
+                const sector = details && details.highestSector ? details.highestSector : '—';
                 const relics = details && Number.isFinite(details.relics) ? details.relics : 0;
                 const time = details && details.gameTimeMs ? this.formatTelemetryDuration(details.gameTimeMs) : '—';
-                return `LEVEL ${level}      RELICS ${relics}      TIME ${time}`;
+                return `CYCLE ${cycle}      SECTOR ${sector}\nRELICS ${relics}      TIME ${time}`;
             }
 
             updateHighScoreDisplay() {
@@ -6301,6 +6344,7 @@ This source code, artwork, game design, and related assets are not licensed for 
                 const loadToken = ++this.levelLoadToken;
 
                 this.hasStartedRun = true;
+                this.cockpitActivated = true;
                 this.restartReady = false;
                 this.cycle = 1;
                 const selectedStartSector = Math.max(1, Math.min(this.MAX_LEVEL, this.selectedStartSector || 1));
@@ -6873,7 +6917,11 @@ This source code, artwork, game design, and related assets are not licensed for 
                 this.removePrismRelic();
                 this.prismRelicRecoveredThisSector = true;
                 this.noteTelemetryPrismRelicCollected();
-                this.relicRecoveredBySector[this.getRelicSectorKey()] = true;
+                const relicSectorKey = this.getRelicSectorKey();
+                if (!this.relicRecoveredBySector[relicSectorKey]) {
+                    this.relicRecoveredBySector[relicSectorKey] = true;
+                    this.relicsCollectedThisRun = Math.min(15, Math.max(0, this.relicsCollectedThisRun || 0) + 1);
+                }
                 // Prism Relic points are awarded only if the sector is cleared.
                 this.audio.playPrismRelicCollect();
                 if (this.ui && this.ui.updateOrbitalTallyInstrument) this.ui.updateOrbitalTallyInstrument();
@@ -10258,6 +10306,7 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 this.alienRelicGlyphs = document.getElementById('alienRelicGlyphs'); // Alien relic glyphs
                 this.greenCrystalGauge = document.getElementById('greenCrystalGauge'); // Green crystal collection gauge
                 this.blueCrystalGauge = document.getElementById('blueCrystalGauge'); // Blue crystal collection gauge
+                this.blueCrystalGaugeIcon = document.getElementById('blueCrystalGaugeIcon'); // Cosmic Zap gauge icon
                 this.orbitalTallyHud = document.getElementById('orbitalTallyHud'); // Circular 15-relic Orbital Tally
                 this.orbitalTallyMarkers = document.getElementById('orbitalTallyMarkers'); // Fixed orbital relic markers
                 this.orbitalTallyOrb = document.getElementById('orbitalTallyOrb'); // Relic-responsive pulsing core
@@ -10272,7 +10321,6 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 this.bottomHudBorderPath = document.getElementById('bottomHudBorderPath') || (this.bottomHudBorder ? this.bottomHudBorder.querySelector('path') : null);
                 this.bottomHudBorderSignature = '';
                 this.cycleElement = document.getElementById('cycleHud'); // Legacy bottom cycle marker; kept hidden
-                this.cycleStarElement = document.getElementById('cycleStarHud'); // White star markers for completed cycles
                 this.scoreAlertActive = false;
                 this.scoreAlertTimer = null;
             }
@@ -10383,35 +10431,12 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 setTimeout(() => this.scoreElement.classList.remove('highScoreFlash'), 700);
             }
 
-            // Show white stars for completed campaign cycles without visible cycle wording.
+            // Cycle progression remains active, but no cycle-tracking star is displayed.
             updateCycleIndicator() {
                 if (this.cycleElement) {
                     this.cycleElement.textContent = '';
                     this.cycleElement.classList.remove('visible');
                 }
-
-                if (!this.cycleStarElement) return;
-
-                const completedCycles = Math.max(0, this.game.cycle - 1);
-                const shouldShowStars = completedCycles > 0 && !this.game.cycleTransitionActive && this.shouldShowGameplayHud();
-                if (!shouldShowStars) {
-                    this.cycleStarElement.innerHTML = '';
-                    this.cycleStarElement.classList.remove('visible');
-                    this.cycleStarElement.setAttribute('aria-label', 'Completed cycles');
-                    return;
-                }
-
-                const visibleStars = Math.min(completedCycles, 5);
-                let html = '';
-                for (let i = 0; i < visibleStars; i++) {
-                    html += '<span class="cycle-star">★</span>';
-                }
-                if (completedCycles > visibleStars) {
-                    html += `<span class="cycle-star-count">×${completedCycles}</span>`;
-                }
-                this.cycleStarElement.innerHTML = html;
-                this.cycleStarElement.classList.add('visible');
-                this.cycleStarElement.setAttribute('aria-label', `${completedCycles} completed cycle${completedCycles === 1 ? '' : 's'}`);
             }
 
             // Update Cosmic Zap indicators based on remaining Cosmic Zaps
@@ -10501,21 +10526,17 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 if (this.alienLevelHud) this.alienLevelHud.classList.toggle('visible', showLevelHud);
                 if (!this.alienLevelGlyphs) return;
 
-                const inRunContext = this.game.hasStartedRun ||
-                                     this.game.active ||
-                                     this.game.isPaused ||
-                                     this.game.showHudDuringSectorIntro ||
-                                     this.game.isGameOver;
-                const levelForInstrument = inRunContext ? this.game.level : (this.game.selectedStartSector || 1);
-                const levelName = (this.game.getLevelPatternName ? this.game.getLevelPatternName(levelForInstrument) : `Sector ${levelForInstrument}`).toUpperCase();
+                const displayName = String(this.game.cockpitSectorDisplayName || 'ACTIVATE').toUpperCase();
                 this.alienLevelGlyphs.classList.add('alien-level-name-text');
-                this.alienLevelGlyphs.textContent = levelName;
-                if (this.alienLevelHud) this.alienLevelHud.setAttribute('aria-label', `Sector ${levelForInstrument}: ${levelName}`);
+                this.alienLevelGlyphs.textContent = displayName;
+                if (this.alienLevelHud) {
+                    const displayLevel = this.game.cockpitSectorDisplayLevel;
+                    this.alienLevelHud.setAttribute('aria-label', displayLevel ? `Sector ${displayLevel}: ${displayName}` : displayName);
+                }
             }
 
             getRelicCountForInstrument() {
-                if (!this.game.relicRecoveredBySector) return 0;
-                return Object.keys(this.game.relicRecoveredBySector).filter(key => this.game.relicRecoveredBySector[key]).length;
+                return this.game && this.game.getRecoveredRelicCount ? this.game.getRecoveredRelicCount() : 0;
             }
 
             updateAlienRelicInstrument() {
@@ -10575,12 +10596,14 @@ startMaxSwarmBeat(delaySeconds = 0) {
             }
 
             updateOrbitalTallyInstrument() {
-                const relicCount = Math.max(0, Math.min(15, this.getRelicCountForInstrument()));
+                const powered = !!this.game.cockpitActivated;
+                const relicCount = powered ? Math.max(0, Math.min(15, this.getRelicCountForInstrument())) : 0;
                 const markers = this.orbitalTallyMarkers ? [...this.orbitalTallyMarkers.querySelectorAll('.orbital-tally-marker')] : [];
-                markers.forEach((marker, index) => marker.classList.toggle('collected', index < relicCount));
+                markers.forEach((marker, index) => marker.classList.toggle('collected', powered && index < relicCount));
+                if (this.orbitalTallyHud) this.orbitalTallyHud.classList.toggle('powered-off', !powered);
 
                 this.orbitalTallyRings.forEach((ring, index) => {
-                    ring.classList.toggle('ring-complete', relicCount >= ((index + 1) * 5));
+                    ring.classList.toggle('ring-complete', powered && relicCount >= ((index + 1) * 5));
                 });
 
                 const pulseDuration = 2.40 - (1.75 * (relicCount / 15));
@@ -10588,15 +10611,15 @@ startMaxSwarmBeat(delaySeconds = 0) {
                     this.orbitalTallyOrb.style.setProperty('--orbital-pulse-duration', `${pulseDuration.toFixed(3)}s`);
                 }
                 if (this.orbitalTallyHud) {
-                    this.orbitalTallyHud.classList.toggle('tally-complete', relicCount >= 15);
+                    this.orbitalTallyHud.classList.toggle('tally-complete', powered && relicCount >= 15);
                     this.orbitalTallyHud.setAttribute('aria-label', `Orbital Tally: ${relicCount} of 15 relics collected`);
                 }
 
-                if (this.lastOrbitalTallyCount !== null && relicCount > this.lastOrbitalTallyCount) {
+                if (powered && this.lastOrbitalTallyCount !== null && relicCount > this.lastOrbitalTallyCount) {
                     const newestMarker = markers[Math.max(0, relicCount - 1)];
                     this.playOrbitalTallyCollectionEffect(newestMarker);
                 }
-                this.lastOrbitalTallyCount = relicCount;
+                this.lastOrbitalTallyCount = powered ? relicCount : 0;
             }
 
             formatHudTimer() {
@@ -10608,9 +10631,13 @@ startMaxSwarmBeat(delaySeconds = 0) {
             }
 
             updateTimerInstrument() {
-                const displayValue = this.formatHudTimer();
+                const powered = !!this.game.cockpitActivated;
+                const displayValue = powered ? this.formatHudTimer() : '';
                 if (this.timerValue) this.renderAlienMonoText(this.timerValue, displayValue);
-                if (this.timerHud) this.timerHud.setAttribute('aria-label', `Run timer ${displayValue}`);
+                if (this.timerHud) {
+                    this.timerHud.classList.toggle('powered-off', !powered);
+                    this.timerHud.setAttribute('aria-label', powered ? `Run timer ${displayValue}` : 'Run timer off');
+                }
             }
 
             countLevelCrystalsTotal() {
@@ -10668,8 +10695,11 @@ startMaxSwarmBeat(delaySeconds = 0) {
 
             renderZapGauge(container) {
                 if (!container) return;
+                const powered = !!this.game.cockpitActivated;
                 const segmentCount = Math.max(1, this.getZapGaugeCapacity());
-                const visibleZaps = Math.max(0, Math.min(segmentCount, this.game.cosmicZapsLeft));
+                const visibleZaps = powered ? Math.max(0, Math.min(segmentCount, this.game.cosmicZapsLeft)) : 0;
+                container.classList.toggle('powered-off', !powered);
+                if (this.blueCrystalGaugeIcon) this.blueCrystalGaugeIcon.classList.toggle('powered-off', !powered);
                 if (container.dataset.segmentCount !== String(segmentCount)) {
                     container.innerHTML = '';
                     container.style.gridTemplateRows = `repeat(${segmentCount}, 1fr)`;
