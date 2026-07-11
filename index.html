@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v240: Keeps cycle stars visible through pause/menu states, restores the larger top-HUD Zap icons, simplifies Scoring labels, standardizes dormant control-panel colors to dark RGBY, applies RGB blue to the Tri-Lock Singularity, and adds double-tap instrument identification.
+Build v241: Fixes Developer END selection after completed runs, enlarges and right-anchors the top-HUD Cosmic Zaps with left-to-right depletion, aligns the Tri-Lock Singularity with the Crystal Spine, and corrects the Crystal Spine reference to 80 crystals.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -9,7 +9,7 @@ This source code, artwork, game design, and related assets are not licensed for 
 Orb Control Panel Instrument Reference
 - Sector Ascension Array — Tracks progress through all 15 sectors of the Prism Grid.
 - Sector Cartouche — Displays the alien designation of the current sector.
-- Crystal Spine — Records the 81 crystals collected within the active sector.
+- Crystal Spine — Records the 80 crystals collected within the active sector.
 - Impact Nexus — Detects hostile objects entering the Orb’s immediate collision zone.
 - Chrono Drift — Measures the elapsed time of the current run.
 - Tri-Lock Singularity — Shows the number of Cosmic Zaps currently available.
@@ -17,7 +17,7 @@ Orb Control Panel Instrument Reference
 - Recursion Glyph Engine — Displays the current cycle and advances with each completed Grid restoration.
 - Orb Command Socket — Controls the Orb’s pause, resume, and primary interface functions.
 -->
-<html data-build-version="v240">
+<html data-build-version="v241">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -2061,7 +2061,7 @@ Orb Control Panel Instrument Reference
             transform: translateY(-50%);
             display: flex;
             align-items: center;
-            justify-content: center;
+            justify-content: flex-end;
             width: clamp(52px, 15vw, 72px);
             min-width: clamp(52px, 15vw, 72px);
             pointer-events: none;
@@ -2095,7 +2095,7 @@ Orb Control Panel Instrument Reference
         #cosmicZapIndicators {
             display: none;
             align-items: center;
-            justify-content: center;
+            justify-content: flex-end;
             gap: 6px;
             z-index: 1000;
             box-shadow: none;
@@ -2104,10 +2104,10 @@ Orb Control Panel Instrument Reference
         /* Individual Cosmic Zap indicator styling */
         .cosmic-zap-icon {
             display: none;
-            width: 10px;
-            height: 17px;
+            width: 13px;
+            height: 22px;
             background: #fff;
-            box-shadow: 0 0 calc(var(--default-glow) * 0.38px) #fff;
+            box-shadow: 0 0 calc(var(--default-glow) * 0.44px) #fff;
             clip-path: polygon(58% 0%, 18% 54%, 45% 54%, 32% 100%, 84% 39%, 56% 39%);
         }
         
@@ -3284,7 +3284,7 @@ Orb Control Panel Instrument Reference
             position: absolute;
             left: calc(var(--alien-stack-left) + ((var(--status-side-width) - var(--tri-lock-size)) / 2));
             right: auto;
-            bottom: calc(var(--hud-bottom-inset) + ((var(--radar-alarm-size) - var(--tri-lock-size)) / 2));
+            bottom: var(--hud-bottom-inset);
             width: var(--tri-lock-size);
             height: var(--tri-lock-size);
             box-sizing: border-box;
@@ -5035,7 +5035,7 @@ Orb Control Panel Instrument Reference
     </div>
 
     <script>
-        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'v240'}`;
+        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'v241'}`;
         const splashBuildVersion = document.getElementById('splashBuildVersion');
         if (splashBuildVersion) splashBuildVersion.textContent = BUILD_VERSION;
 
@@ -8113,10 +8113,44 @@ Orb Control Panel Instrument Reference
             }
 
             startEndCycleTest() {
-                if (this.cycleTransitionActive) return;
+                if (!this.developerModeEnabled) return;
+
                 const transitionToken = ++this.levelLoadToken;
                 this.audio.resume();
                 this.hideLevelSelectMenu();
+
+                // END can be selected after a completed run. Clear stale Game Over,
+                // attract-mode, pause, and cycle-transition state before starting the test.
+                this.stopAttractMode();
+                this.hideCycleContinueButton();
+                this.pendingCycleContinueToken = null;
+                this.cycleTransitionActive = false;
+                this.isGameOver = false;
+                this.restartReady = false;
+                this.active = false;
+                this.isPaused = false;
+                this.levelActionStarted = false;
+                this.showHudDuringSectorIntro = false;
+                this.resumeCountdownActive = false;
+                this.startInputLocked = false;
+                this.gameplayRunToken++;
+                this.clearUpdateGameTimer();
+                this.clearMaxSwarmCueTimer();
+                this.clearPrismRelicCueTimer();
+                this.clearOvertimeEnemyTimer();
+                this.audio.stopBackgroundMusic();
+                this.audio.stopCycleCompleteMusic();
+                this.pauseWindow.style.display = 'none';
+                this.levelSelectWindow.style.display = 'none';
+                this.gameOverElement.style.opacity = '0';
+                this.bonusTextElement.style.opacity = '0';
+                this.gameOverElement.classList.remove('finalCycleText');
+                this.bonusTextElement.classList.remove('countdownText', 'restoreText', 'resumeCountdownText', 'finalCycleSubtext');
+                this.container.classList.remove('gridRestoreSequence', 'cycleCelebrationSequence', 'cycleRestoredIdle');
+                this.removeCycleRebootCells();
+                this.clearGameplayObjects();
+                this.player.element.style.display = 'none';
+
                 this.finishGame(transitionToken);
             }
 
@@ -12541,12 +12575,19 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 const zapIcons = this.cosmicZapIndicators
                     ? [...this.cosmicZapIndicators.querySelectorAll('.cosmic-zap-icon')]
                     : [];
+                const cycleCapacity = this.game.getCosmicZapsForCurrentCycle
+                    ? Math.max(1, Math.floor(Number(this.game.getCosmicZapsForCurrentCycle()) || 1))
+                    : Math.max(1, remainingZaps);
+                const visibleCapacity = Math.min(zapIcons.length, Math.max(cycleCapacity, remainingZaps));
+                const litStartIndex = Math.max(0, visibleCapacity - Math.min(visibleCapacity, remainingZaps));
 
                 if (this.cosmicZapIndicators) {
                     this.cosmicZapIndicators.style.display = showHud && remainingZaps > 0 ? 'flex' : 'none';
                 }
                 zapIcons.forEach((icon, index) => {
-                    icon.style.display = showHud && index < remainingZaps ? 'block' : 'none';
+                    const belongsToCurrentCapacity = index < visibleCapacity;
+                    icon.style.display = showHud && belongsToCurrentCapacity ? 'block' : 'none';
+                    icon.style.visibility = belongsToCurrentCapacity && index >= litStartIndex ? 'visible' : 'hidden';
                 });
 
                 this.updateTriLockSingularity();
