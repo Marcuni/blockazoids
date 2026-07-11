@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v243: Applies rounded frame corners to the framed control-panel instruments, enlarges and rebuilds the Tri-Lock triangle with uniform line weight and more clearance, and softens the Prism Reliquary collection pulse.
+Build v244: Centers the Tri-Lock mechanism inside its triangular frame, isolates Gridlock announcements in the top HUD, and gives the How-to-Play question mark a brief first-three-loss attention cue.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -17,7 +17,7 @@ Orb Control Panel Instrument Reference
 - Recursion Glyph Engine — Displays the current cycle and advances with each completed Grid restoration.
 - Orb Command Socket — Controls the Orb’s pause, resume, and primary interface functions.
 -->
-<html data-build-version="v243">
+<html data-build-version="v244">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -2024,7 +2024,8 @@ Orb Control Panel Instrument Reference
             pointer-events: none;
         }
 
-        #howToButton.game-over-tip-pulse {
+        #howToButton.game-over-tip-pulse,
+        #pauseHowToButton.game-over-tip-pulse {
             animation: howToGameOverTipPulse 0.68s ease-in-out 2;
         }
 
@@ -4887,6 +4888,20 @@ Orb Control Panel Instrument Reference
             }
         }
 
+
+        /* v244: let Gridlock announcements temporarily occupy the top HUD alone. */
+        #scoreHud.gridlock-announcement-active #cycleHud,
+        #scoreHud.gridlock-announcement-active #highScoreHud,
+        #scoreHud.gridlock-announcement-active #cosmicZapHud {
+            opacity: 0 !important;
+            visibility: hidden !important;
+        }
+
+        #scoreHud.gridlock-announcement-active #score {
+            opacity: 1 !important;
+            visibility: visible !important;
+        }
+
     </style>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700&display=swap" rel="stylesheet">
 </head>
@@ -5129,7 +5144,7 @@ Orb Control Panel Instrument Reference
             <div id="triLockSingularity" aria-label="Tri-Lock Singularity: 3 Cosmic Zaps available">
                 <svg viewBox="0 0 100 100" aria-hidden="true" focusable="false">
                     <polygon class="tri-lock-frame" points="50,2 98,97 2,97"></polygon>
-                    <g class="tri-lock-mechanism" transform="translate(50 50) scale(0.75) translate(-50 -50)">
+                    <g class="tri-lock-mechanism" transform="translate(50 64.5) scale(0.72) translate(-50 -52)">
                         <g class="tri-lock-arm arm-a" data-arm="1">
                             <polygon points="46,14 54,14 58,28 64,38 58,44 53,38 50,34 47,38 42,44 36,38 42,28"></polygon>
                             <polyline points="45,27 50,23 55,27"></polyline>
@@ -5155,7 +5170,7 @@ Orb Control Panel Instrument Reference
     </div>
 
     <script>
-        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'v243'}`;
+        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'v244'}`;
         const splashBuildVersion = document.getElementById('splashBuildVersion');
         if (splashBuildVersion) splashBuildVersion.textContent = BUILD_VERSION;
 
@@ -5228,6 +5243,8 @@ Orb Control Panel Instrument Reference
                 this.pauseGridMenu = document.getElementById('pauseGridMenu');
                 this.pauseSettingsButton = document.getElementById('pauseSettingsButton');
                 this.pauseHowToButton = document.getElementById('pauseHowToButton');
+                this.gameOverHelpTipStorageKey = 'blockazoidsGameOverHelpTipLosses';
+                this.gameOverHelpTipLosses = this.loadGameOverHelpTipLosses();
                 this.pauseScoresButton = document.getElementById('pauseScoresButton');
                 this.pauseDeveloperButton = document.getElementById('pauseDeveloperButton');
                 this.pauseMenuCloseButton = document.getElementById('pauseMenuCloseButton');
@@ -7059,15 +7076,36 @@ Orb Control Panel Instrument Reference
                 requestAnimationFrame(() => this.clearMenuButtonFocus());
             }
 
+            loadGameOverHelpTipLosses() {
+                try {
+                    const stored = Number.parseInt(localStorage.getItem(this.gameOverHelpTipStorageKey) || '0', 10);
+                    return Number.isFinite(stored) ? Math.max(0, stored) : 0;
+                } catch (_) {
+                    return 0;
+                }
+            }
+
+            saveGameOverHelpTipLosses() {
+                try {
+                    localStorage.setItem(this.gameOverHelpTipStorageKey, String(this.gameOverHelpTipLosses));
+                } catch (_) {}
+            }
+
             pulseHowToButtonForGameOver() {
-                if (!this.howToButton) return;
+                if (this.gameOverHelpTipLosses >= 3) return;
+                this.gameOverHelpTipLosses++;
+                this.saveGameOverHelpTipLosses();
+
                 this.updateContextButtons();
-                if (this.howToButton.dataset.action !== 'howTo') return;
-                this.howToButton.classList.remove('game-over-tip-pulse');
-                void this.howToButton.offsetWidth;
-                this.howToButton.classList.add('game-over-tip-pulse');
+                const targetButton = this.pauseHowToButton || this.howToButton;
+                if (!targetButton) return;
+                if (targetButton === this.howToButton && targetButton.dataset.action !== 'howTo') return;
+
+                targetButton.classList.remove('game-over-tip-pulse');
+                void targetButton.offsetWidth;
+                targetButton.classList.add('game-over-tip-pulse');
                 setTimeout(() => {
-                    if (this.howToButton) this.howToButton.classList.remove('game-over-tip-pulse');
+                    if (targetButton) targetButton.classList.remove('game-over-tip-pulse');
                 }, 1450);
             }
 
@@ -12521,6 +12559,7 @@ startMaxSwarmBeat(delaySeconds = 0) {
         class UI {
             constructor(game) {
                 this.game = game; // Reference to game instance
+                this.scoreHud = document.getElementById('scoreHud'); // Fixed top-HUD container
                 this.scoreElement = document.getElementById('score'); // Score DOM element
                 this.superGridlockHudAlert = document.getElementById('superGridlockHudAlert'); // Absolute bonus overlay; never changes HUD height
                 this.cosmicZapIndicators = document.getElementById('cosmicZapIndicators'); // Cosmic Zap indicators container
@@ -12586,14 +12625,19 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 if (!this.scoreElement) return;
                 if (this.scoreAlertTimer) clearTimeout(this.scoreAlertTimer);
                 this.scoreAlertActive = true;
+                if (this.scoreHud) this.scoreHud.classList.add('gridlock-announcement-active');
                 this.scoreElement.classList.remove('scoreHidden', 'attractHighScore', 'highScoreFlash', 'bonusScoreCount', 'gridlockAlert', 'superGridlockAlert');
                 this.scoreElement.textContent = message;
                 void this.scoreElement.offsetWidth;
                 this.scoreElement.classList.add('gridlockAlert');
                 this.scoreAlertTimer = setTimeout(() => {
                     this.scoreAlertActive = false;
+                    if (this.scoreHud) this.scoreHud.classList.remove('gridlock-announcement-active');
                     this.scoreElement.classList.remove('gridlockAlert');
                     this.updateScore();
+                    this.updateCycleIndicator();
+                    this.updateCosmicZapIndicators();
+                    this.updateHighScore();
                     this.scoreAlertTimer = null;
                 }, 2300);
             }
