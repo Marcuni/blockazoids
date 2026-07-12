@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v252: Keeps every pre-PLAY instruction on one line by widening the translucent guide and using responsive text sizing.
+Build v253: Restores full-size pre-PLAY instructions, gives Normal mode one Cosmic Zap from Cycle 3 onward, and ends the game with a final completion screen after Cycle 5.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -17,7 +17,7 @@ Orb Control Panel Instrument Reference
 - Recursion Glyph Engine — Displays the current cycle and advances with each completed Grid restoration.
 - Orb Command Socket — Controls the Orb’s pause, resume, and primary interface functions.
 -->
-<html data-build-version="v252">
+<html data-build-version="v253">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -553,6 +553,32 @@ Orb Control Panel Instrument Reference
             z-index: 1005;
         }
 
+
+        #gameOver.finalGameCompleteText {
+            top: 27%;
+            width: min(94%, 580px);
+            font-size: clamp(34px, 9.5vw, 58px);
+            line-height: 1.08;
+            letter-spacing: 3px;
+            z-index: 1004;
+            text-shadow: 0 0 20px #fff, 0 0 48px rgba(255, 255, 255, 0.88);
+        }
+
+        #bonusText.finalGameSummary {
+            top: 57%;
+            width: min(88%, 520px);
+            box-sizing: border-box;
+            padding: 14px 12px;
+            font-size: clamp(17px, 4.8vw, 26px);
+            line-height: 1.55;
+            letter-spacing: 1.5px;
+            background: rgba(0, 0, 0, 0.78);
+            border: none;
+            box-shadow: none;
+            text-shadow: none;
+            z-index: 1005;
+        }
+
         /* Framed level-start text */
         #bonusText.countdownText {
             top: 50%;
@@ -1009,7 +1035,7 @@ Orb Control Panel Instrument Reference
             list-style: none;
             color: rgba(255, 255, 255, 0.94);
             font-family: 'Orbitron', 'Courier New', monospace;
-            font-size: clamp(13px, 4vw, 20px);
+            font-size: clamp(16px, 5vw, 21px);
             line-height: 1.55;
             letter-spacing: 0.3px;
             text-shadow: none;
@@ -1801,6 +1827,39 @@ Orb Control Panel Instrument Reference
         }
 
         #cycleContinueButton:focus-visible {
+            outline: 2px solid rgba(255, 255, 255, 0.65);
+            outline-offset: 3px;
+        }
+
+
+        #finalPlayAgainButton {
+            position: absolute;
+            left: 50%;
+            top: 84%;
+            transform: translate(-50%, -50%);
+            padding: 11px 24px;
+            font-family: 'Orbitron', 'Courier New', monospace;
+            font-size: clamp(18px, 5.2vw, 28px);
+            color: #fff;
+            background: #000;
+            border: 2px solid #fff;
+            box-shadow: 0 0 calc(var(--default-glow) * 0.8px) rgba(255, 255, 255, 0.9);
+            letter-spacing: 2px;
+            cursor: pointer;
+            z-index: 1006;
+            display: none;
+            white-space: nowrap;
+        }
+
+        #finalPlayAgainButton.visible {
+            display: block;
+        }
+
+        #finalPlayAgainButton:focus {
+            outline: none;
+        }
+
+        #finalPlayAgainButton:focus-visible {
             outline: 2px solid rgba(255, 255, 255, 0.65);
             outline-offset: 3px;
         }
@@ -5090,6 +5149,7 @@ Orb Control Panel Instrument Reference
         <div id="gameOver">GAME OVER</div>
         <div id="bonusText"></div> <!-- New element for bonus display -->
         <button id="cycleContinueButton" type="button" aria-hidden="true">CONTINUE</button>
+        <button id="finalPlayAgainButton" type="button" aria-hidden="true">PLAY AGAIN</button>
         <div id="screenFade"></div>
         <div id="gameOverlay"></div>
         <div id="activationHowToOverlay" aria-hidden="true">
@@ -5347,7 +5407,7 @@ Orb Control Panel Instrument Reference
     </div>
 
     <script>
-        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'v250'}`;
+        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'v253'}`;
         const splashBuildVersion = document.getElementById('splashBuildVersion');
         if (splashBuildVersion) splashBuildVersion.textContent = BUILD_VERSION;
 
@@ -5559,6 +5619,7 @@ Orb Control Panel Instrument Reference
                 this.levelSelectCloseButton = document.getElementById('levelSelectCloseButton');
                 this.cycleHud = document.getElementById('cycleHud');
                 this.cycleContinueButton = document.getElementById('cycleContinueButton');
+                this.finalPlayAgainButton = document.getElementById('finalPlayAgainButton');
                 this.pendingCycleContinueToken = null;
                 this.bottomProgressPanel = document.getElementById('bottomProgressPanel');
                 this.instrumentNameOverlay = document.getElementById('instrumentNameOverlay');
@@ -5572,6 +5633,7 @@ Orb Control Panel Instrument Reference
                 this.spawnDelay = this.parameters.baseSpawnDelay;
                 this.normalSwarmSize = this.parameters.normalSwarmSize;
                 this.MAX_LEVEL = 15; // Sector Maps campaign length
+                this.MAX_CYCLES = 5; // Completing Cycle 5 restores the Prism Grid and ends the run
                 this.BASE_BLINKING_CRYSTAL_COUNT = 5; // Each level starts with five blinking crystal choices
                 this.currentBlinkingCrystalCount = this.BASE_BLINKING_CRYSTAL_COUNT; // Cosmic Zap use lowers this for the current level only
 
@@ -5644,6 +5706,7 @@ Orb Control Panel Instrument Reference
                 this.lastMotionSample = null;
                 this.wakeLock = null;                 // Optional screen wake lock during active play
                 this.isGameOver = false;              // Game over state
+                this.finalCompletionActive = false;     // True while the Cycle 5 completion summary is displayed
                 this.spawnCounter = 0;                // Counter for enemy spawn delay
                 this.lastFrameTime = performance.now(); // Last frame timestamp
                 this.currentColorIndex = 0;           // Index of current crystal color
@@ -5761,6 +5824,16 @@ Orb Control Panel Instrument Reference
                         e.preventDefault();
                         e.stopPropagation();
                         this.continueCycle();
+                    });
+                }
+                if (this.finalPlayAgainButton) {
+                    this.finalPlayAgainButton.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (!this.isGameOver || !this.restartReady) return;
+                        this.playUiClick();
+                        this.hideFinalPlayAgainButton();
+                        this.start();
                     });
                 }
                 if (this.hudMenuButton) {
@@ -7058,7 +7131,8 @@ Orb Control Panel Instrument Reference
             noteTelemetryCycleComplete() {
                 if (!this.currentTelemetryRun || this.currentTelemetryRun.endedAt) return;
                 this.currentTelemetryRun.cycleCompletions = (this.currentTelemetryRun.cycleCompletions || 0) + 1;
-                this.currentTelemetryRun.highestCycleReached = Math.max(this.currentTelemetryRun.highestCycleReached || 1, this.cycle + 1);
+                const nextReachableCycle = this.cycle >= this.MAX_CYCLES ? this.cycle : this.cycle + 1;
+                this.currentTelemetryRun.highestCycleReached = Math.max(this.currentTelemetryRun.highestCycleReached || 1, nextReachableCycle);
                 this.saveTelemetryData();
             }
 
@@ -7670,7 +7744,9 @@ Orb Control Panel Instrument Reference
             getCosmicZapsForCurrentCycle() {
                 const difficultyConfig = this.getDifficultyConfig();
                 const baseZaps = Math.max(1, this.parameters.baseCosmicZaps + difficultyConfig.cosmicZapOffset);
-                return this.cycle >= 2 ? Math.max(1, baseZaps - 1) : baseZaps;
+                if (this.cycle <= 1) return baseZaps;
+                if (this.difficultyMode === 'Normal' && this.cycle >= 3) return Math.max(1, baseZaps - 2);
+                return Math.max(1, baseZaps - 1);
             }
 
             // Enemy speed uses named tuning constants for sector, cycle, and Cosmic Zap pressure.
@@ -7795,6 +7871,8 @@ Orb Control Panel Instrument Reference
                 this.clearOvertimeEnemyTimer();
                 this.releaseWakeLock();
                 this.isGameOver = false;
+                this.finalCompletionActive = false;
+                this.hideFinalPlayAgainButton();
                 this.instructionsWindow.style.display = 'none';
                 if (this.activationHowToOverlay) {
                     this.activationHowToOverlay.classList.remove('visible');
@@ -7810,7 +7888,10 @@ Orb Control Panel Instrument Reference
                 this.levelSelectWindow.style.display = 'none';
                 this.hideCycleContinueButton();
                 this.gameOverElement.style.opacity = '0';
-                this.bonusTextElement.classList.remove('countdownText', 'restoreText', 'resumeCountdownText');
+                this.gameOverElement.classList.remove('finalCycleText', 'finalGameCompleteText');
+                this.bonusTextElement.classList.remove('countdownText', 'restoreText', 'resumeCountdownText', 'finalCycleSubtext', 'finalGameSummary');
+                this.gameOverElement.textContent = '';
+                this.bonusTextElement.textContent = '';
                 this.bonusTextElement.style.opacity = '0';
                 if (!options.keepScreenFade) this.screenFadeElement.classList.remove('visible');
                 this.container.classList.remove('gridRestoreSequence', 'cycleCelebrationSequence', 'cycleRestoredIdle');
@@ -8619,6 +8700,8 @@ Orb Control Panel Instrument Reference
                 this.pendingCycleContinueToken = null;
                 this.cycleTransitionActive = false;
                 this.isGameOver = false;
+                this.finalCompletionActive = false;
+                this.hideFinalPlayAgainButton();
                 this.restartReady = false;
                 this.active = false;
                 this.isPaused = false;
@@ -8637,8 +8720,8 @@ Orb Control Panel Instrument Reference
                 this.levelSelectWindow.style.display = 'none';
                 this.gameOverElement.style.opacity = '0';
                 this.bonusTextElement.style.opacity = '0';
-                this.gameOverElement.classList.remove('finalCycleText');
-                this.bonusTextElement.classList.remove('countdownText', 'restoreText', 'resumeCountdownText', 'finalCycleSubtext');
+                this.gameOverElement.classList.remove('finalCycleText', 'finalGameCompleteText');
+                this.bonusTextElement.classList.remove('countdownText', 'restoreText', 'resumeCountdownText', 'finalCycleSubtext', 'finalGameSummary');
                 this.container.classList.remove('gridRestoreSequence', 'cycleCelebrationSequence', 'cycleRestoredIdle');
                 this.removeCycleRebootCells();
                 this.clearGameplayObjects();
@@ -8915,6 +8998,8 @@ Orb Control Panel Instrument Reference
                 const endOption = this.getEndSectorOptionValue();
 
                 this.hideActivationHowToOverlay();
+                this.finalCompletionActive = false;
+                this.hideFinalPlayAgainButton();
                 this.hasStartedRun = true;
                 this.activationHowToPending = false;
                 this.cockpitActivated = true;
@@ -10605,6 +10690,20 @@ Orb Control Panel Instrument Reference
                 this.cycleContinueButton.setAttribute('aria-hidden', 'true');
             }
 
+            hideFinalPlayAgainButton() {
+                if (!this.finalPlayAgainButton) return;
+                this.finalPlayAgainButton.classList.remove('visible');
+                this.finalPlayAgainButton.style.display = 'none';
+                this.finalPlayAgainButton.setAttribute('aria-hidden', 'true');
+            }
+
+            showFinalPlayAgainButton() {
+                if (!this.finalPlayAgainButton) return;
+                this.finalPlayAgainButton.style.display = 'block';
+                this.finalPlayAgainButton.classList.add('visible');
+                this.finalPlayAgainButton.setAttribute('aria-hidden', 'false');
+            }
+
             showCycleContinueButton(transitionToken) {
                 this.hideCycleContinueButton();
                 this.pendingCycleContinueToken = transitionToken;
@@ -10645,9 +10744,102 @@ Orb Control Panel Instrument Reference
                 }, 500);
             }
 
+            // Completing Cycle 5 ends the run instead of opening a sixth cycle.
+            async finishFinalCompletion(transitionToken = this.levelLoadToken) {
+                if (this.cycleTransitionActive || this.isGameOver) return;
+
+                this.cycleTransitionActive = true;
+                this.finalCompletionActive = true;
+                this.stopRunRecordActionClock();
+                this.active = false;
+                this.levelActionStarted = false;
+                this.isGameOver = true;
+                this.restartReady = false;
+                this.isPaused = false;
+                this.resumeCountdownActive = false;
+                this.gameplayRunToken++;
+                this.clearUpdateGameTimer();
+                this.clearMaxSwarmCueTimer();
+                this.clearPrismRelicCueTimer();
+                this.resetOvertimeState();
+                this.releaseWakeLock();
+                this.pauseWindow.style.display = 'none';
+                if (this.menuButtons && this.scoringPanel && this.storyPanel && this.settingsPanel) this.showMainMenuButtons();
+                this.levelSelectWindow.style.display = 'none';
+                this.hideCycleContinueButton();
+                this.hideFinalPlayAgainButton();
+                this.setGameOverlayVisible(true);
+                this.audio.stopBackgroundMusic();
+                this.clearGameplayObjects();
+                this.player.element.style.display = 'none';
+                this.updateRunRecordProgress();
+                this.finishTelemetryRun('completed');
+                this.saveRunRecordIfCurrentHighScore();
+                this.updateHighScoreDisplay();
+
+                this.gameOverElement.classList.remove('finalGameCompleteText');
+                this.gameOverElement.classList.add('finalCycleText');
+                this.bonusTextElement.classList.remove('countdownText', 'restoreText', 'resumeCountdownText', 'finalCycleSubtext', 'finalGameSummary');
+                this.gameOverElement.textContent = 'PRISM GRID\nRESTORED';
+                this.bonusTextElement.textContent = '';
+                this.gameOverElement.style.opacity = '0';
+                this.bonusTextElement.style.opacity = '0';
+                this.container.classList.remove('cycleCelebrationSequence', 'cycleRestoredIdle');
+                this.removeCycleRebootCells();
+                this.ui.updateAll();
+
+                await this.wait(300);
+                if (transitionToken !== this.levelLoadToken) {
+                    this.cycleTransitionActive = false;
+                    return;
+                }
+
+                this.audio.startCycleCompleteMusic();
+                this.createCycleRebootCells();
+                void this.container.offsetWidth;
+                this.container.classList.add('cycleCelebrationSequence');
+                this.gameOverElement.style.opacity = '1';
+
+                await this.wait(6200);
+                if (transitionToken !== this.levelLoadToken) {
+                    this.audio.stopCycleCompleteMusic();
+                    this.container.classList.remove('cycleCelebrationSequence');
+                    this.removeCycleRebootCells();
+                    this.cycleTransitionActive = false;
+                    return;
+                }
+
+                this.audio.stopCycleCompleteMusic();
+                this.container.classList.remove('cycleCelebrationSequence');
+                this.container.classList.add('cycleRestoredIdle');
+                this.removeCycleRebootCells();
+
+                const finalTime = this.formatTelemetryDuration(this.getRunRecordElapsedMs());
+                const finalRelics = this.getRecoveredRelicCount();
+                this.gameOverElement.classList.remove('finalCycleText');
+                this.gameOverElement.classList.add('finalGameCompleteText');
+                this.bonusTextElement.classList.add('finalGameSummary');
+                this.gameOverElement.textContent = 'PRISM GRID\nRESTORED';
+                this.bonusTextElement.textContent = `FINAL SCORE ${this.score}\nTIME ${finalTime}\nCYCLES COMPLETED ${this.MAX_CYCLES}\nRELICS COLLECTED ${finalRelics}/15`;
+                this.gameOverElement.style.opacity = '1';
+                this.bonusTextElement.style.opacity = '1';
+                this.restartReady = true;
+                this.cycleTransitionActive = false;
+                this.updateSettingsSectorLabel();
+                this.updateDifficultyLabel();
+                this.showFinalPlayAgainButton();
+                this.ui.updateAll();
+            }
+
             // Complete the campaign cycle, then wait for player choice before restarting the next cycle.
             async finishGame(transitionToken = this.levelLoadToken) {
+                if (this.cycle >= this.MAX_CYCLES) {
+                    await this.finishFinalCompletion(transitionToken);
+                    return;
+                }
                 if (this.cycleTransitionActive || this.isGameOver) return;
+                this.finalCompletionActive = false;
+                this.hideFinalPlayAgainButton();
 
                 this.cycleTransitionActive = true;
                 this.stopRunRecordActionClock();
@@ -10714,6 +10906,8 @@ Orb Control Panel Instrument Reference
             // End the game with explosion and screen shake
             endGame(deathDetails = {}) {
                 if (this.isGameOver) return; // Exit if already over
+                this.finalCompletionActive = false;
+                this.hideFinalPlayAgainButton();
                 this.stopRunRecordActionClock();
                 this.active = false; // Pause game
                 this.isGameOver = true;
@@ -13050,12 +13244,14 @@ startMaxSwarmBeat(delaySeconds = 0) {
             // One white star represents each fully completed campaign cycle.
             updateCycleIndicator() {
                 if (!this.cycleElement) return;
-                const completedCycles = Math.max(0, Math.floor((this.game.cycle || 1) - 1));
+                const completedCycles = this.game.finalCompletionActive
+                    ? this.game.MAX_CYCLES
+                    : Math.max(0, Math.floor((this.game.cycle || 1) - 1));
                 const inRunContext = this.game.hasStartedRun || this.game.active || this.game.showHudDuringSectorIntro || this.game.isGameOver || this.game.cycleTransitionActive;
                 const showStars = completedCycles > 0 && inRunContext;
                 this.cycleElement.textContent = showStars ? '★'.repeat(completedCycles) : '';
                 this.cycleElement.classList.toggle('visible', showStars);
-                this.cycleElement.setAttribute('aria-label', showStars ? `Cycle ${this.game.cycle}` : '');
+                this.cycleElement.setAttribute('aria-label', showStars ? (this.game.finalCompletionActive ? `${completedCycles} cycles completed` : `Cycle ${this.game.cycle}`) : '');
             }
 
             // Update Cosmic Zap indicators based on remaining Cosmic Zaps
