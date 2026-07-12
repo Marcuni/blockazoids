@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v245: Strengthens the first-three-loss How-to-Play attention pulse and enlarges the splash marquee so it occupies more of the launch background.
+Build v246: Unifies cockpit instrument frames with one gray stroke and small corner notches, and slightly enlarges the Crystal Spine crystals.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -17,7 +17,7 @@ Orb Control Panel Instrument Reference
 - Recursion Glyph Engine — Displays the current cycle and advances with each completed Grid restoration.
 - Orb Command Socket — Controls the Orb’s pause, resume, and primary interface functions.
 -->
-<html data-build-version="v245">
+<html data-build-version="v246">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -4926,7 +4926,84 @@ Orb Control Panel Instrument Reference
             visibility: visible !important;
         }
 
-    </style>
+    
+
+        /* v246: unified cockpit frame system. Every framed instrument uses the
+           same gray stroke and the same small clipped-corner notch language. */
+        :root {
+            --instrument-frame-width: 1.6px;
+        }
+
+        :is(#alienLevelHud, #greenCrystalGauge, #recursionGlyphEngine, #radarAlarmHud, #timerHud, #orbitalTallyHud, #triLockSingularity) {
+            border: 0 !important;
+            border-radius: 0 !important;
+            clip-path: none !important;
+        }
+
+        #alienLevelHud {
+            background: #000 !important;
+            filter: none !important;
+        }
+
+        #alienLevelHud::before {
+            content: none !important;
+            display: none !important;
+        }
+
+        #orbitalTallyHud {
+            background: #000;
+        }
+
+        #triLockSingularity {
+            background: #000;
+            filter: none;
+        }
+
+        .tri-lock-frame {
+            fill: #000;
+            stroke: var(--dark-blue-color);
+            stroke-width: 1.6;
+        }
+
+        .unified-instrument-frame {
+            position: absolute;
+            inset: 0;
+            display: block;
+            width: 100%;
+            height: 100%;
+            overflow: visible;
+            pointer-events: none;
+            z-index: 50;
+            filter: drop-shadow(0 0 calc(var(--default-glow) * 0.12px) var(--instrument-frame-glow));
+        }
+
+        #triLockSingularity > svg.unified-instrument-frame {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            z-index: 50;
+        }
+
+        .unified-instrument-frame polygon {
+            fill: none;
+            stroke: var(--cp-outline-color);
+            stroke-width: var(--instrument-frame-width);
+            vector-effect: non-scaling-stroke;
+            stroke-linejoin: miter;
+            stroke-linecap: square;
+            shape-rendering: geometricPrecision;
+        }
+
+        /* Slightly larger Crystal Spine cells. */
+        .crystal-spine-segments {
+            left: 11%;
+            right: 11%;
+            top: 14%;
+            bottom: 14%;
+        }
+</style>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700&display=swap" rel="stylesheet">
 </head>
 <body>
@@ -5194,7 +5271,7 @@ Orb Control Panel Instrument Reference
     </div>
 
     <script>
-        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'v245'}`;
+        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'v246'}`;
         const splashBuildVersion = document.getElementById('splashBuildVersion');
         if (splashBuildVersion) splashBuildVersion.textContent = BUILD_VERSION;
 
@@ -5208,6 +5285,80 @@ Orb Control Panel Instrument Reference
         }, { passive: false });
         document.addEventListener('gesturestart', (e) => e.preventDefault(), { passive: false });
         document.addEventListener('dblclick', (e) => e.preventDefault(), { passive: false });
+
+
+
+        // v246 unified instrument-frame overlays. The frame geometry is updated
+        // from each instrument's real pixel dimensions so every notch stays small.
+        (() => {
+            const instrumentIds = [
+                'alienLevelHud',
+                'greenCrystalGauge',
+                'recursionGlyphEngine',
+                'radarAlarmHud',
+                'timerHud',
+                'orbitalTallyHud',
+                'triLockSingularity'
+            ];
+
+            const updateFrame = (host, svg, polygon) => {
+                const width = Math.max(1, host.clientWidth);
+                const height = Math.max(1, host.clientHeight);
+                const inset = 1.25;
+                const notch = Math.max(4, Math.min(6, width * 0.07, height * 0.13));
+                const left = inset;
+                const top = inset;
+                const right = Math.max(left + 1, width - inset);
+                const bottom = Math.max(top + 1, height - inset);
+
+                svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+                polygon.setAttribute('points', [
+                    `${left + notch},${top}`,
+                    `${right - notch},${top}`,
+                    `${right},${top + notch}`,
+                    `${right},${bottom - notch}`,
+                    `${right - notch},${bottom}`,
+                    `${left + notch},${bottom}`,
+                    `${left},${bottom - notch}`,
+                    `${left},${top + notch}`
+                ].join(' '));
+            };
+
+            const installFrame = (hostOrId) => {
+                const host = typeof hostOrId === 'string' ? document.getElementById(hostOrId) : hostOrId;
+                if (!host) return null;
+
+                const existing = host.querySelector(':scope > .unified-instrument-frame');
+                if (existing) return existing;
+
+                const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+                svg.classList.add('unified-instrument-frame');
+                svg.setAttribute('aria-hidden', 'true');
+                svg.setAttribute('focusable', 'false');
+                svg.setAttribute('preserveAspectRatio', 'none');
+
+                const polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+                svg.appendChild(polygon);
+                host.appendChild(svg);
+
+                const refresh = () => updateFrame(host, svg, polygon);
+                refresh();
+
+                if ('ResizeObserver' in window) {
+                    const observer = new ResizeObserver(refresh);
+                    observer.observe(host);
+                } else {
+                    window.addEventListener('resize', refresh, { passive: true });
+                }
+                return svg;
+            };
+
+            window.ensureUnifiedInstrumentFrame = installFrame;
+            const installAllFrames = () => instrumentIds.forEach(installFrame);
+            installAllFrames();
+            requestAnimationFrame(() => requestAnimationFrame(installAllFrames));
+            window.addEventListener('load', installAllFrames, { once: true });
+        })();
 
         // Main game class managing state and logic
         class Game {
@@ -13041,6 +13192,7 @@ startMaxSwarmBeat(delaySeconds = 0) {
                         container.appendChild(vertebra);
                     }
                     container.dataset.spineBuilt = 'true';
+                    if (window.ensureUnifiedInstrumentFrame) window.ensureUnifiedInstrumentFrame(container);
                 }
 
                 const vertebrae = [...container.querySelectorAll('.crystal-spine-vertebra')];
