@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v258: Replaces cycle stars with completed-grid icons, refines Chrono Drift spacing, quiets Crystal Spine node borders, and enlarges and centers the Tri-Lock Singularity.
+Build v259: Adds active Crystal Spine twinkling, ends the campaign after Cycle 3, and removes the Chrono Drift colon while preserving grouped digit spacing.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -21,7 +21,7 @@ Orb Control Panel Instrument Reference
 - Velocity Glyph Engine — Temporarily displays the Orb’s finger-driven movement speed.
 - Orb Command Socket — Controls the Orb’s pause, resume, and primary interface functions.
 -->
-<html data-build-version="v258">
+<html data-build-version="v259">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -5356,6 +5356,25 @@ Orb Control Panel Instrument Reference
             display: none !important;
         }
 
+        /* v259: Only collected crystals in the current incomplete vertebra twinkle. */
+        #greenCrystalGauge .crystal-spine-vertebra.active .crystal-spine-segment.filled:not(.just-collected) {
+            animation: crystalSpineGameplayTwinkle 0.25s infinite alternate !important;
+        }
+
+        #greenCrystalGauge .crystal-spine-vertebra.complete .crystal-spine-segment.filled {
+            animation: none !important;
+        }
+
+        /* Chrono Drift: small spacing inside pairs, larger blank gap between pairs. */
+        #timerValue .alien-mono-row {
+            column-gap: 0.12em;
+        }
+
+        #timerValue .alien-mono-slot.punct {
+            width: 0.40em;
+            min-width: 0.40em;
+        }
+
     </style>
 </head>
 <body>
@@ -5611,7 +5630,7 @@ Orb Control Panel Instrument Reference
                 <span class="radar-alarm-core"></span>
             </div>
             <div id="timerHud" class="status-side-instrument" aria-label="Run timer">
-                <span id="timerValue" class="alien-status-value">00:00</span>
+                <span id="timerValue" class="alien-status-value">00 00</span>
             </div>
             <div id="triLockSingularity" aria-label="Tri-Lock Singularity: 3 Cosmic Zaps available">
                 <svg viewBox="0 0 100 100" aria-hidden="true" focusable="false">
@@ -5641,7 +5660,7 @@ Orb Control Panel Instrument Reference
     </div>
 
     <script>
-        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'v258'}`;
+        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'v259'}`;
         const splashBuildVersion = document.getElementById('splashBuildVersion');
         if (splashBuildVersion) splashBuildVersion.textContent = BUILD_VERSION;
 
@@ -5867,7 +5886,7 @@ Orb Control Panel Instrument Reference
                 this.spawnDelay = this.parameters.baseSpawnDelay;
                 this.normalSwarmSize = this.parameters.normalSwarmSize;
                 this.MAX_LEVEL = 15; // Sector Maps campaign length
-                this.MAX_CYCLES = 5; // Completing Cycle 5 restores the Prism Grid and ends the run
+                this.MAX_CYCLES = 3; // Completing Cycle 3 restores the Prism Grid and ends the run
                 this.BASE_BLINKING_CRYSTAL_COUNT = 5; // Each level starts with five blinking crystal choices
                 this.currentBlinkingCrystalCount = this.BASE_BLINKING_CRYSTAL_COUNT; // Cosmic Zap use lowers this for the current level only
 
@@ -5940,7 +5959,7 @@ Orb Control Panel Instrument Reference
                 this.lastMotionSample = null;
                 this.wakeLock = null;                 // Optional screen wake lock during active play
                 this.isGameOver = false;              // Game over state
-                this.finalCompletionActive = false;     // True while the Cycle 5 completion summary is displayed
+                this.finalCompletionActive = false;     // True while the final-cycle completion summary is displayed
                 this.spawnCounter = 0;                // Counter for enemy spawn delay
                 this.lastFrameTime = performance.now(); // Last frame timestamp
                 this.currentColorIndex = 0;           // Index of current crystal color
@@ -8448,7 +8467,7 @@ Orb Control Panel Instrument Reference
                     this.updateSettingsCycleLabel();
                     return;
                 }
-                const maxCycle = 99;
+                const maxCycle = this.MAX_CYCLES;
                 const current = Math.max(1, Math.min(maxCycle, this.selectedStartCycle || 1));
                 this.selectedStartCycle = ((current - 1 + direction + maxCycle) % maxCycle) + 1;
                 this.updateSettingsCycleLabel();
@@ -8459,7 +8478,7 @@ Orb Control Panel Instrument Reference
                 if (this.cycleSettingControl) this.cycleSettingControl.classList.toggle('developer-visible', visible);
                 if (!this.settingsCycleValue) return;
 
-                const cycle = Math.max(1, Math.min(99, this.selectedStartCycle || 1));
+                const cycle = Math.max(1, Math.min(this.MAX_CYCLES, this.selectedStartCycle || 1));
                 this.selectedStartCycle = cycle;
                 this.settingsCycleValue.textContent = `${cycle}`;
 
@@ -10978,7 +10997,7 @@ Orb Control Panel Instrument Reference
                 }, 500);
             }
 
-            // Completing Cycle 5 ends the run instead of opening a sixth cycle.
+            // Completing the final cycle ends the run instead of opening another cycle.
             async finishFinalCompletion(transitionToken = this.levelLoadToken) {
                 if (this.cycleTransitionActive || this.isGameOver) return;
 
@@ -13760,12 +13779,12 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 const totalSeconds = Math.max(0, Math.floor(elapsedMs / 1000));
                 const minutes = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
                 const seconds = (totalSeconds % 60).toString().padStart(2, '0');
-                return `${minutes}:${seconds}`;
+                return `${minutes} ${seconds}`;
             }
 
             updateTimerInstrument() {
                 const powered = !!this.game.cockpitActivated;
-                const displayValue = powered ? this.formatHudTimer() : '00:00';
+                const displayValue = powered ? this.formatHudTimer() : '00 00';
                 if (this.timerValue) {
                     this.timerValue.setAttribute('data-timer-string', displayValue);
                     this.renderAlienMonoText(this.timerValue, displayValue);
