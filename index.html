@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v266: Adds an optional lightweight CRT monitor effect limited to the Prism Grid playfield, with saved Manual toggle and brief event-reactive overload effects.
+Build v267: Strengthens the optional playfield-only CRT presentation, disables Cosmic Zaps during Final Gridlock, and anchors the first Overtime spawn to the 60-second survival mark.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -21,7 +21,7 @@ Orb Control Panel Instrument Reference
 - Velocity Glyph Engine — Temporarily displays the Orb’s finger-driven movement speed.
 - Orb Command Socket — Controls the Orb’s pause, resume, and primary interface functions.
 -->
-<html data-build-version="v266">
+<html data-build-version="v267">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -125,17 +125,17 @@ Orb Control Panel Instrument Reference
             pointer-events: none;
             opacity: 0;
             overflow: hidden;
-            border-radius: 1.6%;
+            border-radius: 2.2%;
         }
 
         .playfield-crt-scanlines {
             z-index: 24;
             background: repeating-linear-gradient(
                 0deg,
-                rgba(0, 0, 0, 0.028) 0px,
-                rgba(0, 0, 0, 0.028) 1px,
-                rgba(255, 255, 255, 0.012) 2px,
-                rgba(255, 255, 255, 0.012) 3px,
+                rgba(0, 0, 0, 0.045) 0px,
+                rgba(0, 0, 0, 0.045) 1px,
+                rgba(255, 255, 255, 0.016) 2px,
+                rgba(255, 255, 255, 0.016) 3px,
                 transparent 4px
             );
         }
@@ -143,25 +143,26 @@ Orb Control Panel Instrument Reference
         .playfield-crt-glass {
             z-index: 25;
             background:
-                radial-gradient(ellipse at center, rgba(255, 255, 255, 0.018) 0%, rgba(255, 255, 255, 0.008) 58%, rgba(0, 0, 0, 0.045) 82%, rgba(0, 0, 0, 0.13) 100%),
-                linear-gradient(90deg, rgba(255, 255, 255, 0.012), transparent 12%, transparent 88%, rgba(255, 255, 255, 0.012));
+                radial-gradient(ellipse at center, rgba(255, 255, 255, 0.030) 0%, rgba(255, 255, 255, 0.012) 56%, rgba(0, 0, 0, 0.070) 80%, rgba(0, 0, 0, 0.19) 100%),
+                linear-gradient(90deg, rgba(255, 255, 255, 0.018), transparent 11%, transparent 89%, rgba(255, 255, 255, 0.018));
             box-shadow:
-                inset 0 0 18px rgba(255, 255, 255, 0.028),
-                inset 0 0 48px rgba(0, 0, 0, 0.12);
+                inset 0 0 22px rgba(255, 255, 255, 0.040),
+                inset 0 0 58px rgba(0, 0, 0, 0.16),
+                inset 0 0 2px rgba(255, 255, 255, 0.24);
         }
 
         .playfield-crt-sweep {
             z-index: 26;
             top: -14%;
             bottom: auto;
-            height: 9%;
+            height: 10%;
             opacity: 0;
             background: linear-gradient(
                 to bottom,
                 transparent 0%,
-                rgba(255, 255, 255, 0.018) 34%,
-                rgba(255, 255, 255, 0.075) 50%,
-                rgba(255, 255, 255, 0.018) 66%,
+                rgba(255, 255, 255, 0.028) 32%,
+                rgba(255, 255, 255, 0.12) 50%,
+                rgba(255, 255, 255, 0.028) 68%,
                 transparent 100%
             );
             will-change: transform, opacity;
@@ -176,7 +177,7 @@ Orb Control Panel Instrument Reference
         }
 
         #gameContainer.crt-enabled:not(.crt-ui-suspended) .playfield-crt-scanlines {
-            opacity: 0.42;
+            opacity: 0.58;
         }
 
         #gameContainer.crt-enabled:not(.crt-ui-suspended) .playfield-crt-glass {
@@ -184,7 +185,20 @@ Orb Control Panel Instrument Reference
         }
 
         #gameContainer.crt-enabled:not(.crt-ui-suspended):not(.crt-paused) .playfield-crt-sweep {
-            animation: playfieldCrtSlowSweep 9.5s linear infinite;
+            animation: playfieldCrtSlowSweep 8.5s linear infinite;
+        }
+
+        /* A restrained baseline bloom makes the live grid read as illuminated glass without blurring play. */
+        #gameContainer.crt-enabled:not(.crt-ui-suspended) #player {
+            box-shadow: 0 0 calc(var(--default-glow) * 1px) #fff, 0 0 18px rgba(255, 255, 255, 0.30);
+        }
+
+        #gameContainer.crt-enabled:not(.crt-ui-suspended) .enemy {
+            box-shadow: 0 0 calc(var(--default-glow) * 1px) currentColor, 0 0 14px color-mix(in srgb, currentColor 24%, transparent);
+        }
+
+        #gameContainer.crt-enabled:not(.crt-ui-suspended) .connection-line {
+            box-shadow: 0 0 3px rgba(255, 255, 255, 0.30);
         }
 
         #gameContainer.crt-paused .playfield-crt-sweep,
@@ -218,17 +232,17 @@ Orb Control Panel Instrument Reference
         }
 
         @keyframes playfieldCrtSlowSweep {
-            0%, 55% { opacity: 0; transform: translateY(0); }
-            58% { opacity: 0.12; transform: translateY(0); }
-            76% { opacity: 0.055; transform: translateY(1260%); }
-            79%, 100% { opacity: 0; transform: translateY(1260%); }
+            0%, 48% { opacity: 0; transform: translateY(0); }
+            52% { opacity: 0.22; transform: translateY(0); }
+            76% { opacity: 0.10; transform: translateY(1260%); }
+            80%, 100% { opacity: 0; transform: translateY(1260%); }
         }
 
         @keyframes playfieldCrtScanlineSurge {
-            0% { opacity: 0.42; }
-            18% { opacity: 0.68; }
-            48% { opacity: 0.50; }
-            100% { opacity: 0.42; }
+            0% { opacity: 0.58; }
+            18% { opacity: 0.82; }
+            48% { opacity: 0.66; }
+            100% { opacity: 0.58; }
         }
 
         @keyframes playfieldCrtGridlock {
@@ -239,13 +253,13 @@ Orb Control Panel Instrument Reference
                 box-shadow: none;
             }
             18% {
-                opacity: 0.58;
+                opacity: 0.76;
                 transform: translateX(-1px);
-                background: linear-gradient(90deg, rgba(255, 0, 0, 0.07), transparent 7%, transparent 93%, rgba(0, 120, 255, 0.07));
-                box-shadow: inset 1px 0 rgba(255, 0, 0, 0.13), inset -1px 0 rgba(0, 180, 255, 0.13);
+                background: linear-gradient(90deg, rgba(255, 0, 0, 0.11), transparent 8%, transparent 92%, rgba(0, 120, 255, 0.11));
+                box-shadow: inset 2px 0 rgba(255, 0, 0, 0.18), inset -2px 0 rgba(0, 180, 255, 0.18), inset 0 0 34px rgba(255, 255, 255, 0.06);
             }
             44% {
-                opacity: 0.26;
+                opacity: 0.36;
                 transform: translateX(1px);
             }
             100% {
@@ -264,19 +278,19 @@ Orb Control Panel Instrument Reference
                 box-shadow: none;
             }
             12% {
-                opacity: 0.94;
-                transform: translateX(-2px);
+                opacity: 1;
+                transform: translateX(-3px);
                 background:
-                    linear-gradient(90deg, rgba(255, 0, 0, 0.16), transparent 10%, transparent 90%, rgba(0, 140, 255, 0.18)),
-                    radial-gradient(circle at center, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0.05) 42%, transparent 72%);
-                box-shadow: inset 2px 0 rgba(255, 0, 0, 0.25), inset -2px 0 rgba(0, 190, 255, 0.28), inset 0 0 64px rgba(255, 255, 255, 0.20);
+                    linear-gradient(90deg, rgba(255, 0, 0, 0.24), transparent 12%, transparent 88%, rgba(0, 140, 255, 0.27)),
+                    radial-gradient(circle at center, rgba(255, 255, 255, 0.48), rgba(255, 255, 255, 0.08) 44%, transparent 74%);
+                box-shadow: inset 3px 0 rgba(255, 0, 0, 0.34), inset -3px 0 rgba(0, 190, 255, 0.38), inset 0 0 78px rgba(255, 255, 255, 0.28);
             }
             30% {
-                opacity: 0.52;
-                transform: translateX(2px);
+                opacity: 0.68;
+                transform: translateX(3px);
             }
             56% {
-                opacity: 0.24;
+                opacity: 0.34;
                 transform: translateX(-1px);
             }
             100% {
@@ -289,28 +303,28 @@ Orb Control Panel Instrument Reference
 
         @keyframes playfieldCrtDeathFlicker {
             0% { opacity: 0; background: transparent; transform: scaleY(1); }
-            10% { opacity: 0.58; background: rgba(255, 255, 255, 0.13); transform: scaleY(1); }
-            22% { opacity: 0.10; background: #000; transform: scaleY(0.995); }
-            38% { opacity: 0.40; background: rgba(255, 255, 255, 0.08); transform: scaleY(1); }
-            62% { opacity: 0.18; background: #000; transform: scaleY(0.985); }
+            10% { opacity: 0.72; background: rgba(255, 255, 255, 0.18); transform: scaleY(1); }
+            22% { opacity: 0.16; background: #000; transform: scaleY(0.992); }
+            38% { opacity: 0.54; background: rgba(255, 255, 255, 0.11); transform: scaleY(1); }
+            62% { opacity: 0.26; background: #000; transform: scaleY(0.978); }
             100% { opacity: 0; background: transparent; transform: scaleY(1); }
         }
 
         @keyframes playfieldCrtDeathScan {
-            0% { opacity: 0.42; }
-            16% { opacity: 0.12; }
-            28% { opacity: 0.64; }
-            46% { opacity: 0.18; }
-            70% { opacity: 0.48; }
-            100% { opacity: 0.42; }
+            0% { opacity: 0.58; }
+            16% { opacity: 0.18; }
+            28% { opacity: 0.82; }
+            46% { opacity: 0.24; }
+            70% { opacity: 0.66; }
+            100% { opacity: 0.58; }
         }
 
         @keyframes playfieldCrtRestorePulse {
             0% { opacity: 0; background: transparent; box-shadow: none; }
             20% {
-                opacity: 0.56;
-                background: radial-gradient(circle at center, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.035) 46%, transparent 76%);
-                box-shadow: inset 0 0 52px rgba(255, 255, 255, 0.12);
+                opacity: 0.72;
+                background: radial-gradient(circle at center, rgba(255, 255, 255, 0.23), rgba(255, 255, 255, 0.055) 48%, transparent 78%);
+                box-shadow: inset 0 0 64px rgba(255, 255, 255, 0.18);
             }
             100% { opacity: 0; background: transparent; box-shadow: none; }
         }
@@ -5554,7 +5568,7 @@ Orb Control Panel Instrument Reference
     </div>
 
     <script>
-        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'v266'}`;
+        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'v267'}`;
         const splashBuildVersion = document.getElementById('splashBuildVersion');
         if (splashBuildVersion) splashBuildVersion.textContent = BUILD_VERSION;
 
@@ -9771,9 +9785,21 @@ Orb Control Panel Instrument Reference
                 this.scheduleOvertimeEnemy();
             }
 
-            scheduleOvertimeEnemy(delayMs = this.parameters.overtimeEnemyIntervalMs) {
+            scheduleOvertimeEnemy(delayMs = null) {
                 this.clearOvertimeEnemyTimer();
                 if (!this.overtimeActive || !this.active || this.isPaused || this.isGameOver || !this.levelActionStarted) return;
+
+                let resolvedDelay = delayMs;
+                if (!Number.isFinite(resolvedDelay)) {
+                    if (this.finalGridlockActive && this.overtimeEnemiesAdded === 0) {
+                        resolvedDelay = Math.max(
+                            0,
+                            this.parameters.overtimeEnemyIntervalMs - this.spawnWarningDurationMs - this.finalGridlockElapsedMs
+                        );
+                    } else {
+                        resolvedDelay = this.parameters.overtimeEnemyIntervalMs;
+                    }
+                }
 
                 this.overtimeEnemyTimer = setTimeout(() => {
                     this.overtimeEnemyTimer = null;
@@ -9783,7 +9809,7 @@ Orb Control Panel Instrument Reference
                     if (!warningStarted) this.scheduleOvertimeEnemy(5000);
                     // When the warning succeeds, the next 60-second Overtime interval is scheduled
                     // only after the new Block-A-Zoid actually materializes.
-                }, delayMs);
+                }, resolvedDelay);
             }
 
             chooseOvertimeEnemyType() {
@@ -10545,7 +10571,7 @@ Orb Control Panel Instrument Reference
             }
 
             canTriggerPlayfieldCosmicZap() {
-                return this.active && !this.isPaused && !this.isGameOver && this.levelActionStarted && this.cosmicZapsLeft > 0;
+                return this.active && !this.isPaused && !this.isGameOver && !this.finalGridlockActive && this.levelActionStarted && this.cosmicZapsLeft > 0;
             }
 
             triggerPlayfieldCosmicZapFromDoubleInput(e) {
@@ -10646,7 +10672,7 @@ Orb Control Panel Instrument Reference
                     return;
                 }
 
-                if (!this.active || this.isPaused || this.isGameOver || !this.levelActionStarted || this.cosmicZapsLeft <= 0) return;
+                if (!this.active || this.isPaused || this.isGameOver || this.finalGridlockActive || !this.levelActionStarted || this.cosmicZapsLeft <= 0) return;
                 if (now - this.lastShakeCosmicZapTime >= this.shakeCosmicZapCooldownMs) {
                     this.lastShakeCosmicZapTime = now;
                     this.handleCosmicZap();
@@ -10712,6 +10738,7 @@ Orb Control Panel Instrument Reference
 
             // Handle Cosmic Zap discharge with instant protection, danger clearing, and target overload feedback.
             handleCosmicZap() {
+                if (this.finalGridlockActive) return;
                 if (this.cosmicZapsLeft > 0 && this.active && !this.isPaused && !this.isGameOver) {
                     const now = performance.now();
                     if (now - this.lastCosmicZapTriggerTime < this.cosmicZapInputCooldownMs) return;
@@ -11164,6 +11191,9 @@ Orb Control Panel Instrument Reference
                 this.prismRelicSpawnedThisSector = false;
                 this.prismRelicRecoveredThisSector = true;
                 this.gridlockRelicAttemptNumber = 0;
+                this.cosmicZapsLeft = 0;
+                this.playfieldCosmicZapTapStart = null;
+                this.lastPlayfieldCosmicZapTapTime = 0;
                 this.cockpitSectorDisplayName = 'SURVIVE';
                 this.cockpitSectorDisplayLevel = null;
                 this.gameOverElement.classList.remove('finalCycleText', 'finalGameCompleteText', 'finalGridlockGameOverText');
@@ -14073,7 +14103,8 @@ startMaxSwarmBeat(delaySeconds = 0) {
 
             updateTriLockSingularity() {
                 if (!this.triLockSingularity) return;
-                const powered = !!this.game.cockpitActivated;
+                const survivalDisabled = !!(this.game.finalGridlockActive || this.game.finalGridlockResultActive);
+                const powered = !!this.game.cockpitActivated && !survivalDisabled;
                 const actualZaps = powered ? Math.max(0, Math.floor(Number(this.game.cosmicZapsLeft) || 0)) : 0;
                 const visibleZaps = Math.min(3, actualZaps);
                 const previousZaps = this.lastTriLockZapCount;
@@ -14123,9 +14154,11 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 }
 
                 this.lastTriLockZapCount = powered ? actualZaps : null;
-                this.triLockSingularity.setAttribute('aria-label', powered
-                    ? `Tri-Lock Singularity: ${actualZaps} Cosmic Zap${actualZaps === 1 ? '' : 's'} available`
-                    : 'Tri-Lock Singularity dimmed');
+                this.triLockSingularity.setAttribute('aria-label', survivalDisabled
+                    ? 'Tri-Lock Singularity disabled during Final Gridlock'
+                    : (powered
+                        ? `Tri-Lock Singularity: ${actualZaps} Cosmic Zap${actualZaps === 1 ? '' : 's'} available`
+                        : 'Tri-Lock Singularity dimmed'));
             }
 
             getZapGaugeCapacity() {
