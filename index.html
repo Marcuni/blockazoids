@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v267: Strengthens the optional playfield-only CRT presentation, disables Cosmic Zaps during Final Gridlock, and anchors the first Overtime spawn to the 60-second survival mark.
+Build v268: Adds an intentionally aggressive playfield-only CRT visibility test and hides completed-cycle HUD markers throughout Final Gridlock.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -21,7 +21,7 @@ Orb Control Panel Instrument Reference
 - Velocity Glyph Engine — Temporarily displays the Orb’s finger-driven movement speed.
 - Orb Command Socket — Controls the Orb’s pause, resume, and primary interface functions.
 -->
-<html data-build-version="v267">
+<html data-build-version="v268">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -5277,6 +5277,172 @@ Orb Control Panel Instrument Reference
             0%, 44% { opacity: 1; text-shadow: 0 0 12px #fff, 0 0 28px rgba(255,255,255,0.82); }
             45%, 74% { opacity: 0.18; text-shadow: none; }
             75%, 100% { opacity: 1; text-shadow: 0 0 12px #fff, 0 0 28px rgba(255,255,255,0.82); }
+        }
+
+
+        /* v268 temporary diagnostic: intentionally aggressive playfield-only CRT visibility test. */
+        .playfield-crt-layer {
+            border-radius: 7%;
+        }
+
+        .playfield-crt-scanlines {
+            background: repeating-linear-gradient(
+                0deg,
+                rgba(0, 0, 0, 0.34) 0px,
+                rgba(0, 0, 0, 0.34) 2px,
+                rgba(255, 255, 255, 0.09) 3px,
+                rgba(255, 255, 255, 0.09) 4px,
+                transparent 5px,
+                transparent 6px
+            );
+        }
+
+        .playfield-crt-glass {
+            background:
+                linear-gradient(90deg, rgba(255, 0, 0, 0.22) 0%, transparent 9%, transparent 91%, rgba(0, 105, 255, 0.27) 100%),
+                radial-gradient(ellipse at center, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.035) 48%, rgba(0, 0, 0, 0.18) 70%, rgba(0, 0, 0, 0.66) 100%);
+            box-shadow:
+                inset 0 0 18px rgba(255, 255, 255, 0.22),
+                inset 0 0 78px rgba(0, 0, 0, 0.48),
+                inset 18px 0 30px rgba(255, 0, 0, 0.12),
+                inset -18px 0 30px rgba(0, 115, 255, 0.16),
+                inset 0 0 5px rgba(255, 255, 255, 0.68);
+        }
+
+        .playfield-crt-sweep {
+            top: -18%;
+            height: 18%;
+            background: linear-gradient(
+                to bottom,
+                transparent 0%,
+                rgba(255, 255, 255, 0.08) 20%,
+                rgba(180, 235, 255, 0.58) 47%,
+                rgba(255, 255, 255, 0.78) 50%,
+                rgba(180, 235, 255, 0.58) 53%,
+                rgba(255, 255, 255, 0.08) 80%,
+                transparent 100%
+            );
+            box-shadow: 0 0 24px rgba(190, 235, 255, 0.44);
+        }
+
+        #gameContainer.crt-enabled:not(.crt-ui-suspended) .playfield-crt-scanlines {
+            opacity: 0.96;
+        }
+
+        #gameContainer.crt-enabled:not(.crt-ui-suspended) .playfield-crt-glass {
+            opacity: 1;
+        }
+
+        #gameContainer.crt-enabled:not(.crt-ui-suspended):not(.crt-paused) .playfield-crt-sweep {
+            animation: playfieldCrtSlowSweep 3.2s linear infinite;
+        }
+
+        /* Deliberately visible baseline RGB separation and bloom for diagnosis. */
+        #gameContainer.crt-enabled:not(.crt-ui-suspended) #player {
+            box-shadow:
+                -3px 0 8px rgba(255, 0, 0, 0.88),
+                3px 0 8px rgba(0, 120, 255, 0.92),
+                0 0 18px #fff,
+                0 0 38px rgba(255, 255, 255, 0.72);
+        }
+
+        #gameContainer.crt-enabled:not(.crt-ui-suspended) .enemy {
+            box-shadow:
+                -3px 0 8px rgba(255, 0, 0, 0.72),
+                3px 0 8px rgba(0, 120, 255, 0.78),
+                0 0 18px currentColor,
+                0 0 34px color-mix(in srgb, currentColor 44%, transparent);
+        }
+
+        #gameContainer.crt-enabled:not(.crt-ui-suspended) .crystal,
+        #gameContainer.crt-enabled:not(.crt-ui-suspended) .prism-relic {
+            box-shadow:
+                -3px 0 7px rgba(255, 0, 0, 0.82),
+                3px 0 7px rgba(0, 120, 255, 0.88),
+                0 0 18px rgba(255, 255, 255, 0.70);
+        }
+
+        #gameContainer.crt-enabled:not(.crt-ui-suspended) .connection-line {
+            box-shadow:
+                -2px 0 4px rgba(255, 0, 0, 0.68),
+                2px 0 4px rgba(0, 120, 255, 0.72),
+                0 0 8px rgba(255, 255, 255, 0.64);
+        }
+
+        @keyframes playfieldCrtSlowSweep {
+            0% { opacity: 0.12; transform: translateY(0); }
+            8% { opacity: 0.98; transform: translateY(0); }
+            82% { opacity: 0.72; transform: translateY(760%); }
+            100% { opacity: 0.12; transform: translateY(760%); }
+        }
+
+        @keyframes playfieldCrtScanlineSurge {
+            0% { opacity: 0.96; }
+            18% { opacity: 1; }
+            48% { opacity: 0.58; }
+            70% { opacity: 1; }
+            100% { opacity: 0.96; }
+        }
+
+        @keyframes playfieldCrtGridlock {
+            0% { opacity: 0; transform: translateX(0) scaleY(1); background: transparent; box-shadow: none; }
+            14% {
+                opacity: 1;
+                transform: translateX(-7px) scaleY(0.985);
+                background:
+                    linear-gradient(90deg, rgba(255, 0, 0, 0.48), transparent 23%, transparent 77%, rgba(0, 125, 255, 0.56)),
+                    repeating-linear-gradient(0deg, transparent 0 8px, rgba(255,255,255,0.34) 9px, transparent 11px);
+                box-shadow: inset 8px 0 rgba(255, 0, 0, 0.62), inset -8px 0 rgba(0, 170, 255, 0.66), inset 0 0 72px rgba(255,255,255,0.28);
+            }
+            38% { opacity: 0.78; transform: translateX(6px) scaleY(1.015); }
+            68% { opacity: 0.46; transform: translateX(-3px) scaleY(0.995); }
+            100% { opacity: 0; transform: translateX(0) scaleY(1); background: transparent; box-shadow: none; }
+        }
+
+        @keyframes playfieldCrtZapOverload {
+            0% { opacity: 0; transform: translateX(0) scale(1); background: transparent; box-shadow: none; }
+            10% {
+                opacity: 1;
+                transform: translateX(-9px) scale(1.01);
+                background:
+                    linear-gradient(90deg, rgba(255, 0, 0, 0.70), transparent 30%, transparent 70%, rgba(0, 145, 255, 0.78)),
+                    radial-gradient(circle at center, rgba(255,255,255,0.94), rgba(255,255,255,0.32) 48%, transparent 78%);
+                box-shadow: inset 10px 0 rgba(255,0,0,0.84), inset -10px 0 rgba(0,190,255,0.88), inset 0 0 128px rgba(255,255,255,0.82);
+            }
+            30% { opacity: 0.90; transform: translateX(9px) scale(0.99); }
+            58% { opacity: 0.52; transform: translateX(-4px) scale(1.005); }
+            100% { opacity: 0; transform: translateX(0) scale(1); background: transparent; box-shadow: none; }
+        }
+
+        @keyframes playfieldCrtDeathFlicker {
+            0% { opacity: 0; background: transparent; transform: scaleY(1); }
+            8% { opacity: 1; background: rgba(255,255,255,0.72); transform: scaleY(1.03); }
+            18% { opacity: 0.76; background: #000; transform: scaleY(0.92); }
+            31% { opacity: 1; background: rgba(255,255,255,0.42); transform: scaleY(1.02); }
+            48% { opacity: 0.82; background: #000; transform: scaleY(0.72); }
+            68% { opacity: 0.54; background: rgba(255,255,255,0.24); transform: scaleY(0.97); }
+            100% { opacity: 0; background: transparent; transform: scaleY(1); }
+        }
+
+        @keyframes playfieldCrtDeathScan {
+            0% { opacity: 0.96; }
+            14% { opacity: 0.12; }
+            28% { opacity: 1; }
+            44% { opacity: 0.18; }
+            62% { opacity: 1; }
+            100% { opacity: 0.96; }
+        }
+
+        @keyframes playfieldCrtRestorePulse {
+            0% { opacity: 0; background: transparent; box-shadow: none; }
+            18% {
+                opacity: 1;
+                background:
+                    linear-gradient(90deg, rgba(255,0,0,0.34), transparent 20%, transparent 80%, rgba(0,125,255,0.42)),
+                    radial-gradient(circle at center, rgba(255,255,255,0.78), rgba(255,255,255,0.22) 52%, transparent 82%);
+                box-shadow: inset 0 0 118px rgba(255,255,255,0.62);
+            }
+            100% { opacity: 0; background: transparent; box-shadow: none; }
         }
 
     </style>
@@ -13727,7 +13893,8 @@ startMaxSwarmBeat(delaySeconds = 0) {
                     ? this.game.MAX_CYCLES
                     : Math.max(0, Math.floor((this.game.cycle || 1) - 1));
                 const inRunContext = this.game.hasStartedRun || this.game.active || this.game.showHudDuringSectorIntro || this.game.isGameOver || this.game.cycleTransitionActive;
-                const showCompletedGrid = completedCycles > 0 && inRunContext;
+                const hideDuringFinalGridlock = this.game.finalGridlockActive || this.game.finalGridlockResultActive;
+                const showCompletedGrid = completedCycles > 0 && inRunContext && !hideDuringFinalGridlock;
 
                 this.cycleElement.replaceChildren();
                 if (showCompletedGrid) {
