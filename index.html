@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v250: Moves the translucent play guide to the pre-PLAY attract screen, removes its title, and keeps the full guide contained within the playfield.
+Build v251: Enlarges and removes the border from the pre-PLAY guide, restores the visible first-three-loss Help pulse, and adds developer Cycle Select.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -17,7 +17,7 @@ Orb Control Panel Instrument Reference
 - Recursion Glyph Engine — Displays the current cycle and advances with each completed Grid restoration.
 - Orb Command Socket — Controls the Orb’s pause, resume, and primary interface functions.
 -->
-<html data-build-version="v250">
+<html data-build-version="v251">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -998,7 +998,7 @@ Orb Control Panel Instrument Reference
             box-sizing: border-box;
             overflow: hidden;
             background: rgba(0, 0, 0, 0.46);
-            border: 1px solid rgba(160, 160, 160, 0.72);
+            border: none;
             opacity: 0.82;
             text-align: center;
         }
@@ -1009,8 +1009,8 @@ Orb Control Panel Instrument Reference
             list-style: none;
             color: rgba(255, 255, 255, 0.94);
             font-family: 'Orbitron', 'Courier New', monospace;
-            font-size: clamp(11px, 3.2vw, 15px);
-            line-height: 1.62;
+            font-size: clamp(14px, 4.6vw, 20px);
+            line-height: 1.55;
             letter-spacing: 0.3px;
             text-shadow: none;
         }
@@ -1024,7 +1024,7 @@ Orb Control Panel Instrument Reference
             width: min(315px, 86vw);
             padding: 16px 12px;
             background: #000;
-            border: 2px solid #fff;
+            border: none;
             box-shadow: none;
             z-index: 1002;
             display: none;
@@ -1045,7 +1045,7 @@ Orb Control Panel Instrument Reference
         /* Compact shared menu body text styling */
         #instructionsText {
             font-family: 'Orbitron', 'Courier New', monospace;
-            font-size: var(--menu-body-text-size);
+            font-size: clamp(16px, 5vw, 21px);
             line-height: 1.38;
             color: #fff;
             margin-bottom: 16px;
@@ -1242,6 +1242,14 @@ Orb Control Panel Instrument Reference
             box-shadow: 0 0 calc(var(--default-glow) * 0.85px) #fff;
             font-family: 'Orbitron', 'Courier New', monospace;
             letter-spacing: 1px;
+        }
+
+        #cycleSettingControl {
+            display: none;
+        }
+
+        #cycleSettingControl.developer-visible {
+            display: block;
         }
 
         .settings-stepper-title {
@@ -1489,9 +1497,9 @@ Orb Control Panel Instrument Reference
         .how-to-crystal-list li {
             position: relative;
             padding-left: 18px;
-            margin: 8px 0;
+            margin: 10px 0;
             white-space: nowrap;
-            font-size: clamp(12px, 3.7vw, 17px);
+            font-size: clamp(15px, 4.5vw, 20px);
         }
 
         .how-to-crystal-list li::before {
@@ -5172,6 +5180,14 @@ Orb Control Panel Instrument Reference
                         <button id="sectorIncreaseButton" class="settings-stepper-arrow" type="button" aria-label="Next sector">▶</button>
                     </div>
                 </div>
+                <div id="cycleSettingControl" class="settings-stepper" role="group" aria-label="Cycle Select">
+                    <div class="settings-stepper-title">Cycle Select</div>
+                    <div class="settings-stepper-row">
+                        <button id="cycleDecreaseButton" class="settings-stepper-arrow" type="button" aria-label="Previous cycle">◀</button>
+                        <div id="settingsCycleValue" class="settings-stepper-value">1</div>
+                        <button id="cycleIncreaseButton" class="settings-stepper-arrow" type="button" aria-label="Next cycle">▶</button>
+                    </div>
+                </div>
                 <div id="difficultySettingControl" class="settings-stepper" role="group" aria-label="Difficulty">
                     <div class="settings-stepper-title">Difficulty</div>
                     <div class="settings-stepper-row">
@@ -5474,7 +5490,7 @@ Orb Control Panel Instrument Reference
                 this.pauseGridMenu = document.getElementById('pauseGridMenu');
                 this.pauseSettingsButton = document.getElementById('pauseSettingsButton');
                 this.pauseHowToButton = document.getElementById('pauseHowToButton');
-                this.gameOverHelpTipStorageKey = 'blockazoidsGameOverHelpTipLosses';
+                this.gameOverHelpTipStorageKey = 'blockazoidsGameOverHelpTipVisibleLossesV2';
                 this.gameOverHelpTipLosses = this.loadGameOverHelpTipLosses();
                 this.pauseScoresButton = document.getElementById('pauseScoresButton');
                 this.pauseDeveloperButton = document.getElementById('pauseDeveloperButton');
@@ -5512,6 +5528,10 @@ Orb Control Panel Instrument Reference
                 this.sectorDecreaseButton = document.getElementById('sectorDecreaseButton');
                 this.sectorIncreaseButton = document.getElementById('sectorIncreaseButton');
                 this.settingsSectorValue = document.getElementById('settingsSectorValue');
+                this.cycleSettingControl = document.getElementById('cycleSettingControl');
+                this.cycleDecreaseButton = document.getElementById('cycleDecreaseButton');
+                this.cycleIncreaseButton = document.getElementById('cycleIncreaseButton');
+                this.settingsCycleValue = document.getElementById('settingsCycleValue');
                 this.difficultyDecreaseButton = document.getElementById('difficultyDecreaseButton');
                 this.difficultyIncreaseButton = document.getElementById('difficultyIncreaseButton');
                 this.settingsDifficultyValue = document.getElementById('settingsDifficultyValue');
@@ -5569,6 +5589,7 @@ Orb Control Panel Instrument Reference
                 this.attractSquares = [];             // Squares for attract mode
                 this.level = 1;                       // Current level
                 this.selectedStartSector = 1;          // Settings selector for the next fresh run
+                this.selectedStartCycle = 1;           // Developer selector for the next fresh run
                 this.difficultyOptions = ['Easy', 'Normal', 'Hard'];
                 this.difficultyStorageKey = 'blockazoidsDifficulty';
                 this.difficultyMode = this.loadDifficultyMode();
@@ -5900,6 +5921,22 @@ Orb Control Panel Instrument Reference
                         e.stopPropagation();
                         this.playUiClick();
                         this.adjustSelectedStartSector(1);
+                    });
+                }
+                if (this.cycleDecreaseButton) {
+                    this.cycleDecreaseButton.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        this.playUiClick();
+                        this.adjustSelectedStartCycle(-1);
+                    });
+                }
+                if (this.cycleIncreaseButton) {
+                    this.cycleIncreaseButton.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        this.playUiClick();
+                        this.adjustSelectedStartCycle(1);
                     });
                 }
                 if (this.difficultyDecreaseButton) {
@@ -7326,20 +7363,31 @@ Orb Control Panel Instrument Reference
 
             pulseHowToButtonForGameOver() {
                 if (this.gameOverHelpTipLosses >= 3) return;
-                this.gameOverHelpTipLosses++;
-                this.saveGameOverHelpTipLosses();
 
                 this.updateContextButtons();
-                const targetButton = this.pauseHowToButton || this.howToButton;
-                if (!targetButton) return;
-                if (targetButton === this.howToButton && targetButton.dataset.action !== 'howTo') return;
+                requestAnimationFrame(() => {
+                    const candidates = [this.howToButton, this.pauseHowToButton].filter(Boolean);
+                    candidates.forEach(button => button.classList.remove('game-over-tip-pulse'));
 
-                targetButton.classList.remove('game-over-tip-pulse');
-                void targetButton.offsetWidth;
-                targetButton.classList.add('game-over-tip-pulse');
-                setTimeout(() => {
-                    if (targetButton) targetButton.classList.remove('game-over-tip-pulse');
-                }, 2500);
+                    const isVisibleHelpButton = (button) => {
+                        if (!button || button.getAttribute('aria-hidden') === 'true') return false;
+                        if (button === this.howToButton && button.dataset.action !== 'howTo') return false;
+                        const style = window.getComputedStyle(button);
+                        const rect = button.getBoundingClientRect();
+                        return style.display !== 'none' && style.visibility !== 'hidden' && Number(style.opacity || 1) > 0 && rect.width > 0 && rect.height > 0;
+                    };
+
+                    const targetButton = candidates.find(isVisibleHelpButton);
+                    if (!targetButton) return;
+
+                    void targetButton.offsetWidth;
+                    targetButton.classList.add('game-over-tip-pulse');
+                    this.gameOverHelpTipLosses++;
+                    this.saveGameOverHelpTipLosses();
+                    setTimeout(() => {
+                        if (targetButton) targetButton.classList.remove('game-over-tip-pulse');
+                    }, 2500);
+                });
             }
 
             updateTelemetrySummary() {
@@ -8075,6 +8123,35 @@ Orb Control Panel Instrument Reference
                 this.updateSettingsSectorLabel();
             }
 
+            adjustSelectedStartCycle(direction) {
+                if (!this.developerModeEnabled || !this.canChangeSectorSelection()) {
+                    this.updateSettingsCycleLabel();
+                    return;
+                }
+                const maxCycle = 99;
+                const current = Math.max(1, Math.min(maxCycle, this.selectedStartCycle || 1));
+                this.selectedStartCycle = ((current - 1 + direction + maxCycle) % maxCycle) + 1;
+                this.updateSettingsCycleLabel();
+            }
+
+            updateSettingsCycleLabel() {
+                const visible = !!this.developerModeEnabled;
+                if (this.cycleSettingControl) this.cycleSettingControl.classList.toggle('developer-visible', visible);
+                if (!this.settingsCycleValue) return;
+
+                const cycle = Math.max(1, Math.min(99, this.selectedStartCycle || 1));
+                this.selectedStartCycle = cycle;
+                this.settingsCycleValue.textContent = `${cycle}`;
+
+                const canChange = visible && this.canChangeSectorSelection();
+                if (this.cycleSettingControl) this.cycleSettingControl.classList.toggle('locked', !canChange);
+                [this.cycleDecreaseButton, this.cycleIncreaseButton].forEach(button => {
+                    if (!button) return;
+                    button.disabled = !canChange;
+                    button.setAttribute('aria-disabled', canChange ? 'false' : 'true');
+                });
+            }
+
             updateSettingsSectorLabel() {
                 if (!this.settingsSectorValue) return;
                 const totalSectors = this.MAX_LEVEL || 15;
@@ -8091,6 +8168,7 @@ Orb Control Panel Instrument Reference
                     button.disabled = !canChange;
                     button.setAttribute('aria-disabled', canChange ? 'false' : 'true');
                 });
+                this.updateSettingsCycleLabel();
                 this.updateLevelSelectButtonLockState();
             }
 
@@ -8773,7 +8851,7 @@ Orb Control Panel Instrument Reference
                 this.updateSettingsSectorLabel();
                 const loadToken = ++this.levelLoadToken;
 
-                if (resetScore) this.cycle = 1;
+                if (resetScore) this.cycle = this.developerModeEnabled ? Math.max(1, this.selectedStartCycle || 1) : 1;
                 this.audio.resume();
                 this.audio.stopBackgroundMusic();
                 if (this.telemetryEnabled && resetScore) this.beginTelemetryRun('sector-select');
@@ -8838,7 +8916,7 @@ Orb Control Panel Instrument Reference
                 this.cockpitSectorDisplayName = '';
                 this.cockpitSectorDisplayLevel = null;
                 this.restartReady = false;
-                this.cycle = 1;
+                this.cycle = this.developerModeEnabled ? Math.max(1, this.selectedStartCycle || 1) : 1;
                 this.audio.resume(); // Unlock audio after the player's start tap
                 this.audio.stopBackgroundMusic(); // Stop any background music
 
