@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v265: Flashes the Final Gridlock introduction, keeps the survival timer in the top HUD after final death, and presents Prism Campaign results in the High Score menu format.
+Build v266: Adds an optional lightweight CRT monitor effect limited to the Prism Grid playfield, with saved Manual toggle and brief event-reactive overload effects.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -21,7 +21,7 @@ Orb Control Panel Instrument Reference
 - Velocity Glyph Engine — Temporarily displays the Orb’s finger-driven movement speed.
 - Orb Command Socket — Controls the Orb’s pause, resume, and primary interface functions.
 -->
-<html data-build-version="v265">
+<html data-build-version="v266">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -115,6 +115,204 @@ Orb Control Panel Instrument Reference
             background-position: 0 0;
             transition: box-shadow 0.12s linear;
             touch-action: none;
+        }
+
+
+        /* Optional CRT glass applied only over the square Prism Grid playfield. */
+        .playfield-crt-layer {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            opacity: 0;
+            overflow: hidden;
+            border-radius: 1.6%;
+        }
+
+        .playfield-crt-scanlines {
+            z-index: 24;
+            background: repeating-linear-gradient(
+                0deg,
+                rgba(0, 0, 0, 0.028) 0px,
+                rgba(0, 0, 0, 0.028) 1px,
+                rgba(255, 255, 255, 0.012) 2px,
+                rgba(255, 255, 255, 0.012) 3px,
+                transparent 4px
+            );
+        }
+
+        .playfield-crt-glass {
+            z-index: 25;
+            background:
+                radial-gradient(ellipse at center, rgba(255, 255, 255, 0.018) 0%, rgba(255, 255, 255, 0.008) 58%, rgba(0, 0, 0, 0.045) 82%, rgba(0, 0, 0, 0.13) 100%),
+                linear-gradient(90deg, rgba(255, 255, 255, 0.012), transparent 12%, transparent 88%, rgba(255, 255, 255, 0.012));
+            box-shadow:
+                inset 0 0 18px rgba(255, 255, 255, 0.028),
+                inset 0 0 48px rgba(0, 0, 0, 0.12);
+        }
+
+        .playfield-crt-sweep {
+            z-index: 26;
+            top: -14%;
+            bottom: auto;
+            height: 9%;
+            opacity: 0;
+            background: linear-gradient(
+                to bottom,
+                transparent 0%,
+                rgba(255, 255, 255, 0.018) 34%,
+                rgba(255, 255, 255, 0.075) 50%,
+                rgba(255, 255, 255, 0.018) 66%,
+                transparent 100%
+            );
+            will-change: transform, opacity;
+        }
+
+        .playfield-crt-event {
+            z-index: 1000;
+            opacity: 0;
+            transform: translateX(0);
+            background: transparent;
+            will-change: transform, opacity;
+        }
+
+        #gameContainer.crt-enabled:not(.crt-ui-suspended) .playfield-crt-scanlines {
+            opacity: 0.42;
+        }
+
+        #gameContainer.crt-enabled:not(.crt-ui-suspended) .playfield-crt-glass {
+            opacity: 1;
+        }
+
+        #gameContainer.crt-enabled:not(.crt-ui-suspended):not(.crt-paused) .playfield-crt-sweep {
+            animation: playfieldCrtSlowSweep 9.5s linear infinite;
+        }
+
+        #gameContainer.crt-paused .playfield-crt-sweep,
+        #gameContainer.crt-ui-suspended .playfield-crt-sweep {
+            animation: none;
+            opacity: 0;
+        }
+
+        #gameContainer.crt-enabled.crt-gridlock-event:not(.crt-paused):not(.crt-ui-suspended) .playfield-crt-event {
+            animation: playfieldCrtGridlock 0.42s steps(2, end) 1;
+        }
+
+        #gameContainer.crt-enabled.crt-gridlock-event:not(.crt-paused):not(.crt-ui-suspended) .playfield-crt-scanlines {
+            animation: playfieldCrtScanlineSurge 0.42s ease-out 1;
+        }
+
+        #gameContainer.crt-enabled.crt-zap-event:not(.crt-paused):not(.crt-ui-suspended) .playfield-crt-event {
+            animation: playfieldCrtZapOverload 0.34s steps(2, end) 1;
+        }
+
+        #gameContainer.crt-enabled.crt-death-event:not(.crt-paused):not(.crt-ui-suspended) .playfield-crt-event {
+            animation: playfieldCrtDeathFlicker 0.56s steps(2, end) 1;
+        }
+
+        #gameContainer.crt-enabled.crt-death-event:not(.crt-paused):not(.crt-ui-suspended) .playfield-crt-scanlines {
+            animation: playfieldCrtDeathScan 0.56s ease-in 1;
+        }
+
+        #gameContainer.crt-enabled.crt-restore-event:not(.crt-paused):not(.crt-ui-suspended) .playfield-crt-event {
+            animation: playfieldCrtRestorePulse 0.48s ease-out 1;
+        }
+
+        @keyframes playfieldCrtSlowSweep {
+            0%, 55% { opacity: 0; transform: translateY(0); }
+            58% { opacity: 0.12; transform: translateY(0); }
+            76% { opacity: 0.055; transform: translateY(1260%); }
+            79%, 100% { opacity: 0; transform: translateY(1260%); }
+        }
+
+        @keyframes playfieldCrtScanlineSurge {
+            0% { opacity: 0.42; }
+            18% { opacity: 0.68; }
+            48% { opacity: 0.50; }
+            100% { opacity: 0.42; }
+        }
+
+        @keyframes playfieldCrtGridlock {
+            0% {
+                opacity: 0;
+                transform: translateX(0);
+                background: transparent;
+                box-shadow: none;
+            }
+            18% {
+                opacity: 0.58;
+                transform: translateX(-1px);
+                background: linear-gradient(90deg, rgba(255, 0, 0, 0.07), transparent 7%, transparent 93%, rgba(0, 120, 255, 0.07));
+                box-shadow: inset 1px 0 rgba(255, 0, 0, 0.13), inset -1px 0 rgba(0, 180, 255, 0.13);
+            }
+            44% {
+                opacity: 0.26;
+                transform: translateX(1px);
+            }
+            100% {
+                opacity: 0;
+                transform: translateX(0);
+                background: transparent;
+                box-shadow: none;
+            }
+        }
+
+        @keyframes playfieldCrtZapOverload {
+            0% {
+                opacity: 0;
+                transform: translateX(0);
+                background: transparent;
+                box-shadow: none;
+            }
+            12% {
+                opacity: 0.94;
+                transform: translateX(-2px);
+                background:
+                    linear-gradient(90deg, rgba(255, 0, 0, 0.16), transparent 10%, transparent 90%, rgba(0, 140, 255, 0.18)),
+                    radial-gradient(circle at center, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0.05) 42%, transparent 72%);
+                box-shadow: inset 2px 0 rgba(255, 0, 0, 0.25), inset -2px 0 rgba(0, 190, 255, 0.28), inset 0 0 64px rgba(255, 255, 255, 0.20);
+            }
+            30% {
+                opacity: 0.52;
+                transform: translateX(2px);
+            }
+            56% {
+                opacity: 0.24;
+                transform: translateX(-1px);
+            }
+            100% {
+                opacity: 0;
+                transform: translateX(0);
+                background: transparent;
+                box-shadow: none;
+            }
+        }
+
+        @keyframes playfieldCrtDeathFlicker {
+            0% { opacity: 0; background: transparent; transform: scaleY(1); }
+            10% { opacity: 0.58; background: rgba(255, 255, 255, 0.13); transform: scaleY(1); }
+            22% { opacity: 0.10; background: #000; transform: scaleY(0.995); }
+            38% { opacity: 0.40; background: rgba(255, 255, 255, 0.08); transform: scaleY(1); }
+            62% { opacity: 0.18; background: #000; transform: scaleY(0.985); }
+            100% { opacity: 0; background: transparent; transform: scaleY(1); }
+        }
+
+        @keyframes playfieldCrtDeathScan {
+            0% { opacity: 0.42; }
+            16% { opacity: 0.12; }
+            28% { opacity: 0.64; }
+            46% { opacity: 0.18; }
+            70% { opacity: 0.48; }
+            100% { opacity: 0.42; }
+        }
+
+        @keyframes playfieldCrtRestorePulse {
+            0% { opacity: 0; background: transparent; box-shadow: none; }
+            20% {
+                opacity: 0.56;
+                background: radial-gradient(circle at center, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.035) 46%, transparent 76%);
+                box-shadow: inset 0 0 52px rgba(255, 255, 255, 0.12);
+            }
+            100% { opacity: 0; background: transparent; box-shadow: none; }
         }
         
 
@@ -5091,6 +5289,10 @@ Orb Control Panel Instrument Reference
     </div>
     <!-- Main game container -->
     <div id="gameContainer">
+        <div class="playfield-crt-layer playfield-crt-scanlines" aria-hidden="true"></div>
+        <div class="playfield-crt-layer playfield-crt-glass" aria-hidden="true"></div>
+        <div class="playfield-crt-layer playfield-crt-sweep" aria-hidden="true"></div>
+        <div class="playfield-crt-layer playfield-crt-event" aria-hidden="true"></div>
         <div id="player"></div>
         <div id="gameOver">GAME OVER</div>
         <div id="bonusText"></div> <!-- New element for bonus display -->
@@ -5182,6 +5384,7 @@ Orb Control Panel Instrument Reference
                 <div class="menu-panel-title">SETTINGS</div>
                 <button id="soundToggleButton" class="menu-button settings-toggle">Disable Sound</button>
                 <button id="musicToggleButton" class="menu-button settings-toggle">Disable Music</button>
+                <button id="crtToggleButton" class="menu-button settings-toggle">Disable CRT</button>
                 <div id="sectorSettingControl" class="settings-stepper" role="group" aria-label="Sector Select">
                     <div class="settings-stepper-title">Sector Select</div>
                     <div class="settings-stepper-row">
@@ -5351,7 +5554,7 @@ Orb Control Panel Instrument Reference
     </div>
 
     <script>
-        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'v263'}`;
+        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'v266'}`;
         const splashBuildVersion = document.getElementById('splashBuildVersion');
         if (splashBuildVersion) splashBuildVersion.textContent = BUILD_VERSION;
 
@@ -5533,6 +5736,10 @@ Orb Control Panel Instrument Reference
                 this.settingsBackButton = document.getElementById('settingsBackButton');
                 this.soundToggleButton = document.getElementById('soundToggleButton');
                 this.musicToggleButton = document.getElementById('musicToggleButton');
+                this.crtToggleButton = document.getElementById('crtToggleButton');
+                this.crtStorageKey = 'blockazoidsCrtEnabled';
+                this.crtEnabled = this.loadCrtPreference();
+                this.crtEventTimers = {};
                 this.sectorDecreaseButton = document.getElementById('sectorDecreaseButton');
                 this.sectorIncreaseButton = document.getElementById('sectorIncreaseButton');
                 this.settingsSectorValue = document.getElementById('settingsSectorValue');
@@ -5921,6 +6128,14 @@ Orb Control Panel Instrument Reference
                         this.toggleMusicSetting();
                     });
                 }
+                if (this.crtToggleButton) {
+                    this.crtToggleButton.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        this.playUiClick();
+                        this.toggleCrtSetting();
+                    });
+                }
                 if (this.sectorDecreaseButton) {
                     this.sectorDecreaseButton.addEventListener('click', (e) => {
                         e.preventDefault();
@@ -6010,6 +6225,7 @@ Orb Control Panel Instrument Reference
                 }
                 this.updateSoundToggleLabel();
                 this.updateMusicToggleLabel();
+                this.applyCrtPreference();
                 this.updateSettingsSectorLabel();
                 this.updateDifficultyLabel();
                 this.updateHighScoreDisplay();
@@ -7800,6 +8016,9 @@ Orb Control Panel Instrument Reference
                 this.resetMarqueeEasterEgg();
                 this.isPaused = false;
                 this.resumeCountdownActive = false;
+                this.setCrtPaused(false);
+                this.setCrtUiSuspended(false);
+                this.clearCrtEventEffects();
                 this.gameplayRunToken++;
                 this.clearUpdateGameTimer();
                 this.clearMaxSwarmCueTimer();
@@ -8085,6 +8304,7 @@ Orb Control Panel Instrument Reference
                 if (panelName === 'settings') {
                     this.updateSoundToggleLabel();
                     this.updateMusicToggleLabel();
+                    this.updateCrtToggleLabel();
                     this.updateSettingsSectorLabel();
                     this.updateDifficultyLabel();
                     this.updateHighScoreDisplay();
@@ -8120,6 +8340,75 @@ Orb Control Panel Instrument Reference
                 this.audio.setMusicMuted(!this.audio.isMusicMuted());
                 this.updateMusicToggleLabel();
                 this.stopPauseMenuReactorHum();
+            }
+
+            loadCrtPreference() {
+                try {
+                    const stored = localStorage.getItem(this.crtStorageKey);
+                    return stored === null ? true : stored !== '0';
+                } catch (_) {
+                    return true;
+                }
+            }
+
+            saveCrtPreference() {
+                try {
+                    localStorage.setItem(this.crtStorageKey, this.crtEnabled ? '1' : '0');
+                } catch (_) {}
+            }
+
+            updateCrtToggleLabel() {
+                if (!this.crtToggleButton) return;
+                this.crtToggleButton.textContent = this.crtEnabled ? 'Disable CRT' : 'Enable CRT';
+            }
+
+            applyCrtPreference() {
+                if (!this.container) return;
+                this.container.classList.toggle('crt-enabled', !!this.crtEnabled);
+                if (!this.crtEnabled) this.clearCrtEventEffects();
+                this.updateCrtToggleLabel();
+            }
+
+            toggleCrtSetting() {
+                this.crtEnabled = !this.crtEnabled;
+                this.saveCrtPreference();
+                this.applyCrtPreference();
+            }
+
+            setCrtPaused(paused) {
+                if (!this.container) return;
+                this.container.classList.toggle('crt-paused', !!paused);
+            }
+
+            setCrtUiSuspended(suspended) {
+                if (!this.container) return;
+                this.container.classList.toggle('crt-ui-suspended', !!suspended);
+                if (suspended) this.clearCrtEventEffects();
+            }
+
+            clearCrtEventEffects() {
+                if (!this.container) return;
+                ['gridlock', 'zap', 'death', 'restore'].forEach(type => {
+                    const timer = this.crtEventTimers && this.crtEventTimers[type];
+                    if (timer) clearTimeout(timer);
+                    if (this.crtEventTimers) this.crtEventTimers[type] = null;
+                    this.container.classList.remove(`crt-${type}-event`);
+                });
+            }
+
+            triggerCrtEvent(type) {
+                if (!this.crtEnabled || this.isPaused || !this.container || this.container.classList.contains('crt-ui-suspended')) return;
+                const durations = { gridlock: 430, zap: 360, death: 580, restore: 500 };
+                if (!durations[type]) return;
+                const className = `crt-${type}-event`;
+                if (this.crtEventTimers[type]) clearTimeout(this.crtEventTimers[type]);
+                this.container.classList.remove(className);
+                void this.container.offsetWidth;
+                this.container.classList.add(className);
+                this.crtEventTimers[type] = setTimeout(() => {
+                    this.container.classList.remove(className);
+                    this.crtEventTimers[type] = null;
+                }, durations[type]);
             }
 
             canChangeSectorSelection() {
@@ -8767,6 +9056,8 @@ Orb Control Panel Instrument Reference
                 this.beginRunRecordPause();
                 this.isPaused = true;
                 this.active = false;
+                this.setCrtPaused(true);
+                this.setCrtUiSuspended(true);
                 this.ui.updateAll();
                 this.gameplayRunToken++;
                 this.clearUpdateGameTimer();
@@ -8798,6 +9089,7 @@ Orb Control Panel Instrument Reference
                 this.menuOpenedAt = 0;
                 this.clearMenuButtonFocus();
                 this.pauseWindow.style.display = 'none';
+                this.setCrtUiSuspended(false);
                 if (this.menuButtons && this.scoringPanel && this.storyPanel && this.settingsPanel) this.showMainMenuButtons();
                 this.levelSelectWindow.style.display = 'none';
                 this.hideCycleContinueButton();
@@ -8848,6 +9140,8 @@ Orb Control Panel Instrument Reference
                 this.endRunRecordPause();
                 this.isPaused = false;
                 this.active = true;
+                this.setCrtPaused(false);
+                this.setCrtUiSuspended(false);
                 this.ui.updateAll();
                 this.setGameOverlayVisible(false);
                 this.lastFrameTime = performance.now();
@@ -9457,6 +9751,7 @@ Orb Control Panel Instrument Reference
                         this.survivalistEarnedThisSector = true;
                         this.noteTelemetryGridlock();
                         if (!this.finalGridlockActive) {
+                            this.triggerCrtEvent('gridlock');
                             if (this.ui && this.ui.flashGridlockAlert) this.ui.flashGridlockAlert();
                             this.audio.playMaxSwarmCue();
                         }
@@ -9950,6 +10245,7 @@ Orb Control Panel Instrument Reference
                 const totalBonus = Math.max(0, parseInt(options.totalBonus || 0, 10) || 0);
 
                 this.clearPendingSpawnWarnings(requeueSpawnWarnings);
+                this.triggerCrtEvent('restore');
                 this.setGameOverlayVisible(true);
                 this.enemies.forEach(enemy => enemy.element.classList.add('restoring'));
                 this.player.element.classList.add('orbRestoreGlow');
@@ -10433,6 +10729,7 @@ Orb Control Panel Instrument Reference
                     this.currentBlinkingCrystalCount = Math.max(1, this.currentBlinkingCrystalCount - 1);
                     this.ui.updateCosmicZapIndicators();
                     this.audio.playCosmicZapSound();
+                    this.triggerCrtEvent('zap');
                     this.playCosmicZapDischarge(clearedEnemies);
                     this.container.classList.remove('cosmicZapShake');
                     void this.container.offsetWidth;
@@ -10499,6 +10796,8 @@ Orb Control Panel Instrument Reference
             // Start attract mode with Conway's Game of Life pattern, less busy
             startAttractMode() {
                 this.stopAttractMode(); // Clear any existing attract mode
+                this.setCrtPaused(false);
+                this.setCrtUiSuspended(true);
                 this.attractModeStartedAt = performance.now();
                 this.lastMarqueeEasterEggShakeTime = 0;
                 if (this.player && this.player.element) this.player.element.classList.add('attract-orb-pulse');
@@ -11033,6 +11332,10 @@ Orb Control Panel Instrument Reference
                 this.removePrismRelic();
                 // Keep input listeners attached. The handlers already ignore input while inactive or game over.
 
+                this.setCrtPaused(false);
+                this.setCrtUiSuspended(false);
+                this.triggerCrtEvent('death');
+                setTimeout(() => this.setCrtUiSuspended(true), 650);
                 this.explosions.push(new Explosion(this, this.player.x + this.player.size / 2, this.player.y + this.player.size / 2, true)); // Player explosion
                 this.container.classList.add('shake'); // Screen shake
                 this.audio.playExplosion(true); // Explosion sound
