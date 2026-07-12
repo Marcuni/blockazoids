@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v249: Removes the splash-image halo and adds a translucent How to Play overlay during the initial ACTIVATE sequence.
+Build v250: Moves the translucent play guide to the pre-PLAY attract screen, removes its title, and keeps the full guide contained within the playfield.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -17,7 +17,7 @@ Orb Control Panel Instrument Reference
 - Recursion Glyph Engine — Displays the current cycle and advances with each completed Grid restoration.
 - Orb Command Socket — Controls the Orb’s pause, resume, and primary interface functions.
 -->
-<html data-build-version="v249">
+<html data-build-version="v250">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -970,7 +970,7 @@ Orb Control Panel Instrument Reference
             100% { opacity: 0; }
         }
         
-        /* Translucent first-activation guide shown over the live playfield. */
+        /* Translucent play guide shown on the attract screen before PLAY is pressed. */
         #activationHowToOverlay {
             position: absolute;
             inset: 0;
@@ -978,12 +978,11 @@ Orb Control Panel Instrument Reference
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: clamp(18px, 5vw, 34px);
             box-sizing: border-box;
             pointer-events: none;
             opacity: 0;
             visibility: hidden;
-            transition: opacity 0.26s ease-in-out, visibility 0.26s ease-in-out;
+            transition: opacity 0.24s ease-in-out, visibility 0.24s ease-in-out;
         }
 
         #activationHowToOverlay.visible {
@@ -992,32 +991,26 @@ Orb Control Panel Instrument Reference
         }
 
         .activation-how-to-panel {
-            width: min(330px, 82%);
+            width: min(360px, 76%);
+            max-width: 76%;
+            max-height: 78%;
             padding: clamp(16px, 4vw, 24px) clamp(14px, 4vw, 22px);
             box-sizing: border-box;
-            background: rgba(0, 0, 0, 0.58);
-            border: 1px solid rgba(255, 255, 255, 0.66);
+            overflow: hidden;
+            background: rgba(0, 0, 0, 0.46);
+            border: 1px solid rgba(160, 160, 160, 0.72);
+            opacity: 0.82;
             text-align: center;
-        }
-
-        .activation-how-to-title {
-            color: rgba(255, 255, 255, 0.96);
-            font-family: 'Orbitron', 'Courier New', monospace;
-            font-size: clamp(24px, 7.2vw, 38px);
-            line-height: 1;
-            letter-spacing: 2px;
-            margin-bottom: clamp(12px, 3vw, 18px);
-            text-shadow: 0 0 8px rgba(255, 255, 255, 0.42);
         }
 
         .activation-how-to-list {
             margin: 0;
             padding: 0;
             list-style: none;
-            color: rgba(255, 255, 255, 0.88);
+            color: rgba(255, 255, 255, 0.94);
             font-family: 'Orbitron', 'Courier New', monospace;
             font-size: clamp(11px, 3.2vw, 15px);
-            line-height: 1.55;
+            line-height: 1.62;
             letter-spacing: 0.3px;
             text-shadow: none;
         }
@@ -4980,7 +4973,7 @@ Orb Control Panel Instrument Reference
 
     
 
-        /* v249: unified cockpit frame system. Every framed instrument uses the
+        /* v250: unified cockpit frame system. Every framed instrument uses the
            same gray stroke and the same small clipped-corner notch language. */
         :root {
             --instrument-frame-width: 1.6px;
@@ -5087,9 +5080,8 @@ Orb Control Panel Instrument Reference
         <div id="screenFade"></div>
         <div id="gameOverlay"></div>
         <div id="activationHowToOverlay" aria-hidden="true">
-            <div class="activation-how-to-panel">
-                <div class="activation-how-to-title">HOW TO PLAY</div>
-                <ul class="activation-how-to-list">
+            <div class="activation-how-to-panel" role="img" aria-label="Drag the white orb to move. Collect blinking crystals. Avoid moving Block-A-Zoids. Shake to Cosmic Zap.">
+                <ul class="activation-how-to-list" aria-hidden="true">
                     <li>Drag the white orb to move.</li>
                     <li>Collect blinking crystals.</li>
                     <li>Avoid moving Block-A-Zoids.</li>
@@ -5334,7 +5326,7 @@ Orb Control Panel Instrument Reference
     </div>
 
     <script>
-        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'v249'}`;
+        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'v250'}`;
         const splashBuildVersion = document.getElementById('splashBuildVersion');
         if (splashBuildVersion) splashBuildVersion.textContent = BUILD_VERSION;
 
@@ -5351,7 +5343,7 @@ Orb Control Panel Instrument Reference
 
 
 
-        // v249 unified instrument-frame overlays. The frame geometry is updated
+        // v250 unified instrument-frame overlays. The frame geometry is updated
         // from each instrument's real pixel dimensions so every notch stays small.
         (() => {
             const instrumentIds = [
@@ -5601,7 +5593,7 @@ Orb Control Panel Instrument Reference
                 this.levelActionStarted = false;      // Enemy spawning/game loop has started for the current level
                 this.showHudDuringSectorIntro = false; // Keep bottom HUD visible while sector name/number is displayed
                 this.cockpitActivated = false;          // Clock, Orbital Tally core, and Zap gauge power on after PLAY
-                this.activationHowToPending = false;   // Shows the translucent guide only on the first ACTIVATE transition.
+                this.activationHowToPending = false;   // Legacy flag retained for compatibility; the guide now appears before PLAY.
                 this.cockpitSectorDisplayName = 'ACTIVATE';
                 this.cockpitSectorDisplayLevel = null;
                 this.startInputLocked = false;        // Blocks stray menu/start taps while a sector is starting
@@ -6010,6 +6002,7 @@ Orb Control Panel Instrument Reference
                 this.resetPrismRelicTiming();
                 this.updateHighScoreDisplay();
                 this.startAttractMode();
+                this.showActivationHowToOverlay();
                 this.refreshGameOverlay();
             }
 
@@ -7820,7 +7813,7 @@ Orb Control Panel Instrument Reference
             }
 
             showActivationHowToOverlay() {
-                if (!this.activationHowToOverlay) return;
+                if (!this.activationHowToOverlay || this.hasStartedRun) return;
                 this.activationHowToOverlay.setAttribute('aria-hidden', 'false');
                 requestAnimationFrame(() => this.activationHowToOverlay.classList.add('visible'));
             }
@@ -7829,17 +7822,14 @@ Orb Control Panel Instrument Reference
                 if (!this.activationHowToOverlay) return Promise.resolve();
                 this.activationHowToOverlay.classList.remove('visible');
                 this.activationHowToOverlay.setAttribute('aria-hidden', 'true');
-                return new Promise(resolve => setTimeout(resolve, 280));
+                return Promise.resolve();
             }
 
             // Start the current prepared level after the grid appears and a 3-second countdown finishes.
             startPreparedLevel(loadToken, options = {}) {
-                const showActivationGuide = !!this.activationHowToPending;
                 this.activationHowToPending = false;
-                if (showActivationGuide) this.showActivationHowToOverlay();
 
                 this.runIntroAnimation(options)
-                    .then(() => showActivationGuide ? this.hideActivationHowToOverlay() : null)
                     .then(() => this.runLevelCountdown(loadToken))
                     .then((countdownCompleted) => {
                         if (!countdownCompleted || loadToken !== this.levelLoadToken) {
@@ -8841,8 +8831,9 @@ Orb Control Panel Instrument Reference
                 const selectedOption = Math.max(1, Math.min(this.getSectorSelectOptionCount(), this.selectedStartSector || 1));
                 const endOption = this.getEndSectorOptionValue();
 
+                this.hideActivationHowToOverlay();
                 this.hasStartedRun = true;
-                this.activationHowToPending = !this.cockpitActivated;
+                this.activationHowToPending = false;
                 this.cockpitActivated = true;
                 this.cockpitSectorDisplayName = '';
                 this.cockpitSectorDisplayLevel = null;
