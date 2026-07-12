@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v263: Adds clearer Chrono Drift digit spacing, restores regular GAME OVER centering after campaign results, and matches the Final Gridlock countdown presentation to normal sectors.
+Build v264: Keeps the completed sector array lit during Final Gridlock, displays SURVIVE in the cartouche, removes the Sector 15 label and Gridlock HUD flash, freezes the campaign score, and shows survival time in the top HUD.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -21,7 +21,7 @@ Orb Control Panel Instrument Reference
 - Velocity Glyph Engine — Temporarily displays the Orb’s finger-driven movement speed.
 - Orb Command Socket — Controls the Orb’s pause, resume, and primary interface functions.
 -->
-<html data-build-version="v263">
+<html data-build-version="v264">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -9446,8 +9446,10 @@ Orb Control Panel Instrument Reference
                         this.maxSwarmActive = true;
                         this.survivalistEarnedThisSector = true;
                         this.noteTelemetryGridlock();
-                        if (this.ui && this.ui.flashGridlockAlert) this.ui.flashGridlockAlert();
-                        this.audio.playMaxSwarmCue();
+                        if (!this.finalGridlockActive) {
+                            if (this.ui && this.ui.flashGridlockAlert) this.ui.flashGridlockAlert();
+                            this.audio.playMaxSwarmCue();
+                        }
                         this.startOvertime();
                         this.checkPrismRelicSpawnProgress();
                     }, this.maxSwarmCueDelayMs);
@@ -9639,18 +9641,24 @@ Orb Control Panel Instrument Reference
                 }
             }
 
-            // Central scoring helper. The high-score flash triggers when the saved high score is beaten.
+            // Central scoring helper. Final Gridlock freezes the completed campaign score.
             addScore(points) {
-                if (!points) return;
+                if (!points || this.finalGridlockActive) return;
                 this.score += points;
                 this.ui.updateScore();
                 this.checkHighScore();
             }
 
-            // Award one point per full second of active gameplay.
+            // Award one point per full second of campaign gameplay. Final Gridlock tracks time only.
             awardSurvivalTimePoints(deltaTime) {
                 this.sectorElapsedMs += deltaTime;
-                if (this.finalGridlockActive) this.finalGridlockElapsedMs += deltaTime;
+                if (this.finalGridlockActive) {
+                    const previousSecond = Math.floor(this.finalGridlockElapsedMs / 1000);
+                    this.finalGridlockElapsedMs += deltaTime;
+                    const currentSecond = Math.floor(this.finalGridlockElapsedMs / 1000);
+                    if (currentSecond !== previousSecond && this.ui) this.ui.updateScore();
+                    return;
+                }
 
                 this.survivalScoreAccumulator += deltaTime;
                 const secondsEarned = Math.floor(this.survivalScoreAccumulator / 1000);
@@ -10785,7 +10793,7 @@ Orb Control Panel Instrument Reference
                 this.bonusTextElement.classList.add('countdownText');
                 this.bonusTextElement.style.transition = 'opacity 0.12s ease-in-out';
                 this.bonusTextElement.style.opacity = '1';
-                this.bonusTextElement.innerHTML = `<span class="countdown-level-number">GRID SECTOR 15</span><span class="countdown-level-name">FINAL GRIDLOCK</span><span class="countdown-difficulty">ENDLESS SURVIVAL</span>`;
+                this.bonusTextElement.innerHTML = `<span class="countdown-level-name">FINAL GRIDLOCK</span><span class="countdown-difficulty">ENDLESS SURVIVAL</span>`;
 
                 for (const step of ['3', '2', '1']) {
                     if (!isCurrent()) return cancelCountdown();
@@ -10848,7 +10856,7 @@ Orb Control Panel Instrument Reference
                 this.prismRelicSpawnedThisSector = false;
                 this.prismRelicRecoveredThisSector = true;
                 this.gridlockRelicAttemptNumber = 0;
-                this.cockpitSectorDisplayName = 'GRIDLOCK';
+                this.cockpitSectorDisplayName = 'SURVIVE';
                 this.cockpitSectorDisplayLevel = null;
                 this.gameOverElement.classList.remove('finalCycleText', 'finalGameCompleteText', 'finalGridlockGameOverText');
                 this.bonusTextElement.classList.remove('finalCycleSubtext', 'finalGameSummary', 'finalGridlockSummary');
@@ -10857,6 +10865,13 @@ Orb Control Panel Instrument Reference
                 this.gameOverElement.style.opacity = '0';
                 this.bonusTextElement.style.opacity = '0';
                 this.setGameOverlayVisible(false);
+                if (this.ui) {
+                    if (this.ui.scoreAlertTimer) clearTimeout(this.ui.scoreAlertTimer);
+                    this.ui.scoreAlertTimer = null;
+                    this.ui.scoreAlertActive = false;
+                    if (this.ui.scoreHud) this.ui.scoreHud.classList.remove('gridlock-announcement-active');
+                    if (this.ui.scoreElement) this.ui.scoreElement.classList.remove('gridlockAlert', 'superGridlockAlert');
+                }
                 this.audio.resume();
                 this.player.reset();
                 this.player.element.style.display = 'block';
@@ -13245,9 +13260,17 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 this.scoreAlertTimer = null;
             }
 
-            // Update score display
+            // Update score display. Final Gridlock replaces score with its survival clock.
             updateScore() {
                 if (this.scoreAlertActive) return;
+                if (this.game.finalGridlockActive) {
+                    const totalSeconds = Math.floor(Math.max(0, this.game.finalGridlockElapsedMs) / 1000);
+                    const minutes = Math.floor(totalSeconds / 60);
+                    const seconds = totalSeconds % 60;
+                    this.scoreElement.classList.remove('scoreHidden', 'attractHighScore', 'highScoreFlash', 'bonusScoreCount', 'gridlockAlert', 'superGridlockAlert');
+                    this.scoreElement.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+                    return;
+                }
                 const showScore = (this.game.active && this.game.levelActionStarted) ||
                                   (this.game.isPaused && this.game.levelActionStarted) ||
                                   this.game.showHudDuringSectorIntro ||
@@ -13429,17 +13452,21 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 this.levelIndicators.innerHTML = '';
 
                 const totalSectors = this.game.MAX_LEVEL || 15;
+                const campaignCompleteState = this.game.finalCompletionActive || this.game.finalGridlockActive || this.game.finalGridlockResultActive;
                 const inRunContext = this.game.hasStartedRun ||
                                      this.game.active ||
                                      this.game.isPaused ||
                                      this.game.showHudDuringSectorIntro ||
-                                     this.game.isGameOver;
-                const conqueredSectors = inRunContext ? Math.max(0, Math.min(totalSectors, this.game.level - 1)) : 0;
+                                     this.game.isGameOver ||
+                                     campaignCompleteState;
+                const conqueredSectors = campaignCompleteState
+                    ? totalSectors
+                    : (inRunContext ? Math.max(0, Math.min(totalSectors, this.game.level - 1)) : 0);
                 for (let i = 0; i < totalSectors; i++) {
                     const circle = document.createElement('div');
                     circle.className = 'level-circle';
                     const levelNumber = i + 1;
-                    const currentSector = inRunContext ? this.game.level : (this.game.selectedStartSector || 1);
+                    const currentSector = campaignCompleteState ? null : (inRunContext ? this.game.level : (this.game.selectedStartSector || 1));
                     const isCompleted = i < conqueredSectors;
                     const isCurrent = !isCompleted && levelNumber === currentSector;
                     if (isCompleted) circle.classList.add('completed');
