@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v259: Adds active Crystal Spine twinkling, ends the campaign after Cycle 3, and removes the Chrono Drift colon while preserving grouped digit spacing.
+Build v260: Adds the Final Gridlock survival epilogue, persistent end-of-run statistics, evenly spaced Chrono Drift digits, and smaller active Crystal Spine crystals.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -21,7 +21,7 @@ Orb Control Panel Instrument Reference
 - Velocity Glyph Engine — Temporarily displays the Orb’s finger-driven movement speed.
 - Orb Command Socket — Controls the Orb’s pause, resume, and primary interface functions.
 -->
-<html data-build-version="v259">
+<html data-build-version="v260">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -5356,7 +5356,7 @@ Orb Control Panel Instrument Reference
             display: none !important;
         }
 
-        /* v259: Only collected crystals in the current incomplete vertebra twinkle. */
+        /* v260: Only collected crystals in the current incomplete vertebra twinkle, at a slightly smaller size. */
         #greenCrystalGauge .crystal-spine-vertebra.active .crystal-spine-segment.filled:not(.just-collected) {
             animation: crystalSpineGameplayTwinkle 0.25s infinite alternate !important;
         }
@@ -5373,6 +5373,57 @@ Orb Control Panel Instrument Reference
         #timerValue .alien-mono-slot.punct {
             width: 0.40em;
             min-width: 0.40em;
+        }
+
+        /* v260: active incomplete Spine crystals are slightly smaller while retaining their twinkle. */
+        #greenCrystalGauge .crystal-spine-vertebra.active .crystal-spine-segment.filled {
+            transform: scale(0.88);
+            transform-origin: center;
+        }
+
+        /* Chrono Drift now uses four equally spaced digits with no separator glyph. */
+        #timerValue .alien-mono-row {
+            column-gap: 0.18em;
+        }
+
+        #timerValue .alien-mono-slot,
+        #timerValue .alien-mono-slot.punct {
+            width: 0.72em;
+            min-width: 0.72em;
+        }
+
+        /* The completed Prism Grid remains visibly locked during the endless survival epilogue. */
+        .filled-square.final-gridlock-square {
+            opacity: 0.24;
+            background: #fff;
+            box-shadow: inset 0 0 calc(var(--default-glow) * 0.18px) rgba(255,255,255,0.34);
+        }
+
+        #gameOver.finalGridlockGameOverText {
+            top: 24%;
+            width: min(94%, 580px);
+            font-size: clamp(34px, 9.5vw, 58px);
+            line-height: 1.08;
+            letter-spacing: 3px;
+            z-index: 1004;
+            text-shadow: 0 0 20px #fff, 0 0 48px rgba(255,255,255,0.88);
+        }
+
+        #bonusText.finalGridlockSummary {
+            top: 57%;
+            width: min(90%, 530px);
+            box-sizing: border-box;
+            padding: 12px 10px;
+            font-size: clamp(15px, 4.2vw, 23px);
+            line-height: 1.42;
+            letter-spacing: 1.2px;
+            color: #fff;
+            background: rgba(0,0,0,0.82);
+            border: none;
+            box-shadow: none;
+            text-shadow: none;
+            white-space: pre-line;
+            z-index: 1005;
         }
 
     </style>
@@ -5403,7 +5454,7 @@ Orb Control Panel Instrument Reference
         <div id="gameOver">GAME OVER</div>
         <div id="bonusText"></div> <!-- New element for bonus display -->
         <button id="cycleContinueButton" type="button" aria-hidden="true">CONTINUE</button>
-        <button id="finalPlayAgainButton" type="button" aria-hidden="true">PLAY AGAIN</button>
+        <button id="finalPlayAgainButton" type="button" aria-hidden="true">FINAL GRIDLOCK</button>
         <div id="screenFade"></div>
         <div id="gameOverlay"></div>
         <div id="activationHowToOverlay" aria-hidden="true">
@@ -5630,7 +5681,7 @@ Orb Control Panel Instrument Reference
                 <span class="radar-alarm-core"></span>
             </div>
             <div id="timerHud" class="status-side-instrument" aria-label="Run timer">
-                <span id="timerValue" class="alien-status-value">00 00</span>
+                <span id="timerValue" class="alien-status-value">0000</span>
             </div>
             <div id="triLockSingularity" aria-label="Tri-Lock Singularity: 3 Cosmic Zaps available">
                 <svg viewBox="0 0 100 100" aria-hidden="true" focusable="false">
@@ -5660,7 +5711,7 @@ Orb Control Panel Instrument Reference
     </div>
 
     <script>
-        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'v259'}`;
+        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'v260'}`;
         const splashBuildVersion = document.getElementById('splashBuildVersion');
         if (splashBuildVersion) splashBuildVersion.textContent = BUILD_VERSION;
 
@@ -5959,7 +6010,11 @@ Orb Control Panel Instrument Reference
                 this.lastMotionSample = null;
                 this.wakeLock = null;                 // Optional screen wake lock during active play
                 this.isGameOver = false;              // Game over state
-                this.finalCompletionActive = false;     // True while the final-cycle completion summary is displayed
+                this.finalCompletionActive = false;     // True while the Cycle 3 completion summary is displayed
+                this.finalGridlockActive = false;        // Endless no-crystal survival after the campaign
+                this.finalGridlockResultActive = false;  // Persistent Final Gridlock GAME OVER statistics screen
+                this.finalGridlockElapsedMs = 0;         // Active survival time inside Final Gridlock only
+                this.finalGridlockStartingZaps = 0;      // Cosmic Zaps carried into Final Gridlock
                 this.spawnCounter = 0;                // Counter for enemy spawn delay
                 this.lastFrameTime = performance.now(); // Last frame timestamp
                 this.currentColorIndex = 0;           // Index of current crystal color
@@ -6085,8 +6140,13 @@ Orb Control Panel Instrument Reference
                         e.stopPropagation();
                         if (!this.isGameOver || !this.restartReady) return;
                         this.playUiClick();
-                        this.hideFinalPlayAgainButton();
-                        this.start();
+                        if (this.finalGridlockResultActive) {
+                            this.returnToMainMenuAfterFinalGridlock();
+                            return;
+                        }
+                        if (this.finalCompletionActive) {
+                            this.startFinalGridlock();
+                        }
                     });
                 }
                 if (this.hudMenuButton) {
@@ -8125,6 +8185,10 @@ Orb Control Panel Instrument Reference
                 this.releaseWakeLock();
                 this.isGameOver = false;
                 this.finalCompletionActive = false;
+                this.finalGridlockActive = false;
+                this.finalGridlockResultActive = false;
+                this.finalGridlockElapsedMs = 0;
+                this.finalGridlockStartingZaps = 0;
                 this.hideFinalPlayAgainButton();
                 this.instructionsWindow.style.display = 'none';
                 if (this.activationHowToOverlay) {
@@ -9216,6 +9280,7 @@ Orb Control Panel Instrument Reference
                     e.stopPropagation();
                 }
                 if (this.showHudDuringSectorIntro || this.resumeCountdownActive || this.startInputLocked) return;
+                if (this.finalCompletionActive || this.finalGridlockResultActive) return;
                 if (this.isGameOver && !this.restartReady) return;
                 if (this.cycleTransitionActive) {
                     if (this.pendingCycleContinueToken) {
@@ -9252,6 +9317,10 @@ Orb Control Panel Instrument Reference
 
                 this.hideActivationHowToOverlay();
                 this.finalCompletionActive = false;
+                this.finalGridlockActive = false;
+                this.finalGridlockResultActive = false;
+                this.finalGridlockElapsedMs = 0;
+                this.finalGridlockStartingZaps = 0;
                 this.hideFinalPlayAgainButton();
                 this.hasStartedRun = true;
                 this.activationHowToPending = false;
@@ -9704,6 +9773,7 @@ Orb Control Panel Instrument Reference
             }
 
             spawnPrismRelic() {
+                if (this.finalGridlockActive) return;
                 if (this.prismRelicSpawnedThisSector || this.prismRelicRecoveredThisSector || this.prismRelic || this.prismRelicCueTimer) return;
                 if (!this.maxSwarmActive || this.enemies.length < this.normalSwarmSize) return;
 
@@ -9729,6 +9799,7 @@ Orb Control Panel Instrument Reference
             }
 
             checkPrismRelicSpawnProgress() {
+                if (this.finalGridlockActive) return;
                 if (this.prismRelicSpawnedThisSector || this.prismRelicRecoveredThisSector || this.prismRelic || this.prismRelicCueTimer) return;
                 if (!this.active || this.isPaused || this.isGameOver || !this.levelActionStarted) return;
                 if (!this.maxSwarmActive || this.enemies.length < this.normalSwarmSize) return;
@@ -9963,6 +10034,7 @@ Orb Control Panel Instrument Reference
             // Award one point per full second of active gameplay.
             awardSurvivalTimePoints(deltaTime) {
                 this.sectorElapsedMs += deltaTime;
+                if (this.finalGridlockActive) this.finalGridlockElapsedMs += deltaTime;
 
                 this.survivalScoreAccumulator += deltaTime;
                 const secondsEarned = Math.floor(this.survivalScoreAccumulator / 1000);
@@ -10136,7 +10208,7 @@ Orb Control Panel Instrument Reference
 
             // Check if level is complete and play the restoration sequence before advancing.
             checkLevelCompletion() {
-                if (this.isGameOver) return; // Exit if game is over
+                if (this.isGameOver || this.finalGridlockActive) return; // Final Gridlock has no crystal completion state
                 if (this.crystals.length !== 0) return; // Level still has crystals
 
                 const completedLevel = this.level;
@@ -10950,8 +11022,10 @@ Orb Control Panel Instrument Reference
                 this.finalPlayAgainButton.setAttribute('aria-hidden', 'true');
             }
 
-            showFinalPlayAgainButton() {
+            showFinalPlayAgainButton(label = 'FINAL GRIDLOCK') {
                 if (!this.finalPlayAgainButton) return;
+                this.finalPlayAgainButton.textContent = label;
+                this.finalPlayAgainButton.setAttribute('aria-label', label);
                 this.finalPlayAgainButton.style.display = 'block';
                 this.finalPlayAgainButton.classList.add('visible');
                 this.finalPlayAgainButton.setAttribute('aria-hidden', 'false');
@@ -11026,8 +11100,6 @@ Orb Control Panel Instrument Reference
                 this.clearGameplayObjects();
                 this.player.element.style.display = 'none';
                 this.updateRunRecordProgress();
-                this.finishTelemetryRun('completed');
-                this.saveRunRecordIfCurrentHighScore();
                 this.updateHighScoreDisplay();
 
                 this.gameOverElement.classList.remove('finalGameCompleteText');
@@ -11073,15 +11145,181 @@ Orb Control Panel Instrument Reference
                 this.gameOverElement.classList.add('finalGameCompleteText');
                 this.bonusTextElement.classList.add('finalGameSummary');
                 this.gameOverElement.textContent = 'PRISM GRID\nRESTORED';
-                this.bonusTextElement.textContent = `FINAL SCORE ${this.score}\nTIME ${finalTime}\nCYCLES COMPLETED ${this.MAX_CYCLES}\nRELICS COLLECTED ${finalRelics}/15`;
+                this.bonusTextElement.textContent = `CAMPAIGN SCORE ${this.score}\nTIME ${finalTime}\nCYCLES COMPLETED ${this.MAX_CYCLES}\nRELICS COLLECTED ${finalRelics}/15`;
                 this.gameOverElement.style.opacity = '1';
                 this.bonusTextElement.style.opacity = '1';
                 this.restartReady = true;
                 this.cycleTransitionActive = false;
                 this.updateSettingsSectorLabel();
                 this.updateDifficultyLabel();
-                this.showFinalPlayAgainButton();
+                this.showFinalPlayAgainButton('FINAL GRIDLOCK');
                 this.ui.updateAll();
+            }
+
+            buildFinalGridlockGrid() {
+                const existingSquares = this.container.querySelectorAll('.filled-square');
+                existingSquares.forEach(square => square.remove());
+                for (let row = 1; row <= 8; row++) {
+                    for (let col = 1; col <= 8; col++) {
+                        const square = document.createElement('div');
+                        square.className = 'filled-square final-gridlock-square';
+                        square.style.left = `${col * this.GRID_SIZE}px`;
+                        square.style.top = `${row * this.GRID_SIZE}px`;
+                        this.container.appendChild(square);
+                    }
+                }
+            }
+
+            spawnFinalGridlockSwarm() {
+                this.applyLevelParameters();
+                const types = this.spawnQueue.slice();
+                this.spawnQueue = [];
+                types.forEach(type => {
+                    const size = type === 'small' ? this.PLAYER_SIZE : (type === 'medium' ? this.PLAYER_SIZE * 2 : this.PLAYER_SIZE * 3);
+                    const location = this.choosePeripheralSpawnLocation(size);
+                    const enemy = new Enemy(this, type, location ? { x: location.x, y: location.y } : null);
+                    this.enemies.push(enemy);
+                    this.noteTelemetryEnemySpawn(type);
+                    if (enemy.size === this.PLAYER_SIZE) this.spawnedCount.small++;
+                    else if (enemy.size === this.PLAYER_SIZE * 2) this.spawnedCount.medium++;
+                    else this.spawnedCount.large++;
+                });
+                this.maxSwarmActive = true;
+                this.survivalistEarnedThisSector = true;
+                this.overtimeActive = true;
+                this.overtimeEnemiesAdded = 0;
+                this.superGridlockBonusesThisSector = 0;
+                this.superGridlockBonusPointsThisSector = 0;
+                this.spawnCounter = 0;
+            }
+
+            async runFinalGridlockCountdown(loadToken) {
+                const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+                this.showHudDuringSectorIntro = true;
+                this.ui.updateAll();
+                this.setGameOverlayVisible(true);
+                this.bonusTextElement.classList.add('countdownText');
+                this.bonusTextElement.style.transition = 'opacity 0.12s ease-in-out';
+                this.bonusTextElement.style.opacity = '1';
+                this.bonusTextElement.innerHTML = `<span class="countdown-level-number">PRISM GRID COMPLETE</span><span class="countdown-level-name">FINAL GRIDLOCK</span><span class="countdown-difficulty">ENDLESS SURVIVAL</span>`;
+                for (const step of ['3', '2', '1']) {
+                    if (loadToken !== this.levelLoadToken || !this.finalGridlockActive) return false;
+                    this.audio.playCountdownBeep(false);
+                    await wait(1000);
+                }
+                if (loadToken !== this.levelLoadToken || !this.finalGridlockActive) return false;
+                this.audio.playCountdownBeep(true);
+                await wait(300);
+                this.bonusTextElement.style.opacity = '0';
+                await wait(150);
+                this.bonusTextElement.classList.remove('countdownText');
+                this.bonusTextElement.textContent = '';
+                this.showHudDuringSectorIntro = false;
+                this.startInputLocked = false;
+                this.ui.updateAll();
+                this.refreshGameOverlay();
+                return loadToken === this.levelLoadToken && this.finalGridlockActive;
+            }
+
+            async startFinalGridlock() {
+                if (!this.finalCompletionActive || !this.isGameOver || !this.restartReady) return;
+                const loadToken = ++this.levelLoadToken;
+                this.hideFinalPlayAgainButton();
+                this.finalCompletionActive = false;
+                this.finalGridlockActive = true;
+                this.finalGridlockResultActive = false;
+                this.finalGridlockElapsedMs = 0;
+                this.finalGridlockStartingZaps = Math.max(0, Math.floor(Number(this.cosmicZapsLeft) || 0));
+                this.isGameOver = false;
+                this.restartReady = false;
+                this.cycleTransitionActive = false;
+                this.active = false;
+                this.levelActionStarted = false;
+                this.isPaused = false;
+                this.resumeCountdownActive = false;
+                this.startInputLocked = true;
+                this.gameplayRunToken++;
+                this.clearUpdateGameTimer();
+                this.clearPendingSpawnWarnings();
+                this.clearMaxSwarmCueTimer();
+                this.clearPrismRelicCueTimer();
+                this.clearOvertimeEnemyTimer();
+                this.removePrismRelic();
+                this.container.classList.remove('cycleCelebrationSequence', 'cycleRestoredIdle');
+                this.removeCycleRebootCells();
+                this.clearGameplayObjects();
+                this.level = this.MAX_LEVEL;
+                this.currentColorIndex = 0;
+                this.activeBlinkingCrystals = [];
+                this.collectedPositions = [];
+                this.lines = [];
+                this.sectorElapsedMs = 0;
+                this.survivalScoreAccumulator = 0;
+                this.spawnedCount = { small: 0, medium: 0, large: 0 };
+                this.prismRelicSpawnedThisSector = false;
+                this.prismRelicRecoveredThisSector = true;
+                this.gridlockRelicAttemptNumber = 0;
+                this.cockpitSectorDisplayName = 'GRIDLOCK';
+                this.cockpitSectorDisplayLevel = null;
+                this.gameOverElement.classList.remove('finalCycleText', 'finalGameCompleteText', 'finalGridlockGameOverText');
+                this.bonusTextElement.classList.remove('finalCycleSubtext', 'finalGameSummary', 'finalGridlockSummary');
+                this.gameOverElement.textContent = '';
+                this.bonusTextElement.textContent = '';
+                this.gameOverElement.style.opacity = '0';
+                this.bonusTextElement.style.opacity = '0';
+                this.setGameOverlayVisible(false);
+                this.audio.resume();
+                this.player.reset();
+                this.player.element.style.display = 'block';
+                this.buildFinalGridlockGrid();
+                this.ui.updateAll();
+                const countdownCompleted = await this.runFinalGridlockCountdown(loadToken);
+                if (!countdownCompleted || loadToken !== this.levelLoadToken || !this.finalGridlockActive) return;
+                this.active = true;
+                this.levelActionStarted = true;
+                this.startInputLocked = false;
+                this.lastFrameTime = performance.now();
+                this.ensureTelemetryRun('final-gridlock');
+                this.startTelemetrySector('final-gridlock');
+                this.startRunRecordActionClock();
+                this.spawnFinalGridlockSwarm();
+                this.noteTelemetryGridlock();
+                this.audio.stopBackgroundMusic();
+                this.audio.startBackgroundMusic(this.level);
+                this.audio.setMaxSwarmBeatIntensity(0);
+                this.audio.startMaxSwarmBeat(0);
+                this.scheduleOvertimeEnemy();
+                this.requestWakeLock();
+                this.setGameOverlayVisible(false);
+                this.gameplayRunToken++;
+                const runToken = this.gameplayRunToken;
+                this.clearUpdateGameTimer();
+                this.ui.updateAll();
+                requestAnimationFrame(timestamp => this.gameLoop(timestamp, runToken));
+                this.updateGame();
+            }
+
+            returnToMainMenuAfterFinalGridlock() {
+                if (!this.finalGridlockResultActive) return;
+                this.hideFinalPlayAgainButton();
+                this.finalGridlockResultActive = false;
+                this.finalGridlockActive = false;
+                this.finalCompletionActive = false;
+                this.gameOverElement.style.opacity = '0';
+                this.bonusTextElement.style.opacity = '0';
+                this.gameOverElement.classList.remove('finalGridlockGameOverText', 'finalGameCompleteText', 'finalCycleText');
+                this.bonusTextElement.classList.remove('finalGridlockSummary', 'finalGameSummary', 'finalCycleSubtext');
+                this.gameOverElement.textContent = '';
+                this.bonusTextElement.textContent = '';
+                this.setGameOverlayVisible(false);
+                this.container.classList.remove('cycleRestoredIdle');
+                this.clearGameplayObjects();
+                this.player.reset();
+                this.restartReady = true;
+                this.isGameOver = true;
+                this.startAttractMode();
+                this.ui.updateAll();
+                this.refreshGameOverlay();
             }
 
             // Complete the campaign cycle, then wait for player choice before restarting the next cycle.
@@ -11159,7 +11397,11 @@ Orb Control Panel Instrument Reference
             // End the game with explosion and screen shake
             endGame(deathDetails = {}) {
                 if (this.isGameOver) return; // Exit if already over
+                const endedInFinalGridlock = !!this.finalGridlockActive;
+                const finalGridlockTimeMs = this.finalGridlockElapsedMs;
+                const finalGridlockZapsUsed = Math.max(0, this.finalGridlockStartingZaps - Math.max(0, Math.floor(Number(this.cosmicZapsLeft) || 0)));
                 this.finalCompletionActive = false;
+                this.finalGridlockResultActive = false;
                 this.hideFinalPlayAgainButton();
                 this.stopRunRecordActionClock();
                 this.active = false; // Pause game
@@ -11226,10 +11468,41 @@ Orb Control Panel Instrument Reference
 
                 setTimeout(() => { // Show game over sequence
                     this.bonusTextElement.classList.remove('countdownText');
+                    this.audio.playEnd();
+                    this.audio.resume();
+
+                    if (endedInFinalGridlock) {
+                        const finalRelics = this.getRecoveredRelicCount();
+                        const finalGridlockTime = this.formatTelemetryDuration(finalGridlockTimeMs);
+                        const zapsLeft = Math.max(0, Math.floor(Number(this.cosmicZapsLeft) || 0));
+                        this.finalGridlockActive = false;
+                        this.finalGridlockResultActive = true;
+                        this.gameOverElement.classList.remove('finalCycleText', 'finalGameCompleteText');
+                        this.gameOverElement.classList.add('finalGridlockGameOverText');
+                        this.bonusTextElement.classList.remove('finalCycleSubtext', 'finalGameSummary');
+                        this.bonusTextElement.classList.add('finalGridlockSummary');
+                        this.gameOverElement.textContent = 'GAME OVER';
+                        this.bonusTextElement.textContent = `FINAL SCORE ${this.score}
+GRIDLOCK TIME ${finalGridlockTime}
+CYCLES COMPLETED ${this.MAX_CYCLES}
+RELICS COLLECTED ${finalRelics}/15
+ZAPS USED ${finalGridlockZapsUsed}  LEFT ${zapsLeft}`;
+                        this.gameOverElement.style.opacity = '1';
+                        this.bonusTextElement.style.opacity = '1';
+                        this.setGameOverlayVisible(true);
+                        this.highScore = this.loadHighScore();
+                        this.highScoreDetails = this.loadHighScoreDetails();
+                        this.updateHighScoreDisplay();
+                        this.restartReady = true;
+                        this.updateSettingsSectorLabel();
+                        this.updateDifficultyLabel();
+                        this.showFinalPlayAgainButton('MAIN MENU');
+                        this.ui.updateAll();
+                        return;
+                    }
+
                     this.gameOverElement.textContent = 'GAME OVER';
                     this.gameOverElement.style.opacity = '1'; // Show game over text
-                    this.audio.playEnd(); // Play end sound
-                    this.audio.resume(); // Resume audio context
                     setTimeout(() => {
                         this.gameOverElement.style.opacity = '0'; // Fade out text
                         setTimeout(() => {
@@ -13498,7 +13771,7 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 const canPause = this.game.active && this.game.levelActionStarted && !this.game.isPaused && !this.game.isGameOver;
                 const canResume = this.game.isPaused && this.game.levelActionStarted && !this.game.isGameOver;
                 const continueCycleReady = this.game.cycleTransitionActive && !!this.game.pendingCycleContinueToken && !this.game.isGameOver;
-                const temporarilyBlocked = (this.game.cycleTransitionActive && !continueCycleReady) || this.game.showHudDuringSectorIntro || this.game.startInputLocked || (this.game.isGameOver && !this.game.restartReady);
+                const temporarilyBlocked = (this.game.cycleTransitionActive && !continueCycleReady) || this.game.showHudDuringSectorIntro || this.game.startInputLocked || this.game.finalCompletionActive || this.game.finalGridlockResultActive || (this.game.isGameOver && !this.game.restartReady);
 
                 const coreSymbol = canPause
                     ? '<span class="pause-symbol"><span class="pause-bar"></span><span class="pause-bar"></span></span>'
@@ -13531,7 +13804,7 @@ startMaxSwarmBeat(delaySeconds = 0) {
             // One completed-grid symbol represents each fully completed campaign cycle.
             updateCycleIndicator() {
                 if (!this.cycleElement) return;
-                const completedCycles = this.game.finalCompletionActive
+                const completedCycles = (this.game.finalCompletionActive || this.game.finalGridlockActive || this.game.finalGridlockResultActive)
                     ? this.game.MAX_CYCLES
                     : Math.max(0, Math.floor((this.game.cycle || 1) - 1));
                 const inRunContext = this.game.hasStartedRun || this.game.active || this.game.showHudDuringSectorIntro || this.game.isGameOver || this.game.cycleTransitionActive;
@@ -13779,12 +14052,12 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 const totalSeconds = Math.max(0, Math.floor(elapsedMs / 1000));
                 const minutes = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
                 const seconds = (totalSeconds % 60).toString().padStart(2, '0');
-                return `${minutes} ${seconds}`;
+                return `${minutes}${seconds}`;
             }
 
             updateTimerInstrument() {
                 const powered = !!this.game.cockpitActivated;
-                const displayValue = powered ? this.formatHudTimer() : '00 00';
+                const displayValue = powered ? this.formatHudTimer() : '0000';
                 if (this.timerValue) {
                     this.timerValue.setAttribute('data-timer-string', displayValue);
                     this.renderAlienMonoText(this.timerValue, displayValue);
