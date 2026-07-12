@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v256: Uses Orbitron as the primary game font, confines Zoidiac to the control panel, removes embedded and unused fonts, and renames the splash assets.
+Build v257: Reduces control-panel text, limits Zoidiac to the Sector Cartouche and Chrono Drift, steadies the Crystal Spine, removes its completion burst, and refines completed-node outlines.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -21,7 +21,7 @@ Orb Control Panel Instrument Reference
 - Velocity Glyph Engine — Temporarily displays the Orb’s finger-driven movement speed.
 - Orb Command Socket — Controls the Orb’s pause, resume, and primary interface functions.
 -->
-<html data-build-version="v256">
+<html data-build-version="v257">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -5223,14 +5223,6 @@ Orb Control Panel Instrument Reference
             box-shadow: none;
         }
 
-        #greenCrystalGauge.crystal-spine.spine-full-flash {
-            animation: crystalSpineCompletionFlash 0.90s ease-out 1;
-        }
-
-        #greenCrystalGauge.crystal-spine.spine-full-flash .crystal-spine-vertebra.complete {
-            animation: crystalSpineCompletionVertebra 0.90s ease-out 1;
-        }
-
         @keyframes crystalSpineNewestFlash {
             0% {
                 transform: scale(0.72);
@@ -5249,23 +5241,46 @@ Orb Control Panel Instrument Reference
             }
         }
 
-        @keyframes crystalSpineCompletionFlash {
-            0% { box-shadow: inset 0 0 3px rgba(0,255,0,0.22), 0 0 4px rgba(0,255,0,0.18); }
-            28% { box-shadow: inset 0 0 12px rgba(255,255,255,0.56), 0 0 22px rgba(0,255,0,0.88), 0 0 38px rgba(255,255,255,0.52); }
-            100% { box-shadow: inset 0 0 2px rgba(0,92,0,0.18), 0 0 2px rgba(180,180,180,0.18); }
-        }
 
-        @keyframes crystalSpineCompletionVertebra {
-            0% { filter: brightness(1) drop-shadow(0 0 2px rgba(0,255,0,0.24)); }
-            28% { filter: brightness(2.1) drop-shadow(0 0 9px #fff) drop-shadow(0 0 15px var(--green-color)); }
-            100% { filter: brightness(1) drop-shadow(0 0 2px rgba(0,255,0,0.24)); }
-        }
-
-
-        /* Font scope: the cockpit/control panel is the only Zoidiac region. */
+        /* v257: Orbitron returns to the full control panel except for the two alien readouts. */
         #bottomHud,
         #bottomHud * {
+            font-family: 'Orbitron' !important;
+        }
+
+        #alienLevelHud,
+        #alienLevelHud *,
+        #timerHud,
+        #timerHud * {
             font-family: 'Zoidiac' !important;
+        }
+
+        /* Slightly smaller control-panel readouts and identification labels. */
+        .alien-level-name-text {
+            font-size: calc(var(--alien-gauge-height) * 0.4752);
+        }
+
+        .alien-status-value {
+            font-size: calc(var(--status-panel-height) * 0.3696);
+        }
+
+        #timerValue {
+            font-size: calc(var(--status-panel-height) * 0.5104);
+        }
+
+        #instrumentNameOverlay {
+            font-size: clamp(9px, 2.46vw, 12px);
+        }
+
+        /* Filled Crystal Spine nodes stay steady. Completed nodes use a thinner bright-green outline. */
+        #greenCrystalGauge .crystal-spine-segment.filled {
+            animation: none !important;
+            border-width: 0.5px;
+            border-color: rgba(0, 255, 0, 0.96);
+        }
+
+        #greenCrystalGauge .crystal-spine-segment.just-collected {
+            animation: crystalSpineNewestFlash 0.40s ease-out 1 !important;
         }
 
     </style>
@@ -13756,7 +13771,6 @@ startMaxSwarmBeat(delaySeconds = 0) {
 
                 container.classList.toggle('spine-near-full', powered && visibleCollected >= 64 && visibleCollected < spineCapacity);
                 container.classList.toggle('spine-full', powered && visibleCollected === spineCapacity);
-                if (!powered || visibleCollected < spineCapacity) container.classList.remove('spine-full-flash');
 
                 const vertebrae = [...container.querySelectorAll('.crystal-spine-vertebra')];
                 vertebrae.forEach((vertebra, topIndex) => {
@@ -13785,13 +13799,6 @@ startMaxSwarmBeat(delaySeconds = 0) {
                         void targetSegment.offsetWidth;
                         targetSegment.classList.add('just-collected');
                         window.setTimeout(() => targetSegment && targetSegment.classList.remove('just-collected'), 420);
-                    }
-
-                    if (visibleCollected === spineCapacity) {
-                        container.classList.remove('spine-full-flash');
-                        void container.offsetWidth;
-                        container.classList.add('spine-full-flash');
-                        window.setTimeout(() => container && container.classList.remove('spine-full-flash'), 900);
                     }
                 }
 
