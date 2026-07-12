@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v253: Restores full-size pre-PLAY instructions, gives Normal mode one Cosmic Zap from Cycle 3 onward, and ends the game with a final completion screen after Cycle 5.
+Build v254: Temporarily repurposes the Recursion Glyph Engine as an Orb velocity gauge, removes decorative conduit pulses, and makes the Prism Reliquary glow steadily according to relic count.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -14,10 +14,10 @@ Orb Control Panel Instrument Reference
 - Chrono Drift — Measures the elapsed time of the current run.
 - Tri-Lock Singularity — Shows the number of Cosmic Zaps currently available.
 - Prism Reliquary — Tracks the Prism Relics recovered across the full cycle.
-- Recursion Glyph Engine — Displays the current cycle and advances with each completed Grid restoration.
+- Velocity Glyph Engine — Temporarily displays the Orb’s finger-driven movement speed.
 - Orb Command Socket — Controls the Orb’s pause, resume, and primary interface functions.
 -->
-<html data-build-version="v253">
+<html data-build-version="v254">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -5120,7 +5120,57 @@ Orb Control Panel Instrument Reference
             top: 14%;
             bottom: 14%;
         }
-</style>
+
+
+        /* v254: temporary velocity-gauge experiment and quieter cockpit motion. */
+        #timerHud::before,
+        #triLockSingularity::after {
+            content: none !important;
+            display: none !important;
+            animation: none !important;
+        }
+
+        #recursionGlyphEngine .recursion-glyph-spine,
+        #recursionGlyphEngine .recursion-glyph-stage.active path,
+        #recursionGlyphEngine .recursion-glyph-stage.active polygon,
+        #recursionGlyphEngine .recursion-glyph-stage.just-activated path,
+        #recursionGlyphEngine .recursion-glyph-stage.just-activated polygon,
+        #recursionGlyphEngine.overclocked svg {
+            animation: none !important;
+        }
+
+        #recursionGlyphEngine .recursion-glyph-spine {
+            stroke-dasharray: none;
+            opacity: calc(0.36 + (var(--velocity-level, 0) * 0.64));
+            transition: opacity 0.10s linear, stroke 0.10s linear;
+        }
+
+        #recursionGlyphEngine .recursion-glyph-stage path,
+        #recursionGlyphEngine .recursion-glyph-stage polygon {
+            transition: opacity 0.09s linear, fill 0.09s linear, stroke 0.09s linear, filter 0.09s linear, transform 0.09s linear;
+        }
+
+        #recursionGlyphEngine.overclocked svg {
+            filter: drop-shadow(0 0 calc(var(--default-glow) * 0.72px) var(--blue-color)) !important;
+        }
+
+        #orbitalTallyOrb,
+        #orbitalTallyOrb.relic-absorbed,
+        #orbitalTallyHud.tally-complete #orbitalTallyOrb {
+            animation: none !important;
+            transform: translate(-50%, -50%) scale(1) !important;
+            opacity: 1;
+            transition: box-shadow 0.28s ease-out, background 0.28s ease-out;
+        }
+
+        #orbitalTallyHud.powered-off #orbitalTallyOrb {
+            animation: none !important;
+            box-shadow: none !important;
+            opacity: 0.34;
+            transform: translate(-50%, -50%) scale(0.92) !important;
+        }
+
+    </style>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700&display=swap" rel="stylesheet">
 </head>
 <body>
@@ -5308,7 +5358,7 @@ Orb Control Panel Instrument Reference
             </div>
             <div id="greenCrystalGauge" class="crystal-vertical-gauge crystal-spine" aria-label="Crystal Spine: 0 of 80 crystals collected"></div>
             <div id="greenCrystalGaugeIcon" class="gauge-measure-icon" aria-hidden="true"><span class="gauge-icon-diamond"></span></div>
-            <div id="recursionGlyphEngine" aria-label="Recursion Glyph Engine, cycle 1">
+            <div id="recursionGlyphEngine" aria-label="Velocity Glyph Engine, Orb stationary">
                 <svg viewBox="0 0 100 360" preserveAspectRatio="none" aria-hidden="true" focusable="false">
                     <path class="recursion-glyph-shell" d="M50 8 L86 40 L86 98 L70 116 L86 134 L86 210 L70 228 L86 246 L86 318 L50 350 L14 318 L14 246 L30 228 L14 210 L14 134 L30 116 L14 98 L14 40 Z"></path>
                     <path class="recursion-glyph-inner" d="M50 24 L72 46 L72 92 L58 108 L58 148 L74 166 L74 202 L58 220 L58 260 L72 278 L72 310 L50 332"></path>
@@ -6130,7 +6180,7 @@ Orb Control Panel Instrument Reference
                     ['Chrono Drift', document.getElementById('timerHud')],
                     ['Tri-Lock Singularity', document.getElementById('triLockSingularity')],
                     ['Prism Reliquary', document.getElementById('orbitalTallyHud')],
-                    ['Recursion Glyph Engine', document.getElementById('recursionGlyphEngine')],
+                    ['Velocity Glyph Engine', document.getElementById('recursionGlyphEngine')],
                     ['Orb Command Socket', document.getElementById('startButton')]
                 ];
 
@@ -11007,6 +11057,9 @@ Orb Control Panel Instrument Reference
                 this.touchDragOffsetX = 0;
                 this.touchDragOffsetY = 0;
                 this.touchActivationPadding = Math.max(18, game.PLAYER_SIZE * 1.5);
+                this.velocityGaugeSpeed = 0;
+                this.velocityGaugeLastSampleTime = 0;
+                this.velocityGaugeLastMoveTime = 0;
                 this.reset(); // Initialize position
             }
 
@@ -11020,6 +11073,9 @@ Orb Control Panel Instrument Reference
                 this.isTouchActive = false; // Disable touch control
                 this.touchDragOffsetX = 0;
                 this.touchDragOffsetY = 0;
+                this.velocityGaugeSpeed = 0;
+                this.velocityGaugeLastSampleTime = 0;
+                this.velocityGaugeLastMoveTime = 0;
                 this.updatePosition(); // Update DOM position
             }
 
@@ -11043,12 +11099,38 @@ Orb Control Panel Instrument Reference
             moveToPoint(point, keepTouchOffset = false) {
                 const targetCenterX = keepTouchOffset ? point.x - this.touchDragOffsetX : point.x;
                 const targetCenterY = keepTouchOffset ? point.y - this.touchDragOffsetY : point.y;
+                const previousX = this.x;
+                const previousY = this.y;
+                const now = performance.now();
 
                 this.x = Math.max(0, Math.min(this.game.PLAYFIELD_SIZE - this.size,
                     targetCenterX - this.size / 2));
                 this.y = Math.max(0, Math.min(this.game.PLAYFIELD_SIZE - this.size,
                     targetCenterY - this.size / 2));
+
+                const movedDistance = Math.hypot(this.x - previousX, this.y - previousY);
+                const sampleAge = this.velocityGaugeLastSampleTime > 0 ? now - this.velocityGaugeLastSampleTime : 0;
+                if (movedDistance > 0.01 && sampleAge >= 5 && sampleAge <= 180) {
+                    const pixelsPerMillisecond = movedDistance / sampleAge;
+                    const fullScaleSpeed = Math.max(0.001, this.game.PLAYFIELD_SIZE * 0.0022);
+                    const rawSpeed = Math.max(0, Math.min(1, pixelsPerMillisecond / fullScaleSpeed));
+                    const restartingAfterPause = !this.velocityGaugeLastMoveTime || now - this.velocityGaugeLastMoveTime > 190;
+                    this.velocityGaugeSpeed = restartingAfterPause
+                        ? rawSpeed
+                        : (this.velocityGaugeSpeed * 0.58) + (rawSpeed * 0.42);
+                    this.velocityGaugeLastMoveTime = now;
+                }
+                this.velocityGaugeLastSampleTime = now;
                 this.updatePosition();
+            }
+
+            getVelocityGaugeLevel(now = performance.now()) {
+                if (!this.velocityGaugeLastMoveTime) return 0;
+                const idleAge = Math.max(0, now - this.velocityGaugeLastMoveTime);
+                if (idleAge <= 55) return Math.max(0, Math.min(1, this.velocityGaugeSpeed));
+                if (idleAge >= 650) return 0;
+                const decay = Math.exp(-(idleAge - 55) / 165);
+                return Math.max(0, Math.min(1, this.velocityGaugeSpeed * decay));
             }
 
 
@@ -11062,6 +11144,7 @@ Orb Control Panel Instrument Reference
                 this.isTouchActive = true;
                 this.touchDragOffsetX = point.x - (this.x + this.size / 2);
                 this.touchDragOffsetY = point.y - (this.y + this.size / 2);
+                this.velocityGaugeLastSampleTime = performance.now();
 
                 if (this.game.container.setPointerCapture) {
                     try { this.game.container.setPointerCapture(e.pointerId); } catch (_) {}
@@ -11081,6 +11164,7 @@ Orb Control Panel Instrument Reference
                 this.isTouchActive = false;
                 this.touchDragOffsetX = 0;
                 this.touchDragOffsetY = 0;
+                this.velocityGaugeLastSampleTime = 0;
             }
 
             // Update player position in DOM
@@ -13101,11 +13185,11 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 this.alienRelicGlyphs = document.getElementById('alienRelicGlyphs'); // Alien relic glyphs
                 this.greenCrystalGauge = document.getElementById('greenCrystalGauge'); // Green crystal collection gauge
                 this.greenCrystalGaugeIcon = document.getElementById('greenCrystalGaugeIcon'); // Crystal gauge icon
-                this.recursionGlyphEngine = document.getElementById('recursionGlyphEngine'); // Cycle recursion glyph instrument
+                this.recursionGlyphEngine = document.getElementById('recursionGlyphEngine'); // Temporary Orb velocity glyph instrument
                 this.recursionGlyphStages = this.recursionGlyphEngine ? [...this.recursionGlyphEngine.querySelectorAll('.recursion-glyph-stage')] : [];
                 this.orbitalTallyHud = document.getElementById('orbitalTallyHud'); // Circular 15-relic Orbital Tally
                 this.orbitalTallyMarkers = document.getElementById('orbitalTallyMarkers'); // Fixed orbital relic markers
-                this.orbitalTallyOrb = document.getElementById('orbitalTallyOrb'); // Relic-responsive pulsing core
+                this.orbitalTallyOrb = document.getElementById('orbitalTallyOrb'); // Relic-responsive steady-glow core
                 this.orbitalTallyRings = this.orbitalTallyHud ? [...this.orbitalTallyHud.querySelectorAll('.orbital-tally-ring')] : [];
                 this.lastOrbitalTallyCount = null;
                 this.lastOrbitalTallySectorSignature = null;
@@ -13450,9 +13534,15 @@ startMaxSwarmBeat(delaySeconds = 0) {
                     ring.classList.toggle('ring-complete', powered && relicCount >= 15);
                 });
 
-                const pulseDuration = 2.40 - (1.55 * (relicCount / 15));
                 if (this.orbitalTallyOrb) {
-                    this.orbitalTallyOrb.style.setProperty('--orbital-pulse-duration', `${pulseDuration.toFixed(3)}s`);
+                    const relicRatio = relicCount / 15;
+                    const whiteGlow = 3.4 + (relicRatio * 5.4);
+                    const yellowGlow = 6.2 + (relicRatio * 10.8);
+                    const outerGlow = 9.5 + (relicRatio * 17.5);
+                    const outerAlpha = 0.22 + (relicRatio * 0.48);
+                    this.orbitalTallyOrb.style.boxShadow = powered
+                        ? `0 0 ${whiteGlow.toFixed(1)}px rgba(255,255,255,0.96), 0 0 ${yellowGlow.toFixed(1)}px rgba(255,255,0,0.64), 0 0 ${outerGlow.toFixed(1)}px rgba(255,255,0,${outerAlpha.toFixed(3)})`
+                        : '';
                 }
                 if (this.orbitalTallyHud) {
                     this.orbitalTallyHud.classList.toggle('tally-complete', powered && relicCount >= 15);
@@ -13703,28 +13793,26 @@ startMaxSwarmBeat(delaySeconds = 0) {
             updateRecursionGlyphEngine() {
                 if (!this.recursionGlyphEngine) return;
                 const powered = !!this.game.cockpitActivated;
-                const cycle = Math.max(1, Math.floor(Number(this.game.cycle) || 1));
-                const activeStageCount = Math.min(
-                    this.recursionGlyphStages.length,
-                    Math.ceil(this.recursionGlyphStages.length * Math.min(cycle, 3) / 3)
-                );
-                const previousStageCount = Number.isFinite(this.lastRecursionStageCount) ? this.lastRecursionStageCount : 0;
+                const velocityLevel = powered && this.game.active && !this.game.isPaused && !this.game.isGameOver && this.game.player && this.game.player.getVelocityGaugeLevel
+                    ? this.game.player.getVelocityGaugeLevel()
+                    : 0;
+                const activeStageCount = velocityLevel > 0.025
+                    ? Math.max(1, Math.min(this.recursionGlyphStages.length, Math.ceil(velocityLevel * this.recursionGlyphStages.length)))
+                    : 0;
 
+                this.recursionGlyphEngine.style.setProperty('--velocity-level', velocityLevel.toFixed(3));
                 this.recursionGlyphEngine.classList.toggle('powered-off', !powered);
-                this.recursionGlyphEngine.classList.toggle('overclocked', false);
+                this.recursionGlyphEngine.classList.toggle('overclocked', powered && velocityLevel >= 0.86);
                 this.recursionGlyphStages.forEach(stage => {
                     const stageNumber = Math.max(1, Number(stage.dataset.stage) || 1);
-                    const shouldBeActive = powered && stageNumber <= activeStageCount;
-                    stage.classList.toggle('active', shouldBeActive);
+                    stage.classList.toggle('active', powered && stageNumber <= activeStageCount);
                     stage.classList.remove('just-activated');
-                    if (powered && activeStageCount > previousStageCount && stageNumber > previousStageCount && stageNumber <= activeStageCount) {
-                        void stage.offsetWidth;
-                        stage.classList.add('just-activated');
-                        window.setTimeout(() => stage.classList.remove('just-activated'), 900);
-                    }
                 });
                 this.lastRecursionStageCount = powered ? activeStageCount : 0;
-                this.recursionGlyphEngine.setAttribute('aria-label', powered ? `Recursion Glyph Engine, cycle ${cycle}` : 'Recursion Glyph Engine dimmed');
+                const speedPercent = Math.round(velocityLevel * 100);
+                this.recursionGlyphEngine.setAttribute('aria-label', powered
+                    ? `Velocity Glyph Engine, Orb speed ${speedPercent} percent`
+                    : 'Velocity Glyph Engine dimmed');
             }
 
             hasHeadOnCollisionWarning() {
