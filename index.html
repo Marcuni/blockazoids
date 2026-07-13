@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v284: Rebalances object RGB separation downward and strengthens LOW phosphor bloom for calibration.
+Build v285: Applies CRT processing across the full gameplay image, softens LOW moving sweep and scanlines, and rebalances MEDIUM/HIGH from approved LOW values.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -21,7 +21,7 @@ Orb Control Panel Instrument Reference
 - Velocity Glyph Engine — Temporarily displays the Orb’s finger-driven movement speed.
 - Orb Command Socket — Controls the Orb’s pause, resume, and primary interface functions.
 -->
-<html data-build-version="v284">
+<html data-build-version="v285">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -7065,6 +7065,186 @@ Orb Control Panel Instrument Reference
             --crt-line-bloom: 0 0 4px rgba(255,255,255,0.34), 0 0 9px rgba(255,255,255,0.13);
         }
 
+
+        /* v285: CRT is the final gameplay display pass, excluding menu screens and menu controls. */
+
+        /* Put every optical CRT layer above gameplay, explosions, announcements, countdowns, and Game Over.
+           Menu screens suspend CRT through .crt-ui-suspended, so they remain clean and unaffected. */
+        .playfield-crt-tint { z-index: 1100; }
+        .playfield-crt-scanlines { z-index: 1101; }
+        .playfield-crt-vignette { z-index: 1102; }
+        .playfield-crt-reflection { z-index: 1103; }
+        .playfield-crt-sweep { z-index: 1104; }
+        .playfield-crt-curvature { z-index: 1105; }
+        .playfield-crt-outer-glow { z-index: 1106; }
+        .playfield-crt-outline { z-index: 1107; }
+        .playfield-crt-event { z-index: 1110; }
+        .playfield-crt-shutdown { z-index: 1111; }
+        #crtPerformanceHud { z-index: 1120; }
+        #cycleContinueButton { z-index: 1125; }
+
+        /* Shared CRT values for gameplay text and transient visual effects that were previously omitted. */
+        #gameContainer.crt-enabled:not(.crt-ui-suspended) {
+            --crt-text-rgb: 0 0 0 transparent;
+            --crt-text-bloom: 0 0 0 transparent;
+            --crt-effect-rgb: 0 0 0 transparent;
+            --crt-effect-bloom: 0 0 0 transparent;
+        }
+
+        /* SCREEN BASE: LOW remains the authored reference; MEDIUM/HIGH are rebuilt from it. */
+        #gameContainer.crt-enabled.crt-fx-scanlines.crt-scanlines-low:not(.crt-ui-suspended) .playfield-crt-scanlines {
+            opacity: 0.205;
+        }
+        #gameContainer.crt-enabled.crt-fx-scanlines.crt-scanlines-medium:not(.crt-ui-suspended) .playfield-crt-scanlines {
+            opacity: 0.32;
+            background: repeating-linear-gradient(to bottom, rgba(0,0,0,0.49) 0 1.35px, rgba(0,255,225,0.035) 1.35px 2.1px, transparent 2.1px 5.7px);
+        }
+        #gameContainer.crt-enabled.crt-fx-scanlines.crt-scanlines-high:not(.crt-ui-suspended) .playfield-crt-scanlines {
+            opacity: 0.43;
+            background: repeating-linear-gradient(to bottom, rgba(0,0,0,0.56) 0 1.8px, rgba(0,255,225,0.07) 1.8px 2.8px, transparent 2.8px 6.5px);
+        }
+
+        #gameContainer.crt-enabled.crt-fx-vignette.crt-vignette-low:not(.crt-ui-suspended) .playfield-crt-vignette { opacity: 0.30; }
+        #gameContainer.crt-enabled.crt-fx-vignette.crt-vignette-medium:not(.crt-ui-suspended) .playfield-crt-vignette { opacity: 0.44; }
+        #gameContainer.crt-enabled.crt-fx-vignette.crt-vignette-high:not(.crt-ui-suspended) .playfield-crt-vignette { opacity: 0.58; }
+
+        #gameContainer.crt-enabled.crt-fx-tint.crt-tint-low:not(.crt-ui-suspended) .playfield-crt-tint { opacity: 0.13; }
+        #gameContainer.crt-enabled.crt-fx-tint.crt-tint-medium:not(.crt-ui-suspended) .playfield-crt-tint { opacity: 0.21; }
+        #gameContainer.crt-enabled.crt-fx-tint.crt-tint-high:not(.crt-ui-suspended) .playfield-crt-tint { opacity: 0.30; }
+
+        #gameContainer.crt-enabled.crt-fx-reflection.crt-reflection-low:not(.crt-ui-suspended) .playfield-crt-reflection { opacity: 0.17; }
+        #gameContainer.crt-enabled.crt-fx-reflection.crt-reflection-medium:not(.crt-ui-suspended) .playfield-crt-reflection { opacity: 0.25; }
+        #gameContainer.crt-enabled.crt-fx-reflection.crt-reflection-high:not(.crt-ui-suspended) .playfield-crt-reflection { opacity: 0.34; }
+
+        /* VECTOR PHOSPHOR: all object, text, explosion, and announcement ladders derive from LOW. */
+        #gameContainer.crt-enabled.crt-fx-bloom.crt-bloom-low:not(.crt-ui-suspended) {
+            --crt-player-bloom: 0 0 5px rgba(255,255,255,0.50), 0 0 12px rgba(255,255,255,0.20);
+            --crt-enemy-bloom: 0 0 4px rgba(255,255,255,0.37), 0 0 10px rgba(255,255,255,0.15);
+            --crt-crystal-bloom: 0 0 5px rgba(255,255,255,0.43), 0 0 12px rgba(255,255,255,0.17);
+            --crt-line-bloom: 0 0 4px rgba(255,255,255,0.34), 0 0 9px rgba(255,255,255,0.13);
+            --crt-text-bloom: 0 0 5px rgba(255,255,255,0.46), 0 0 12px rgba(255,255,255,0.18);
+            --crt-effect-bloom: 0 0 4px rgba(255,255,255,0.38), 0 0 10px rgba(255,255,255,0.15);
+        }
+        #gameContainer.crt-enabled.crt-fx-bloom.crt-bloom-medium:not(.crt-ui-suspended) {
+            --crt-player-bloom: 0 0 8px rgba(255,255,255,0.68), 0 0 19px rgba(255,255,255,0.30);
+            --crt-enemy-bloom: 0 0 6.5px rgba(255,255,255,0.52), 0 0 16px rgba(255,255,255,0.23);
+            --crt-crystal-bloom: 0 0 8px rgba(255,255,255,0.60), 0 0 19px rgba(255,255,255,0.26);
+            --crt-line-bloom: 0 0 6px rgba(255,255,255,0.48), 0 0 14px rgba(255,255,255,0.20);
+            --crt-text-bloom: 0 0 8px rgba(255,255,255,0.64), 0 0 19px rgba(255,255,255,0.27);
+            --crt-effect-bloom: 0 0 6.5px rgba(255,255,255,0.54), 0 0 16px rgba(255,255,255,0.22);
+        }
+        #gameContainer.crt-enabled.crt-fx-bloom.crt-bloom-high:not(.crt-ui-suspended) {
+            --crt-player-bloom: 0 0 12px rgba(255,255,255,0.84), 0 0 28px rgba(255,255,255,0.42);
+            --crt-enemy-bloom: 0 0 10px rgba(255,255,255,0.70), 0 0 24px rgba(255,255,255,0.34);
+            --crt-crystal-bloom: 0 0 12px rgba(255,255,255,0.77), 0 0 28px rgba(255,255,255,0.38);
+            --crt-line-bloom: 0 0 9px rgba(255,255,255,0.64), 0 0 21px rgba(255,255,255,0.30);
+            --crt-text-bloom: 0 0 12px rgba(255,255,255,0.80), 0 0 28px rgba(255,255,255,0.38);
+            --crt-effect-bloom: 0 0 10px rgba(255,255,255,0.72), 0 0 24px rgba(255,255,255,0.32);
+        }
+
+        /* Bezel illumination uses the approved LOW as the base and scales without changing the sharp outline. */
+        #playfieldShell.crt-enabled.crt-fx-glow.crt-glow-low:not(.crt-ui-suspended) .glow-mid { opacity: 0.16; stroke-width: 9; }
+        #playfieldShell.crt-enabled.crt-fx-glow.crt-glow-low:not(.crt-ui-suspended) .glow-far { opacity: 0.055; stroke-width: 18; }
+        #playfieldShell.crt-enabled.crt-fx-glow.crt-glow-medium:not(.crt-ui-suspended) .glow-mid { opacity: 0.23; stroke-width: 12; }
+        #playfieldShell.crt-enabled.crt-fx-glow.crt-glow-medium:not(.crt-ui-suspended) .glow-far { opacity: 0.085; stroke-width: 24; }
+        #playfieldShell.crt-enabled.crt-fx-glow.crt-glow-high:not(.crt-ui-suspended) .glow-mid { opacity: 0.31; stroke-width: 15; }
+        #playfieldShell.crt-enabled.crt-fx-glow.crt-glow-high:not(.crt-ui-suspended) .glow-far { opacity: 0.12; stroke-width: 30; }
+
+        /* SIGNAL IMPERFECTIONS: LOW sweep is slightly weaker; MEDIUM/HIGH are distinct scaled steps. */
+        #gameContainer.crt-enabled.crt-fx-sweep.crt-sweep-low:not(.crt-ui-suspended):not(.crt-paused) .playfield-crt-sweep {
+            filter: opacity(0.14);
+            animation-duration: 10.5s;
+        }
+        #gameContainer.crt-enabled.crt-fx-sweep.crt-sweep-medium:not(.crt-ui-suspended):not(.crt-paused) .playfield-crt-sweep {
+            filter: opacity(0.22);
+            animation-duration: 8.4s;
+        }
+        #gameContainer.crt-enabled.crt-fx-sweep.crt-sweep-high:not(.crt-ui-suspended):not(.crt-paused) .playfield-crt-sweep {
+            filter: opacity(0.31);
+            animation-duration: 6.7s;
+        }
+
+        /* RGB grid ladder remains deliberately restrained for performance and readability. */
+        #gameContainer.crt-enabled.crt-fx-grid-rgb.crt-grid-rgb-low:not(.crt-ui-suspended) {
+            background-color: #000609;
+            background-image:
+                linear-gradient(rgba(255,0,0,0.08) 0.8px, transparent 0.8px), linear-gradient(90deg, rgba(255,0,0,0.08) 0.8px, transparent 0.8px),
+                linear-gradient(rgba(0,120,255,0.09) 0.8px, transparent 0.8px), linear-gradient(90deg, rgba(0,120,255,0.09) 0.8px, transparent 0.8px),
+                linear-gradient(rgba(255,255,255,0.52) 0.7px, transparent 0.7px), linear-gradient(90deg, rgba(255,255,255,0.52) 0.7px, transparent 0.7px);
+            background-size: var(--grid-size,60px) var(--grid-size,60px); background-position: 0 -1px, -1px 0, 0 1px, 1px 0, 0 0, 0 0;
+        }
+        #gameContainer.crt-enabled.crt-fx-grid-rgb.crt-grid-rgb-medium:not(.crt-ui-suspended) {
+            background-color: #00090c;
+            background-image:
+                linear-gradient(rgba(255,0,0,0.13) 0.9px, transparent 0.9px), linear-gradient(90deg, rgba(255,0,0,0.13) 0.9px, transparent 0.9px),
+                linear-gradient(rgba(0,120,255,0.145) 0.9px, transparent 0.9px), linear-gradient(90deg, rgba(0,120,255,0.145) 0.9px, transparent 0.9px),
+                linear-gradient(rgba(255,255,255,0.55) 0.75px, transparent 0.75px), linear-gradient(90deg, rgba(255,255,255,0.55) 0.75px, transparent 0.75px);
+            background-size: var(--grid-size,60px) var(--grid-size,60px); background-position: 0 -1.5px, -1.5px 0, 0 1.5px, 1.5px 0, 0 0, 0 0;
+        }
+        #gameContainer.crt-enabled.crt-fx-grid-rgb.crt-grid-rgb-high:not(.crt-ui-suspended) {
+            background-color: #000b10;
+            background-image:
+                linear-gradient(rgba(255,0,0,0.18) 1px, transparent 1px), linear-gradient(90deg, rgba(255,0,0,0.18) 1px, transparent 1px),
+                linear-gradient(rgba(0,120,255,0.20) 1px, transparent 1px), linear-gradient(90deg, rgba(0,120,255,0.20) 1px, transparent 1px),
+                linear-gradient(rgba(255,255,255,0.58) 0.8px, transparent 0.8px), linear-gradient(90deg, rgba(255,255,255,0.58) 0.8px, transparent 0.8px);
+            background-size: var(--grid-size,60px) var(--grid-size,60px); background-position: 0 -2px, -2px 0, 0 2px, 2px 0, 0 0, 0 0;
+        }
+
+        /* Object RGB uses the approved softer LOW and rebuilt proportional MEDIUM/HIGH values. */
+        #gameContainer.crt-enabled.crt-fx-object-rgb.crt-object-rgb-low:not(.crt-ui-suspended) {
+            --crt-player-rgb: -1.15px 0 0 rgba(255,0,0,0.30), 1.15px 0 0 rgba(0,120,255,0.34);
+            --crt-enemy-rgb: -1px 0 0 rgba(255,0,0,0.25), 1px 0 0 rgba(0,120,255,0.29);
+            --crt-crystal-rgb: -1px 0 0 rgba(255,0,0,0.27), 1px 0 0 rgba(0,120,255,0.31);
+            --crt-line-rgb: -0.75px 0 0 rgba(255,0,0,0.21), 0.75px 0 0 rgba(0,120,255,0.24);
+            --crt-text-rgb: -1.15px 0 0 rgba(255,0,0,0.28), 1.15px 0 0 rgba(0,120,255,0.32);
+            --crt-effect-rgb: -1px 0 0 rgba(255,0,0,0.24), 1px 0 0 rgba(0,120,255,0.28);
+        }
+        #gameContainer.crt-enabled.crt-fx-object-rgb.crt-object-rgb-medium:not(.crt-ui-suspended) {
+            --crt-player-rgb: -1.85px 0 0 0.10px rgba(255,0,0,0.43), 1.85px 0 0 0.10px rgba(0,120,255,0.49);
+            --crt-enemy-rgb: -1.65px 0 0 0.08px rgba(255,0,0,0.36), 1.65px 0 0 0.08px rgba(0,120,255,0.41);
+            --crt-crystal-rgb: -1.65px 0 0 0.08px rgba(255,0,0,0.39), 1.65px 0 0 0.08px rgba(0,120,255,0.44);
+            --crt-line-rgb: -1.2px 0 0 rgba(255,0,0,0.30), 1.2px 0 0 rgba(0,120,255,0.34);
+            --crt-text-rgb: -1.85px 0 0 rgba(255,0,0,0.40), 1.85px 0 0 rgba(0,120,255,0.46);
+            --crt-effect-rgb: -1.65px 0 0 rgba(255,0,0,0.35), 1.65px 0 0 rgba(0,120,255,0.40);
+        }
+        #gameContainer.crt-enabled.crt-fx-object-rgb.crt-object-rgb-high:not(.crt-ui-suspended) {
+            --crt-player-rgb: -2.65px 0 0 0.20px rgba(255,0,0,0.56), 2.65px 0 0 0.20px rgba(0,120,255,0.64);
+            --crt-enemy-rgb: -2.35px 0 0 0.16px rgba(255,0,0,0.47), 2.35px 0 0 0.16px rgba(0,120,255,0.54);
+            --crt-crystal-rgb: -2.35px 0 0 0.16px rgba(255,0,0,0.51), 2.35px 0 0 0.16px rgba(0,120,255,0.58);
+            --crt-line-rgb: -1.7px 0 0 0.08px rgba(255,0,0,0.39), 1.7px 0 0 0.08px rgba(0,120,255,0.45);
+            --crt-text-rgb: -2.65px 0 0 rgba(255,0,0,0.52), 2.65px 0 0 rgba(0,120,255,0.60);
+            --crt-effect-rgb: -2.35px 0 0 rgba(255,0,0,0.46), 2.35px 0 0 rgba(0,120,255,0.53);
+        }
+
+        /* Apply phosphor and RGB separation to every non-menu gameplay visual that emits light. */
+        body.crt-phosphor-calibration #gameContainer.crt-enabled:not(.crt-ui-suspended) #gameOver,
+        body.crt-phosphor-calibration #gameContainer.crt-enabled:not(.crt-ui-suspended) #bonusText,
+        body.crt-phosphor-calibration #gameContainer.crt-enabled:not(.crt-ui-suspended) #bonusText * {
+            text-shadow: var(--crt-text-rgb, 0 0 0 transparent), var(--crt-text-bloom, 0 0 0 transparent) !important;
+        }
+
+        body.crt-phosphor-calibration #gameContainer.crt-enabled:not(.crt-ui-suspended) .explosion,
+        body.crt-phosphor-calibration #gameContainer.crt-enabled:not(.crt-ui-suspended) .cosmic-zap-overload-ring,
+        body.crt-phosphor-calibration #gameContainer.crt-enabled:not(.crt-ui-suspended) .cosmic-zap-line,
+        body.crt-phosphor-calibration #gameContainer.crt-enabled:not(.crt-ui-suspended) .cosmic-zap-spark,
+        body.crt-phosphor-calibration #gameContainer.crt-enabled:not(.crt-ui-suspended) .spawn-warning,
+        body.crt-phosphor-calibration #gameContainer.crt-enabled:not(.crt-ui-suspended) .filled-square,
+        body.crt-phosphor-calibration #gameContainer.crt-enabled:not(.crt-ui-suspended) .cycle-reboot-line,
+        body.crt-phosphor-calibration #gameContainer.crt-enabled:not(.crt-ui-suspended) .cycle-reboot-cell {
+            box-shadow: var(--crt-effect-rgb, 0 0 0 transparent), var(--crt-effect-bloom, 0 0 0 transparent) !important;
+        }
+
+        /* Rebalanced event ladders. Cosmic Zap stays exactly at its approved v281 values. */
+        #gameContainer.crt-gridlock-low.crt-gridlock-event .playfield-crt-event { filter: opacity(0.22); }
+        #gameContainer.crt-gridlock-medium.crt-gridlock-event .playfield-crt-event { filter: opacity(0.36); }
+        #gameContainer.crt-gridlock-high.crt-gridlock-event .playfield-crt-event { filter: opacity(0.50); }
+        #gameContainer.crt-zap-low.crt-zap-event .playfield-crt-event { filter: opacity(0.18); }
+        #gameContainer.crt-zap-medium.crt-zap-event .playfield-crt-event { filter: opacity(0.36); }
+        #gameContainer.crt-zap-high.crt-zap-event .playfield-crt-event { filter: opacity(0.50); }
+        #gameContainer.crt-restore-low.crt-restore-event .playfield-crt-event { filter: opacity(0.42); }
+        #gameContainer.crt-restore-medium.crt-restore-event .playfield-crt-event { filter: opacity(0.60); }
+        #gameContainer.crt-restore-high.crt-restore-event .playfield-crt-event { filter: opacity(0.78); }
+
 </style>
 </head>
 <body class="crt-phosphor-calibration">
@@ -11290,7 +11470,7 @@ Orb Control Panel Instrument Reference
                 const showingLevelSelect = this.levelSelectWindow && this.levelSelectWindow.style.display === 'flex';
                 const showingMessagePanel = this.isMessagePanelVisible();
                 const showingResultScreen = !!(this.finalGridlockResultActive || (this.isGameOver && !this.restartReady));
-                const shouldSuspendCrt = !!(showingMenuPanel || this.isPaused || showingLevelSelect || showingMessagePanel || showingInstructions);
+                const shouldSuspendCrt = !!(showingMenuPanel || this.isPaused || showingLevelSelect || showingInstructions);
                 this.setCrtUiSuspended(shouldSuspendCrt);
 
                 // Let the Start / Play Again attract colors show clearly.
