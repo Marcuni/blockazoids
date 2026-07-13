@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v273: Corrects the CRT bezel mask, adds independent overscan control and live performance telemetry, softens sweep and event reactions, tightens instructions, and restores the silver Crystal Spine ingestion animation.
+Build v274: Makes the CRT overscan bezel visibly mask the playfield perimeter, lowers Low phosphor bloom, and refines Crystal Spine ingestion to fall within the gauge.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -21,7 +21,7 @@ Orb Control Panel Instrument Reference
 - Velocity Glyph Engine — Temporarily displays the Orb’s finger-driven movement speed.
 - Orb Command Socket — Controls the Orb’s pause, resume, and primary interface functions.
 -->
-<html data-build-version="v273">
+<html data-build-version="v274">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -5879,10 +5879,10 @@ Orb Control Panel Instrument Reference
 
         /* VECTOR PHOSPHOR intensity. Existing game-art glow remains the primary halo. */
         #gameContainer.crt-enabled.crt-phosphor-low:not(.crt-ui-suspended) {
-            --crt-player-bloom: 0 0 4px rgba(255,255,255,0.32), 0 0 8px rgba(255,255,255,0.12);
+            --crt-player-bloom: 0 0 3px rgba(255,255,255,0.24), 0 0 6px rgba(255,255,255,0.08);
             --crt-enemy-bloom: 0 0 0 transparent;
-            --crt-crystal-bloom: 0 0 4px rgba(255,255,255,0.26), 0 0 8px rgba(255,255,255,0.10);
-            --crt-line-bloom: 0 0 3px rgba(255,255,255,0.22);
+            --crt-crystal-bloom: 0 0 3px rgba(255,255,255,0.19), 0 0 6px rgba(255,255,255,0.07);
+            --crt-line-bloom: 0 0 2px rgba(255,255,255,0.16);
         }
         #gameContainer.crt-enabled.crt-phosphor-medium:not(.crt-ui-suspended) {
             --crt-player-bloom: 0 0 8px rgba(255,255,255,0.50), 0 0 15px rgba(255,255,255,0.20);
@@ -6140,10 +6140,10 @@ Orb Control Panel Instrument Reference
 
         /* VECTOR PHOSPHOR: old Medium is now High; new Medium is halfway from Low. */
         #gameContainer.crt-enabled.crt-phosphor-low:not(.crt-ui-suspended) {
-            --crt-player-bloom: 0 0 4px rgba(255,255,255,0.32), 0 0 8px rgba(255,255,255,0.12);
+            --crt-player-bloom: 0 0 3px rgba(255,255,255,0.24), 0 0 6px rgba(255,255,255,0.08);
             --crt-enemy-bloom: 0 0 0 transparent;
-            --crt-crystal-bloom: 0 0 4px rgba(255,255,255,0.26), 0 0 8px rgba(255,255,255,0.10);
-            --crt-line-bloom: 0 0 3px rgba(255,255,255,0.22);
+            --crt-crystal-bloom: 0 0 3px rgba(255,255,255,0.19), 0 0 6px rgba(255,255,255,0.07);
+            --crt-line-bloom: 0 0 2px rgba(255,255,255,0.16);
         }
         #gameContainer.crt-enabled.crt-phosphor-medium:not(.crt-ui-suspended) {
             --crt-player-bloom: 0 0 6px rgba(255,255,255,0.41), 0 0 12px rgba(255,255,255,0.16);
@@ -6262,7 +6262,7 @@ Orb Control Panel Instrument Reference
             padding-top: 16px;
         }
 
-        /* Reliable black CRT bezel: the SVG mask covers everything outside the rounded tube opening. */
+        /* Visible black CRT bezel: mask the perimeter while allowing phosphor light to spill over it. */
         .playfield-crt-curvature {
             z-index: 26;
             opacity: 0;
@@ -6275,8 +6275,8 @@ Orb Control Panel Instrument Reference
 
         .playfield-crt-curvature .crt-bezel-line {
             fill: none;
-            stroke: rgba(0,0,0,0.98);
-            stroke-width: 2.2;
+            stroke: rgba(112,126,136,0.78);
+            stroke-width: 1.35;
             vector-effect: non-scaling-stroke;
         }
 
@@ -6284,12 +6284,12 @@ Orb Control Panel Instrument Reference
             opacity: 1;
         }
 
-        /* Overscan is authored as ON/OFF; Signal intensity never changes its geometry. */
+        /* Overscan is a fixed ON/OFF visual mask; Signal intensity never changes its geometry. */
         #gameContainer.crt-signal-low,
         #gameContainer.crt-signal-medium,
         #gameContainer.crt-signal-high {
-            --crt-tube-inset: 2px;
-            --crt-tube-radius: 12px;
+            --crt-tube-inset: 5px;
+            --crt-tube-radius: 20px;
         }
 
         .playfield-crt-tube-glow {
@@ -6297,8 +6297,8 @@ Orb Control Panel Instrument Reference
         }
 
         .playfield-crt-tube-glow::before {
-            inset: 2px;
-            border-radius: 12px;
+            inset: 5px;
+            border-radius: 20px;
         }
 
         /* Lower the moving sweep at every Signal Imperfections level. */
@@ -6369,23 +6369,32 @@ Orb Control Panel Instrument Reference
             font-weight: 700;
         }
 
-        /* Silver twinkling crystal travels outside CRT processing, then turns green on ingestion. */
+        /* A subdued silver cell falls only inside the Crystal Spine, then turns green on ingestion. */
         .crystal-spine-transfer {
             position: fixed;
             z-index: 10000;
             pointer-events: none;
-            transform: translate(-50%, -50%) rotate(45deg);
+            transform: translate(-50%, -50%);
             box-sizing: border-box;
-            background: linear-gradient(135deg, #ffffff 0%, #aeb7c0 45%, #f7fbff 64%, #8d98a4 100%);
-            border: 1px solid rgba(255,255,255,0.95);
-            box-shadow: 0 0 7px #fff, 0 0 15px rgba(220,235,255,0.92), 0 0 26px rgba(255,255,255,0.48);
-            animation: crystalSpineTransferTwinkle 0.12s steps(2, end) infinite;
+            background: linear-gradient(135deg, rgba(245,248,250,0.96) 0%, rgba(142,151,160,0.94) 48%, rgba(225,231,236,0.96) 100%);
+            border: 0.5px solid rgba(228,234,240,0.88);
+            clip-path: polygon(18% 0%, 100% 0%, 82% 100%, 0% 100%);
+            box-shadow: 0 0 2px rgba(255,255,255,0.56), 0 0 4px rgba(206,220,232,0.28);
+            opacity: 0.82;
+            animation: crystalSpineTransferTwinkle 0.25s infinite alternate;
         }
 
         @keyframes crystalSpineTransferTwinkle {
-            0% { background-position: 0 0; box-shadow: 0 0 5px #fff, 0 0 11px rgba(220,235,255,0.76); }
-            50% { background-position: 100% 100%; box-shadow: 0 0 10px #fff, 0 0 21px rgba(235,245,255,1), 0 0 34px rgba(255,255,255,0.56); }
-            100% { background-position: 0 0; box-shadow: 0 0 6px #fff, 0 0 13px rgba(220,235,255,0.82); }
+            0% {
+                background-color: rgba(160,168,176,0.92);
+                box-shadow: 0 0 1px rgba(255,255,255,0.42), 0 0 3px rgba(206,220,232,0.20);
+                filter: brightness(0.88);
+            }
+            100% {
+                background-color: rgba(235,239,242,0.96);
+                box-shadow: 0 0 3px rgba(255,255,255,0.68), 0 0 5px rgba(206,220,232,0.34);
+                filter: brightness(1.04);
+            }
         }
 
     </style>
@@ -6419,11 +6428,11 @@ Orb Control Panel Instrument Reference
             <defs>
                 <mask id="crtTubeOpeningMask" maskUnits="userSpaceOnUse" x="0" y="0" width="600" height="600">
                     <rect x="0" y="0" width="600" height="600" fill="#fff"></rect>
-                    <rect x="2" y="2" width="596" height="596" rx="12" ry="12" fill="#000"></rect>
+                    <rect x="5" y="5" width="590" height="590" rx="20" ry="20" fill="#000"></rect>
                 </mask>
             </defs>
             <rect class="crt-bezel-fill" x="0" y="0" width="600" height="600" mask="url(#crtTubeOpeningMask)"></rect>
-            <rect class="crt-bezel-line" x="2" y="2" width="596" height="596" rx="12" ry="12"></rect>
+            <rect class="crt-bezel-line" x="5" y="5" width="590" height="590" rx="20" ry="20"></rect>
         </svg>
         <div class="playfield-crt-layer playfield-crt-tube-glow" aria-hidden="true"></div>
         <div class="playfield-crt-layer playfield-crt-reflection" aria-hidden="true"></div>
@@ -15567,7 +15576,7 @@ startMaxSwarmBeat(delaySeconds = 0) {
             }
 
             animateCrystalIntoSpine(playfieldPosition, sourceSize = 10) {
-                if (!this.greenCrystalGauge || !this.game.container || !playfieldPosition) return;
+                if (!this.greenCrystalGauge) return;
                 const targetCount = Math.max(1, Math.min(80, this.game.collectedPositions.length));
                 const targetSegment = this.getCrystalSpineTargetSegment(targetCount);
                 if (!targetSegment) {
@@ -15576,39 +15585,35 @@ startMaxSwarmBeat(delaySeconds = 0) {
                     return;
                 }
 
-                const boardRect = this.game.container.getBoundingClientRect();
+                const gaugeRect = this.greenCrystalGauge.getBoundingClientRect();
                 const targetRect = targetSegment.getBoundingClientRect();
-                if (!boardRect.width || !boardRect.height || !targetRect.width || !targetRect.height) {
+                if (!gaugeRect.width || !gaugeRect.height || !targetRect.width || !targetRect.height) {
                     this.crystalGaugeDisplayCount = Math.max(this.crystalGaugeDisplayCount, targetCount);
                     this.renderVerticalCrystalGauge(this.greenCrystalGauge);
                     return;
                 }
 
-                const scaleX = boardRect.width / Math.max(1, this.game.PLAYFIELD_SIZE);
-                const scaleY = boardRect.height / Math.max(1, this.game.PLAYFIELD_SIZE);
-                const startX = boardRect.left + playfieldPosition.x * scaleX;
-                const startY = boardRect.top + playfieldPosition.y * scaleY;
                 const endX = targetRect.left + targetRect.width / 2;
                 const endY = targetRect.top + targetRect.height / 2;
+                const startX = endX;
+                const startY = gaugeRect.top + Math.max(3, targetRect.height / 2 + 1);
                 const transfer = document.createElement('div');
                 transfer.className = 'crystal-spine-transfer';
-                const transferSize = Math.max(7, Math.min(12, Number(sourceSize) || 10));
-                transfer.style.width = `${transferSize}px`;
-                transfer.style.height = `${transferSize}px`;
+                const transferWidth = Math.max(3, targetRect.width * 0.92);
+                const transferHeight = Math.max(2, targetRect.height * 0.92);
+                transfer.style.width = `${transferWidth}px`;
+                transfer.style.height = `${transferHeight}px`;
                 transfer.style.left = `${startX}px`;
                 transfer.style.top = `${startY}px`;
                 document.body.appendChild(transfer);
                 this.crystalGaugeTransferElements.add(transfer);
 
-                const midX = startX + (endX - startX) * 0.58;
-                const midY = startY + (endY - startY) * 0.52 - 14;
                 const animation = transfer.animate([
-                    { left: `${startX}px`, top: `${startY}px`, opacity: 1, filter: 'brightness(1.6)' },
-                    { left: `${midX}px`, top: `${midY}px`, opacity: 1, filter: 'brightness(1.15)', offset: 0.58 },
-                    { left: `${endX}px`, top: `${endY}px`, opacity: 0.95, filter: 'brightness(2)' }
+                    { left: `${startX}px`, top: `${startY}px`, opacity: 0.74 },
+                    { left: `${endX}px`, top: `${endY}px`, opacity: 0.88 }
                 ], {
-                    duration: 500,
-                    easing: 'cubic-bezier(0.20, 0.72, 0.28, 1)',
+                    duration: 390,
+                    easing: 'cubic-bezier(0.28, 0.64, 0.38, 1)',
                     fill: 'forwards'
                 });
 
