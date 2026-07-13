@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v272: Retunes all CRT intensity ranges, replaces screen curvature with a thin overscan mask, makes phosphor glow follow the tube contour, separates fixed death/shutdown toggles, and delays results until the CRT death sequence completes.
+Build v273: Corrects the CRT bezel mask, adds independent overscan control and live performance telemetry, softens sweep and event reactions, tightens instructions, and restores the silver Crystal Spine ingestion animation.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -21,7 +21,7 @@ Orb Control Panel Instrument Reference
 - Velocity Glyph Engine — Temporarily displays the Orb’s finger-driven movement speed.
 - Orb Command Socket — Controls the Orb’s pause, resume, and primary interface functions.
 -->
-<html data-build-version="v272">
+<html data-build-version="v273">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -6237,6 +6237,157 @@ Orb Control Panel Instrument Reference
             --crt-shutdown-dot-outer-glow: 40px;
         }
 
+
+
+        /* v273: tighter How to Play rhythm. */
+        #howToPanel .how-to-panel-title {
+            margin-bottom: 2px;
+        }
+
+        .how-to-basic-section {
+            min-height: 0;
+            justify-content: flex-start;
+            padding: 4px 0 14px;
+        }
+
+        .how-to-crystal-list li {
+            margin: 7px 0;
+        }
+
+        .how-to-curiosity-note {
+            margin-top: 14px;
+        }
+
+        .how-to-basic-section + .how-to-detail-section {
+            padding-top: 16px;
+        }
+
+        /* Reliable black CRT bezel: the SVG mask covers everything outside the rounded tube opening. */
+        .playfield-crt-curvature {
+            z-index: 26;
+            opacity: 0;
+            overflow: visible;
+        }
+
+        .playfield-crt-curvature .crt-bezel-fill {
+            fill: #000;
+        }
+
+        .playfield-crt-curvature .crt-bezel-line {
+            fill: none;
+            stroke: rgba(0,0,0,0.98);
+            stroke-width: 2.2;
+            vector-effect: non-scaling-stroke;
+        }
+
+        #gameContainer.crt-enabled.crt-fx-curvature:not(.crt-ui-suspended) .playfield-crt-curvature {
+            opacity: 1;
+        }
+
+        /* Overscan is authored as ON/OFF; Signal intensity never changes its geometry. */
+        #gameContainer.crt-signal-low,
+        #gameContainer.crt-signal-medium,
+        #gameContainer.crt-signal-high {
+            --crt-tube-inset: 2px;
+            --crt-tube-radius: 12px;
+        }
+
+        .playfield-crt-tube-glow {
+            z-index: 27;
+        }
+
+        .playfield-crt-tube-glow::before {
+            inset: 2px;
+            border-radius: 12px;
+        }
+
+        /* Lower the moving sweep at every Signal Imperfections level. */
+        #gameContainer.crt-enabled.crt-fx-sweep.crt-signal-low:not(.crt-ui-suspended):not(.crt-paused) .playfield-crt-sweep {
+            filter: opacity(0.11);
+            animation-duration: 12s;
+        }
+        #gameContainer.crt-enabled.crt-fx-sweep.crt-signal-medium:not(.crt-ui-suspended):not(.crt-paused) .playfield-crt-sweep {
+            filter: opacity(0.20);
+            animation-duration: 9s;
+        }
+        #gameContainer.crt-enabled.crt-fx-sweep.crt-signal-high:not(.crt-ui-suspended):not(.crt-paused) .playfield-crt-sweep {
+            filter: opacity(0.30);
+            animation-duration: 6.8s;
+        }
+
+        /* Gridlock and Zap are softer than Restore, especially at Low. */
+        #gameContainer.crt-events-low.crt-gridlock-event .playfield-crt-event,
+        #gameContainer.crt-events-low.crt-zap-event .playfield-crt-event { filter: opacity(0.22); }
+        #gameContainer.crt-events-medium.crt-gridlock-event .playfield-crt-event,
+        #gameContainer.crt-events-medium.crt-zap-event .playfield-crt-event { filter: opacity(0.36); }
+        #gameContainer.crt-events-high.crt-gridlock-event .playfield-crt-event,
+        #gameContainer.crt-events-high.crt-zap-event .playfield-crt-event { filter: opacity(0.50); }
+        #gameContainer.crt-events-low.crt-restore-event .playfield-crt-event { filter: opacity(0.42); }
+        #gameContainer.crt-events-medium.crt-restore-event .playfield-crt-event { filter: opacity(0.57); }
+        #gameContainer.crt-events-high.crt-restore-event .playfield-crt-event { filter: opacity(0.72); }
+
+        .crt-signal-fixed-controls {
+            grid-column: 1 / -1;
+            grid-template-columns: 1fr;
+        }
+
+        /* Live developer performance telemetry over gameplay/attract mode. */
+        #crtPerformanceHud {
+            position: absolute;
+            left: 7px;
+            top: 7px;
+            z-index: 3000;
+            display: grid;
+            grid-template-columns: repeat(2, auto);
+            gap: 3px 10px;
+            padding: 5px 7px;
+            color: #fff;
+            background: rgba(0,0,0,0.82);
+            border: 1px solid rgba(255,255,255,0.72);
+            font-family: 'Orbitron', 'Courier New', monospace;
+            font-size: clamp(8px, 2.1vw, 10px);
+            line-height: 1.15;
+            letter-spacing: 0.5px;
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+            text-shadow: none;
+            box-shadow: none;
+        }
+
+        #crtPerformanceHud.visible {
+            opacity: 0.92;
+            visibility: visible;
+        }
+
+        #gameContainer.crt-ui-suspended #crtPerformanceHud {
+            opacity: 0;
+            visibility: hidden;
+        }
+
+        #crtPerformanceHud b {
+            font-weight: 700;
+        }
+
+        /* Silver twinkling crystal travels outside CRT processing, then turns green on ingestion. */
+        .crystal-spine-transfer {
+            position: fixed;
+            z-index: 10000;
+            pointer-events: none;
+            transform: translate(-50%, -50%) rotate(45deg);
+            box-sizing: border-box;
+            background: linear-gradient(135deg, #ffffff 0%, #aeb7c0 45%, #f7fbff 64%, #8d98a4 100%);
+            border: 1px solid rgba(255,255,255,0.95);
+            box-shadow: 0 0 7px #fff, 0 0 15px rgba(220,235,255,0.92), 0 0 26px rgba(255,255,255,0.48);
+            animation: crystalSpineTransferTwinkle 0.12s steps(2, end) infinite;
+        }
+
+        @keyframes crystalSpineTransferTwinkle {
+            0% { background-position: 0 0; box-shadow: 0 0 5px #fff, 0 0 11px rgba(220,235,255,0.76); }
+            50% { background-position: 100% 100%; box-shadow: 0 0 10px #fff, 0 0 21px rgba(235,245,255,1), 0 0 34px rgba(255,255,255,0.56); }
+            100% { background-position: 0 0; box-shadow: 0 0 6px #fff, 0 0 13px rgba(220,235,255,0.82); }
+        }
+
     </style>
 </head>
 <body>
@@ -6264,12 +6415,27 @@ Orb Control Panel Instrument Reference
         <div class="playfield-crt-layer playfield-crt-tint" aria-hidden="true"></div>
         <div class="playfield-crt-layer playfield-crt-scanlines" aria-hidden="true"></div>
         <div class="playfield-crt-layer playfield-crt-vignette" aria-hidden="true"></div>
-        <div class="playfield-crt-layer playfield-crt-curvature" aria-hidden="true"></div>
+        <svg class="playfield-crt-layer playfield-crt-curvature" viewBox="0 0 600 600" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+            <defs>
+                <mask id="crtTubeOpeningMask" maskUnits="userSpaceOnUse" x="0" y="0" width="600" height="600">
+                    <rect x="0" y="0" width="600" height="600" fill="#fff"></rect>
+                    <rect x="2" y="2" width="596" height="596" rx="12" ry="12" fill="#000"></rect>
+                </mask>
+            </defs>
+            <rect class="crt-bezel-fill" x="0" y="0" width="600" height="600" mask="url(#crtTubeOpeningMask)"></rect>
+            <rect class="crt-bezel-line" x="2" y="2" width="596" height="596" rx="12" ry="12"></rect>
+        </svg>
         <div class="playfield-crt-layer playfield-crt-tube-glow" aria-hidden="true"></div>
         <div class="playfield-crt-layer playfield-crt-reflection" aria-hidden="true"></div>
         <div class="playfield-crt-layer playfield-crt-sweep" aria-hidden="true"></div>
         <div class="playfield-crt-layer playfield-crt-event" aria-hidden="true"></div>
         <div class="playfield-crt-shutdown" aria-hidden="true"></div>
+        <div id="crtPerformanceHud" aria-hidden="true">
+            <span>FPS <b id="crtPerfFps">--</b></span>
+            <span>MS <b id="crtPerfFrameMs">--</b></span>
+            <span>LOW <b id="crtPerfLowFps">--</b></span>
+            <span>DROP <b id="crtPerfDropped">--</b></span>
+        </div>
         <div id="player"></div>
         <div id="gameOver">GAME OVER</div>
         <div id="bonusText"></div> <!-- New element for bonus display -->
@@ -6277,11 +6443,11 @@ Orb Control Panel Instrument Reference
         <div id="screenFade"></div>
         <div id="gameOverlay"></div>
         <div id="activationHowToOverlay" aria-hidden="true">
-            <div class="activation-how-to-panel" role="img" aria-label="Drag the white orb to move. Collect blinking crystals. Avoid moving Block-A-Zoids. Shake to Cosmic Zap.">
+            <div class="activation-how-to-panel" role="img" aria-label="Drag the white orb. Collect blinking crystals. Avoid Block-A-Zoids. Shake to Cosmic Zap.">
                 <ul class="activation-how-to-list" aria-hidden="true">
-                    <li>Drag the white orb to move.</li>
+                    <li>Drag the white orb.</li>
                     <li>Collect blinking crystals.</li>
-                    <li>Avoid moving Block-A-Zoids.</li>
+                    <li>Avoid Block-A-Zoids.</li>
                     <li>Shake to Cosmic Zap.</li>
                 </ul>
             </div>
@@ -6301,9 +6467,9 @@ Orb Control Panel Instrument Reference
                 <div class="how-to-panel-body">
                     <section class="how-to-basic-section">
                         <ul class="how-to-crystal-list">
-                            <li>Drag the white orb to move.</li>
+                            <li>Drag the white orb.</li>
                             <li>Collect blinking crystals.</li>
-                            <li>Avoid moving Block-A-Zoids.</li>
+                            <li>Avoid Block-A-Zoids.</li>
                             <li>Shake to Cosmic Zap.</li>
                         </ul>
                         <p class="how-to-curiosity-note"><strong>That is honestly everything you need to play.</strong><br>Curiosity, however, has poor impulse control. Keep scrolling for information you absolutely do not need to survive.</p>
@@ -6450,9 +6616,12 @@ Orb Control Panel Instrument Reference
                             <button class="crt-dev-button crt-group-intensity" type="button" data-crt-group-intensity="phosphor"></button>
                         </div>
                         <div class="crt-group-row" data-crt-group-row="signal">
-                            <div class="crt-group-copy"><strong>SIGNAL IMPERFECTIONS</strong><span>Moving Sweep · RGB Separation · CRT Overscan Mask</span></div>
+                            <div class="crt-group-copy"><strong>SIGNAL IMPERFECTIONS</strong><span>Moving Sweep · RGB Separation</span></div>
                             <button class="crt-dev-button crt-group-toggle" type="button" data-crt-group-toggle="signal"></button>
                             <button class="crt-dev-button crt-group-intensity" type="button" data-crt-group-intensity="signal"></button>
+                            <div class="crt-event-fixed-controls crt-signal-fixed-controls">
+                                <div class="crt-event-fixed-control"><span>CRT OVERSCAN MASK</span><button class="crt-dev-button crt-feature-toggle" type="button" data-crt-feature-toggle="curvature"></button></div>
+                            </div>
                         </div>
                         <div class="crt-group-row crt-event-group-row" data-crt-group-row="events">
                             <div class="crt-group-copy"><strong>EVENT REACTIONS</strong><span>Gridlock · Zap · Restore pulses</span></div>
@@ -6806,7 +6975,7 @@ Orb Control Panel Instrument Reference
                 this.crtGroupMembers = {
                     base: ['scanlines', 'vignette', 'tint', 'reflection'],
                     phosphor: ['bloom', 'glow'],
-                    signal: ['sweep', 'gridRgb', 'objectRgb', 'curvature'],
+                    signal: ['sweep', 'gridRgb', 'objectRgb'],
                     events: ['gridlock', 'zap', 'restore']
                 };
                 this.crtEnabled = this.loadCrtPreference();
@@ -6841,6 +7010,15 @@ Orb Control Panel Instrument Reference
                 this.clearTelemetryButton = document.getElementById('clearTelemetryButton');
                 this.telemetryStatus = document.getElementById('telemetryStatus');
                 this.telemetryBackButton = document.getElementById('telemetryBackButton');
+                this.crtPerformanceHud = document.getElementById('crtPerformanceHud');
+                this.crtPerfFps = document.getElementById('crtPerfFps');
+                this.crtPerfFrameMs = document.getElementById('crtPerfFrameMs');
+                this.crtPerfLowFps = document.getElementById('crtPerfLowFps');
+                this.crtPerfDropped = document.getElementById('crtPerfDropped');
+                this.performanceTelemetrySamples = [];
+                this.performanceTelemetryLastTimestamp = 0;
+                this.performanceTelemetryLastRender = 0;
+                this.startPerformanceTelemetry();
                 this.resetHighScorePending = false;
                 this.resetHighScoreConfirmTimer = null;
                 this.menuButtons = document.getElementById('menuButtons');
@@ -7604,6 +7782,51 @@ Orb Control Panel Instrument Reference
                         this.recordMarqueeUnlockTap();
                     }, { passive: true, capture: true });
                 }
+            }
+
+            startPerformanceTelemetry() {
+                const sampleWindow = 180;
+                const tick = (timestamp) => {
+                    if (this.performanceTelemetryLastTimestamp > 0) {
+                        const delta = timestamp - this.performanceTelemetryLastTimestamp;
+                        if (delta > 0 && delta < 1000) {
+                            this.performanceTelemetrySamples.push(delta);
+                            if (this.performanceTelemetrySamples.length > sampleWindow) {
+                                this.performanceTelemetrySamples.splice(0, this.performanceTelemetrySamples.length - sampleWindow);
+                            }
+                        }
+                    }
+                    this.performanceTelemetryLastTimestamp = timestamp;
+
+                    if (timestamp - this.performanceTelemetryLastRender >= 500) {
+                        this.performanceTelemetryLastRender = timestamp;
+                        this.updatePerformanceTelemetryHud();
+                    }
+                    requestAnimationFrame(tick);
+                };
+                requestAnimationFrame(tick);
+            }
+
+            updatePerformanceTelemetryHud() {
+                if (!this.crtPerformanceHud) return;
+                const visible = !!this.developerModeEnabled;
+                this.crtPerformanceHud.classList.toggle('visible', visible);
+                this.crtPerformanceHud.setAttribute('aria-hidden', visible ? 'false' : 'true');
+                if (!visible || !this.performanceTelemetrySamples.length) return;
+
+                const samples = this.performanceTelemetrySamples;
+                const total = samples.reduce((sum, value) => sum + value, 0);
+                const averageMs = total / samples.length;
+                const slowestMs = Math.max(...samples);
+                const fps = averageMs > 0 ? 1000 / averageMs : 0;
+                const lowestFps = slowestMs > 0 ? 1000 / slowestMs : 0;
+                const droppedFrames = samples.filter(value => value > 20).length;
+                const droppedPercent = (droppedFrames / samples.length) * 100;
+
+                if (this.crtPerfFps) this.crtPerfFps.textContent = fps.toFixed(0);
+                if (this.crtPerfFrameMs) this.crtPerfFrameMs.textContent = averageMs.toFixed(1);
+                if (this.crtPerfLowFps) this.crtPerfLowFps.textContent = lowestFps.toFixed(0);
+                if (this.crtPerfDropped) this.crtPerfDropped.textContent = `${droppedPercent.toFixed(1)}%`;
             }
 
             recordMarqueeUnlockTap() {
@@ -9647,9 +9870,10 @@ Orb Control Panel Instrument Reference
                 Object.keys(this.crtGroups || {}).forEach(group => {
                     this.crtGroups[group].enabled = !!enabled;
                 });
+                Object.keys(this.crtFeatureClassMap || {}).forEach(key => {
+                    this.crtFeatures[key] = !!enabled;
+                });
                 this.syncCrtFeaturesFromGroups();
-                this.crtFeatures.death = !!enabled;
-                this.crtFeatures.shutdown = !!enabled;
                 this.saveCrtGroupPreferences();
                 this.saveCrtFeaturePreferences();
                 this.applyCrtFeatureClasses();
@@ -11716,6 +11940,7 @@ Orb Control Panel Instrument Reference
                     const pos = { x: crystal.x + crystal.size / 2, y: crystal.y + crystal.size / 2 }; // Crystal center
                     this.collectedPositions.push(pos); // Add to collected
                     this.connectToNearestIntersection(pos); // Connect to grid
+                    if (this.ui && this.ui.animateCrystalIntoSpine) this.ui.animateCrystalIntoSpine(pos, crystal.size);
                     crystal.element.remove(); // Remove crystal
                     this.crystals.splice(i, 1); // Remove from array
 
@@ -14865,6 +15090,8 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 this.lastOrbitalTallyCount = null;
                 this.lastOrbitalTallySectorSignature = null;
                 this.lastCrystalGaugeCount = 0;
+                this.crystalGaugeDisplayCount = 0;
+                this.crystalGaugeTransferElements = new Set();
                 this.timerHud = document.getElementById('timerHud'); // Timer instrument
                 this.timerValue = document.getElementById('timerValue'); // Timer value
                 this.radarAlarmHud = document.getElementById('radarAlarmHud'); // Alternate red radar-style collision alarm
@@ -15311,6 +15538,93 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 return { collected, total: safeTotal };
             }
 
+            resetCrystalSpineTransfers(displayCount = 0) {
+                this.crystalGaugeDisplayCount = Math.max(0, Number(displayCount) || 0);
+                this.crystalGaugeTransferElements.forEach(element => {
+                    try { element.remove(); } catch (_) {}
+                });
+                this.crystalGaugeTransferElements.clear();
+                this.lastCrystalGaugeCount = this.crystalGaugeDisplayCount;
+            }
+
+            getCrystalSpineTargetSegment(targetCount) {
+                const container = this.greenCrystalGauge;
+                if (!container) return null;
+                if (container.dataset.spineBuilt !== 'true') this.renderVerticalCrystalGauge(container);
+                const spineCapacity = 80;
+                const segmentsPerVertebra = 8;
+                const vertebraCount = 10;
+                const safeTarget = Math.max(1, Math.min(spineCapacity, Number(targetCount) || 1));
+                const zeroIndex = safeTarget - 1;
+                const groupFromBottom = Math.floor(zeroIndex / segmentsPerVertebra);
+                const targetTopIndex = (vertebraCount - 1) - groupFromBottom;
+                const targetFillOrder = zeroIndex % segmentsPerVertebra;
+                const vertebrae = [...container.querySelectorAll('.crystal-spine-vertebra')];
+                const targetVertebra = vertebrae[targetTopIndex] || null;
+                if (!targetVertebra) return null;
+                return [...targetVertebra.querySelectorAll('.crystal-spine-segment')]
+                    .find(segment => (Number(segment.dataset.fillOrder) || 0) === targetFillOrder) || null;
+            }
+
+            animateCrystalIntoSpine(playfieldPosition, sourceSize = 10) {
+                if (!this.greenCrystalGauge || !this.game.container || !playfieldPosition) return;
+                const targetCount = Math.max(1, Math.min(80, this.game.collectedPositions.length));
+                const targetSegment = this.getCrystalSpineTargetSegment(targetCount);
+                if (!targetSegment) {
+                    this.crystalGaugeDisplayCount = Math.max(this.crystalGaugeDisplayCount, targetCount);
+                    this.renderVerticalCrystalGauge(this.greenCrystalGauge);
+                    return;
+                }
+
+                const boardRect = this.game.container.getBoundingClientRect();
+                const targetRect = targetSegment.getBoundingClientRect();
+                if (!boardRect.width || !boardRect.height || !targetRect.width || !targetRect.height) {
+                    this.crystalGaugeDisplayCount = Math.max(this.crystalGaugeDisplayCount, targetCount);
+                    this.renderVerticalCrystalGauge(this.greenCrystalGauge);
+                    return;
+                }
+
+                const scaleX = boardRect.width / Math.max(1, this.game.PLAYFIELD_SIZE);
+                const scaleY = boardRect.height / Math.max(1, this.game.PLAYFIELD_SIZE);
+                const startX = boardRect.left + playfieldPosition.x * scaleX;
+                const startY = boardRect.top + playfieldPosition.y * scaleY;
+                const endX = targetRect.left + targetRect.width / 2;
+                const endY = targetRect.top + targetRect.height / 2;
+                const transfer = document.createElement('div');
+                transfer.className = 'crystal-spine-transfer';
+                const transferSize = Math.max(7, Math.min(12, Number(sourceSize) || 10));
+                transfer.style.width = `${transferSize}px`;
+                transfer.style.height = `${transferSize}px`;
+                transfer.style.left = `${startX}px`;
+                transfer.style.top = `${startY}px`;
+                document.body.appendChild(transfer);
+                this.crystalGaugeTransferElements.add(transfer);
+
+                const midX = startX + (endX - startX) * 0.58;
+                const midY = startY + (endY - startY) * 0.52 - 14;
+                const animation = transfer.animate([
+                    { left: `${startX}px`, top: `${startY}px`, opacity: 1, filter: 'brightness(1.6)' },
+                    { left: `${midX}px`, top: `${midY}px`, opacity: 1, filter: 'brightness(1.15)', offset: 0.58 },
+                    { left: `${endX}px`, top: `${endY}px`, opacity: 0.95, filter: 'brightness(2)' }
+                ], {
+                    duration: 500,
+                    easing: 'cubic-bezier(0.20, 0.72, 0.28, 1)',
+                    fill: 'forwards'
+                });
+
+                const ingest = () => {
+                    this.crystalGaugeTransferElements.delete(transfer);
+                    transfer.remove();
+                    this.crystalGaugeDisplayCount = Math.max(this.crystalGaugeDisplayCount, targetCount);
+                    this.renderVerticalCrystalGauge(this.greenCrystalGauge);
+                };
+                animation.addEventListener('finish', ingest, { once: true });
+                animation.addEventListener('cancel', () => {
+                    this.crystalGaugeTransferElements.delete(transfer);
+                    transfer.remove();
+                }, { once: true });
+            }
+
             renderVerticalCrystalGauge(container) {
                 if (!container) return;
                 const powered = !!this.game.cockpitActivated;
@@ -15318,7 +15632,10 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 const vertebraCount = 10;
                 const segmentsPerVertebra = 8;
                 const { collected } = this.getCollectedCrystalProgress();
-                const visibleCollected = Math.max(0, Math.min(spineCapacity, collected));
+                if (!Number.isFinite(this.crystalGaugeDisplayCount) || collected < this.crystalGaugeDisplayCount) {
+                    this.resetCrystalSpineTransfers(collected);
+                }
+                const visibleCollected = Math.max(0, Math.min(spineCapacity, this.crystalGaugeDisplayCount));
 
                 container.classList.add('crystal-spine');
                 container.classList.toggle('powered-off', !powered);
