@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v278: Expands Help section spacing, adds OFF/LOW/MEDIUM/HIGH CRT preset cycling, and moves Outer Monitor Glow beyond the CRT mask.
+Build v279: Rebuilds Outer Monitor Glow as a short-radius internal edge halo immediately outside the CRT mask outline.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -21,7 +21,7 @@ Orb Control Panel Instrument Reference
 - Velocity Glyph Engine — Temporarily displays the Orb’s finger-driven movement speed.
 - Orb Command Socket — Controls the Orb’s pause, resume, and primary interface functions.
 -->
-<html data-build-version="v278">
+<html data-build-version="v279">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -6645,7 +6645,7 @@ Orb Control Panel Instrument Reference
             --crt-line-bloom: 0 0 5px rgba(255,255,255,0.36);
         }
 
-        /* Outer Monitor Glow is rendered outside the clipped playfield, behind the tube. */
+        /* Outer Monitor Glow: an internal edge halo immediately outside the CRT opening. */
         #playfieldShell {
             position: relative;
             flex: 0 0 auto;
@@ -6660,12 +6660,13 @@ Orb Control Panel Instrument Reference
 
         .playfield-crt-outer-glow {
             position: absolute;
-            inset: -80px;
-            width: calc(100% + 160px);
-            height: calc(100% + 160px);
-            overflow: visible;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            border-radius: 0;
             pointer-events: none;
-            z-index: 0;
+            z-index: 27;
             opacity: 0;
         }
 
@@ -6678,7 +6679,14 @@ Orb Control Panel Instrument Reference
             opacity: 0;
         }
 
-        /* The old in-playfield glow path stays hidden so glow strength never thickens the CRT mask outline. */
+        .playfield-crt-outer-glow .crt-outer-glow-outline {
+            fill: none;
+            vector-effect: non-scaling-stroke;
+            stroke: rgba(132,146,154,0.82);
+            stroke-width: 1.25;
+        }
+
+        /* The old glow path remains disabled; the new layer separates halo strength from outline strength. */
         .playfield-crt-tube-glow {
             display: none !important;
         }
@@ -6687,18 +6695,23 @@ Orb Control Panel Instrument Reference
             opacity: 1;
         }
 
-        /* The glow source sits beyond the playfield edge, so even LOW spills outside the black CRT mask. */
-        #playfieldShell.crt-enabled.crt-fx-glow.crt-glow-low:not(.crt-ui-suspended) .glow-near { opacity: 0.30; stroke-width: 7; }
-        #playfieldShell.crt-enabled.crt-fx-glow.crt-glow-low:not(.crt-ui-suspended) .glow-mid  { opacity: 0.15; stroke-width: 13; }
-        #playfieldShell.crt-enabled.crt-fx-glow.crt-glow-low:not(.crt-ui-suspended) .glow-far  { opacity: 0.07; stroke-width: 22; }
+        /* Swap the original outline for an identical copy above the halo so it never changes thickness. */
+        #gameContainer.crt-enabled.crt-fx-glow:not(.crt-ui-suspended) .playfield-crt-curvature .crt-bezel-line {
+            opacity: 0;
+        }
 
-        #playfieldShell.crt-enabled.crt-fx-glow.crt-glow-medium:not(.crt-ui-suspended) .glow-near { opacity: 0.42; stroke-width: 8; }
-        #playfieldShell.crt-enabled.crt-fx-glow.crt-glow-medium:not(.crt-ui-suspended) .glow-mid  { opacity: 0.23; stroke-width: 16; }
-        #playfieldShell.crt-enabled.crt-fx-glow.crt-glow-medium:not(.crt-ui-suspended) .glow-far  { opacity: 0.11; stroke-width: 27; }
+        /* Short radii keep the haze tight to the mask and entirely inside the square playfield. */
+        #playfieldShell.crt-enabled.crt-fx-glow.crt-glow-low:not(.crt-ui-suspended) .glow-near { opacity: 0.34; stroke-width: 2; }
+        #playfieldShell.crt-enabled.crt-fx-glow.crt-glow-low:not(.crt-ui-suspended) .glow-mid  { opacity: 0.16; stroke-width: 4; }
+        #playfieldShell.crt-enabled.crt-fx-glow.crt-glow-low:not(.crt-ui-suspended) .glow-far  { opacity: 0.07; stroke-width: 6.5; }
 
-        #playfieldShell.crt-enabled.crt-fx-glow.crt-glow-high:not(.crt-ui-suspended) .glow-near { opacity: 0.56; stroke-width: 10; }
-        #playfieldShell.crt-enabled.crt-fx-glow.crt-glow-high:not(.crt-ui-suspended) .glow-mid  { opacity: 0.32; stroke-width: 20; }
-        #playfieldShell.crt-enabled.crt-fx-glow.crt-glow-high:not(.crt-ui-suspended) .glow-far  { opacity: 0.16; stroke-width: 34; }
+        #playfieldShell.crt-enabled.crt-fx-glow.crt-glow-medium:not(.crt-ui-suspended) .glow-near { opacity: 0.46; stroke-width: 2.6; }
+        #playfieldShell.crt-enabled.crt-fx-glow.crt-glow-medium:not(.crt-ui-suspended) .glow-mid  { opacity: 0.24; stroke-width: 5; }
+        #playfieldShell.crt-enabled.crt-fx-glow.crt-glow-medium:not(.crt-ui-suspended) .glow-far  { opacity: 0.11; stroke-width: 8.5; }
+
+        #playfieldShell.crt-enabled.crt-fx-glow.crt-glow-high:not(.crt-ui-suspended) .glow-near { opacity: 0.60; stroke-width: 3.4; }
+        #playfieldShell.crt-enabled.crt-fx-glow.crt-glow-high:not(.crt-ui-suspended) .glow-mid  { opacity: 0.34; stroke-width: 6.5; }
+        #playfieldShell.crt-enabled.crt-fx-glow.crt-glow-high:not(.crt-ui-suspended) .glow-far  { opacity: 0.17; stroke-width: 11.5; }
 
         /* Moving sweep, reduced at every level. */
         #gameContainer.crt-enabled.crt-fx-sweep.crt-sweep-low:not(.crt-ui-suspended):not(.crt-paused) .playfield-crt-sweep { filter: opacity(0.08); animation-duration: 14s; }
@@ -6816,16 +6829,6 @@ Orb Control Panel Instrument Reference
     </div>
     <!-- Main game container -->
     <div id="playfieldShell">
-        <svg id="crtOuterGlow" class="playfield-crt-outer-glow" viewBox="-80 -80 760 760" preserveAspectRatio="none" aria-hidden="true" focusable="false">
-            <defs>
-                <filter id="crtOuterGlowFarBlur" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="24"></feGaussianBlur></filter>
-                <filter id="crtOuterGlowMidBlur" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="12"></feGaussianBlur></filter>
-                <filter id="crtOuterGlowNearBlur" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="5"></feGaussianBlur></filter>
-            </defs>
-            <path class="crt-outer-glow-path glow-far" filter="url(#crtOuterGlowFarBlur)" d="M 48 -8 C 180 -22 420 -22 552 -8 C 588 -4 608 18 612 54 C 624 188 624 412 612 546 C 608 582 588 604 552 608 C 420 622 180 622 48 608 C 12 604 -8 582 -12 546 C -24 412 -24 188 -12 54 C -8 18 12 -4 48 -8 Z"></path>
-            <path class="crt-outer-glow-path glow-mid" filter="url(#crtOuterGlowMidBlur)" d="M 48 -8 C 180 -22 420 -22 552 -8 C 588 -4 608 18 612 54 C 624 188 624 412 612 546 C 608 582 588 604 552 608 C 420 622 180 622 48 608 C 12 604 -8 582 -12 546 C -24 412 -24 188 -12 54 C -8 18 12 -4 48 -8 Z"></path>
-            <path class="crt-outer-glow-path glow-near" filter="url(#crtOuterGlowNearBlur)" d="M 48 -8 C 180 -22 420 -22 552 -8 C 588 -4 608 18 612 54 C 624 188 624 412 612 546 C 608 582 588 604 552 608 C 420 622 180 622 48 608 C 12 604 -8 582 -12 546 C -24 412 -24 188 -12 54 C -8 18 12 -4 48 -8 Z"></path>
-        </svg>
         <div id="gameContainer">
         <div class="playfield-crt-layer playfield-crt-tint" aria-hidden="true"></div>
         <div class="playfield-crt-layer playfield-crt-scanlines" aria-hidden="true"></div>
@@ -6839,6 +6842,23 @@ Orb Control Panel Instrument Reference
             </defs>
             <rect class="crt-bezel-fill" x="0" y="0" width="600" height="600" mask="url(#crtTubeOpeningMask)"></rect>
             <path class="crt-bezel-line" d="M 54 28 C 180 12 420 12 546 28 C 574 32 586 52 588 82 C 596 210 596 390 588 518 C 586 548 574 568 546 572 C 420 588 180 588 54 572 C 26 568 14 548 12 518 C 4 390 4 210 12 82 C 14 52 26 32 54 28 Z"></path>
+        </svg>
+        <svg id="crtOuterGlow" class="playfield-crt-layer playfield-crt-outer-glow" viewBox="0 0 600 600" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+            <defs>
+                <filter id="crtOuterGlowFarBlur" x="-12%" y="-12%" width="124%" height="124%"><feGaussianBlur stdDeviation="5.5"></feGaussianBlur></filter>
+                <filter id="crtOuterGlowMidBlur" x="-10%" y="-10%" width="120%" height="120%"><feGaussianBlur stdDeviation="3.2"></feGaussianBlur></filter>
+                <filter id="crtOuterGlowNearBlur" x="-8%" y="-8%" width="116%" height="116%"><feGaussianBlur stdDeviation="1.6"></feGaussianBlur></filter>
+                <mask id="crtOuterGlowOutsideMask" maskUnits="userSpaceOnUse" x="0" y="0" width="600" height="600">
+                    <rect x="0" y="0" width="600" height="600" fill="#fff"></rect>
+                    <path d="M 54 28 C 180 12 420 12 546 28 C 574 32 586 52 588 82 C 596 210 596 390 588 518 C 586 548 574 568 546 572 C 420 588 180 588 54 572 C 26 568 14 548 12 518 C 4 390 4 210 12 82 C 14 52 26 32 54 28 Z" fill="#000"></path>
+                </mask>
+            </defs>
+            <g mask="url(#crtOuterGlowOutsideMask)">
+                <path class="crt-outer-glow-path glow-far" filter="url(#crtOuterGlowFarBlur)" d="M 54 28 C 180 12 420 12 546 28 C 574 32 586 52 588 82 C 596 210 596 390 588 518 C 586 548 574 568 546 572 C 420 588 180 588 54 572 C 26 568 14 548 12 518 C 4 390 4 210 12 82 C 14 52 26 32 54 28 Z"></path>
+                <path class="crt-outer-glow-path glow-mid" filter="url(#crtOuterGlowMidBlur)" d="M 54 28 C 180 12 420 12 546 28 C 574 32 586 52 588 82 C 596 210 596 390 588 518 C 586 548 574 568 546 572 C 420 588 180 588 54 572 C 26 568 14 548 12 518 C 4 390 4 210 12 82 C 14 52 26 32 54 28 Z"></path>
+                <path class="crt-outer-glow-path glow-near" filter="url(#crtOuterGlowNearBlur)" d="M 54 28 C 180 12 420 12 546 28 C 574 32 586 52 588 82 C 596 210 596 390 588 518 C 586 548 574 568 546 572 C 420 588 180 588 54 572 C 26 568 14 548 12 518 C 4 390 4 210 12 82 C 14 52 26 32 54 28 Z"></path>
+            </g>
+            <path class="crt-outer-glow-outline" d="M 54 28 C 180 12 420 12 546 28 C 574 32 586 52 588 82 C 596 210 596 390 588 518 C 586 548 574 568 546 572 C 420 588 180 588 54 572 C 26 568 14 548 12 518 C 4 390 4 210 12 82 C 14 52 26 32 54 28 Z"></path>
         </svg>
         <svg class="playfield-crt-layer playfield-crt-tube-glow" viewBox="0 0 600 600" preserveAspectRatio="none" aria-hidden="true" focusable="false">
             <path class="crt-tube-glow-path" d="M 54 28 C 180 12 420 12 546 28 C 574 32 586 52 588 82 C 596 210 596 390 588 518 C 586 548 574 568 546 572 C 420 588 180 588 54 572 C 26 568 14 548 12 518 C 4 390 4 210 12 82 C 14 52 26 32 54 28 Z"></path>
