@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v287: Removes the splash wake sound, simplifies CRT presets to OFF/LOW/HIGH, and rebalances the moving sweep.
+Build v288: Restores selected gameplay action glows at reduced strength and further softens the LOW/HIGH moving sweep ladder.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -21,7 +21,7 @@ Orb Control Panel Instrument Reference
 - Velocity Glyph Engine — Temporarily displays the Orb’s finger-driven movement speed.
 - Orb Command Socket — Controls the Orb’s pause, resume, and primary interface functions.
 -->
-<html data-build-version="v287">
+<html data-build-version="v288">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -7542,6 +7542,133 @@ Orb Control Panel Instrument Reference
             filter: opacity(0.19);
             animation-duration: 8.4s;
         }
+
+
+        /* v288: Restore selected non-CRT feedback at reduced strength while calibration mode stays active. */
+
+        /* Moving Sweep: LOW reduced another 5%; HIGH rebalanced from the new LOW. */
+        #gameContainer.crt-enabled.crt-fx-sweep.crt-sweep-low:not(.crt-ui-suspended):not(.crt-paused) .playfield-crt-sweep {
+            filter: opacity(0.120);
+            animation-duration: 10.5s;
+        }
+        #gameContainer.crt-enabled.crt-fx-sweep.crt-sweep-high:not(.crt-ui-suspended):not(.crt-paused) .playfield-crt-sweep {
+            filter: opacity(0.180);
+            animation-duration: 8.4s;
+        }
+
+        /* Playfield border: restore a restrained cabinet halo outside the clipped playfield. */
+        #playfieldShell::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            z-index: 0;
+            border: 2px solid transparent;
+            box-sizing: border-box;
+            box-shadow: 0 0 6px rgba(255,255,255,0.62);
+        }
+
+        @keyframes reducedPlayfieldBorderFlash {
+            0%, 100% { box-shadow: 0 0 6px rgba(255,255,255,0.62); }
+            50% { box-shadow: 0 0 10px rgba(255,255,255,0.82); }
+        }
+
+        #playfieldShell:has(#gameContainer.borderFlash)::before {
+            animation: reducedPlayfieldBorderFlash 0.5s ease-in-out 1;
+        }
+
+        /* Block-to-block and boundary collision feedback. */
+        .enemy.enemyBorderFlash::after {
+            content: "";
+            position: absolute;
+            inset: -2px;
+            border: 1px solid rgba(255,255,255,0.92);
+            pointer-events: none;
+            box-sizing: border-box;
+            animation: reducedEnemyCollisionGlow 0.3s ease-in-out 1;
+        }
+
+        @keyframes reducedEnemyCollisionGlow {
+            0%, 100% { opacity: 0.42; box-shadow: 0 0 4px rgba(255,255,255,0.46); }
+            50% { opacity: 1; box-shadow: 0 0 12px rgba(255,255,255,0.82); }
+        }
+
+        /* Reduced regular explosion glow. */
+        .explosion::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            border-radius: inherit;
+            pointer-events: none;
+            box-shadow: 0 0 7px rgba(255,255,255,0.82), 0 0 15px rgba(255,255,255,0.34);
+        }
+
+        /* Reduced Cosmic Zap action glows. */
+        #player.cosmicZapOrbFlash::after {
+            content: "";
+            position: absolute;
+            inset: -2px;
+            border-radius: 50%;
+            pointer-events: none;
+            animation: reducedCosmicZapOrbGlow 0.42s ease-out 1;
+        }
+
+        @keyframes reducedCosmicZapOrbGlow {
+            0%, 100% { opacity: 0; box-shadow: 0 0 4px rgba(255,255,255,0.34); }
+            22% { opacity: 1; box-shadow: 0 0 10px #fff, 0 0 21px rgba(255,255,255,0.82), 0 0 34px rgba(255,255,255,0.48); }
+        }
+
+        .cosmic-zap-overload-ring::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            border-radius: inherit;
+            pointer-events: none;
+            box-shadow: 0 0 6px #fff, 0 0 14px rgba(255,255,255,0.58), inset 0 0 6px rgba(255,255,255,0.42);
+        }
+
+        .cosmic-zap-line::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background: #fff;
+            pointer-events: none;
+            box-shadow: 0 0 4px #fff, 0 0 11px rgba(255,255,255,0.58);
+        }
+
+        .cosmic-zap-spark::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background: #fff;
+            pointer-events: none;
+            box-shadow: 0 0 4px #fff, 0 0 8px rgba(255,255,255,0.56);
+        }
+
+        /* Reduced spawn warning glow; the parent animation still controls its flash timing. */
+        .spawn-warning::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            box-shadow: 0 0 11px rgba(255,255,255,0.88), 0 0 22px rgba(255,255,255,0.54), inset 0 0 13px rgba(255,255,255,0.46);
+        }
+
+        /* Reduced Orb restoration glow. */
+        #player.orbRestoreGlow::after {
+            content: "";
+            position: absolute;
+            inset: -2px;
+            border-radius: 50%;
+            pointer-events: none;
+            animation: reducedOrbRestoreGlow 1.5s ease-in-out 1;
+        }
+
+        @keyframes reducedOrbRestoreGlow {
+            0%, 100% { opacity: 0; box-shadow: 0 0 4px rgba(255,255,255,0.30); transform: scale(1); }
+            45% { opacity: 1; box-shadow: 0 0 11px #fff, 0 0 25px rgba(255,255,255,0.76), 0 0 49px rgba(255,255,255,0.40); transform: scale(1.35); }
+        }
+
 </style>
 </head>
 <body class="crt-phosphor-calibration">
