@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v288: Restores selected gameplay action glows at reduced strength and further softens the LOW/HIGH moving sweep ladder.
+Build v289: Adds persistent sector/cycle progression locks, reorganizes Help scoring, moves developer performance data outside the playfield, enlarges telemetry, and defaults CRT to LOW.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -21,7 +21,7 @@ Orb Control Panel Instrument Reference
 - Velocity Glyph Engine — Temporarily displays the Orb’s finger-driven movement speed.
 - Orb Command Socket — Controls the Orb’s pause, resume, and primary interface functions.
 -->
-<html data-build-version="v288">
+<html data-build-version="v289">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -7669,12 +7669,136 @@ Orb Control Panel Instrument Reference
             45% { opacity: 1; box-shadow: 0 0 11px #fff, 0 0 25px rgba(255,255,255,0.76), 0 0 49px rgba(255,255,255,0.40); transform: scale(1.35); }
         }
 
+        /* v289: progression, Help scoring, external developer performance data, and usable telemetry. */
+        #cycleSettingControl,
+        #cycleSettingControl.developer-visible {
+            display: block;
+        }
+
+        .help-scoring-section .scoring-row {
+            width: min(360px, 96%);
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .help-scoring-section .scoring-section-title {
+            width: min(360px, 96%);
+            margin-left: auto;
+            margin-right: auto;
+            text-align: left;
+        }
+
+        /* Developer frame data lives in the unused upper cabinet margin, never over the Prism Grid. */
+        #crtPerformanceHud {
+            position: fixed;
+            left: max(6px, calc((100vw - min(604px, calc(100vw - 8px))) / 2));
+            top: max(6px, env(safe-area-inset-top));
+            z-index: 5000;
+            display: flex;
+            grid-template-columns: none;
+            align-items: center;
+            gap: clamp(6px, 1.8vw, 12px);
+            padding: 3px 6px;
+            color: #fff;
+            background: rgba(0,0,0,0.88);
+            border: 1px solid rgba(255,255,255,0.72);
+            font-family: 'Orbitron', 'Courier New', monospace;
+            font-size: clamp(7px, 1.9vw, 10px);
+            line-height: 1;
+            letter-spacing: 0.35px;
+            white-space: nowrap;
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+            text-shadow: none;
+            box-shadow: none;
+        }
+
+        #crtPerformanceHud.visible {
+            opacity: 0.94;
+            visibility: visible;
+        }
+
+        /* Telemetry keeps a large, top-aligned data viewport while controls remain fixed. */
+        #telemetryPanel {
+            justify-content: flex-start;
+            gap: 5px;
+        }
+
+        #telemetryPanel > .menu-panel-title,
+        #telemetryPanel > .crt-dev-heading,
+        #telemetryPanel > #exportTelemetryButton,
+        #telemetryPanel > #clearTelemetryButton,
+        #telemetryPanel > #telemetryStatus {
+            flex: 0 0 auto;
+        }
+
+        #telemetryPanel .telemetry-summary {
+            flex: 0 0 clamp(175px, 36%, 230px);
+            width: 100%;
+            min-height: 175px;
+            max-height: 230px;
+            box-sizing: border-box;
+            margin: 2px 0 5px;
+            padding: 9px 10px;
+            overflow-x: hidden;
+            overflow-y: auto;
+            overscroll-behavior: contain;
+            -webkit-overflow-scrolling: touch;
+            touch-action: pan-y;
+            text-align: left;
+            align-self: stretch;
+        }
+
+        #telemetryPanel #exportTelemetryButton,
+        #telemetryPanel #clearTelemetryButton {
+            margin-top: 2px;
+            margin-bottom: 0;
+            padding-top: 6px;
+            padding-bottom: 6px;
+        }
+
+        #telemetryPanel #telemetryStatus {
+            margin: 2px 0 3px;
+        }
+
+        #telemetryPanel #crtDeveloperSection {
+            flex: 1 1 auto;
+            min-height: 110px;
+            width: 100%;
+            box-sizing: border-box;
+            margin-top: 2px;
+            overflow-x: hidden;
+            overflow-y: auto;
+            overscroll-behavior: contain;
+            -webkit-overflow-scrolling: touch;
+            touch-action: pan-y;
+        }
+
+        @media (max-height: 650px) {
+            #telemetryPanel .telemetry-summary {
+                flex-basis: 165px;
+                min-height: 165px;
+                max-height: 185px;
+            }
+
+            #telemetryPanel #crtDeveloperSection {
+                min-height: 90px;
+            }
+        }
+
 </style>
 </head>
 <body class="crt-phosphor-calibration">
     <div id="splashScreen" aria-label="Block-A-Zoids intro">
         <img id="splashMarqueeImage" src="splash.png" alt="" draggable="false">
         <div id="splashCopyright"><span id="splashBuildVersion"></span> · © 2026 Marcus Couto</div>
+    </div>
+    <div id="crtPerformanceHud" aria-hidden="true">
+        <span>FPS <b id="crtPerfFps">--</b></span>
+        <span>MS <b id="crtPerfFrameMs">--</b></span>
+        <span>LOW <b id="crtPerfLowFps">--</b></span>
+        <span>DROP <b id="crtPerfDropped">--</b></span>
     </div>
     <!-- Score display -->
     <div id="scoreHud">
@@ -7735,12 +7859,6 @@ Orb Control Panel Instrument Reference
         <div class="playfield-crt-layer playfield-crt-sweep" aria-hidden="true"></div>
         <div class="playfield-crt-layer playfield-crt-event" aria-hidden="true"></div>
         <div class="playfield-crt-shutdown" aria-hidden="true"></div>
-        <div id="crtPerformanceHud" aria-hidden="true">
-            <span>FPS <b id="crtPerfFps">--</b></span>
-            <span>MS <b id="crtPerfFrameMs">--</b></span>
-            <span>LOW <b id="crtPerfLowFps">--</b></span>
-            <span>DROP <b id="crtPerfDropped">--</b></span>
-        </div>
         <div id="player"></div>
         <div id="gameOver">GAME OVER</div>
         <div id="bonusText"></div> <!-- New element for bonus display -->
@@ -7778,6 +7896,17 @@ Orb Control Panel Instrument Reference
                             <li>Shake to Cosmic Zap.</li>
                         </ul>
                         <p class="how-to-curiosity-note">This is honestly everything you need.<br><br>Curiosity, however, has poor impulse control. Keep scrolling for information you absolutely do not need to survive.</p>
+                    </section>
+
+                    <section class="how-to-detail-section help-scoring-section">
+                        <h2>POINT SCORING</h2>
+                        <div class="scoring-row"><span>Crystal</span><span>10</span></div>
+                        <div class="scoring-row"><span>Color Complete</span><span>100/ea</span></div>
+                        <div class="scoring-row"><span>Time Alive</span><span>1/sec</span></div>
+                        <div class="scoring-section-title">EXTRA</div>
+                        <div class="scoring-row"><span>Gridlock Bonus <span class="scoring-label-note">(Relic)</span></span><span>200</span></div>
+                        <div class="scoring-row"><span>Cosmic Zaps <span class="scoring-label-note">(unused)</span></span><span>50/ea</span></div>
+                        <div class="scoring-row"><span>Perfect Sector <span class="scoring-label-note">(no Zap)</span></span><span>100</span></div>
                     </section>
 
                     <section class="how-to-detail-section">
@@ -7827,15 +7956,6 @@ Orb Control Panel Instrument Reference
                         </div>
                     </div>
                 </div>
-                <div class="scoring-divider"></div>
-                <div class="scoring-section-title scoring-main-title">SCORING</div>
-                <div class="scoring-row"><span>Crystal</span><span>10</span></div>
-                <div class="scoring-row"><span>Color Complete</span><span>100/ea</span></div>
-                <div class="scoring-row"><span>Time Alive</span><span>1/sec</span></div>
-                <div class="scoring-section-title">EXTRA</div>
-                <div class="scoring-row"><span>Gridlock Bonus <span class="scoring-label-note">(Relic)</span></span><span>200</span></div>
-                <div class="scoring-row"><span>Cosmic Zaps <span class="scoring-label-note">(unused)</span></span><span>50/ea</span></div>
-                <div class="scoring-row"><span>Perfect Sector <span class="scoring-label-note">(no Zap)</span></span><span>100</span></div>
                 <button id="scoringBackButton" class="menu-back-button">Back</button>
             </div>
             <div id="storyPanel" class="menu-panel">
@@ -8384,7 +8504,11 @@ Orb Control Panel Instrument Reference
                 this.attractSquares = [];             // Squares for attract mode
                 this.level = 1;                       // Current level
                 this.selectedStartSector = 1;          // Settings selector for the next fresh run
-                this.selectedStartCycle = 1;           // Developer selector for the next fresh run
+                this.selectedStartCycle = 1;           // Settings selector for the next fresh run
+                this.progressSectorStorageKey = 'blockazoidsHighestSectorUnlockedV1';
+                this.progressCycleStorageKey = 'blockazoidsHighestCycleUnlockedV1';
+                this.highestUnlockedSector = this.loadProgressUnlockValue(this.progressSectorStorageKey, this.MAX_LEVEL);
+                this.highestUnlockedCycle = this.loadProgressUnlockValue(this.progressCycleStorageKey, this.MAX_CYCLES);
                 this.difficultyOptions = ['Easy', 'Normal', 'Hard'];
                 this.difficultyStorageKey = 'blockazoidsDifficulty';
                 this.difficultyMode = this.loadDifficultyMode();
@@ -9119,7 +9243,7 @@ Orb Control Panel Instrument Reference
 
             updatePerformanceTelemetryHud() {
                 if (!this.crtPerformanceHud) return;
-                const visible = !!this.developerModeEnabled;
+                const visible = !!this.developerModeEnabled && !(this.container && this.container.classList.contains('crt-ui-suspended'));
                 this.crtPerformanceHud.classList.toggle('visible', visible);
                 this.crtPerformanceHud.setAttribute('aria-hidden', visible ? 'false' : 'true');
                 if (!visible || !this.performanceTelemetrySamples.length) return;
@@ -10720,6 +10844,7 @@ Orb Control Panel Instrument Reference
                 this.player.reset();
 
                 this.level = Math.max(1, Math.min(this.MAX_LEVEL, levelNumber));
+                this.recordProgressUnlocks(this.level, this.cycle);
                 this.cockpitSectorDisplayName = '';
                 this.cockpitSectorDisplayLevel = null;
                 if (resetScore) {
@@ -10974,6 +11099,10 @@ Orb Control Panel Instrument Reference
                 }
                 if (panelName === 'telemetry') {
                     this.updateTelemetrySummary();
+                    if (this.telemetrySummary) {
+                        this.telemetrySummary.scrollTop = 0;
+                        requestAnimationFrame(() => { if (this.telemetrySummary) this.telemetrySummary.scrollTop = 0; });
+                    }
                     this.setTelemetryStatus(this.developerModeEnabled ? 'Local balance data only.' : 'Developer Mode required.');
                     this.updateCrtDeveloperControls();
                 }
@@ -11317,14 +11446,56 @@ Orb Control Panel Instrument Reference
                 }, durations[type]);
             }
 
+            loadProgressUnlockValue(storageKey, maximum) {
+                try {
+                    const stored = parseInt(localStorage.getItem(storageKey) || '1', 10);
+                    return Math.max(1, Math.min(maximum, Number.isFinite(stored) ? stored : 1));
+                } catch (_) {
+                    return 1;
+                }
+            }
+
+            saveProgressUnlocks() {
+                try {
+                    localStorage.setItem(this.progressSectorStorageKey, String(this.highestUnlockedSector || 1));
+                    localStorage.setItem(this.progressCycleStorageKey, String(this.highestUnlockedCycle || 1));
+                } catch (_) {}
+            }
+
+            recordProgressUnlocks(levelNumber = this.level, cycleNumber = this.cycle) {
+                // Developer jumps bypass locks but never alter a player's genuine progression.
+                if (this.developerModeEnabled) return;
+
+                const nextSector = Math.max(1, Math.min(this.MAX_LEVEL, Number(levelNumber) || 1));
+                const nextCycle = Math.max(1, Math.min(this.MAX_CYCLES, Number(cycleNumber) || 1));
+                const sectorChanged = nextSector > (this.highestUnlockedSector || 1);
+                const cycleChanged = nextCycle > (this.highestUnlockedCycle || 1);
+
+                if (sectorChanged) this.highestUnlockedSector = nextSector;
+                if (cycleChanged) this.highestUnlockedCycle = nextCycle;
+                if (sectorChanged || cycleChanged) {
+                    this.saveProgressUnlocks();
+                    this.updateLevelSelectUnlockState();
+                }
+            }
+
+            getMaximumSelectableSector() {
+                if (this.developerModeEnabled) return this.getEndSectorOptionValue();
+                return Math.max(1, Math.min(this.MAX_LEVEL, this.highestUnlockedSector || 1));
+            }
+
+            getMaximumSelectableCycle() {
+                if (this.developerModeEnabled) return this.MAX_CYCLES;
+                return Math.max(1, Math.min(this.MAX_CYCLES, this.highestUnlockedCycle || 1));
+            }
+
             canChangeSectorSelection() {
                 const finishedRun = this.isGameOver && this.restartReady;
                 return (!this.hasStartedRun || finishedRun) && !this.active && !this.isPaused && !this.showHudDuringSectorIntro;
             }
 
             getSectorSelectOptionCount() {
-                const totalSectors = this.MAX_LEVEL || 15;
-                return totalSectors + (this.developerModeEnabled ? 1 : 0);
+                return this.getMaximumSelectableSector();
             }
 
             getEndSectorOptionValue() {
@@ -11343,31 +11514,32 @@ Orb Control Panel Instrument Reference
             }
 
             adjustSelectedStartCycle(direction) {
-                if (!this.developerModeEnabled || !this.canChangeSectorSelection()) {
+                if (!this.canChangeSectorSelection()) {
                     this.updateSettingsCycleLabel();
                     return;
                 }
-                const maxCycle = this.MAX_CYCLES;
+                const maxCycle = this.getMaximumSelectableCycle();
                 const current = Math.max(1, Math.min(maxCycle, this.selectedStartCycle || 1));
                 this.selectedStartCycle = ((current - 1 + direction + maxCycle) % maxCycle) + 1;
                 this.updateSettingsCycleLabel();
             }
 
             updateSettingsCycleLabel() {
-                const visible = !!this.developerModeEnabled;
-                if (this.cycleSettingControl) this.cycleSettingControl.classList.toggle('developer-visible', visible);
+                if (this.cycleSettingControl) this.cycleSettingControl.classList.add('developer-visible');
                 if (!this.settingsCycleValue) return;
 
-                const cycle = Math.max(1, Math.min(this.MAX_CYCLES, this.selectedStartCycle || 1));
+                const maxCycle = this.getMaximumSelectableCycle();
+                const cycle = Math.max(1, Math.min(maxCycle, this.selectedStartCycle || 1));
                 this.selectedStartCycle = cycle;
                 this.settingsCycleValue.textContent = `${cycle}`;
 
-                const canChange = visible && this.canChangeSectorSelection();
+                const canChange = this.canChangeSectorSelection();
+                const arrowsEnabled = canChange && maxCycle > 1;
                 if (this.cycleSettingControl) this.cycleSettingControl.classList.toggle('locked', !canChange);
                 [this.cycleDecreaseButton, this.cycleIncreaseButton].forEach(button => {
                     if (!button) return;
-                    button.disabled = !canChange;
-                    button.setAttribute('aria-disabled', canChange ? 'false' : 'true');
+                    button.disabled = !arrowsEnabled;
+                    button.setAttribute('aria-disabled', arrowsEnabled ? 'false' : 'true');
                 });
             }
 
@@ -11380,12 +11552,13 @@ Orb Control Panel Instrument Reference
                 this.selectedStartSector = sector;
                 this.settingsSectorValue.textContent = this.developerModeEnabled && sector === endOption ? 'END' : `${sector}`;
                 const canChange = this.canChangeSectorSelection();
+                const arrowsEnabled = canChange && maxOption > 1;
                 const control = document.getElementById('sectorSettingControl');
                 if (control) control.classList.toggle('locked', !canChange);
                 [this.sectorDecreaseButton, this.sectorIncreaseButton].forEach(button => {
                     if (!button) return;
-                    button.disabled = !canChange;
-                    button.setAttribute('aria-disabled', canChange ? 'false' : 'true');
+                    button.disabled = !arrowsEnabled;
+                    button.setAttribute('aria-disabled', arrowsEnabled ? 'false' : 'true');
                 });
                 this.updateSettingsCycleLabel();
                 this.updateLevelSelectButtonLockState();
@@ -11764,7 +11937,8 @@ Orb Control Panel Instrument Reference
             // Build the sector-select buttons once.
             buildLevelSelectButtons() {
                 this.levelSelectGrid.innerHTML = '';
-                for (let levelNumber = 1; levelNumber <= this.MAX_LEVEL; levelNumber++) {
+                const highestVisibleSector = this.developerModeEnabled ? this.MAX_LEVEL : this.getMaximumSelectableSector();
+                for (let levelNumber = 1; levelNumber <= highestVisibleSector; levelNumber++) {
                     const button = document.createElement('button');
                     button.className = 'level-select-button';
                     button.textContent = `${levelNumber}`;
@@ -12075,12 +12249,13 @@ Orb Control Panel Instrument Reference
 
             // Testing shortcut: Shift + Up / Down moves one level at a time.
             jumpToLevel(levelNumber, resetScore = true) {
-                const targetLevel = Math.max(1, Math.min(this.MAX_LEVEL, levelNumber));
+                const maximumLevel = this.developerModeEnabled ? this.MAX_LEVEL : this.getMaximumSelectableSector();
+                const targetLevel = Math.max(1, Math.min(maximumLevel, levelNumber));
                 this.selectedStartSector = targetLevel;
                 this.updateSettingsSectorLabel();
                 const loadToken = ++this.levelLoadToken;
 
-                if (resetScore) this.cycle = this.developerModeEnabled ? Math.max(1, this.selectedStartCycle || 1) : 1;
+                if (resetScore) this.cycle = Math.max(1, Math.min(this.getMaximumSelectableCycle(), this.selectedStartCycle || 1));
                 this.audio.resume();
                 this.audio.stopBackgroundMusic();
                 if (this.telemetryEnabled && resetScore) this.beginTelemetryRun('sector-select');
@@ -12159,7 +12334,7 @@ Orb Control Panel Instrument Reference
                 this.cockpitSectorDisplayName = '';
                 this.cockpitSectorDisplayLevel = null;
                 this.restartReady = false;
-                this.cycle = this.developerModeEnabled ? Math.max(1, this.selectedStartCycle || 1) : 1;
+                this.cycle = Math.max(1, Math.min(this.getMaximumSelectableCycle(), this.selectedStartCycle || 1));
                 this.audio.resume(); // Unlock audio after the player's start tap
                 this.audio.stopBackgroundMusic(); // Stop any background music
 
@@ -13227,6 +13402,7 @@ Orb Control Panel Instrument Reference
             // Reset level state behind black, fade in, then begin the next sector intro.
             advanceToNextLevelAfterRestore(nextLevel) {
                 this.level = nextLevel;
+                this.recordProgressUnlocks(this.level, this.cycle);
                 this.cockpitSectorDisplayName = '';
                 this.cockpitSectorDisplayLevel = null;
                 this.spawnCounter = 0;
@@ -14165,6 +14341,7 @@ Orb Control Panel Instrument Reference
                 this.player.element.style.display = 'none';
 
                 this.cycle++;
+                this.recordProgressUnlocks(1, this.cycle);
                 this.ui.updateAll();
 
                 this.gameOverElement.classList.add('finalCycleText');
