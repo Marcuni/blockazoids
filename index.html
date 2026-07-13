@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v271: Adds four CRT telemetry groups with three intensity levels, enables CRT during attract mode but not menus, replaces edge vignette with tube falloff, corrects CRT shutdown blackout, and expands How to Play with the Orb Control Panel and Prism Grid story.
+Build v272: Retunes all CRT intensity ranges, replaces screen curvature with a thin overscan mask, makes phosphor glow follow the tube contour, separates fixed death/shutdown toggles, and delays results until the CRT death sequence completes.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -21,7 +21,7 @@ Orb Control Panel Instrument Reference
 - Velocity Glyph Engine — Temporarily displays the Orb’s finger-driven movement speed.
 - Orb Command Socket — Controls the Orb’s pause, resume, and primary interface functions.
 -->
-<html data-build-version="v271">
+<html data-build-version="v272">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -6030,6 +6030,213 @@ Orb Control Panel Instrument Reference
             100% { opacity: 0; transform: translate(-50%,-50%) scale(0.08); }
         }
 
+
+        /* v272 CRT retuning and authored event controls. */
+        .crt-event-group-row {
+            grid-template-rows: auto auto;
+        }
+
+        .crt-event-fixed-controls {
+            grid-column: 1 / -1;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-top: 2px;
+        }
+
+        .crt-event-fixed-control {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            padding: 7px 8px;
+            border: 1px solid rgba(255,255,255,0.25);
+            background: rgba(255,255,255,0.025);
+            font-size: 9px;
+            letter-spacing: 1px;
+        }
+
+        .crt-event-fixed-control .crt-feature-toggle {
+            min-width: 54px;
+            padding: 6px 8px;
+        }
+
+        @media (max-width: 520px) {
+            .crt-event-fixed-controls { grid-template-columns: 1fr; }
+        }
+
+        /* The overscan mask replaces geometric warping. It nearly touches the square edges. */
+        .playfield-crt-curvature,
+        .playfield-crt-tube-glow {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            overflow: hidden;
+            border: 0;
+            border-radius: 0;
+            box-shadow: none;
+            background: transparent;
+        }
+
+        .playfield-crt-curvature { z-index: 26; opacity: 0; }
+        .playfield-crt-tube-glow { z-index: 26; opacity: 0; }
+
+        .playfield-crt-curvature::before,
+        .playfield-crt-tube-glow::before {
+            content: "";
+            position: absolute;
+            inset: var(--crt-tube-inset, 1.5px);
+            border-radius: var(--crt-tube-radius, 10px);
+            pointer-events: none;
+        }
+
+        .playfield-crt-curvature::before {
+            box-shadow:
+                0 0 0 var(--crt-tube-edge, 1.5px) rgba(0,0,0,var(--crt-tube-mask-opacity,0.78)),
+                0 0 0 100vmax rgba(0,0,0,var(--crt-tube-mask-opacity,0.78));
+        }
+
+        /* Restore the normal square cabinet glow; CRT glow now follows the rounded tube contour. */
+        #gameContainer.crt-enabled.crt-fx-glow:not(.crt-ui-suspended) {
+            box-shadow: 0 0 calc(var(--default-glow) * 1px) #fff;
+        }
+
+        #gameContainer.crt-enabled.crt-fx-glow:not(.crt-ui-suspended) .playfield-crt-tube-glow {
+            opacity: 1;
+        }
+
+        #gameContainer.crt-enabled.crt-fx-glow.crt-phosphor-low:not(.crt-ui-suspended) .playfield-crt-tube-glow::before {
+            box-shadow: inset 0 0 18px rgba(0,180,205,0.06), 0 0 8px rgba(0,205,255,0.18);
+        }
+        #gameContainer.crt-enabled.crt-fx-glow.crt-phosphor-medium:not(.crt-ui-suspended) .playfield-crt-tube-glow::before {
+            box-shadow: inset 0 0 28px rgba(0,180,205,0.085), 0 0 12px rgba(0,205,255,0.26), 0 0 23px rgba(0,130,180,0.07);
+        }
+        #gameContainer.crt-enabled.crt-fx-glow.crt-phosphor-high:not(.crt-ui-suspended) .playfield-crt-tube-glow::before {
+            box-shadow: inset 0 0 38px rgba(0,180,205,0.11), 0 0 16px rgba(0,205,255,0.34), 0 0 30px rgba(0,130,180,0.14);
+        }
+
+        /* SCREEN BASE: old Medium is now High; new Medium is halfway from Low. */
+        #gameContainer.crt-enabled.crt-fx-scanlines.crt-base-low:not(.crt-ui-suspended) .playfield-crt-scanlines {
+            opacity: 0.24;
+            background: repeating-linear-gradient(to bottom, rgba(0,0,0,0.42) 0 1px, transparent 1px 5px);
+        }
+        #gameContainer.crt-enabled.crt-fx-scanlines.crt-base-medium:not(.crt-ui-suspended) .playfield-crt-scanlines {
+            opacity: 0.37;
+            background: repeating-linear-gradient(to bottom, rgba(0,0,0,0.50) 0 1.5px, rgba(0,255,225,0.04) 1.5px 2.25px, transparent 2.25px 6px);
+        }
+        #gameContainer.crt-enabled.crt-fx-scanlines.crt-base-high:not(.crt-ui-suspended) .playfield-crt-scanlines {
+            opacity: 0.50;
+            background: repeating-linear-gradient(to bottom, rgba(0,0,0,0.58) 0 2px, rgba(0,255,225,0.08) 2px 3px, transparent 3px 7px);
+        }
+        #gameContainer.crt-enabled.crt-fx-vignette.crt-base-low:not(.crt-ui-suspended) .playfield-crt-vignette { opacity: 0.30; }
+        #gameContainer.crt-enabled.crt-fx-vignette.crt-base-medium:not(.crt-ui-suspended) .playfield-crt-vignette { opacity: 0.44; }
+        #gameContainer.crt-enabled.crt-fx-vignette.crt-base-high:not(.crt-ui-suspended) .playfield-crt-vignette { opacity: 0.58; }
+        #gameContainer.crt-enabled.crt-fx-tint.crt-base-low:not(.crt-ui-suspended) .playfield-crt-tint { opacity: 0.12; }
+        #gameContainer.crt-enabled.crt-fx-tint.crt-base-medium:not(.crt-ui-suspended) .playfield-crt-tint { opacity: 0.23; }
+        #gameContainer.crt-enabled.crt-fx-tint.crt-base-high:not(.crt-ui-suspended) .playfield-crt-tint { opacity: 0.34; }
+        #gameContainer.crt-enabled.crt-fx-reflection.crt-base-low:not(.crt-ui-suspended) .playfield-crt-reflection { opacity: 0.10; }
+        #gameContainer.crt-enabled.crt-fx-reflection.crt-base-medium:not(.crt-ui-suspended) .playfield-crt-reflection { opacity: 0.17; }
+        #gameContainer.crt-enabled.crt-fx-reflection.crt-base-high:not(.crt-ui-suspended) .playfield-crt-reflection { opacity: 0.24; }
+
+        /* VECTOR PHOSPHOR: old Medium is now High; new Medium is halfway from Low. */
+        #gameContainer.crt-enabled.crt-phosphor-low:not(.crt-ui-suspended) {
+            --crt-player-bloom: 0 0 4px rgba(255,255,255,0.32), 0 0 8px rgba(255,255,255,0.12);
+            --crt-enemy-bloom: 0 0 0 transparent;
+            --crt-crystal-bloom: 0 0 4px rgba(255,255,255,0.26), 0 0 8px rgba(255,255,255,0.10);
+            --crt-line-bloom: 0 0 3px rgba(255,255,255,0.22);
+        }
+        #gameContainer.crt-enabled.crt-phosphor-medium:not(.crt-ui-suspended) {
+            --crt-player-bloom: 0 0 6px rgba(255,255,255,0.41), 0 0 12px rgba(255,255,255,0.16);
+            --crt-enemy-bloom: 0 0 0 transparent;
+            --crt-crystal-bloom: 0 0 5.5px rgba(255,255,255,0.34), 0 0 11px rgba(255,255,255,0.13);
+            --crt-line-bloom: 0 0 4px rgba(255,255,255,0.29);
+        }
+        #gameContainer.crt-enabled.crt-phosphor-high:not(.crt-ui-suspended) {
+            --crt-player-bloom: 0 0 8px rgba(255,255,255,0.50), 0 0 15px rgba(255,255,255,0.20);
+            --crt-enemy-bloom: 0 0 0 transparent;
+            --crt-crystal-bloom: 0 0 7px rgba(255,255,255,0.42), 0 0 14px rgba(255,255,255,0.16);
+            --crt-line-bloom: 0 0 5px rgba(255,255,255,0.36);
+        }
+
+        /* SIGNAL IMPERFECTIONS: thin overscan plus the remapped Low/Medium/High range. */
+        #gameContainer.crt-signal-low { --crt-tube-inset: 1px; --crt-tube-edge: 1px; --crt-tube-radius: 8px; --crt-tube-mask-opacity: 0.62; }
+        #gameContainer.crt-signal-medium { --crt-tube-inset: 1.5px; --crt-tube-edge: 1.5px; --crt-tube-radius: 10px; --crt-tube-mask-opacity: 0.78; }
+        #gameContainer.crt-signal-high { --crt-tube-inset: 2px; --crt-tube-edge: 2px; --crt-tube-radius: 12px; --crt-tube-mask-opacity: 0.94; }
+
+        #gameContainer.crt-enabled.crt-fx-curvature.crt-signal-low:not(.crt-ui-suspended) .playfield-crt-curvature,
+        #gameContainer.crt-enabled.crt-fx-curvature.crt-signal-medium:not(.crt-ui-suspended) .playfield-crt-curvature,
+        #gameContainer.crt-enabled.crt-fx-curvature.crt-signal-high:not(.crt-ui-suspended) .playfield-crt-curvature { opacity: 1; }
+
+        #gameContainer.crt-enabled.crt-fx-sweep.crt-signal-low:not(.crt-ui-suspended):not(.crt-paused) .playfield-crt-sweep { filter: opacity(0.22); animation-duration: 8.5s; }
+        #gameContainer.crt-enabled.crt-fx-sweep.crt-signal-medium:not(.crt-ui-suspended):not(.crt-paused) .playfield-crt-sweep { filter: opacity(0.35); animation-duration: 6.95s; }
+        #gameContainer.crt-enabled.crt-fx-sweep.crt-signal-high:not(.crt-ui-suspended):not(.crt-paused) .playfield-crt-sweep { filter: opacity(0.48); animation-duration: 5.4s; }
+
+        #gameContainer.crt-enabled.crt-fx-grid-rgb.crt-signal-low:not(.crt-ui-suspended) {
+            background-color: #000609;
+            background-image:
+                linear-gradient(rgba(255,0,0,0.08) 0.8px, transparent 0.8px), linear-gradient(90deg, rgba(255,0,0,0.08) 0.8px, transparent 0.8px),
+                linear-gradient(rgba(0,120,255,0.09) 0.8px, transparent 0.8px), linear-gradient(90deg, rgba(0,120,255,0.09) 0.8px, transparent 0.8px),
+                linear-gradient(rgba(255,255,255,0.52) 0.7px, transparent 0.7px), linear-gradient(90deg, rgba(255,255,255,0.52) 0.7px, transparent 0.7px);
+            background-size: var(--grid-size,60px) var(--grid-size,60px); background-position: 0 -1px, -1px 0, 0 1px, 1px 0, 0 0, 0 0;
+        }
+        #gameContainer.crt-enabled.crt-fx-grid-rgb.crt-signal-medium:not(.crt-ui-suspended) {
+            background-color: #00090c;
+            background-image:
+                linear-gradient(rgba(255,0,0,0.13) 0.9px, transparent 0.9px), linear-gradient(90deg, rgba(255,0,0,0.13) 0.9px, transparent 0.9px),
+                linear-gradient(rgba(0,120,255,0.145) 0.9px, transparent 0.9px), linear-gradient(90deg, rgba(0,120,255,0.145) 0.9px, transparent 0.9px),
+                linear-gradient(rgba(255,255,255,0.55) 0.75px, transparent 0.75px), linear-gradient(90deg, rgba(255,255,255,0.55) 0.75px, transparent 0.75px);
+            background-size: var(--grid-size,60px) var(--grid-size,60px); background-position: 0 -1.5px, -1.5px 0, 0 1.5px, 1.5px 0, 0 0, 0 0;
+        }
+        #gameContainer.crt-enabled.crt-fx-grid-rgb.crt-signal-high:not(.crt-ui-suspended) {
+            background-color: #000b10;
+            background-image:
+                linear-gradient(rgba(255,0,0,0.18) 1px, transparent 1px), linear-gradient(90deg, rgba(255,0,0,0.18) 1px, transparent 1px),
+                linear-gradient(rgba(0,120,255,0.20) 1px, transparent 1px), linear-gradient(90deg, rgba(0,120,255,0.20) 1px, transparent 1px),
+                linear-gradient(rgba(255,255,255,0.58) 0.8px, transparent 0.8px), linear-gradient(90deg, rgba(255,255,255,0.58) 0.8px, transparent 0.8px);
+            background-size: var(--grid-size,60px) var(--grid-size,60px); background-position: 0 -2px, -2px 0, 0 2px, 2px 0, 0 0, 0 0;
+        }
+
+        #gameContainer.crt-enabled.crt-fx-object-rgb.crt-signal-low:not(.crt-ui-suspended) {
+            --crt-player-rgb: -1px 0 3px rgba(255,0,0,0.22), 1px 0 3px rgba(0,120,255,0.24);
+            --crt-enemy-rgb: -1px 0 2px rgba(255,0,0,0.18), 1px 0 2px rgba(0,120,255,0.20);
+            --crt-crystal-rgb: -1px 0 2px rgba(255,0,0,0.20), 1px 0 2px rgba(0,120,255,0.22);
+            --crt-line-rgb: -1px 0 2px rgba(255,0,0,0.16), 1px 0 2px rgba(0,120,255,0.18);
+        }
+        #gameContainer.crt-enabled.crt-fx-object-rgb.crt-signal-medium:not(.crt-ui-suspended) {
+            --crt-player-rgb: -1.5px 0 4px rgba(255,0,0,0.35), 1.5px 0 4px rgba(0,120,255,0.38);
+            --crt-enemy-rgb: -1.5px 0 3px rgba(255,0,0,0.28), 1.5px 0 3px rgba(0,120,255,0.31);
+            --crt-crystal-rgb: -1.5px 0 3px rgba(255,0,0,0.31), 1.5px 0 3px rgba(0,120,255,0.34);
+            --crt-line-rgb: -1px 0 2.5px rgba(255,0,0,0.25), 1px 0 2.5px rgba(0,120,255,0.28);
+        }
+        #gameContainer.crt-enabled.crt-fx-object-rgb.crt-signal-high:not(.crt-ui-suspended) {
+            --crt-player-rgb: -2px 0 5px rgba(255,0,0,0.48), 2px 0 5px rgba(0,120,255,0.52);
+            --crt-enemy-rgb: -2px 0 4px rgba(255,0,0,0.38), 2px 0 4px rgba(0,120,255,0.42);
+            --crt-crystal-rgb: -2px 0 4px rgba(255,0,0,0.42), 2px 0 4px rgba(0,120,255,0.46);
+            --crt-line-rgb: -1px 0 3px rgba(255,0,0,0.34), 1px 0 3px rgba(0,120,255,0.38);
+        }
+
+        /* EVENT REACTIONS: variable-strength pulses use the retuned range. */
+        #gameContainer.crt-events-low.crt-gridlock-event .playfield-crt-event,
+        #gameContainer.crt-events-low.crt-zap-event .playfield-crt-event,
+        #gameContainer.crt-events-low.crt-restore-event .playfield-crt-event { filter: opacity(0.42); }
+        #gameContainer.crt-events-medium.crt-gridlock-event .playfield-crt-event,
+        #gameContainer.crt-events-medium.crt-zap-event .playfield-crt-event,
+        #gameContainer.crt-events-medium.crt-restore-event .playfield-crt-event { filter: opacity(0.57); }
+        #gameContainer.crt-events-high.crt-gridlock-event .playfield-crt-event,
+        #gameContainer.crt-events-high.crt-zap-event .playfield-crt-event,
+        #gameContainer.crt-events-high.crt-restore-event .playfield-crt-event { filter: opacity(0.72); }
+
+        /* Death Flicker and CRT Shutdown are complete authored sequences, never partial intensities. */
+        #gameContainer.crt-death-event .playfield-crt-event { filter: opacity(1) !important; }
+        #gameContainer.crt-enabled.crt-fx-shutdown {
+            --crt-shutdown-line-height: 4px;
+            --crt-shutdown-line-glow: 20px;
+            --crt-shutdown-line-outer-glow: 36px;
+            --crt-shutdown-dot-size: 8px;
+            --crt-shutdown-dot-glow: 20px;
+            --crt-shutdown-dot-outer-glow: 40px;
+        }
+
     </style>
 </head>
 <body>
@@ -6058,6 +6265,7 @@ Orb Control Panel Instrument Reference
         <div class="playfield-crt-layer playfield-crt-scanlines" aria-hidden="true"></div>
         <div class="playfield-crt-layer playfield-crt-vignette" aria-hidden="true"></div>
         <div class="playfield-crt-layer playfield-crt-curvature" aria-hidden="true"></div>
+        <div class="playfield-crt-layer playfield-crt-tube-glow" aria-hidden="true"></div>
         <div class="playfield-crt-layer playfield-crt-reflection" aria-hidden="true"></div>
         <div class="playfield-crt-layer playfield-crt-sweep" aria-hidden="true"></div>
         <div class="playfield-crt-layer playfield-crt-event" aria-hidden="true"></div>
@@ -6242,14 +6450,18 @@ Orb Control Panel Instrument Reference
                             <button class="crt-dev-button crt-group-intensity" type="button" data-crt-group-intensity="phosphor"></button>
                         </div>
                         <div class="crt-group-row" data-crt-group-row="signal">
-                            <div class="crt-group-copy"><strong>SIGNAL IMPERFECTIONS</strong><span>Moving Sweep · RGB Separation · Screen Curvature</span></div>
+                            <div class="crt-group-copy"><strong>SIGNAL IMPERFECTIONS</strong><span>Moving Sweep · RGB Separation · CRT Overscan Mask</span></div>
                             <button class="crt-dev-button crt-group-toggle" type="button" data-crt-group-toggle="signal"></button>
                             <button class="crt-dev-button crt-group-intensity" type="button" data-crt-group-intensity="signal"></button>
                         </div>
-                        <div class="crt-group-row" data-crt-group-row="events">
-                            <div class="crt-group-copy"><strong>EVENT REACTIONS</strong><span>Gridlock · Zap · Death · Shutdown · Restore</span></div>
+                        <div class="crt-group-row crt-event-group-row" data-crt-group-row="events">
+                            <div class="crt-group-copy"><strong>EVENT REACTIONS</strong><span>Gridlock · Zap · Restore pulses</span></div>
                             <button class="crt-dev-button crt-group-toggle" type="button" data-crt-group-toggle="events"></button>
                             <button class="crt-dev-button crt-group-intensity" type="button" data-crt-group-intensity="events"></button>
+                            <div class="crt-event-fixed-controls">
+                                <div class="crt-event-fixed-control"><span>DEATH FLICKER</span><button class="crt-dev-button crt-feature-toggle" type="button" data-crt-feature-toggle="death"></button></div>
+                                <div class="crt-event-fixed-control"><span>CRT SHUTDOWN</span><button class="crt-dev-button crt-feature-toggle" type="button" data-crt-feature-toggle="shutdown"></button></div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -6595,7 +6807,7 @@ Orb Control Panel Instrument Reference
                     base: ['scanlines', 'vignette', 'tint', 'reflection'],
                     phosphor: ['bloom', 'glow'],
                     signal: ['sweep', 'gridRgb', 'objectRgb', 'curvature'],
-                    events: ['gridlock', 'zap', 'death', 'shutdown', 'restore']
+                    events: ['gridlock', 'zap', 'restore']
                 };
                 this.crtEnabled = this.loadCrtPreference();
                 this.crtFeatures = this.loadCrtFeaturePreferences();
@@ -6603,6 +6815,7 @@ Orb Control Panel Instrument Reference
                 this.syncCrtFeaturesFromGroups();
                 this.crtGroupToggleButtons = Array.from(document.querySelectorAll('[data-crt-group-toggle]'));
                 this.crtGroupIntensityButtons = Array.from(document.querySelectorAll('[data-crt-group-intensity]'));
+                this.crtFeatureToggleButtons = Array.from(document.querySelectorAll('[data-crt-feature-toggle]'));
                 this.crtEnableAllButton = document.getElementById('crtEnableAllButton');
                 this.crtDisableAllButton = document.getElementById('crtDisableAllButton');
                 this.crtDeveloperMasterState = document.getElementById('crtDeveloperMasterState');
@@ -7020,6 +7233,16 @@ Orb Control Panel Instrument Reference
                             e.stopPropagation();
                             this.playUiClick();
                             this.cycleCrtGroupIntensity(button.dataset.crtGroupIntensity);
+                        });
+                    });
+                }
+                if (this.crtFeatureToggleButtons && this.crtFeatureToggleButtons.length) {
+                    this.crtFeatureToggleButtons.forEach(button => {
+                        button.addEventListener('click', (e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            this.playUiClick();
+                            this.toggleCrtFeature(button.dataset.crtFeatureToggle);
                         });
                     });
                 }
@@ -9350,6 +9573,16 @@ Orb Control Panel Instrument Reference
                         button.setAttribute('aria-label', `${key} CRT intensity ${intensity}`);
                     });
                 }
+                if (this.crtFeatureToggleButtons) {
+                    this.crtFeatureToggleButtons.forEach(button => {
+                        const key = button.dataset.crtFeatureToggle;
+                        const enabled = !!(this.crtFeatures && this.crtFeatures[key]);
+                        button.textContent = enabled ? 'ON' : 'OFF';
+                        button.classList.toggle('is-on', enabled);
+                        button.classList.toggle('is-off', !enabled);
+                        button.setAttribute('aria-pressed', enabled ? 'true' : 'false');
+                    });
+                }
                 this.updateCrtToggleLabel();
             }
 
@@ -9400,11 +9633,23 @@ Orb Control Panel Instrument Reference
                 this.applyCrtFeatureClasses();
             }
 
+            toggleCrtFeature(key) {
+                if (!key || !this.crtFeatures || !(key in this.crtFeatureClassMap)) return;
+                this.crtFeatures[key] = !this.crtFeatures[key];
+                this.saveCrtFeaturePreferences();
+                this.applyCrtFeatureClasses();
+                if ((key === 'death' || key === 'shutdown') && !this.crtFeatures.death && !this.crtFeatures.shutdown) {
+                    this.container.classList.remove('crt-death-event', 'crt-shutdown-blackout');
+                }
+            }
+
             setAllCrtFeatures(enabled) {
                 Object.keys(this.crtGroups || {}).forEach(group => {
                     this.crtGroups[group].enabled = !!enabled;
                 });
                 this.syncCrtFeaturesFromGroups();
+                this.crtFeatures.death = !!enabled;
+                this.crtFeatures.shutdown = !!enabled;
                 this.saveCrtGroupPreferences();
                 this.saveCrtFeaturePreferences();
                 this.applyCrtFeatureClasses();
@@ -12405,7 +12650,7 @@ Orb Control Panel Instrument Reference
                         if (this.isGameOver && this.container) this.container.classList.add('crt-shutdown-blackout');
                     }, 1020);
                 }
-                setTimeout(() => this.setCrtUiSuspended(true), 1280);
+                setTimeout(() => this.setCrtUiSuspended(true), 1420);
                 this.explosions.push(new Explosion(this, this.player.x + this.player.size / 2, this.player.y + this.player.size / 2, true)); // Player explosion
                 this.container.classList.add('shake'); // Screen shake
                 this.audio.playExplosion(true); // Explosion sound
@@ -12471,7 +12716,7 @@ Orb Control Panel Instrument Reference
                             this.refreshGameOverlay(); // Restart attract mode
                         }, 500);
                     }, 2000);
-                }, 1200);
+                }, 1450);
             }
         }
 
