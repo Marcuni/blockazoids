@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v294: Quantitative control-panel benchmark. Restores the full panel, freezes non-tested instruments, and measures each instrument against a nearby static-panel baseline during normal play.
+Build v295: Event-driven control-panel repair. Removes continuous panel rebuilding, updates live instruments at controlled rates, and preserves the full cockpit presentation.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -21,7 +21,7 @@ Orb Control Panel Instrument Reference
 - Velocity Glyph Engine — Temporarily displays the Orb’s finger-driven movement speed.
 - Orb Command Socket — Controls the Orb’s pause, resume, and primary interface functions.
 -->
-<html data-build-version="v294">
+<html data-build-version="v295">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -8339,7 +8339,7 @@ Orb Control Panel Instrument Reference
     <script>
         const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'v271'}`;
         const CONTROL_PANEL_DIAGNOSTIC_DISABLED = false;
-        const CONTROL_PANEL_BENCHMARK_MODE = true;
+        const CONTROL_PANEL_BENCHMARK_MODE = false;
         if (CONTROL_PANEL_DIAGNOSTIC_DISABLED) document.body.classList.add('control-panel-diagnostic-disabled');
         if (CONTROL_PANEL_BENCHMARK_MODE) document.body.classList.add('control-panel-benchmark');
 
@@ -9839,9 +9839,10 @@ Orb Control Panel Instrument Reference
                     try { return root ? root.querySelectorAll(selector).length : 0; } catch (_) { return 0; }
                 };
                 const audio = this.audio || {};
+                const controlPanel = this.ui && this.ui.getControlPanelDiagnosticState ? this.ui.getControlPanelDiagnosticState() : null;
                 return {
                     schema: 'blockazoids-stability-v1',
-                    build: 'v294',
+                    build: 'v295',
                     sessionId: this.stabilitySessionId,
                     savedAt: Date.now(),
                     cleanExit: !!cleanExit,
@@ -9885,6 +9886,7 @@ Orb Control Panel Instrument Reference
                     audioSourceLimitTrips: Number(audio.audioSourceLimitTrips) || 0,
                     audioLastCleanupReason: audio.audioLastCleanupReason || 'unknown',
                     audioCleanupTimers: audio.audioCleanupTimers instanceof Set ? audio.audioCleanupTimers.size : 0,
+                    controlPanel,
                     benchmark: window.__blockazoidsControlPanelBenchmark && window.__blockazoidsControlPanelBenchmark.getCrashState
                         ? window.__blockazoidsControlPanelBenchmark.getCrashState()
                         : null
@@ -9923,7 +9925,7 @@ Orb Control Panel Instrument Reference
                     `Objects: ${report.enemies || 0} enemies · ${report.warnings || 0} warnings · ${report.transientEffects || 0} effects · ${report.documentNodes || 0} DOM nodes`,
                     `Audio: ${report.soundMuted ? 'OFF' : 'ON'} · context ${report.audioContextState || 'unknown'} #${report.audioContextGeneration || 0} · nodes ${report.audioNodesCreatedThisContext || 0}/${report.audioNodesCreatedTotal || 0} · tracked ${report.audioTrackedNodes || 0} · active sources ${report.audioSourcesActive || 0}`,
                     `Audio cleanup: ${report.audioLastCleanupReason || 'unknown'} · transitions ${report.audioTransitionCleanupCount || 0} · timers ${report.audioManagedTimers || 0} · limit trips ${report.audioSourceLimitTrips || 0}`,
-                    `Control panel: ${CONTROL_PANEL_BENCHMARK_MODE ? 'BENCHMARK' : (CONTROL_PANEL_DIAGNOSTIC_DISABLED ? 'DISABLED' : 'ENABLED')}`,
+                    `Control panel: ${CONTROL_PANEL_DIAGNOSTIC_DISABLED ? 'DISABLED' : 'OPTIMIZED'}${report.controlPanel ? ` · live ${report.controlPanel.liveHz || 10}Hz · border rebuilds ${report.controlPanel.borderRebuilds || 0} · timer passes ${report.controlPanel.timerPasses || 0}` : ''}`,
                     ...(report.benchmark ? [`Benchmark: ${report.benchmark.resultsCompleted || 0}/${report.benchmark.componentTotal || 10} complete · ${report.benchmark.phase || '?'} ${report.benchmark.component || '?'} · top JS ${report.benchmark.highestJsSoFar || 'none'}`] : []),
                     `Viewport: ${report.viewport || '?'} · Board ${report.boardSize || '?'} · Saved ${Math.max(0, Math.round((Date.now() - (report.savedAt || Date.now())) / 1000))}s before reload`
                 ];
@@ -9974,6 +9976,7 @@ Orb Control Panel Instrument Reference
                 const desiredHeight = Math.max(300, Math.min(600, window.innerHeight - 178));
                 const desiredSize = Math.max(300, Math.floor(Math.min(desiredWidth, desiredHeight) / 10) * 10);
                 if (oldSize && this.active && Math.abs(desiredSize - oldSize) < 20) {
+                    if (this.ui && this.ui.markBottomHudBorderDirty) this.ui.markBottomHudBorderDirty(reason);
                     if (this.ui && this.ui.updateDynamicHud) this.ui.updateDynamicHud();
                     this.markStabilityEvent(`${reason}-minor-viewport-change`, { board: oldSize, desired: desiredSize });
                     return;
@@ -9981,6 +9984,7 @@ Orb Control Panel Instrument Reference
                 this.configureResponsivePlayfield();
                 const newSize = Number(this.PLAYFIELD_SIZE) || oldSize;
                 if (!oldSize || !newSize || Math.abs(newSize - oldSize) < 0.5) {
+                    if (this.ui && this.ui.markBottomHudBorderDirty) this.ui.markBottomHudBorderDirty(reason);
                     if (this.ui && this.ui.updateDynamicHud) this.ui.updateDynamicHud();
                     this.markStabilityEvent(`${reason}-layout-stable`, { board: newSize });
                     return;
@@ -10067,6 +10071,7 @@ Orb Control Panel Instrument Reference
                 this.playfieldCosmicZapTapMaxMove = Math.max(24, this.PLAYER_SIZE * 1.35);
                 this.lastFrameTime = performance.now();
                 this.purgeTransientPlayfieldEffects();
+                if (this.ui && this.ui.markBottomHudBorderDirty) this.ui.markBottomHudBorderDirty(reason);
                 if (this.ui && this.ui.updateAll) this.ui.updateAll();
                 this.markStabilityEvent(`${reason}-layout-resized`, { from: oldSize, to: newSize, oldPlayer: oldPlayerSize, newPlayer: this.PLAYER_SIZE });
             }
@@ -17849,6 +17854,43 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 this.cycleElement = document.getElementById('cycleHud'); // Legacy bottom cycle marker; kept hidden
                 this.scoreAlertActive = false;
                 this.scoreAlertTimer = null;
+
+                // v295: the cockpit is event-driven. Static instruments only touch the DOM
+                // when their displayed state changes; live instruments run at controlled rates.
+                this.cosmicZapIcons = this.cosmicZapIndicators ? [...this.cosmicZapIndicators.querySelectorAll('.cosmic-zap-icon')] : [];
+                this.bottomControlRow = document.getElementById('bottomControlRow');
+                this.lastStartPauseSignature = null;
+                this.lastCycleIndicatorSignature = null;
+                this.lastZapHudSignature = null;
+                this.lastLevelIndicatorsSignature = null;
+                this.lastAlienLevelSignature = null;
+                this.lastAlienRelicSignature = null;
+                this.lastOrbitalTallySignature = null;
+                this.lastTimerSignature = null;
+                this.lastCrystalSpineSignature = null;
+                this.lastTriLockSignature = null;
+                this.lastVelocitySignature = null;
+                this.lastNexusSignature = null;
+                this.cachedCrystalTotalLevel = null;
+                this.cachedCrystalTotal = 0;
+                this.bottomHudBorderDirty = true;
+                this.bottomHudBorderDirtyReason = 'startup';
+                this.dynamicHudLastLiveAt = 0;
+                this.dynamicHudLastTimerSecond = null;
+                this.dynamicHudLiveIntervalMs = 100;
+                this.controlPanelStats = {
+                    frameChecks: 0,
+                    livePasses: 0,
+                    timerPasses: 0,
+                    borderRebuilds: 0,
+                    borderSkips: 0,
+                    lastBorderReason: 'startup'
+                };
+
+                requestAnimationFrame(() => requestAnimationFrame(() => {
+                    this.markBottomHudBorderDirty('startup-layout');
+                    this.updateBottomHudBorder();
+                }));
             }
 
             // Update score display. Final Gridlock replaces score with its survival clock.
@@ -17943,6 +17985,9 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 const canResume = this.game.isPaused && this.game.levelActionStarted && !this.game.isGameOver;
                 const continueCycleReady = this.game.cycleTransitionActive && !!this.game.pendingCycleContinueToken && !this.game.isGameOver;
                 const temporarilyBlocked = (this.game.cycleTransitionActive && !continueCycleReady) || this.game.showHudDuringSectorIntro || this.game.startInputLocked || this.game.finalCompletionActive || (this.game.isGameOver && !this.game.restartReady);
+                const signature = [canPause, canResume, continueCycleReady, temporarilyBlocked, !!this.game.finalGridlockResultActive].join('|');
+                if (signature === this.lastStartPauseSignature) return;
+                this.lastStartPauseSignature = signature;
 
                 const coreSymbol = canPause
                     ? '<span class="pause-symbol"><span class="pause-bar"></span><span class="pause-bar"></span></span>'
@@ -17985,6 +18030,9 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 const inRunContext = this.game.hasStartedRun || this.game.active || this.game.showHudDuringSectorIntro || this.game.isGameOver || this.game.cycleTransitionActive;
                 const hideDuringFinalGridlock = this.game.finalGridlockActive || this.game.finalGridlockResultActive;
                 const showCompletedGrid = completedCycles > 0 && inRunContext && !hideDuringFinalGridlock;
+                const signature = `${completedCycles}|${showCompletedGrid}`;
+                if (signature === this.lastCycleIndicatorSignature) return;
+                this.lastCycleIndicatorSignature = signature;
 
                 this.cycleElement.replaceChildren();
                 if (showCompletedGrid) {
@@ -18017,35 +18065,33 @@ startMaxSwarmBeat(delaySeconds = 0) {
             updateCosmicZapIndicators() {
                 const showHud = this.shouldShowGameplayHud();
                 const remainingZaps = Math.max(0, Math.floor(Number(this.game.cosmicZapsLeft) || 0));
-                const zapIcons = this.cosmicZapIndicators
-                    ? [...this.cosmicZapIndicators.querySelectorAll('.cosmic-zap-icon')]
-                    : [];
+                const zapIcons = this.cosmicZapIcons || [];
                 const cycleCapacity = this.game.getCosmicZapsForCurrentCycle
                     ? Math.max(1, Math.floor(Number(this.game.getCosmicZapsForCurrentCycle()) || 1))
                     : Math.max(1, remainingZaps);
                 const visibleCapacity = Math.min(zapIcons.length, Math.max(cycleCapacity, remainingZaps));
                 const litStartIndex = Math.max(0, visibleCapacity - Math.min(visibleCapacity, remainingZaps));
+                const signature = `${showHud}|${remainingZaps}|${visibleCapacity}|${litStartIndex}`;
 
-                if (this.cosmicZapIndicators) {
-                    this.cosmicZapIndicators.style.display = showHud && remainingZaps > 0 ? 'flex' : 'none';
+                if (signature !== this.lastZapHudSignature) {
+                    this.lastZapHudSignature = signature;
+                    if (this.cosmicZapIndicators) {
+                        this.cosmicZapIndicators.style.display = showHud && remainingZaps > 0 ? 'flex' : 'none';
+                    }
+                    zapIcons.forEach((icon, index) => {
+                        const belongsToCurrentCapacity = index < visibleCapacity;
+                        icon.style.display = showHud && belongsToCurrentCapacity ? 'block' : 'none';
+                        icon.style.visibility = belongsToCurrentCapacity && index >= litStartIndex ? 'visible' : 'hidden';
+                    });
                 }
-                zapIcons.forEach((icon, index) => {
-                    const belongsToCurrentCapacity = index < visibleCapacity;
-                    icon.style.display = showHud && belongsToCurrentCapacity ? 'block' : 'none';
-                    icon.style.visibility = belongsToCurrentCapacity && index >= litStartIndex ? 'visible' : 'hidden';
-                });
 
-                if (!CONTROL_PANEL_BENCHMARK_MODE || !this.controlPanelBenchmark || !this.controlPanelBenchmark.started) {
-                    this.updateTriLockSingularity();
-                }
+                this.updateTriLockSingularity();
             }
 
             // Update the 15-sector conquest row across the top of the cockpit HUD.
             updateLevelIndicators() {
                 if (CONTROL_PANEL_DIAGNOSTIC_DISABLED) return;
                 if (!this.levelIndicators) return;
-                this.levelIndicators.style.display = 'grid';
-                this.levelIndicators.innerHTML = '';
 
                 const totalSectors = this.game.MAX_LEVEL || 15;
                 const campaignCompleteState = this.game.finalCompletionActive || this.game.finalGridlockActive || this.game.finalGridlockResultActive;
@@ -18058,20 +18104,29 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 const conqueredSectors = campaignCompleteState
                     ? totalSectors
                     : (inRunContext ? Math.max(0, Math.min(totalSectors, this.game.level - 1)) : 0);
+                const currentSector = campaignCompleteState ? 0 : (inRunContext ? this.game.level : (this.game.selectedStartSector || 1));
+                const relicSignature = Array.from({ length: totalSectors }, (_, index) => {
+                    const levelNumber = index + 1;
+                    return this.game.relicRecoveredBySector[this.game.getRelicSectorKey(levelNumber)] ? '1' : '0';
+                }).join('');
+                const signature = `${totalSectors}|${campaignCompleteState}|${conqueredSectors}|${currentSector}|${relicSignature}`;
+                if (signature === this.lastLevelIndicatorsSignature) return;
+                this.lastLevelIndicatorsSignature = signature;
+
+                this.levelIndicators.style.display = 'grid';
+                const fragment = document.createDocumentFragment();
                 for (let i = 0; i < totalSectors; i++) {
                     const circle = document.createElement('div');
                     circle.className = 'level-circle';
                     const levelNumber = i + 1;
-                    const currentSector = campaignCompleteState ? null : (inRunContext ? this.game.level : (this.game.selectedStartSector || 1));
                     const isCompleted = i < conqueredSectors;
                     const isCurrent = !isCompleted && levelNumber === currentSector;
                     if (isCompleted) circle.classList.add('completed');
                     if (isCurrent) circle.classList.add('current');
-                    if (isCompleted && this.game.relicRecoveredBySector[this.game.getRelicSectorKey(levelNumber)]) {
-                        circle.classList.add('relic-recovered');
-                    }
-                    this.levelIndicators.appendChild(circle);
+                    if (isCompleted && relicSignature[i] === '1') circle.classList.add('relic-recovered');
+                    fragment.appendChild(circle);
                 }
+                this.levelIndicators.replaceChildren(fragment);
             }
 
             toAlienRomanSource(levelNumber) {
@@ -18108,7 +18163,6 @@ startMaxSwarmBeat(delaySeconds = 0) {
             updateAlienLevelInstrument() {
                 if (CONTROL_PANEL_DIAGNOSTIC_DISABLED) return;
                 const showLevelHud = true;
-                if (this.alienLevelHud) this.alienLevelHud.classList.toggle('visible', showLevelHud);
                 if (!this.alienLevelGlyphs) return;
 
                 const rawDisplayName = this.game.cockpitSectorDisplayName;
@@ -18117,12 +18171,17 @@ startMaxSwarmBeat(delaySeconds = 0) {
                     : String(rawDisplayName).toUpperCase();
                 const displayName = this.game.cockpitActivated && storedDisplayName === 'ACTIVATE' ? 'ACTIVATED' : storedDisplayName;
                 const waitingForActivation = !this.game.cockpitActivated && storedDisplayName === 'ACTIVATE';
+                const displayLevel = this.game.cockpitSectorDisplayLevel;
+                const signature = `${showLevelHud}|${displayName}|${waitingForActivation}|${displayLevel || 0}`;
+                if (signature === this.lastAlienLevelSignature) return;
+                this.lastAlienLevelSignature = signature;
+
+                if (this.alienLevelHud) this.alienLevelHud.classList.toggle('visible', showLevelHud);
                 this.alienLevelGlyphs.classList.add('alien-level-name-text');
                 this.alienLevelGlyphs.classList.toggle('activate-pulse', waitingForActivation);
                 this.alienLevelGlyphs.textContent = displayName;
                 if (this.alienLevelHud) {
                     this.alienLevelHud.classList.toggle('waiting-activate', waitingForActivation);
-                    const displayLevel = this.game.cockpitSectorDisplayLevel;
                     this.alienLevelHud.setAttribute('aria-label', displayName
                         ? (displayLevel ? `Sector ${displayLevel}: ${displayName}` : displayName)
                         : 'Sector display inactive');
@@ -18135,6 +18194,8 @@ startMaxSwarmBeat(delaySeconds = 0) {
 
             updateAlienRelicInstrument() {
                 if (CONTROL_PANEL_DIAGNOSTIC_DISABLED) return;
+                if (this.lastAlienRelicSignature === 'hidden') return;
+                this.lastAlienRelicSignature = 'hidden';
                 if (this.alienRelicHud) {
                     this.alienRelicHud.classList.remove('visible');
                     this.alienRelicHud.setAttribute('aria-hidden', 'true');
@@ -18193,6 +18254,11 @@ startMaxSwarmBeat(delaySeconds = 0) {
                     ? this.game.getRecoveredRelicSectorNumbers()
                     : new Set();
                 const relicCount = powered ? Math.max(0, Math.min(15, recoveredSectors.size)) : 0;
+                const sectorSignature = powered ? [...recoveredSectors].sort((a, b) => a - b).join(',') : '';
+                const signature = `${powered}|${relicCount}|${sectorSignature}`;
+                if (signature === this.lastOrbitalTallySignature) return;
+                this.lastOrbitalTallySignature = signature;
+
                 const markers = this.orbitalTallyMarkers ? [...this.orbitalTallyMarkers.querySelectorAll('.orbital-tally-marker')] : [];
                 markers.forEach((marker, index) => {
                     const sectorNumber = index + 1;
@@ -18219,7 +18285,6 @@ startMaxSwarmBeat(delaySeconds = 0) {
                     this.orbitalTallyHud.setAttribute('aria-label', `Orbital Tally: ${relicCount} of 15 sector relics collected`);
                 }
 
-                const sectorSignature = powered ? [...recoveredSectors].sort((a, b) => a - b).join(',') : '';
                 if (powered && this.lastOrbitalTallySectorSignature !== null && sectorSignature !== this.lastOrbitalTallySectorSignature) {
                     const previous = new Set(String(this.lastOrbitalTallySectorSignature || '').split(',').filter(Boolean).map(Number));
                     const newlyRecoveredSector = [...recoveredSectors].sort((a, b) => a - b).find(sector => !previous.has(sector));
@@ -18241,6 +18306,11 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 if (CONTROL_PANEL_DIAGNOSTIC_DISABLED) return;
                 const powered = !!this.game.cockpitActivated;
                 const displayValue = powered ? this.formatHudTimer() : '0000';
+                const signature = `${powered}|${displayValue}`;
+                if (signature === this.lastTimerSignature) return;
+                this.lastTimerSignature = signature;
+                this.controlPanelStats.timerPasses += 1;
+
                 if (this.timerValue) {
                     this.timerValue.setAttribute('data-timer-string', displayValue);
                     this.renderAlienMonoText(this.timerValue, displayValue);
@@ -18258,6 +18328,7 @@ startMaxSwarmBeat(delaySeconds = 0) {
                                      this.game.showHudDuringSectorIntro ||
                                      this.game.isGameOver;
                 const levelForGauge = inRunContext ? this.game.level : (this.game.selectedStartSector || 1);
+                if (this.cachedCrystalTotalLevel === levelForGauge) return this.cachedCrystalTotal;
                 const rows = this.game.getLevelPatternRows ? this.game.getLevelPatternRows(levelForGauge) : [];
                 const gridSize = Math.max(1, Number(this.game.GRID_SIZE) || 1);
                 const playfieldSize = Math.max(gridSize, Number(this.game.PLAYFIELD_SIZE) || gridSize);
@@ -18275,6 +18346,8 @@ startMaxSwarmBeat(delaySeconds = 0) {
                         if (letter === 'R' || letter === 'G' || letter === 'B') total++;
                     }
                 }
+                this.cachedCrystalTotalLevel = levelForGauge;
+                this.cachedCrystalTotal = total;
                 return total;
             }
 
@@ -18386,6 +18459,9 @@ startMaxSwarmBeat(delaySeconds = 0) {
                     this.resetCrystalSpineTransfers(collected);
                 }
                 const visibleCollected = Math.max(0, Math.min(spineCapacity, this.crystalGaugeDisplayCount));
+                const signature = `${powered}|${visibleCollected}`;
+                if (container.dataset.spineBuilt === 'true' && signature === this.lastCrystalSpineSignature) return;
+                this.lastCrystalSpineSignature = signature;
 
                 container.classList.add('crystal-spine');
                 container.classList.toggle('powered-off', !powered);
@@ -18462,6 +18538,9 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 const actualZaps = powered ? Math.max(0, Math.floor(Number(this.game.cosmicZapsLeft) || 0)) : 0;
                 const visibleZaps = Math.min(3, actualZaps);
                 const previousZaps = this.lastTriLockZapCount;
+                const signature = `${survivalDisabled}|${powered}|${actualZaps}`;
+                if (signature === this.lastTriLockSignature) return;
+                this.lastTriLockSignature = signature;
 
                 this.triLockSingularity.classList.toggle('powered-off', !powered);
                 this.triLockSingularity.classList.toggle('reserve-active', powered && actualZaps > 3);
@@ -18562,14 +18641,18 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 const activeStageCount = velocityLevel > 0.025
                     ? Math.max(1, Math.min(this.recursionGlyphStages.length, Math.ceil(velocityLevel * this.recursionGlyphStages.length)))
                     : 0;
+                const velocityDisplay = Math.max(0, Math.min(1, Math.round(velocityLevel * 20) / 20));
+                const speedPercent = Math.round(velocityDisplay * 100);
+                const signature = `${powered}|${activeStageCount}|${speedPercent}`;
+                if (signature === this.lastVelocitySignature) return;
+                this.lastVelocitySignature = signature;
 
-                this.recursionGlyphEngine.style.setProperty('--velocity-level', velocityLevel.toFixed(3));
+                this.recursionGlyphEngine.style.setProperty('--velocity-level', velocityDisplay.toFixed(2));
                 this.recursionGlyphEngine.classList.toggle('powered-off', !powered);
                 this.recursionGlyphStages.forEach(stage => {
                     const stageNumber = Math.max(1, Number(stage.dataset.stage) || 1);
                     stage.classList.toggle('active', powered && stageNumber <= activeStageCount);
                 });
-                const speedPercent = Math.round(velocityLevel * 100);
                 this.recursionGlyphEngine.setAttribute('aria-label', powered
                     ? `Velocity Glyph Engine, Orb speed ${speedPercent} percent`
                     : 'Velocity Glyph Engine dimmed');
@@ -18618,6 +18701,9 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 if (CONTROL_PANEL_DIAGNOSTIC_DISABLED) return;
                 const powered = !!this.game.cockpitActivated;
                 const active = powered && this.hasHeadOnCollisionWarning();
+                const signature = `${powered}|${active}`;
+                if (signature === this.lastNexusSignature) return;
+                this.lastNexusSignature = signature;
                 if (this.radarAlarmHud) {
                     this.radarAlarmHud.classList.toggle('powered-off', !powered);
                     this.radarAlarmHud.classList.toggle('radar-active', active);
@@ -18625,23 +18711,32 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 }
             }
 
-            updateBottomHudBorder() {
+            markBottomHudBorderDirty(reason = 'layout-change') {
+                this.bottomHudBorderDirty = true;
+                this.bottomHudBorderDirtyReason = reason;
+            }
+
+            updateBottomHudBorder(force = false) {
                 if (CONTROL_PANEL_DIAGNOSTIC_DISABLED) return;
+                if (!force && !this.bottomHudBorderDirty) return;
                 if (!this.bottomProgressPanel || !this.bottomHudBorder || !this.bottomHudBorderPath) return;
+
                 const panelRect = this.bottomProgressPanel.getBoundingClientRect();
                 if (!panelRect.width || !panelRect.height) return;
+                const buttonRow = this.bottomControlRow;
+                const startButton = this.game.startButton;
+                const width = panelRect.width;
+                const height = panelRect.height;
+                const inset = 1;
+                const right = width - inset;
+                const bottom = height - inset;
+                const cornerRadius = Math.max(14, Math.min(30, width * 0.054, height * 0.086));
+                let d = '';
+                let signature = '';
 
-                const buttonRow = document.getElementById('bottomControlRow');
-                const startButton = document.getElementById('startButton');
                 if (!buttonRow || !startButton) {
-                    const width = panelRect.width;
-                    const height = panelRect.height;
-                    const inset = 1;
-                    const right = width - inset;
-                    const bottom = height - inset;
-                    const cornerRadius = Math.max(14, Math.min(30, width * 0.054, height * 0.086));
-                    this.bottomHudBorder.setAttribute('viewBox', `0 0 ${width.toFixed(2)} ${height.toFixed(2)}`);
-                    this.bottomHudBorderPath.setAttribute('d', [
+                    signature = `simple|${width.toFixed(2)}|${height.toFixed(2)}`;
+                    d = [
                         `M ${(inset + cornerRadius).toFixed(2)} ${inset}`,
                         `H ${(right - cornerRadius).toFixed(2)}`,
                         `Q ${right.toFixed(2)} ${inset} ${right.toFixed(2)} ${(inset + cornerRadius).toFixed(2)}`,
@@ -18652,70 +18747,86 @@ startMaxSwarmBeat(delaySeconds = 0) {
                         `V ${(inset + cornerRadius).toFixed(2)}`,
                         `Q ${inset} ${inset} ${(inset + cornerRadius).toFixed(2)} ${inset}`,
                         'Z'
-                    ].join(' '));
-                    return;
+                    ].join(' ');
+                } else {
+                    const buttonRect = startButton.getBoundingClientRect();
+                    const computed = getComputedStyle(this.bottomProgressPanel);
+                    const clearance = Math.max(10, parseFloat(computed.getPropertyValue('--hud-clearance')) || this.game.GRID_SIZE * 0.34);
+                    const buttonsLeft = buttonRect.left - panelRect.left;
+                    const buttonsRight = buttonRect.right - panelRect.left;
+                    const buttonFrameMargin = clearance * 0.68;
+                    const cutoutLeft = Math.max(inset + clearance, buttonsLeft - buttonFrameMargin);
+                    const cutoutRight = Math.min(width - inset - clearance, buttonsRight + buttonFrameMargin);
+                    const buttonTop = buttonRect.top - panelRect.top;
+                    const cutoutTop = Math.max(inset + clearance * 2.45, buttonTop - clearance * 0.70);
+                    const uCornerRadius = Math.max(8, Math.min(cornerRadius, (cutoutRight - cutoutLeft) * 0.22, (bottom - cutoutTop) * 0.44));
+                    signature = [width, height, cutoutLeft, cutoutRight, cutoutTop, clearance].map(value => Number(value).toFixed(2)).join('|');
+                    d = [
+                        `M ${(inset + cornerRadius).toFixed(2)} ${inset}`,
+                        `H ${(right - cornerRadius).toFixed(2)}`,
+                        `Q ${right.toFixed(2)} ${inset} ${right.toFixed(2)} ${(inset + cornerRadius).toFixed(2)}`,
+                        `V ${(bottom - cornerRadius).toFixed(2)}`,
+                        `Q ${right.toFixed(2)} ${bottom.toFixed(2)} ${(right - cornerRadius).toFixed(2)} ${bottom.toFixed(2)}`,
+                        `H ${(cutoutRight + uCornerRadius).toFixed(2)}`,
+                        `Q ${cutoutRight.toFixed(2)} ${bottom.toFixed(2)} ${cutoutRight.toFixed(2)} ${(bottom - uCornerRadius).toFixed(2)}`,
+                        `V ${(cutoutTop + uCornerRadius).toFixed(2)}`,
+                        `Q ${cutoutRight.toFixed(2)} ${cutoutTop.toFixed(2)} ${(cutoutRight - uCornerRadius).toFixed(2)} ${cutoutTop.toFixed(2)}`,
+                        `H ${(cutoutLeft + uCornerRadius).toFixed(2)}`,
+                        `Q ${cutoutLeft.toFixed(2)} ${cutoutTop.toFixed(2)} ${cutoutLeft.toFixed(2)} ${(cutoutTop + uCornerRadius).toFixed(2)}`,
+                        `V ${(bottom - uCornerRadius).toFixed(2)}`,
+                        `Q ${cutoutLeft.toFixed(2)} ${bottom.toFixed(2)} ${(cutoutLeft - uCornerRadius).toFixed(2)} ${bottom.toFixed(2)}`,
+                        `H ${(inset + cornerRadius).toFixed(2)}`,
+                        `Q ${inset} ${bottom.toFixed(2)} ${inset} ${(bottom - cornerRadius).toFixed(2)}`,
+                        `V ${(inset + cornerRadius).toFixed(2)}`,
+                        `Q ${inset} ${inset} ${(inset + cornerRadius).toFixed(2)} ${inset}`,
+                        'Z'
+                    ].join(' ');
                 }
 
-                const rowRect = buttonRow.getBoundingClientRect();
-                const buttonRect = startButton.getBoundingClientRect();
-                const width = panelRect.width;
-                const height = panelRect.height;
-                const inset = 1;
-                const computed = getComputedStyle(this.bottomProgressPanel);
-                const clearance = Math.max(10, parseFloat(computed.getPropertyValue('--hud-clearance')) || this.game.GRID_SIZE * 0.34);
-                const buttonsLeft = buttonRect.left - panelRect.left;
-                const buttonsRight = buttonRect.right - panelRect.left;
-                const buttonFrameMargin = clearance * 0.68;
-
-                const cutoutLeft = Math.max(inset + clearance, buttonsLeft - buttonFrameMargin);
-                const cutoutRight = Math.min(width - inset - clearance, buttonsRight + buttonFrameMargin);
-                const buttonTop = buttonRect.top - panelRect.top;
-                const cutoutTop = Math.max(inset + clearance * 2.45, buttonTop - clearance * 0.70);
-                const bottom = height - inset;
-                const right = width - inset;
-                const cornerRadius = Math.max(14, Math.min(30, width * 0.054, height * 0.086));
-                const uCornerRadius = Math.max(8, Math.min(cornerRadius, (cutoutRight - cutoutLeft) * 0.22, (bottom - cutoutTop) * 0.44));
-
+                this.bottomHudBorderDirty = false;
+                if (signature === this.bottomHudBorderSignature) {
+                    this.controlPanelStats.borderSkips += 1;
+                    return;
+                }
+                this.bottomHudBorderSignature = signature;
+                this.controlPanelStats.borderRebuilds += 1;
+                this.controlPanelStats.lastBorderReason = this.bottomHudBorderDirtyReason || 'unknown';
                 this.bottomHudBorder.setAttribute('viewBox', `0 0 ${width.toFixed(2)} ${height.toFixed(2)}`);
-                const d = [
-                    `M ${(inset + cornerRadius).toFixed(2)} ${inset}`,
-                    `H ${(right - cornerRadius).toFixed(2)}`,
-                    `Q ${right.toFixed(2)} ${inset} ${right.toFixed(2)} ${(inset + cornerRadius).toFixed(2)}`,
-                    `V ${(bottom - cornerRadius).toFixed(2)}`,
-                    `Q ${right.toFixed(2)} ${bottom.toFixed(2)} ${(right - cornerRadius).toFixed(2)} ${bottom.toFixed(2)}`,
-                    `H ${(cutoutRight + uCornerRadius).toFixed(2)}`,
-                    `Q ${cutoutRight.toFixed(2)} ${bottom.toFixed(2)} ${cutoutRight.toFixed(2)} ${(bottom - uCornerRadius).toFixed(2)}`,
-                    `V ${(cutoutTop + uCornerRadius).toFixed(2)}`,
-                    `Q ${cutoutRight.toFixed(2)} ${cutoutTop.toFixed(2)} ${(cutoutRight - uCornerRadius).toFixed(2)} ${cutoutTop.toFixed(2)}`,
-                    `H ${(cutoutLeft + uCornerRadius).toFixed(2)}`,
-                    `Q ${cutoutLeft.toFixed(2)} ${cutoutTop.toFixed(2)} ${cutoutLeft.toFixed(2)} ${(cutoutTop + uCornerRadius).toFixed(2)}`,
-                    `V ${(bottom - uCornerRadius).toFixed(2)}`,
-                    `Q ${cutoutLeft.toFixed(2)} ${bottom.toFixed(2)} ${(cutoutLeft - uCornerRadius).toFixed(2)} ${bottom.toFixed(2)}`,
-                    `H ${(inset + cornerRadius).toFixed(2)}`,
-                    `Q ${inset} ${bottom.toFixed(2)} ${inset} ${(bottom - cornerRadius).toFixed(2)}`,
-                    `V ${(inset + cornerRadius).toFixed(2)}`,
-                    `Q ${inset} ${inset} ${(inset + cornerRadius).toFixed(2)} ${inset}`,
-                    'Z'
-                ].join(' ');
                 this.bottomHudBorderPath.setAttribute('d', d);
             }
 
             updateDynamicHud() {
                 if (CONTROL_PANEL_DIAGNOSTIC_DISABLED) return;
-                if (CONTROL_PANEL_BENCHMARK_MODE) {
-                    if (!this.controlPanelBenchmark) this.controlPanelBenchmark = new ControlPanelBenchmark(this, this.game);
-                    this.controlPanelBenchmark.tick();
-                    return;
+                const now = performance.now();
+                this.controlPanelStats.frameChecks += 1;
+
+                if (this.bottomHudBorderDirty) this.updateBottomHudBorder();
+
+                const timerSecond = Math.max(0, Math.floor((this.game && this.game.getRunRecordElapsedMs ? this.game.getRunRecordElapsedMs() : 0) / 1000));
+                if (timerSecond !== this.dynamicHudLastTimerSecond) {
+                    this.dynamicHudLastTimerSecond = timerSecond;
+                    this.updateTimerInstrument();
                 }
-                this.updateBottomHudBorder();
-                this.updateCrystalGauges();
-                this.updateRecursionGlyphEngine();
-                this.updateAlienLevelInstrument();
-                this.updateAlienRelicInstrument();
-                this.updateOrbitalTallyInstrument();
-                this.updateTimerInstrument();
-                this.updateProximityAlert();
-                this.updateTriLockSingularity();
+
+                if (now - this.dynamicHudLastLiveAt >= this.dynamicHudLiveIntervalMs) {
+                    this.dynamicHudLastLiveAt = now;
+                    this.controlPanelStats.livePasses += 1;
+                    this.updateRecursionGlyphEngine();
+                    this.updateProximityAlert();
+                }
+            }
+
+            getControlPanelDiagnosticState() {
+                return {
+                    mode: 'event-driven',
+                    liveHz: Math.round(1000 / this.dynamicHudLiveIntervalMs),
+                    frameChecks: this.controlPanelStats.frameChecks,
+                    livePasses: this.controlPanelStats.livePasses,
+                    timerPasses: this.controlPanelStats.timerPasses,
+                    borderRebuilds: this.controlPanelStats.borderRebuilds,
+                    borderSkips: this.controlPanelStats.borderSkips,
+                    lastBorderReason: this.controlPanelStats.lastBorderReason
+                };
             }
 
             // Update all UI elements
@@ -18726,11 +18837,15 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 this.updateStartPauseButton();
                 this.updateCycleIndicator();
                 this.updateCosmicZapIndicators();
-                if (CONTROL_PANEL_BENCHMARK_MODE && this.controlPanelBenchmark && this.controlPanelBenchmark.started) return;
                 this.updateLevelIndicators();
                 this.updateAlienLevelInstrument();
                 this.updateAlienRelicInstrument();
-                this.updateDynamicHud();
+                this.updateCrystalGauges();
+                this.updateOrbitalTallyInstrument();
+                this.updateTimerInstrument();
+                this.updateProximityAlert();
+                this.updateRecursionGlyphEngine();
+                this.updateBottomHudBorder();
             }
         }
 
