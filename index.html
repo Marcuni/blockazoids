@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v290: Removes forced orientation reloads, adds persistent stability breadcrumbs and reset reporting, strengthens sector cleanup, and runs performance sampling only in Developer Mode.
+Build v291: Adds audio graph disposal and node diagnostics, makes Sound Off create no audio nodes, suspends motion sampling when it cannot be used, and recenters the reset report.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -21,7 +21,7 @@ Orb Control Panel Instrument Reference
 - Velocity Glyph Engine — Temporarily displays the Orb’s finger-driven movement speed.
 - Orb Command Socket — Controls the Orb’s pause, resume, and primary interface functions.
 -->
-<html data-build-version="v290">
+<html data-build-version="v291">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -7787,16 +7787,24 @@ Orb Control Panel Instrument Reference
             }
         }
 
-        /* v290 stability report shown only after an interrupted in-progress run. */
+        /* v291 stability report shown only after an interrupted in-progress run. */
         #stabilityReport {
             position: fixed;
             left: 50%;
-            bottom: max(10px, env(safe-area-inset-bottom));
+            top: 50%;
+            bottom: auto;
+            transform: translate(-50%, -50%);
             z-index: 19000;
-            width: min(560px, calc(100vw - 20px));
+            width: min(560px, calc(100vw - 16px));
+            max-height: calc(100vh - 24px);
+            max-height: calc(100dvh - 24px);
             box-sizing: border-box;
             display: none;
             padding: 10px 12px 9px;
+            overflow-x: hidden;
+            overflow-y: auto;
+            overscroll-behavior: contain;
+            -webkit-overflow-scrolling: touch;
             color: #fff;
             background: rgba(0, 0, 0, 0.96);
             border: 2px solid #fff;
@@ -7804,6 +7812,7 @@ Orb Control Panel Instrument Reference
             font-family: 'Orbitron', 'Courier New', monospace;
             text-align: left;
             letter-spacing: 0.45px;
+            overflow-wrap: anywhere;
             pointer-events: auto;
         }
 
@@ -8618,7 +8627,9 @@ Orb Control Panel Instrument Reference
                 this.playfieldCosmicZapDoubleTapWindowMs = 360;
                 this.playfieldCosmicZapTapMaxDurationMs = 300;
                 this.playfieldCosmicZapTapMaxMove = Math.max(24, this.PLAYER_SIZE * 1.35);
-                this.motionCosmicZapEnabled = false;       // True after iOS/device motion permission is granted
+                this.motionCosmicZapEnabled = false;       // Compatibility flag: motion permission has been granted
+                this.motionPermissionGranted = false;       // Permission survives listener suspension during pause/no-Zap states
+                this.motionListenerAttached = false;        // True only while motion input can currently do useful work
                 this.lastShakeCosmicZapTime = 0;           // Prevents one shake from firing multiple Cosmic Zaps
                 this.shakeCosmicZapCooldownMs = 1200;
                 this.shakeThreshold = 32;             // Higher = harder to trigger accidentally
@@ -9425,7 +9436,7 @@ Orb Control Panel Instrument Reference
                 const audio = this.audio || {};
                 return {
                     schema: 'blockazoids-stability-v1',
-                    build: 'v290',
+                    build: 'v291',
                     sessionId: this.stabilitySessionId,
                     savedAt: Date.now(),
                     cleanExit: !!cleanExit,
@@ -9455,7 +9466,15 @@ Orb Control Panel Instrument Reference
                     backgroundAudioTimers: Array.isArray(audio.backgroundTimers) ? audio.backgroundTimers.length : 0,
                     gridlockAudioTimers: Array.isArray(audio.maxSwarmBeatTimers) ? audio.maxSwarmBeatTimers.length : 0,
                     cycleAudioTimers: Array.isArray(audio.cycleCompleteMusicTimers) ? audio.cycleCompleteMusicTimers.length : 0,
-                    relicAudioTimers: Array.isArray(audio.prismRelicHumTimers) ? audio.prismRelicHumTimers.length : 0
+                    relicAudioTimers: Array.isArray(audio.prismRelicHumTimers) ? audio.prismRelicHumTimers.length : 0,
+                    soundMuted: !!audio.muted,
+                    musicMuted: !!audio.musicMuted,
+                    audioContextState: audio.ctx ? audio.ctx.state : 'off',
+                    audioContextGeneration: Number(audio.audioContextGeneration) || 0,
+                    audioNodesCreatedThisContext: Number(audio.audioNodesCreatedThisContext) || 0,
+                    audioNodesCreatedTotal: Number(audio.audioNodesCreatedTotal) || 0,
+                    audioSourcesActive: Number(audio.audioSourcesActive) || 0,
+                    audioCleanupTimers: audio.audioCleanupTimers instanceof Set ? audio.audioCleanupTimers.size : 0
                 };
             }
 
@@ -9489,6 +9508,7 @@ Orb Control Panel Instrument Reference
                     `Last state: ${String(report.phase || 'unknown').toUpperCase()} · Sector ${report.sector || '?'} · Cycle ${report.cycle || '?'}`,
                     `Last event: ${report.lastEvent || 'heartbeat'}${eventDetails ? ` · ${eventDetails}` : ''}`,
                     `Objects: ${report.enemies || 0} enemies · ${report.warnings || 0} warnings · ${report.transientEffects || 0} effects · ${report.documentNodes || 0} DOM nodes`,
+                    `Audio: ${report.soundMuted ? 'OFF' : 'ON'} · context ${report.audioContextState || 'unknown'} #${report.audioContextGeneration || 0} · nodes ${report.audioNodesCreatedThisContext || 0}/${report.audioNodesCreatedTotal || 0} · active sources ${report.audioSourcesActive || 0}`,
                     `Viewport: ${report.viewport || '?'} · Board ${report.boardSize || '?'} · Saved ${Math.max(0, Math.round((Date.now() - (report.savedAt || Date.now())) / 1000))}s before reload`
                 ];
                 if (this.stabilityReportTitle) this.stabilityReportTitle.textContent = 'UNEXPECTED WEBPAGE RESET';
@@ -11356,6 +11376,7 @@ Orb Control Panel Instrument Reference
                 this.startRunRecordActionClock();
                 this.levelActionStarted = true;
                 this.startInputLocked = false;
+                this.syncMotionListenerState();
                 this.ui.updateAll();
                 this.lastFrameTime = performance.now();
                 this.gameplayRunToken++;
@@ -12494,6 +12515,7 @@ Orb Control Panel Instrument Reference
                 this.audio.resume();
                 this.audio.stopBackgroundMusic();
                 this.audio.stopPrismRelicHum();
+                this.audio.resetForSectorTransition();
                 this.clearUpdateGameTimer();
                 this.clearMaxSwarmCueTimer();
                 this.clearPrismRelicCueTimer();
@@ -12512,6 +12534,7 @@ Orb Control Panel Instrument Reference
                 this.beginRunRecordPause();
                 this.isPaused = true;
                 this.active = false;
+                this.syncMotionListenerState();
                 this.setCrtPaused(true);
                 this.setCrtUiSuspended(true);
                 this.ui.updateAll();
@@ -12596,6 +12619,7 @@ Orb Control Panel Instrument Reference
                 this.endRunRecordPause();
                 this.isPaused = false;
                 this.active = true;
+                this.syncMotionListenerState();
                 this.setCrtPaused(false);
                 this.setCrtUiSuspended(false);
                 this.ui.updateAll();
@@ -13816,6 +13840,7 @@ Orb Control Panel Instrument Reference
                 this.clearOvertimeEnemyTimer();
                 this.player.reset();
                 this.audio.stopBackgroundMusic();
+                this.audio.resetForSectorTransition();
                 this.resetCrystalsGameplay();
 
                 const loadToken = ++this.levelLoadToken;
@@ -14064,22 +14089,41 @@ Orb Control Panel Instrument Reference
 
             // Enable shake input. iOS requires motion permission from a tap gesture.
             async enableShakeInput(requestPermission = true) {
-                if (this.motionCosmicZapEnabled) return true;
                 if (typeof DeviceMotionEvent === 'undefined') return false;
 
                 try {
-                    if (typeof DeviceMotionEvent.requestPermission === 'function') {
+                    if (!this.motionPermissionGranted && typeof DeviceMotionEvent.requestPermission === 'function') {
                         if (!requestPermission) return false;
                         const permission = await DeviceMotionEvent.requestPermission();
                         if (permission !== 'granted') return false;
                     }
 
-                    window.addEventListener('devicemotion', this.handleDeviceMotion, { passive: true });
+                    this.motionPermissionGranted = true;
                     this.motionCosmicZapEnabled = true;
+                    this.syncMotionListenerState();
                     return true;
                 } catch (_) {
                     // If permission is denied or motion is unavailable, shake features simply stay disabled.
                     return false;
+                }
+            }
+
+            shouldListenForMotion() {
+                if (!this.motionPermissionGranted || this.splashIntroActive) return false;
+                if (this.isAttractModeActive()) return true;
+                return !!(this.active && !this.isPaused && !this.isGameOver && !this.finalGridlockActive && this.levelActionStarted && this.cosmicZapsLeft > 0);
+            }
+
+            syncMotionListenerState() {
+                const shouldAttach = this.shouldListenForMotion();
+                if (shouldAttach && !this.motionListenerAttached) {
+                    window.addEventListener('devicemotion', this.handleDeviceMotion, { passive: true });
+                    this.motionListenerAttached = true;
+                    this.lastMotionSample = null;
+                } else if (!shouldAttach && this.motionListenerAttached) {
+                    window.removeEventListener('devicemotion', this.handleDeviceMotion);
+                    this.motionListenerAttached = false;
+                    this.lastMotionSample = null;
                 }
             }
 
@@ -14090,6 +14134,7 @@ Orb Control Panel Instrument Reference
 
             // Shake the phone for the attract-mode marquee easter egg, or to use a Cosmic Zap during active gameplay.
             handleShakeMotion(e) {
+                if (!this.shouldListenForMotion()) return;
                 const a = e.accelerationIncludingGravity || e.acceleration;
                 if (!a) return;
 
@@ -14203,6 +14248,7 @@ Orb Control Panel Instrument Reference
                     }
 
                     this.cosmicZapsLeft--;
+                    this.syncMotionListenerState();
                     this.cosmicZapPressure++;
                     this.currentBlinkingCrystalCount = Math.max(1, this.currentBlinkingCrystalCount - 1);
                     this.ui.updateCosmicZapIndicators();
@@ -15340,21 +15386,91 @@ Orb Control Panel Instrument Reference
                 this.vintageMonitorHumOscillators = [];
                 this.vintageMonitorHumGain = null;
                 this.muted = this.loadMutedSetting();
-                this.createAudioContext();
+                this.ctx = null;
+                this.masterGain = null;
+                this.musicGain = null;
+                this.limiter = null;
+                this.audioContextGeneration = 0;
+                this.audioNodesCreatedTotal = 0;
+                this.audioNodesCreatedThisContext = 0;
+                this.audioSourcesCreatedTotal = 0;
+                this.audioSourcesActive = 0;
+                this.audioCleanupCount = 0;
+                this.audioCleanupTimers = new Set();
+                this.audioScopeStack = [];
+                this.audioPersistentNodes = new Set();
+                if (!this.muted) this.createAudioContext();
+            }
+
+            createAudioNode(factoryName, ...args) {
+                if (!this.ctx || typeof this.ctx[factoryName] !== 'function') return null;
+                const node = this.ctx[factoryName](...args);
+                this.audioNodesCreatedTotal++;
+                this.audioNodesCreatedThisContext++;
+
+                if (this.audioScopeStack.length) {
+                    this.audioScopeStack[this.audioScopeStack.length - 1].nodes.add(node);
+                }
+
+                if (factoryName === 'createOscillator' || factoryName === 'createBufferSource') {
+                    this.audioSourcesCreatedTotal++;
+                    this.audioSourcesActive++;
+                    let released = false;
+                    const releaseSource = () => {
+                        if (released) return;
+                        released = true;
+                        this.audioSourcesActive = Math.max(0, this.audioSourcesActive - 1);
+                        try { node.disconnect(); } catch (_) {}
+                    };
+                    try { node.addEventListener('ended', releaseSource, { once: true }); } catch (_) {}
+                }
+
+                return node;
+            }
+
+            beginAudioScope(label) {
+                const scope = { label: String(label || 'audio'), nodes: new Set() };
+                this.audioScopeStack.push(scope);
+                return scope;
+            }
+
+            endAudioScope(scope, cleanupDelayMs = 12000) {
+                const index = this.audioScopeStack.lastIndexOf(scope);
+                if (index >= 0) this.audioScopeStack.splice(index, 1);
+                if (!scope || !scope.nodes.size) return;
+                const timer = setTimeout(() => {
+                    let cleaned = 0;
+                    scope.nodes.forEach(node => {
+                        if (!node || this.audioPersistentNodes.has(node)) return;
+                        try { node.disconnect(); cleaned++; } catch (_) {}
+                    });
+                    this.audioCleanupCount += cleaned;
+                    scope.nodes.clear();
+                    this.audioCleanupTimers.delete(timer);
+                }, Math.max(250, cleanupDelayMs));
+                this.audioCleanupTimers.add(timer);
             }
 
             createAudioContext() {
-                this.ctx = new (window.AudioContext || window.webkitAudioContext)(); // Audio context
+                if (this.muted) return false;
+                const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+                if (!AudioContextClass) return false;
+
+                this.ctx = new AudioContextClass();
+                this.audioContextGeneration++;
+                this.audioNodesCreatedThisContext = 0;
+                this.audioSourcesActive = 0;
+                this.audioPersistentNodes = new Set();
 
                 // Route every sound through one controlled output chain to prevent random volume spikes.
-                this.masterGain = this.ctx.createGain();
-                this.masterGain.gain.value = this.muted ? 0 : 0.75;
+                this.masterGain = this.createAudioNode('createGain');
+                this.masterGain.gain.value = 0.75;
 
-                this.musicGain = this.ctx.createGain();
+                this.musicGain = this.createAudioNode('createGain');
                 this.musicGain.gain.value = 0.58;
                 this.musicGain.connect(this.masterGain);
 
-                this.limiter = this.ctx.createDynamicsCompressor();
+                this.limiter = this.createAudioNode('createDynamicsCompressor');
                 this.limiter.threshold.value = -18;
                 this.limiter.knee.value = 6;
                 this.limiter.ratio.value = 12;
@@ -15363,15 +15479,106 @@ Orb Control Panel Instrument Reference
 
                 this.masterGain.connect(this.limiter);
                 this.limiter.connect(this.ctx.destination);
+                this.audioPersistentNodes.add(this.masterGain);
+                this.audioPersistentNodes.add(this.musicGain);
+                this.audioPersistentNodes.add(this.limiter);
+                return true;
+            }
+
+            disposeAudioContext() {
+                this.backgroundTimers.forEach(timer => clearTimeout(timer));
+                this.maxSwarmBeatTimers.forEach(timer => clearTimeout(timer));
+                this.cycleCompleteMusicTimers.forEach(timer => clearTimeout(timer));
+                this.prismRelicHumTimers.forEach(timer => clearTimeout(timer));
+                this.attractComputerAmbienceTimers.forEach(timer => clearTimeout(timer));
+                this.backgroundTimers = [];
+                this.maxSwarmBeatTimers = [];
+                this.cycleCompleteMusicTimers = [];
+                this.prismRelicHumTimers = [];
+                this.attractComputerAmbienceTimers = [];
+                this.audioCleanupTimers.forEach(timer => clearTimeout(timer));
+                this.audioCleanupTimers.clear();
+                this.audioScopeStack = [];
+
+                const sources = [
+                    ...this.backgroundOscillators,
+                    ...this.maxSwarmBeatOscillators,
+                    ...this.cycleCompleteOscillators,
+                    ...this.prismRelicHumOscillators,
+                    ...this.pauseMenuReactorOscillators,
+                    ...this.vintageMonitorHumOscillators
+                ];
+                sources.forEach(source => {
+                    try { source.stop(); } catch (_) {}
+                    try { source.disconnect(); } catch (_) {}
+                });
+
+                const nodes = [
+                    ...this.backgroundGains,
+                    ...this.cycleCompleteGains,
+                    ...this.prismRelicHumGains,
+                    this.backgroundMixGain,
+                    this.maxSwarmBeatShaper,
+                    this.pauseMenuReactorGain,
+                    this.vintageMonitorHumGain,
+                    this.musicGain,
+                    this.masterGain,
+                    this.limiter
+                ];
+                nodes.forEach(node => {
+                    if (!node) return;
+                    try { node.disconnect(); } catch (_) {}
+                });
+
+                this.backgroundOscillators = [];
+                this.backgroundGains = [];
+                this.maxSwarmBeatOscillators = [];
+                this.cycleCompleteOscillators = [];
+                this.cycleCompleteGains = [];
+                this.prismRelicHumOscillators = [];
+                this.prismRelicHumGains = [];
+                this.pauseMenuReactorOscillators = [];
+                this.vintageMonitorHumOscillators = [];
+                this.backgroundMixGain = null;
+                this.maxSwarmBeatShaper = null;
+                this.pauseMenuReactorGain = null;
+                this.vintageMonitorHumGain = null;
+                this.backgroundMusicPlaying = false;
+                this.maxSwarmBeatPlaying = false;
+                this.cycleCompleteMusicPlaying = false;
+                this.prismRelicHumPlaying = false;
+                this.pauseMenuReactorPlaying = false;
+                this.attractComputerAmbiencePlaying = false;
+                this.consistentPatrolLoopBuffer = null;
+                this.overtimeClickKickLoopBuffer = null;
+                this.audioSourcesActive = 0;
+                this.audioNodesCreatedThisContext = 0;
+                this.audioPersistentNodes.clear();
+
+                const oldContext = this.ctx;
+                this.ctx = null;
+                this.masterGain = null;
+                this.musicGain = null;
+                this.limiter = null;
+                if (oldContext && oldContext.state !== 'closed') {
+                    try {
+                        const closePromise = oldContext.close();
+                        if (closePromise && closePromise.catch) closePromise.catch(() => {});
+                    } catch (_) {}
+                }
+            }
+
+            resetForSectorTransition() {
+                if (this.muted) return;
+                this.disposeAudioContext();
+                this.createAudioContext();
             }
 
             // Safari can suspend or interrupt audio after page/game restarts.
             // Reopen the graph if needed, then request resume whenever a sound is about to play.
             ensureAudio() {
+                if (this.muted) return false;
                 if (!this.ctx || this.ctx.state === 'closed') {
-                    this.stopBackgroundMusic();
-                    this.stopCycleCompleteMusic();
-                    this.stopPrismRelicHum();
                     this.createAudioContext();
                 }
 
@@ -15379,10 +15586,11 @@ Orb Control Panel Instrument Reference
                     const resumePromise = this.ctx.resume();
                     if (resumePromise && resumePromise.catch) resumePromise.catch(() => {});
                 }
+                return !!this.ctx;
             }
 
             connectOutput(node) {
-                node.connect(this.masterGain);
+                if (node && this.masterGain) node.connect(this.masterGain);
             }
 
             loadMutedSetting() {
@@ -15410,16 +15618,21 @@ Orb Control Panel Instrument Reference
             }
 
             setMuted(muted) {
-                this.muted = Boolean(muted);
+                const nextMuted = Boolean(muted);
+                if (nextMuted === this.muted) return;
+
+                if (nextMuted) {
+                    this.disposeAudioContext();
+                    this.muted = true;
+                } else {
+                    this.muted = false;
+                    this.createAudioContext();
+                    this.ensureAudio();
+                }
+
                 try {
                     localStorage.setItem('blockazoidsSoundMuted', this.muted ? '1' : '0');
                 } catch (error) {}
-
-                if (this.masterGain) {
-                    const now = this.ctx ? this.ctx.currentTime : 0;
-                    this.masterGain.gain.cancelScheduledValues(now);
-                    this.masterGain.gain.setValueAtTime(this.muted ? 0 : 0.75, now);
-                }
             }
 
             setMusicMuted(muted) {
@@ -15452,6 +15665,7 @@ stopMaxSwarmBeat() {
 
                 this.maxSwarmBeatOscillators.forEach(osc => {
                     try { osc.stop(); } catch (_) {}
+                    try { osc.disconnect(); } catch (_) {}
                 });
                 this.maxSwarmBeatOscillators = [];
 
@@ -15470,6 +15684,7 @@ getOvertimeSwarmPitchMultiplier() {
             }
 
             scheduleOvertimeSwarmOscillator(osc, gainNode, start, duration) {
+                if (this.muted) return;
                 this.backgroundOscillators.push(osc);
                 this.maxSwarmBeatOscillators.push(osc);
                 osc.onended = () => {
@@ -15521,7 +15736,7 @@ startMaxSwarmBeat(delaySeconds = 0) {
 
                 const shaper = this.createSoftClipper ? this.createSoftClipper(1.18) : null;
                 this.maxSwarmBeatShaper = shaper;
-                this.backgroundMixGain = this.ctx.createGain();
+                this.backgroundMixGain = this.createAudioNode('createGain');
                 this.backgroundMixGain.gain.setValueAtTime(0.001, now);
                 this.backgroundMixGain.gain.setValueAtTime(0.001, Math.max(now, loopStart - 0.012));
                 this.backgroundMixGain.gain.linearRampToValueAtTime(0.42, loopStart + 0.018);
@@ -15533,7 +15748,7 @@ startMaxSwarmBeat(delaySeconds = 0) {
                     this.backgroundMixGain.connect(this.musicGain || this.masterGain);
                 }
 
-                const source = this.ctx.createBufferSource();
+                const source = this.createAudioNode('createBufferSource');
                 source.buffer = this.getOvertimeClickKickLoopBuffer();
                 source.loop = true;
                 source.playbackRate.setValueAtTime(this.getOvertimeSwarmPitchMultiplier(), loopStart);
@@ -15566,10 +15781,10 @@ startMaxSwarmBeat(delaySeconds = 0) {
 
             // Shared voice for the Level Start and Game Over melodies.
             playStartEndTone(freq, start, duration, finalNote = false, volumeScale = 1, useVibrato = true) {
-                const square = this.ctx.createOscillator();
-                const triangle = this.ctx.createOscillator();
-                const squareGain = this.ctx.createGain();
-                const triangleGain = this.ctx.createGain();
+                const square = this.createAudioNode('createOscillator');
+                const triangle = this.createAudioNode('createOscillator');
+                const squareGain = this.createAudioNode('createGain');
+                const triangleGain = this.createAudioNode('createGain');
                 let vibrato = null;
                 let vibratoGain = null;
 
@@ -15579,8 +15794,8 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 triangle.frequency.setValueAtTime(freq, start);
 
                 if (finalNote && useVibrato) {
-                    vibrato = this.ctx.createOscillator();
-                    vibratoGain = this.ctx.createGain();
+                    vibrato = this.createAudioNode('createOscillator');
+                    vibratoGain = this.createAudioNode('createGain');
                     vibrato.type = 'sine';
                     vibrato.frequency.setValueAtTime(5.4, start);
                     vibratoGain.gain.setValueAtTime(0.001, start);
@@ -15617,12 +15832,12 @@ startMaxSwarmBeat(delaySeconds = 0) {
 
             // Shared cleaner fanfare voice for Sector Restored and Cycle Complete.
             playClassicalFanfareTone(freq, start, duration, volume = 0.105, finalNote = false) {
-                const triangle = this.ctx.createOscillator();
-                const sine = this.ctx.createOscillator();
-                const edge = this.ctx.createOscillator();
-                const triangleGain = this.ctx.createGain();
-                const sineGain = this.ctx.createGain();
-                const edgeGain = this.ctx.createGain();
+                const triangle = this.createAudioNode('createOscillator');
+                const sine = this.createAudioNode('createOscillator');
+                const edge = this.createAudioNode('createOscillator');
+                const triangleGain = this.createAudioNode('createGain');
+                const sineGain = this.createAudioNode('createGain');
+                const edgeGain = this.createAudioNode('createGain');
 
                 triangle.type = 'triangle';
                 sine.type = 'sine';
@@ -15670,10 +15885,10 @@ startMaxSwarmBeat(delaySeconds = 0) {
 
                 const now = this.ctx.currentTime;
                 const duration = 0.78;
-                const triangle = this.ctx.createOscillator();
-                const sine = this.ctx.createOscillator();
-                const triangleGain = this.ctx.createGain();
-                const sineGain = this.ctx.createGain();
+                const triangle = this.createAudioNode('createOscillator');
+                const sine = this.createAudioNode('createOscillator');
+                const triangleGain = this.createAudioNode('createGain');
+                const sineGain = this.createAudioNode('createGain');
 
                 triangle.type = 'triangle';
                 sine.type = 'sine';
@@ -15720,8 +15935,8 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 const now = this.ctx.currentTime;
 
                 const playNote = (freq, start, duration, volume = 0.12, type = 'square') => {
-                    const osc = this.ctx.createOscillator();
-                    const gainNode = this.ctx.createGain();
+                    const osc = this.createAudioNode('createOscillator');
+                    const gainNode = this.createAudioNode('createGain');
                     osc.connect(gainNode);
                     this.connectOutput(gainNode);
                     osc.type = type;
@@ -15758,8 +15973,8 @@ startMaxSwarmBeat(delaySeconds = 0) {
 
                 notes.forEach((freq, i) => {
                     const start = now + i * 0.045;
-                    const osc = this.ctx.createOscillator();
-                    const gainNode = this.ctx.createGain();
+                    const osc = this.createAudioNode('createOscillator');
+                    const gainNode = this.createAudioNode('createGain');
                     osc.type = i % 3 === 0 ? 'square' : 'triangle';
                     osc.frequency.setValueAtTime(freq, start);
                     osc.connect(gainNode);
@@ -15786,10 +16001,10 @@ startMaxSwarmBeat(delaySeconds = 0) {
                     data[i] = (Math.random() * 2 - 1) * envelope * crackleGate;
                 }
 
-                const noise = this.ctx.createBufferSource();
-                const highpass = this.ctx.createBiquadFilter();
-                const lowpass = this.ctx.createBiquadFilter();
-                const noiseGain = this.ctx.createGain();
+                const noise = this.createAudioNode('createBufferSource');
+                const highpass = this.createAudioNode('createBiquadFilter');
+                const lowpass = this.createAudioNode('createBiquadFilter');
+                const noiseGain = this.createAudioNode('createGain');
 
                 noise.buffer = noiseBuffer;
                 highpass.type = 'highpass';
@@ -15817,7 +16032,7 @@ startMaxSwarmBeat(delaySeconds = 0) {
 
                 const now = this.ctx.currentTime;
                 const duration = Math.max(0.5, durationMs / 1000);
-                const humGain = this.ctx.createGain();
+                const humGain = this.createAudioNode('createGain');
                 this.vintageMonitorHumGain = humGain;
                 this.connectOutput(humGain);
 
@@ -15834,8 +16049,8 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 ];
 
                 voices.forEach(voice => {
-                    const osc = this.ctx.createOscillator();
-                    const voiceGain = this.ctx.createGain();
+                    const osc = this.createAudioNode('createOscillator');
+                    const voiceGain = this.createAudioNode('createGain');
                     osc.type = voice.type;
                     osc.frequency.setValueAtTime(voice.freq, now);
                     voiceGain.gain.setValueAtTime(voice.gain, now);
@@ -15871,8 +16086,8 @@ startMaxSwarmBeat(delaySeconds = 0) {
 
                 for (let i = 0; i < tickCount; i++) {
                     const start = now + 0.04 + i * (duration / tickCount);
-                    const osc = this.ctx.createOscillator();
-                    const gainNode = this.ctx.createGain();
+                    const osc = this.createAudioNode('createOscillator');
+                    const gainNode = this.createAudioNode('createGain');
                     osc.type = i % 2 === 0 ? 'square' : 'triangle';
                     osc.frequency.setValueAtTime(660 + i * 42, start);
                     osc.connect(gainNode);
@@ -15887,8 +16102,8 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 const finalStart = now + duration + 0.02;
                 [1046.50, 1318.51, 1567.98].forEach((freq, index) => {
                     const start = finalStart + index * 0.045;
-                    const osc = this.ctx.createOscillator();
-                    const gainNode = this.ctx.createGain();
+                    const osc = this.createAudioNode('createOscillator');
+                    const gainNode = this.createAudioNode('createGain');
                     osc.type = index === 2 ? 'triangle' : 'square';
                     osc.frequency.setValueAtTime(freq, start);
                     osc.connect(gainNode);
@@ -15904,7 +16119,7 @@ startMaxSwarmBeat(delaySeconds = 0) {
             // Space Invaders-style marching thump when the maximum Block-A-Zoid swarm is active.
             // Radar-style Gridlock signal: bright Web Audio ping cue, then immediate marching thump.
             createSoftClipper(drive = 1.35) {
-                const shaper = this.ctx.createWaveShaper();
+                const shaper = this.createAudioNode('createWaveShaper');
                 const samples = 256;
                 const curve = new Float32Array(samples);
                 for (let i = 0; i < samples; i++) {
@@ -15921,11 +16136,11 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 if (!this.ctx || this.ctx.state === 'closed') return 0;
 
                 const now = Math.max(this.ctx.currentTime + 0.012, startTime || this.ctx.currentTime);
-                const sourceBus = this.ctx.createGain();
-                const outputGain = this.ctx.createGain();
+                const sourceBus = this.createAudioNode('createGain');
+                const outputGain = this.createAudioNode('createGain');
                 const shaper = this.createSoftClipper(1.35);
-                const echoDelay = this.ctx.createDelay(0.25);
-                const echoFeedback = this.ctx.createGain();
+                const echoDelay = this.createAudioNode('createDelay', 0.25);
+                const echoFeedback = this.createAudioNode('createGain');
 
                 echoDelay.delayTime.setValueAtTime(0.092, now);
                 echoFeedback.gain.setValueAtTime(0.15, now);
@@ -15952,10 +16167,10 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 for (let i = 0; i < 5; i++) {
                     const start = now + startOffset + i * pulsePeriod;
                     const freq = i % 2 === 0 ? highTone : lowTone;
-                    const main = this.ctx.createOscillator();
-                    const overtone = this.ctx.createOscillator();
-                    const mainGain = this.ctx.createGain();
-                    const overtoneGain = this.ctx.createGain();
+                    const main = this.createAudioNode('createOscillator');
+                    const overtone = this.createAudioNode('createOscillator');
+                    const mainGain = this.createAudioNode('createGain');
+                    const overtoneGain = this.createAudioNode('createGain');
 
                     main.type = 'triangle';
                     overtone.type = 'sine';
@@ -16011,8 +16226,8 @@ startMaxSwarmBeat(delaySeconds = 0) {
 
                 const playRepairPulse = (freq, offset, duration, volume = 0.07, type = 'square') => {
                     const start = now + offset;
-                    const osc = this.ctx.createOscillator();
-                    const gainNode = this.ctx.createGain();
+                    const osc = this.createAudioNode('createOscillator');
+                    const gainNode = this.createAudioNode('createGain');
                     osc.type = type;
                     osc.frequency.setValueAtTime(freq, start);
                     osc.connect(gainNode);
@@ -16122,21 +16337,21 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 const now = this.ctx.currentTime;
                 const duration = 0.38;
 
-                const rayGain = this.ctx.createGain();
+                const rayGain = this.createAudioNode('createGain');
                 rayGain.gain.setValueAtTime(0.001, now);
                 rayGain.gain.linearRampToValueAtTime(0.115, now + 0.018);
                 rayGain.gain.linearRampToValueAtTime(0.082, now + 0.18);
                 rayGain.gain.exponentialRampToValueAtTime(0.004, now + duration);
                 this.connectOutput(rayGain);
 
-                const lfo = this.ctx.createOscillator();
-                const lfoGain = this.ctx.createGain();
+                const lfo = this.createAudioNode('createOscillator');
+                const lfoGain = this.createAudioNode('createGain');
                 lfo.type = 'sine';
                 lfo.frequency.setValueAtTime(28, now);
                 lfoGain.gain.setValueAtTime(115, now);
                 lfo.connect(lfoGain);
 
-                const carrier = this.ctx.createOscillator();
+                const carrier = this.createAudioNode('createOscillator');
                 carrier.type = 'sine';
                 carrier.frequency.setValueAtTime(620, now);
                 carrier.frequency.linearRampToValueAtTime(1320, now + 0.13);
@@ -16147,13 +16362,13 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 carrier.start(now);
                 carrier.stop(now + duration + 0.02);
 
-                const hollowGain = this.ctx.createGain();
+                const hollowGain = this.createAudioNode('createGain');
                 hollowGain.gain.setValueAtTime(0.001, now + 0.025);
                 hollowGain.gain.linearRampToValueAtTime(0.045, now + 0.055);
                 hollowGain.gain.exponentialRampToValueAtTime(0.003, now + 0.31);
                 this.connectOutput(hollowGain);
 
-                const hollow = this.ctx.createOscillator();
+                const hollow = this.createAudioNode('createOscillator');
                 hollow.type = 'square';
                 hollow.frequency.setValueAtTime(310, now + 0.025);
                 hollow.frequency.linearRampToValueAtTime(235, now + 0.21);
@@ -16168,8 +16383,8 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 const shimmerTimes = [0.045, 0.095, 0.145, 0.205, 0.275];
                 shimmerTimes.forEach((offset, index) => {
                     const t = now + offset;
-                    const ping = this.ctx.createOscillator();
-                    const pingGain = this.ctx.createGain();
+                    const ping = this.createAudioNode('createOscillator');
+                    const pingGain = this.createAudioNode('createGain');
                     ping.type = index % 2 ? 'triangle' : 'sine';
                     ping.frequency.setValueAtTime(index % 2 ? 1760 : 1480, t);
                     ping.frequency.linearRampToValueAtTime(index % 2 ? 1320 : 1960, t + 0.035);
@@ -16186,9 +16401,9 @@ startMaxSwarmBeat(delaySeconds = 0) {
             // Play explosion sound
             playExplosionSound() {
                 this.ensureAudio();
-                const osc1 = this.ctx.createOscillator();
-                const osc2 = this.ctx.createOscillator();
-                const gainNode = this.ctx.createGain();
+                const osc1 = this.createAudioNode('createOscillator');
+                const osc2 = this.createAudioNode('createOscillator');
+                const gainNode = this.createAudioNode('createGain');
                 osc1.connect(gainNode);
                 osc2.connect(gainNode);
                 this.connectOutput(gainNode);
@@ -16214,10 +16429,10 @@ startMaxSwarmBeat(delaySeconds = 0) {
             // Sustained low note under the Game Over melody.
             // It uses the same square/triangle voice family as the Level Start and Game Over notes.
             playGameOverPedalTone(freq, start, end) {
-                const square = this.ctx.createOscillator();
-                const triangle = this.ctx.createOscillator();
-                const squareGain = this.ctx.createGain();
-                const triangleGain = this.ctx.createGain();
+                const square = this.createAudioNode('createOscillator');
+                const triangle = this.createAudioNode('createOscillator');
+                const squareGain = this.createAudioNode('createGain');
+                const triangleGain = this.createAudioNode('createGain');
 
                 square.type = 'square';
                 triangle.type = 'triangle';
@@ -16271,14 +16486,14 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 this.ensureAudio();
                 if (!this.ctx || this.muted) return;
                 const now = this.ctx.currentTime;
-                const mix = this.ctx.createGain();
+                const mix = this.createAudioNode('createGain');
                 mix.gain.setValueAtTime(0.001, now);
                 mix.gain.linearRampToValueAtTime(0.105, now + 0.012);
                 mix.gain.exponentialRampToValueAtTime(0.001, now + 0.32);
                 this.connectOutput(mix);
 
-                const low = this.ctx.createOscillator();
-                const lowGain = this.ctx.createGain();
+                const low = this.createAudioNode('createOscillator');
+                const lowGain = this.createAudioNode('createGain');
                 low.type = 'triangle';
                 low.frequency.setValueAtTime(72, now);
                 low.frequency.exponentialRampToValueAtTime(148, now + 0.16);
@@ -16287,9 +16502,9 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 low.connect(lowGain);
                 lowGain.connect(mix);
 
-                const bright = this.ctx.createOscillator();
-                const brightGain = this.ctx.createGain();
-                const brightFilter = this.ctx.createBiquadFilter();
+                const bright = this.createAudioNode('createOscillator');
+                const brightGain = this.createAudioNode('createGain');
+                const brightFilter = this.createAudioNode('createBiquadFilter');
                 bright.type = 'square';
                 bright.frequency.setValueAtTime(520, now + 0.028);
                 bright.frequency.exponentialRampToValueAtTime(1760, now + 0.16);
@@ -16313,14 +16528,14 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 this.ensureAudio();
                 const now = this.ctx.currentTime;
 
-                const clickMix = this.ctx.createGain();
+                const clickMix = this.createAudioNode('createGain');
                 clickMix.gain.setValueAtTime(0.001, now);
                 clickMix.gain.linearRampToValueAtTime(0.088, now + 0.003);
                 clickMix.gain.exponentialRampToValueAtTime(0.001, now + 0.068);
                 this.connectOutput(clickMix);
 
-                const thunk = this.ctx.createOscillator();
-                const thunkGain = this.ctx.createGain();
+                const thunk = this.createAudioNode('createOscillator');
+                const thunkGain = this.createAudioNode('createGain');
                 thunk.type = 'triangle';
                 thunk.frequency.setValueAtTime(96, now);
                 thunk.frequency.exponentialRampToValueAtTime(48, now + 0.045);
@@ -16330,9 +16545,9 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 thunk.connect(thunkGain);
                 thunkGain.connect(clickMix);
 
-                const chirp = this.ctx.createOscillator();
-                const chirpGain = this.ctx.createGain();
-                const chirpFilter = this.ctx.createBiquadFilter();
+                const chirp = this.createAudioNode('createOscillator');
+                const chirpGain = this.createAudioNode('createGain');
+                const chirpFilter = this.createAudioNode('createBiquadFilter');
                 chirp.type = 'square';
                 chirp.frequency.setValueAtTime(1840, now + 0.006);
                 chirp.frequency.exponentialRampToValueAtTime(1220, now + 0.030);
@@ -16352,9 +16567,9 @@ startMaxSwarmBeat(delaySeconds = 0) {
                     const fade = 1 - (i / noiseData.length);
                     noiseData[i] = (Math.random() * 2 - 1) * fade;
                 }
-                const contact = this.ctx.createBufferSource();
-                const contactFilter = this.ctx.createBiquadFilter();
-                const contactGain = this.ctx.createGain();
+                const contact = this.createAudioNode('createBufferSource');
+                const contactFilter = this.createAudioNode('createBiquadFilter');
+                const contactGain = this.createAudioNode('createGain');
                 contact.buffer = noiseBuffer;
                 contactFilter.type = 'bandpass';
                 contactFilter.frequency.setValueAtTime(2450, now);
@@ -16378,16 +16593,16 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 if (this.pauseMenuReactorPlaying || this.musicMuted) return;
                 this.ensureAudio();
                 const now = this.ctx.currentTime;
-                const mix = this.ctx.createGain();
-                const filter = this.ctx.createBiquadFilter();
-                const deep = this.ctx.createOscillator();
-                const low = this.ctx.createOscillator();
-                const pulse = this.ctx.createOscillator();
-                const lfo = this.ctx.createOscillator();
-                const deepGain = this.ctx.createGain();
-                const lowGain = this.ctx.createGain();
-                const pulseGain = this.ctx.createGain();
-                const lfoGain = this.ctx.createGain();
+                const mix = this.createAudioNode('createGain');
+                const filter = this.createAudioNode('createBiquadFilter');
+                const deep = this.createAudioNode('createOscillator');
+                const low = this.createAudioNode('createOscillator');
+                const pulse = this.createAudioNode('createOscillator');
+                const lfo = this.createAudioNode('createOscillator');
+                const deepGain = this.createAudioNode('createGain');
+                const lowGain = this.createAudioNode('createGain');
+                const pulseGain = this.createAudioNode('createGain');
+                const lfoGain = this.createAudioNode('createGain');
 
                 filter.type = 'lowpass';
                 filter.frequency.setValueAtTime(390, now);
@@ -16484,9 +16699,9 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 const duration = isEcho ? 0.032 : (0.038 + Math.random() * 0.068);
                 const baseFreq = isEcho ? (520 + Math.random() * 620) : (260 + Math.random() * 1480);
 
-                const osc = this.ctx.createOscillator();
-                const gainNode = this.ctx.createGain();
-                const filter = this.ctx.createBiquadFilter();
+                const osc = this.createAudioNode('createOscillator');
+                const gainNode = this.createAudioNode('createGain');
+                const filter = this.createAudioNode('createBiquadFilter');
 
                 osc.type = Math.random() < 0.5 ? 'square' : 'triangle';
                 osc.frequency.setValueAtTime(baseFreq, now);
@@ -16511,8 +16726,8 @@ startMaxSwarmBeat(delaySeconds = 0) {
             playSpawn() {
                 this.ensureAudio();
                 const now = this.ctx.currentTime;
-                const osc = this.ctx.createOscillator();
-                const gainNode = this.ctx.createGain();
+                const osc = this.createAudioNode('createOscillator');
+                const gainNode = this.createAudioNode('createGain');
 
                 osc.connect(gainNode);
                 this.connectOutput(gainNode);
@@ -16535,16 +16750,16 @@ startMaxSwarmBeat(delaySeconds = 0) {
 
                 this.prismRelicHumPlaying = true;
 
-                const osc1 = this.ctx.createOscillator();
-                const gain1 = this.ctx.createGain();
+                const osc1 = this.createAudioNode('createOscillator');
+                const gain1 = this.createAudioNode('createGain');
                 osc1.type = 'triangle';
                 osc1.frequency.setValueAtTime(880, this.ctx.currentTime); // A5: bright enough to avoid the bass music bed
                 gain1.gain.value = 0.001;
                 osc1.connect(gain1);
                 this.connectOutput(gain1);
 
-                const osc2 = this.ctx.createOscillator();
-                const gain2 = this.ctx.createGain();
+                const osc2 = this.createAudioNode('createOscillator');
+                const gain2 = this.createAudioNode('createGain');
                 osc2.type = 'sine';
                 osc2.frequency.setValueAtTime(1320, this.ctx.currentTime);
                 gain2.gain.value = 0.001;
@@ -16601,8 +16816,8 @@ startMaxSwarmBeat(delaySeconds = 0) {
 
                 notes.forEach((freq, i) => {
                     const start = now + i * 0.055;
-                    const osc = this.ctx.createOscillator();
-                    const gainNode = this.ctx.createGain();
+                    const osc = this.createAudioNode('createOscillator');
+                    const gainNode = this.createAudioNode('createGain');
                     osc.connect(gainNode);
                     this.connectOutput(gainNode);
                     osc.type = i === 0 ? 'triangle' : 'square';
@@ -16624,8 +16839,8 @@ startMaxSwarmBeat(delaySeconds = 0) {
 
                 notes.forEach((freq, i) => {
                     const start = now + i * 0.065;
-                    const osc = this.ctx.createOscillator();
-                    const gainNode = this.ctx.createGain();
+                    const osc = this.createAudioNode('createOscillator');
+                    const gainNode = this.createAudioNode('createGain');
                     osc.connect(gainNode);
                     this.connectOutput(gainNode);
                     osc.type = i === notes.length - 1 ? 'triangle' : 'square';
@@ -16641,8 +16856,8 @@ startMaxSwarmBeat(delaySeconds = 0) {
             // Play crystal collection sound
             playCollect() {
                 this.ensureAudio();
-                const osc1 = this.ctx.createOscillator();
-                const gainNode = this.ctx.createGain();
+                const osc1 = this.createAudioNode('createOscillator');
+                const gainNode = this.createAudioNode('createGain');
                 osc1.connect(gainNode);
                 this.connectOutput(gainNode);
                 osc1.type = 'square'; // Square wave for chirp
@@ -16655,11 +16870,12 @@ startMaxSwarmBeat(delaySeconds = 0) {
 
             // Shared music-note helper for gameplay theme and victory cue.
             playMusicTone(freq, start, duration, type = 'square', volume = 0.035, options = {}) {
+                if (this.muted) return;
                 const route = options.route || 'background';
                 if (this.musicMuted && route === 'background') return;
 
-                const osc = this.ctx.createOscillator();
-                const gainNode = this.ctx.createGain();
+                const osc = this.createAudioNode('createOscillator');
+                const gainNode = this.createAudioNode('createGain');
                 const attack = options.attack ?? 0.012;
                 const release = options.release ?? 0.065;
                 let vibrato = null;
@@ -16669,8 +16885,8 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 osc.frequency.setValueAtTime(freq, start);
 
                 if (options.vibratoDepth && options.vibratoRate) {
-                    vibrato = this.ctx.createOscillator();
-                    vibratoGain = this.ctx.createGain();
+                    vibrato = this.createAudioNode('createOscillator');
+                    vibratoGain = this.createAudioNode('createGain');
                     vibrato.type = 'sine';
                     vibrato.frequency.setValueAtTime(options.vibratoRate, start);
                     vibratoGain.gain.setValueAtTime(0.001, start);
@@ -16961,12 +17177,12 @@ startMaxSwarmBeat(delaySeconds = 0) {
 
 
             startClassicBackgroundLoop() {
-                this.backgroundMixGain = this.ctx.createGain();
+                this.backgroundMixGain = this.createAudioNode('createGain');
                 this.backgroundMixGain.gain.setValueAtTime(0.001, this.ctx.currentTime);
                 this.backgroundMixGain.gain.linearRampToValueAtTime(0.40, this.ctx.currentTime + 0.08);
                 this.backgroundMixGain.connect(this.musicGain || this.masterGain);
 
-                const source = this.ctx.createBufferSource();
+                const source = this.createAudioNode('createBufferSource');
                 source.buffer = this.getConsistentPatrolLoopBuffer();
                 source.loop = true;
                 source.connect(this.backgroundMixGain);
@@ -17001,6 +17217,10 @@ startMaxSwarmBeat(delaySeconds = 0) {
 
                 this.backgroundOscillators.forEach(osc => {
                     try { osc.stop(now); } catch (e) {}
+                    try { osc.disconnect(); } catch (_) {}
+                });
+                this.backgroundGains.forEach(gainNode => {
+                    try { gainNode.disconnect(); } catch (_) {}
                 });
                 this.backgroundOscillators = [];
                 this.backgroundGains = [];
@@ -17008,9 +17228,69 @@ startMaxSwarmBeat(delaySeconds = 0) {
 
             // Resume audio context after user gestures and after Safari/iOS interruptions.
             resume() {
-                this.ensureAudio();
+                if (this.muted) return false;
+                return this.ensureAudio();
             }
         }
+
+        // v291: one-shot sounds own a cleanup scope so completed gain/filter chains do not accumulate.
+        const audioOneShotCleanupDelays = {
+            playCollect: 1200,
+            playSpawn: 2200,
+            playUiClick: 1800,
+            playCountdownBeep: 2600,
+            playBonusCountUp: 6500,
+            playPrismRelicAppear: 5500,
+            playPrismRelicCollect: 3500,
+            playCosmicZapSound: 6500,
+            playExplosionSound: 6000,
+            playExplosion: 6500,
+            playMarqueeGlitchZap: 6500,
+            playUnlockPiccoloArpeggio: 10000,
+            playIntro: 10000,
+            playHighScore: 12000,
+            playSplashWake: 10000,
+            playGridRestored: 14000,
+            playMaxSwarmSignal: 8000,
+            playMaxSwarmCue: 10000,
+            playCycleComplete: 15000,
+            playPrismRelicCollect: 4000,
+            playEnd: 16000
+        };
+
+        Object.entries(audioOneShotCleanupDelays).forEach(([methodName, cleanupDelay]) => {
+            const original = AudioManager.prototype[methodName];
+            if (typeof original !== 'function') return;
+            AudioManager.prototype[methodName] = function(...args) {
+                if (this.muted) return undefined;
+                const scope = this.beginAudioScope(methodName);
+                try {
+                    return original.apply(this, args);
+                } finally {
+                    this.endAudioScope(scope, cleanupDelay);
+                }
+            };
+        });
+
+        [
+            'startVintageMonitorHum',
+            'startPauseMenuReactorHum',
+            'startAttractComputerAmbience',
+            'startPrismRelicHum',
+            'startMaxSwarmBeat',
+            'startMaxSwarmBeatAt',
+            'startOvertimeSwarmLoopAt',
+            'startCycleCompleteMusic',
+            'startBackgroundMusic',
+            'startClassicBackgroundLoop'
+        ].forEach(methodName => {
+            const original = AudioManager.prototype[methodName];
+            if (typeof original !== 'function') return;
+            AudioManager.prototype[methodName] = function(...args) {
+                if (this.muted) return undefined;
+                return original.apply(this, args);
+            };
+        });
 
         // UI class for managing interface elements
         class UI {
