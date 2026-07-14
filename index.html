@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v301: Refines the deterministic one-time tutorial, restores a soft CRT monitor halo, adds developer invincibility, and prevents the audio source safety limit from silencing persistent gameplay audio.
+Build v302: Improves tutorial message transitions, extends enemy avoidance, restores Gridlock block collisions, and flashes STARTING GAME before Sector 1.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -21,7 +21,7 @@ Orb Control Panel Instrument Reference
 - Velocity Glyph Engine — Temporarily displays the Orb’s finger-driven movement speed.
 - Orb Command Socket — Controls the Orb’s pause, resume, and primary interface functions.
 -->
-<html data-build-version="v301">
+<html data-build-version="v302">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -8087,6 +8087,15 @@ Orb Control Panel Instrument Reference
             text-shadow: 0 0 8px rgba(255,255,255,0.72);
         }
 
+        #tutorialHud.tutorial-starting-flash {
+            animation: tutorialStartingFlash 0.22s steps(2, end) 4;
+        }
+
+        @keyframes tutorialStartingFlash {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.12; }
+        }
+
         body.tutorial-active #tutorialHud,
         body.tutorial-pending #tutorialHud { display: block; }
         body.tutorial-active #scoreHud > :not(#tutorialHud),
@@ -8468,7 +8477,7 @@ Orb Control Panel Instrument Reference
     </div>
 
     <script>
-        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'v301'}`;
+        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'v302'}`;
 
         // Central diagnostic feature flags. Change values here before loading the page to isolate systems.
         const GAME_FEATURE_FLAGS = window.BLOCKAZOIDS_FEATURE_FLAGS = {
@@ -9195,9 +9204,12 @@ Orb Control Panel Instrument Reference
                 this.tutorialCrystalAdvanceDelayMs = 1000;
                 this.tutorialEnemySpawnDelayMs = 1000;
                 this.tutorialEnemyAvoidMs = 0;
-                this.tutorialEnemyAvoidRequiredMs = 2000;
+                this.tutorialEnemyAvoidRequiredMs = 4000;
                 this.tutorialGridlockStartDelayMs = 1000;
                 this.tutorialGridlockSpawnIntervalMs = 5000;
+                this.tutorialHudGapMs = 300;
+                this.tutorialHudTimer = null;
+                this.tutorialHudMessageToken = 0;
                 this.tutorialStepTimer = null;
                 this.tutorialEnemy = null;
                 this.tutorialEnemySpawned = false;
@@ -13380,6 +13392,48 @@ Orb Control Panel Instrument Reference
                 if (this.tutorialHud) this.tutorialHud.textContent = text;
             }
 
+            clearTutorialHudTimer() {
+                if (this.tutorialHudTimer) {
+                    clearTimeout(this.tutorialHudTimer);
+                    this.tutorialHudTimer = null;
+                }
+                this.tutorialHudMessageToken++;
+                if (this.tutorialHud) this.tutorialHud.classList.remove('tutorial-starting-flash');
+            }
+
+            showTutorialHudMessage(text, stepIndex = 0, options = {}) {
+                const gap = options.gap !== false;
+                const flash = options.flash === true;
+                const expectedStep = options.expectedStep || this.tutorialStep;
+                const onShown = typeof options.onShown === 'function' ? options.onShown : null;
+                this.clearTutorialHudTimer();
+                const messageToken = this.tutorialHudMessageToken;
+                this.setTutorialHud('');
+
+                const showMessage = () => {
+                    this.tutorialHudTimer = null;
+                    if (!this.tutorialActive || messageToken !== this.tutorialHudMessageToken) return;
+                    if (expectedStep && this.tutorialStep !== expectedStep) return;
+                    this.setTutorialHud(text);
+                    if (flash && this.tutorialHud) {
+                        this.tutorialHud.classList.remove('tutorial-starting-flash');
+                        void this.tutorialHud.offsetWidth;
+                        this.tutorialHud.classList.add('tutorial-starting-flash');
+                    }
+                    if (this.audio && typeof this.audio.playTutorialStepBeep === 'function') {
+                        this.audio.playTutorialStepBeep(stepIndex);
+                    }
+                    if (this.ui) this.ui.updateAll();
+                    if (onShown) onShown();
+                };
+
+                if (gap) {
+                    this.tutorialHudTimer = setTimeout(showMessage, this.tutorialHudGapMs);
+                } else {
+                    showMessage();
+                }
+            }
+
             clearTutorialStepTimer() {
                 if (this.tutorialStepTimer) {
                     clearTimeout(this.tutorialStepTimer);
@@ -13389,6 +13443,7 @@ Orb Control Panel Instrument Reference
 
             clearTutorialObjects() {
                 this.clearTutorialStepTimer();
+                this.clearTutorialHudTimer();
                 this.clearPendingSpawnWarnings(true);
                 this.enemies.forEach(enemy => {
                     try { enemy.element.remove(); } catch (_) {}
@@ -13455,9 +13510,10 @@ Orb Control Panel Instrument Reference
                 this.tutorialRafId = requestAnimationFrame((timestamp) => this.updateTutorial(timestamp, token));
             }
 
-            setTutorialStep(step) {
+            setTutorialStep(step, options = {}) {
                 if (!this.tutorialActive) return;
                 this.clearTutorialStepTimer();
+                this.clearTutorialHudTimer();
                 this.tutorialStep = step;
                 this.tutorialStepStartedAt = performance.now();
                 this.player.consumeMovementSegments();
@@ -13467,7 +13523,7 @@ Orb Control Panel Instrument Reference
                     this.tutorialMovementDistance = 0;
                     this.tutorialMovementQualified = false;
                     this.cosmicZapsLeft = 0;
-                    this.setTutorialHud('DRAG THE ORB AROUND');
+                    this.showTutorialHudMessage('DRAG THE ORB AROUND', 0, { gap: false, expectedStep: 'movement' });
                 } else if (step === 'crystal') {
                     this.clearTutorialObjects();
                     this.cosmicZapsLeft = 0;
@@ -13483,37 +13539,45 @@ Orb Control Panel Instrument Reference
                     crystal.element.classList.add('next');
                     this.crystals = [crystal];
                     this.tutorialCrystal = crystal;
-                    this.setTutorialHud('COLLECT CRYSTALS');
+                    this.showTutorialHudMessage('COLLECT CRYSTALS', 1, { expectedStep: 'crystal' });
                 } else if (step === 'enemy') {
                     this.clearTutorialObjects();
                     this.cosmicZapsLeft = 0;
                     this.tutorialEnemyAvoidMs = 0;
                     this.tutorialEnemySpawned = false;
-                    this.setTutorialHud('AVOID BLOCK-A-ZOIDS');
-                    this.tutorialStepTimer = setTimeout(() => {
-                        this.tutorialStepTimer = null;
-                        if (!this.tutorialActive || this.tutorialStep !== 'enemy') return;
-                        this.spawnTutorialEnemy();
-                        this.tutorialEnemySpawned = true;
-                    }, this.tutorialEnemySpawnDelayMs);
+                    this.showTutorialHudMessage('AVOID BLOCK-A-ZOIDS', 2, {
+                        expectedStep: 'enemy',
+                        onShown: () => {
+                            this.tutorialStepTimer = setTimeout(() => {
+                                this.tutorialStepTimer = null;
+                                if (!this.tutorialActive || this.tutorialStep !== 'enemy') return;
+                                this.spawnTutorialEnemy();
+                                this.tutorialEnemySpawned = true;
+                            }, this.tutorialEnemySpawnDelayMs);
+                        }
+                    });
                 } else if (step === 'zap') {
                     if (!this.tutorialEnemy || !this.enemies.includes(this.tutorialEnemy)) this.spawnTutorialEnemy();
                     this.cosmicZapsLeft = 1;
-                    this.setTutorialHud('SHAKE TO COSMIC ZAP');
+                    this.showTutorialHudMessage('SHAKE TO COSMIC ZAP', 3, { expectedStep: 'zap' });
                     this.syncMotionListenerState();
                     this.ui.updateCosmicZapIndicators();
                 } else if (step === 'gridlock') {
                     this.clearTutorialObjects();
                     this.cosmicZapsLeft = 0;
-                    this.setTutorialHud('GRIDLOCK — SURVIVE');
                     this.maxSwarmActive = true;
                     this.triggerCrtEvent('gridlock');
                     this.audio.playMaxSwarmCue();
                     this.audio.startMaxSwarmBeat(0);
-                    this.tutorialStepTimer = setTimeout(() => {
-                        this.tutorialStepTimer = null;
-                        if (this.tutorialActive && this.tutorialStep === 'gridlock') this.spawnTutorialGridlockSequence(0);
-                    }, this.tutorialGridlockStartDelayMs);
+                    this.showTutorialHudMessage('GRIDLOCK — SURVIVE', 4, {
+                        expectedStep: 'gridlock',
+                        onShown: () => {
+                            this.tutorialStepTimer = setTimeout(() => {
+                                this.tutorialStepTimer = null;
+                                if (this.tutorialActive && this.tutorialStep === 'gridlock') this.spawnTutorialGridlockSequence(0);
+                            }, this.tutorialGridlockStartDelayMs);
+                        }
+                    });
                 } else if (step === 'relic') {
                     this.cosmicZapsLeft = 0;
                     const center = this.PLAYFIELD_SIZE / 2;
@@ -13522,13 +13586,11 @@ Orb Control Panel Instrument Reference
                     this.prismRelic = new PrismRelic(this, x, y);
                     this.audio.playPrismRelicAppear();
                     this.audio.startPrismRelicHum();
-                    this.setTutorialHud('COLLECT THE RELIC');
+                    if (!options.preserveHud) {
+                        this.showTutorialHudMessage('COLLECT THE RELIC', 5, { expectedStep: 'relic' });
+                    }
                 }
 
-                const tutorialStepIndex = { movement: 0, crystal: 1, enemy: 2, zap: 3, gridlock: 4, relic: 5 }[step] || 0;
-                if (this.audio && typeof this.audio.playTutorialStepBeep === 'function') {
-                    this.audio.playTutorialStepBeep(tutorialStepIndex);
-                }
                 this.syncMotionListenerState();
                 this.ui.updateAll();
             }
@@ -13579,6 +13641,10 @@ Orb Control Panel Instrument Reference
                 if (!this.tutorialActive || this.tutorialStep !== 'gridlock') return;
                 this.spawnTutorialGridlockEnemy(index);
 
+                if (index === 2) {
+                    this.showTutorialHudMessage('COLLECT THE RELIC', 5, { expectedStep: 'gridlock' });
+                }
+
                 if (index < 3) {
                     this.tutorialStepTimer = setTimeout(() => {
                         this.tutorialStepTimer = null;
@@ -13587,7 +13653,7 @@ Orb Control Panel Instrument Reference
                     return;
                 }
 
-                this.setTutorialStep('relic');
+                this.setTutorialStep('relic', { preserveHud: true });
             }
 
             resetTutorialCollision() {
@@ -13638,7 +13704,7 @@ Orb Control Panel Instrument Reference
                         }, this.tutorialCrystalAdvanceDelayMs);
                     }
                 } else if (this.tutorialStep === 'enemy' || this.tutorialStep === 'zap' || this.tutorialStep === 'gridlock' || this.tutorialStep === 'relic' || this.tutorialStep === 'relic-collected') {
-                    this.enemies.forEach(enemy => enemy.update(deltaTime));
+                    this.updateEnemies(deltaTime);
                     const hit = this.enemies.some(enemy => this.getPlayerPathHitScore(enemy, segments) !== null);
                     if (hit && !this.isCosmicZapProtectingOrb()) this.resetTutorialCollision();
 
@@ -13711,17 +13777,19 @@ Orb Control Panel Instrument Reference
                 this.levelActionStarted = false;
                 this.sectorTransitionActive = true;
                 this.cosmicZapsLeft = 0;
-                this.setTutorialHud('TUTORIAL COMPLETE');
-                if (this.audio && typeof this.audio.playTutorialStepBeep === 'function') {
-                    this.audio.playTutorialStepBeep(6);
-                }
                 this.syncMotionListenerState();
                 this.ui.updateAll();
 
-                this.tutorialStepTimer = setTimeout(() => {
-                    this.tutorialStepTimer = null;
-                    this.finishOneTimeIntroTransition();
-                }, 1000);
+                this.showTutorialHudMessage('STARTING GAME', 6, {
+                    expectedStep: 'complete',
+                    flash: true,
+                    onShown: () => {
+                        this.tutorialStepTimer = setTimeout(() => {
+                            this.tutorialStepTimer = null;
+                            this.finishOneTimeIntroTransition();
+                        }, 1000);
+                    }
+                });
             }
 
             finishOneTimeIntroTransition() {
