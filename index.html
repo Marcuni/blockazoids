@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v299: Refines the one-time intro timing, alignment, training speed, step audio, and INITIALIZE presentation without changing normal Sector 1 gameplay.
+Build v300: Moves tutorial initialization to the top HUD, refines crystal and avoidance instructions, stages Gridlock blocks sequentially, and adds a tutorial-complete transition without changing normal Sector 1 gameplay.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -21,7 +21,7 @@ Orb Control Panel Instrument Reference
 - Velocity Glyph Engine — Temporarily displays the Orb’s finger-driven movement speed.
 - Orb Command Socket — Controls the Orb’s pause, resume, and primary interface functions.
 -->
-<html data-build-version="v299">
+<html data-build-version="v300">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -8085,9 +8085,12 @@ Orb Control Panel Instrument Reference
             text-shadow: 0 0 8px rgba(255,255,255,0.72);
         }
 
-        body.tutorial-active #tutorialHud { display: block; }
-        body.tutorial-active #scoreHud > :not(#tutorialHud) { display: none !important; }
-        body.tutorial-active #scoreHud {
+        body.tutorial-active #tutorialHud,
+        body.tutorial-pending #tutorialHud { display: block; }
+        body.tutorial-active #scoreHud > :not(#tutorialHud),
+        body.tutorial-pending #scoreHud > :not(#tutorialHud) { display: none !important; }
+        body.tutorial-active #scoreHud,
+        body.tutorial-pending #scoreHud {
             justify-content: center;
             padding-left: 4px;
             padding-right: 4px;
@@ -8178,11 +8181,7 @@ Orb Control Panel Instrument Reference
         <button id="cycleContinueButton" type="button" aria-hidden="true">CONTINUE</button>
         <div id="screenFade"></div>
         <div id="gameOverlay"></div>
-        <div id="activationHowToOverlay" aria-hidden="true">
-            <div class="activation-how-to-panel" role="img" aria-label="Initialize">
-                <div class="activation-how-to-title" aria-hidden="true">INITIALIZE</div>
-            </div>
-        </div>
+        <div id="activationHowToOverlay" aria-hidden="true"></div>
         <div id="instructionsWindow" style="display: none;"></div>
         <div id="pauseWindow">
             <div id="menuButtons">
@@ -8466,7 +8465,7 @@ Orb Control Panel Instrument Reference
     </div>
 
     <script>
-        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'v299'}`;
+        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'v300'}`;
 
         // Central diagnostic feature flags. Change values here before loading the page to isolate systems.
         const GAME_FEATURE_FLAGS = window.BLOCKAZOIDS_FEATURE_FLAGS = {
@@ -9189,9 +9188,10 @@ Orb Control Panel Instrument Reference
                 this.tutorialMovementRequired = 150;
                 this.tutorialMovementQualified = false;
                 this.tutorialMovementAdvanceDelayMs = 2000;
-                this.tutorialEnemyMovementMs = 0;
-                this.tutorialEnemyMovementRequiredMs = 2000;
-                this.tutorialEnemyLastMovementAt = 0;
+                this.tutorialEnemyAvoidMs = 0;
+                this.tutorialEnemyAvoidRequiredMs = 2000;
+                this.tutorialGridlockSpawnIntervalMs = 800;
+                this.tutorialGridlockFinalRevealMs = 550;
                 this.tutorialStepTimer = null;
                 this.tutorialEnemy = null;
                 this.tutorialCrystal = null;
@@ -11916,15 +11916,22 @@ Orb Control Panel Instrument Reference
             }
 
             showActivationHowToOverlay() {
-                if (!this.activationHowToOverlay || this.hasStartedRun) return;
-                this.activationHowToOverlay.setAttribute('aria-hidden', 'false');
-                requestAnimationFrame(() => this.activationHowToOverlay.classList.add('visible'));
+                if (this.hasStartedRun) return;
+                if (this.activationHowToOverlay) {
+                    this.activationHowToOverlay.classList.remove('visible');
+                    this.activationHowToOverlay.setAttribute('aria-hidden', 'true');
+                }
+                document.body.classList.toggle('tutorial-pending', !this.introCompleted);
+                this.setTutorialHud(this.introCompleted ? '' : 'INITIALIZE');
             }
 
             hideActivationHowToOverlay() {
-                if (!this.activationHowToOverlay) return Promise.resolve();
-                this.activationHowToOverlay.classList.remove('visible');
-                this.activationHowToOverlay.setAttribute('aria-hidden', 'true');
+                if (this.activationHowToOverlay) {
+                    this.activationHowToOverlay.classList.remove('visible');
+                    this.activationHowToOverlay.setAttribute('aria-hidden', 'true');
+                }
+                document.body.classList.remove('tutorial-pending');
+                if (!this.tutorialActive) this.setTutorialHud('');
                 return Promise.resolve();
             }
 
@@ -13331,6 +13338,7 @@ Orb Control Panel Instrument Reference
             resetIntroCompletionFlag() {
                 try { localStorage.removeItem(this.introCompletionStorageKey); } catch (_) {}
                 this.introCompleted = false;
+                if (!this.hasStartedRun) this.showActivationHowToOverlay();
                 this.setTelemetryStatus('Intro reset. The next new game will start with the tutorial.');
             }
 
@@ -13393,8 +13401,7 @@ Orb Control Panel Instrument Reference
                 this.tutorialToken++;
                 this.tutorialMovementDistance = 0;
                 this.tutorialMovementQualified = false;
-                this.tutorialEnemyMovementMs = 0;
-                this.tutorialEnemyLastMovementAt = 0;
+                this.tutorialEnemyAvoidMs = 0;
                 this.cosmicZapsLeft = 0;
                 this.cosmicZapPressure = 0;
                 this.active = true;
@@ -13440,12 +13447,11 @@ Orb Control Panel Instrument Reference
                     crystal.element.classList.add('next');
                     this.crystals = [crystal];
                     this.tutorialCrystal = crystal;
-                    this.setTutorialHud('COLLECT THE CRYSTAL');
+                    this.setTutorialHud('COLLECT CRYSTALLS');
                 } else if (step === 'enemy') {
                     this.clearTutorialObjects();
                     this.cosmicZapsLeft = 0;
-                    this.tutorialEnemyMovementMs = 0;
-                    this.tutorialEnemyLastMovementAt = 0;
+                    this.tutorialEnemyAvoidMs = 0;
                     this.spawnTutorialEnemy();
                     this.setTutorialHud('AVOID BLOCK-A-ZOIDS');
                 } else if (step === 'zap') {
@@ -13458,14 +13464,11 @@ Orb Control Panel Instrument Reference
                     this.clearTutorialObjects();
                     this.cosmicZapsLeft = 0;
                     this.setTutorialHud('GRIDLOCK — SURVIVE');
-                    this.spawnTutorialGridlock();
                     this.maxSwarmActive = true;
                     this.triggerCrtEvent('gridlock');
                     this.audio.playMaxSwarmCue();
                     this.audio.startMaxSwarmBeat(0);
-                    this.tutorialStepTimer = setTimeout(() => {
-                        if (this.tutorialActive && this.tutorialStep === 'gridlock') this.setTutorialStep('relic');
-                    }, 5000);
+                    this.spawnTutorialGridlockSequence(0);
                 } else if (step === 'relic') {
                     this.clearTutorialObjects();
                     this.cosmicZapsLeft = 0;
@@ -13474,7 +13477,7 @@ Orb Control Panel Instrument Reference
                     this.prismRelic = new PrismRelic(this, x, y);
                     this.audio.playPrismRelicAppear();
                     this.audio.startPrismRelicHum();
-                    this.setTutorialHud('COLLECT PRISM RELIC');
+                    this.setTutorialHud('COLLECT THE RELIC');
                 }
 
                 const tutorialStepIndex = { movement: 0, crystal: 1, enemy: 2, zap: 3, gridlock: 4, relic: 5 }[step] || 0;
@@ -13487,11 +13490,13 @@ Orb Control Panel Instrument Reference
 
             spawnTutorialEnemy() {
                 if (this.tutorialEnemy && this.enemies.includes(this.tutorialEnemy)) return this.tutorialEnemy;
-                const enemy = new Enemy(this, 'small', { x: 26, y: Math.max(34, this.PLAYFIELD_SIZE * 0.18) });
-                const speed = this.BASE_SPEEDS.small;
+                const inset = Math.max(24, this.PLAYER_SIZE * 1.25);
+                const enemy = new Enemy(this, 'medium', { x: inset, y: inset });
+                const speed = this.getEnemySpeed('medium');
+                const diagonalSpeed = speed / Math.SQRT2;
                 enemy.speed = speed;
-                enemy.dx = speed;
-                enemy.dy = 0;
+                enemy.dx = diagonalSpeed;
+                enemy.dy = diagonalSpeed;
                 enemy.updatePosition();
                 this.enemies = [enemy];
                 this.tutorialEnemy = enemy;
@@ -13499,35 +13504,68 @@ Orb Control Panel Instrument Reference
                 return enemy;
             }
 
-            spawnTutorialGridlock() {
+            spawnTutorialGridlockEnemy(index) {
+                if (!this.tutorialActive || this.tutorialStep !== 'gridlock') return null;
                 const p = this.PLAYFIELD_SIZE;
+                const size = this.PLAYER_SIZE;
                 const inset = Math.max(22, this.PLAYER_SIZE * 1.5);
                 const locations = [
-                    { x: inset, y: inset },
-                    { x: p - inset - this.PLAYER_SIZE, y: inset },
-                    { x: inset, y: p - inset - this.PLAYER_SIZE },
-                    { x: p - inset - this.PLAYER_SIZE, y: p - inset - this.PLAYER_SIZE }
+                    { x: inset, y: inset, sx: 1, sy: 1 },
+                    { x: p - inset - size, y: inset, sx: -1, sy: 1 },
+                    { x: inset, y: p - inset - size, sx: 1, sy: -1 },
+                    { x: p - inset - size, y: p - inset - size, sx: -1, sy: -1 }
                 ];
-                this.enemies = locations.map((location, index) => {
-                    const enemy = new Enemy(this, 'small', location);
-                    const speed = this.BASE_SPEEDS.small;
-                    enemy.speed = speed;
-                    enemy.dx = (index % 2 === 0 ? 1 : -1) * speed;
-                    enemy.dy = (index < 2 ? 1 : -1) * speed;
-                    enemy.updatePosition();
-                    return enemy;
-                });
+                const location = locations[Math.max(0, Math.min(locations.length - 1, index))];
+                const enemy = new Enemy(this, 'small', { x: location.x, y: location.y });
+                const speed = this.getEnemySpeed('small');
+                const diagonalSpeed = speed / Math.SQRT2;
+                enemy.speed = speed;
+                enemy.dx = location.sx * diagonalSpeed;
+                enemy.dy = location.sy * diagonalSpeed;
+                enemy.updatePosition();
+                this.enemies.push(enemy);
                 this.updateEnemyColors();
+                return enemy;
+            }
+
+            spawnTutorialGridlockSequence(index = 0) {
+                if (!this.tutorialActive || this.tutorialStep !== 'gridlock') return;
+                this.spawnTutorialGridlockEnemy(index);
+
+                if (index < 3) {
+                    this.tutorialStepTimer = setTimeout(() => {
+                        this.tutorialStepTimer = null;
+                        this.spawnTutorialGridlockSequence(index + 1);
+                    }, this.tutorialGridlockSpawnIntervalMs);
+                    return;
+                }
+
+                this.tutorialStepTimer = setTimeout(() => {
+                    this.tutorialStepTimer = null;
+                    if (!this.tutorialActive || this.tutorialStep !== 'gridlock') return;
+                    this.setTutorialHud('COLLECT THE RELIC');
+                    this.tutorialStepTimer = setTimeout(() => {
+                        this.tutorialStepTimer = null;
+                        if (this.tutorialActive && this.tutorialStep === 'gridlock') this.setTutorialStep('relic');
+                    }, 1000);
+                }, this.tutorialGridlockFinalRevealMs);
             }
 
             resetTutorialCollision() {
                 this.player.reset();
                 if (this.tutorialStep === 'enemy' || this.tutorialStep === 'zap') {
                     if (this.tutorialEnemy) {
-                        this.tutorialEnemy.x = 26;
-                        this.tutorialEnemy.y = Math.max(34, this.PLAYFIELD_SIZE * 0.18);
+                        const inset = Math.max(24, this.PLAYER_SIZE * 1.25);
+                        const speed = this.getEnemySpeed('medium');
+                        const diagonalSpeed = speed / Math.SQRT2;
+                        this.tutorialEnemy.x = inset;
+                        this.tutorialEnemy.y = inset;
+                        this.tutorialEnemy.speed = speed;
+                        this.tutorialEnemy.dx = diagonalSpeed;
+                        this.tutorialEnemy.dy = diagonalSpeed;
                         this.tutorialEnemy.updatePosition();
                     }
+                    if (this.tutorialStep === 'enemy') this.tutorialEnemyAvoidMs = 0;
                 }
             }
 
@@ -13562,12 +13600,8 @@ Orb Control Panel Instrument Reference
                     if (hit && !this.isCosmicZapProtectingOrb()) this.resetTutorialCollision();
 
                     if (this.tutorialStep === 'enemy') {
-                        if (segments.length > 0) this.tutorialEnemyLastMovementAt = timestamp;
-                        const activelyMoving = this.player.isTouchActive &&
-                            this.tutorialEnemyLastMovementAt > 0 &&
-                            timestamp - this.tutorialEnemyLastMovementAt <= 120;
-                        if (activelyMoving) this.tutorialEnemyMovementMs += deltaTime;
-                        if (this.tutorialEnemyMovementMs >= this.tutorialEnemyMovementRequiredMs) {
+                        if (!hit) this.tutorialEnemyAvoidMs += deltaTime;
+                        if (this.tutorialEnemyAvoidMs >= this.tutorialEnemyAvoidRequiredMs) {
                             this.setTutorialStep('zap');
                         }
                     }
@@ -13611,8 +13645,7 @@ Orb Control Panel Instrument Reference
                 this.saveIntroCompletionFlag();
                 this.audio.playPrismRelicCollect();
                 this.clearTutorialObjects();
-                this.tutorialActive = false;
-                this.tutorialStep = '';
+                this.tutorialStep = 'complete';
                 this.tutorialToken++;
                 if (this.tutorialRafId) cancelAnimationFrame(this.tutorialRafId);
                 this.tutorialRafId = null;
@@ -13620,6 +13653,23 @@ Orb Control Panel Instrument Reference
                 this.levelActionStarted = false;
                 this.sectorTransitionActive = true;
                 this.cosmicZapsLeft = 0;
+                this.setTutorialHud('TUTORIAL COMPLETE');
+                if (this.audio && typeof this.audio.playTutorialStepBeep === 'function') {
+                    this.audio.playTutorialStepBeep(6);
+                }
+                this.syncMotionListenerState();
+                this.ui.updateAll();
+
+                this.tutorialStepTimer = setTimeout(() => {
+                    this.tutorialStepTimer = null;
+                    this.finishOneTimeIntroTransition();
+                }, 1000);
+            }
+
+            finishOneTimeIntroTransition() {
+                if (!this.tutorialActive || this.tutorialStep !== 'complete') return;
+                this.tutorialActive = false;
+                this.tutorialStep = '';
                 this.setTutorialHud('');
                 document.body.classList.remove('tutorial-active');
                 this.syncMotionListenerState();
