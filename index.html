@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v300: Moves tutorial initialization to the top HUD, refines crystal and avoidance instructions, stages Gridlock blocks sequentially, and adds a tutorial-complete transition without changing normal Sector 1 gameplay.
+Build v301: Refines the deterministic one-time tutorial, restores a soft CRT monitor halo, adds developer invincibility, and prevents the audio source safety limit from silencing persistent gameplay audio.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -21,7 +21,7 @@ Orb Control Panel Instrument Reference
 - Velocity Glyph Engine — Temporarily displays the Orb’s finger-driven movement speed.
 - Orb Command Socket — Controls the Orb’s pause, resume, and primary interface functions.
 -->
-<html data-build-version="v300">
+<html data-build-version="v301">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -8016,7 +8016,9 @@ Orb Control Panel Instrument Reference
             opacity: 0.13 !important; stroke-width: 7px !important; filter: drop-shadow(0 0 5px rgba(0,205,255,0.18)) !important;
         }
         #playfieldShell.crt-enabled.crt-fx-glow.crt-glow-medium:not(.crt-ui-suspended) .glow-single {
-            opacity: 0.35 !important; stroke-width: 12px !important; filter: drop-shadow(0 0 10px rgba(0,205,255,0.40)) !important;
+            opacity: 0.46 !important;
+            stroke-width: 1.8px !important;
+            filter: drop-shadow(0 0 2px rgba(80,225,255,0.58)) drop-shadow(0 0 7px rgba(0,205,255,0.34)) drop-shadow(0 0 14px rgba(0,180,255,0.16)) !important;
         }
         #playfieldShell.crt-enabled.crt-fx-glow.crt-glow-high:not(.crt-ui-suspended) .glow-single {
             opacity: 0.31 !important; stroke-width: 14px !important; filter: drop-shadow(0 0 10px rgba(0,205,255,0.34)) !important;
@@ -8328,6 +8330,7 @@ Orb Control Panel Instrument Reference
                 <button id="exportTelemetryButton" class="menu-button settings-toggle">Export Balance Data</button>
                 <button id="clearTelemetryButton" class="menu-button settings-toggle">Clear Balance Data</button>
                 <div id="telemetryStatus" class="telemetry-status"></div>
+                <button id="invincibilityToggleButton" class="menu-button settings-toggle" type="button">Invincibility: OFF</button>
                 <button id="resetIntroCompletionButton" class="menu-button settings-toggle" type="button">Reset Intro Completion</button>
                 <button id="telemetryBackButton" class="menu-back-button">Back</button>
             </div>
@@ -8465,7 +8468,7 @@ Orb Control Panel Instrument Reference
     </div>
 
     <script>
-        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'v300'}`;
+        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'v301'}`;
 
         // Central diagnostic feature flags. Change values here before loading the page to isolate systems.
         const GAME_FEATURE_FLAGS = window.BLOCKAZOIDS_FEATURE_FLAGS = {
@@ -8989,6 +8992,7 @@ Orb Control Panel Instrument Reference
                 this.musicToggleButton = document.getElementById('musicToggleButton');
                 this.crtToggleButton = document.getElementById('crtToggleButton');
                 this.tutorialHud = document.getElementById('tutorialHud');
+                this.invincibilityToggleButton = document.getElementById('invincibilityToggleButton');
                 this.resetIntroCompletionButton = document.getElementById('resetIntroCompletionButton');
                 this.crtStorageKey = 'blockazoidsCrtEnabled';
                 this.crtPresetStorageKey = 'blockazoidsCrtPresetLevelV1';
@@ -9188,13 +9192,17 @@ Orb Control Panel Instrument Reference
                 this.tutorialMovementRequired = 150;
                 this.tutorialMovementQualified = false;
                 this.tutorialMovementAdvanceDelayMs = 2000;
+                this.tutorialCrystalAdvanceDelayMs = 1000;
+                this.tutorialEnemySpawnDelayMs = 1000;
                 this.tutorialEnemyAvoidMs = 0;
                 this.tutorialEnemyAvoidRequiredMs = 2000;
-                this.tutorialGridlockSpawnIntervalMs = 800;
-                this.tutorialGridlockFinalRevealMs = 550;
+                this.tutorialGridlockStartDelayMs = 1000;
+                this.tutorialGridlockSpawnIntervalMs = 5000;
                 this.tutorialStepTimer = null;
                 this.tutorialEnemy = null;
+                this.tutorialEnemySpawned = false;
                 this.tutorialCrystal = null;
+                this.tutorialRelicCollected = false;
                 this.resumeCountdownActive = false;   // Blocks repeated resume clicks during the short countdown.
                 this.updateGameTimer = null;          // Enemy spawn timer so pause/resume cannot duplicate spawn loops
                 this.gameplayRunToken = 0;            // Invalidates old animation frames when pausing/restarting
@@ -9255,6 +9263,8 @@ Orb Control Panel Instrument Reference
 
                 // Local developer-only balance telemetry. It never leaves the browser unless exported by the user.
                 this.developerModeEnabled = false;
+                this.invincibilityEnabled = false;
+                this.invincibilityCollisionCooldownUntil = 0;
                 this.telemetryEnabled = false;
                 this.telemetryStorageKey = 'blockazoidsBalanceTelemetry';
                 this.telemetry = this.loadTelemetryData();
@@ -9620,6 +9630,14 @@ Orb Control Panel Instrument Reference
                         this.clearTelemetryData();
                     });
                 }
+                if (this.invincibilityToggleButton) {
+                    this.invincibilityToggleButton.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        this.playUiClick();
+                        this.toggleInvincibility();
+                    });
+                }
                 if (this.resetIntroCompletionButton) {
                     this.resetIntroCompletionButton.addEventListener('click', (e) => {
                         e.preventDefault();
@@ -9638,6 +9656,7 @@ Orb Control Panel Instrument Reference
                 }
                 this.updateSoundToggleLabel();
                 this.updateMusicToggleLabel();
+                this.updateInvincibilityToggleLabel();
                 this.applyCrtPreference();
                 this.updateSettingsSectorLabel();
                 this.updateDifficultyLabel();
@@ -13342,6 +13361,21 @@ Orb Control Panel Instrument Reference
                 this.setTelemetryStatus('Intro reset. The next new game will start with the tutorial.');
             }
 
+            updateInvincibilityToggleLabel() {
+                if (!this.invincibilityToggleButton) return;
+                this.invincibilityToggleButton.textContent = `Invincibility: ${this.invincibilityEnabled ? 'ON' : 'OFF'}`;
+                this.invincibilityToggleButton.classList.toggle('active', this.invincibilityEnabled);
+                this.invincibilityToggleButton.setAttribute('aria-pressed', this.invincibilityEnabled ? 'true' : 'false');
+            }
+
+            toggleInvincibility() {
+                if (!this.developerModeEnabled) return;
+                this.invincibilityEnabled = !this.invincibilityEnabled;
+                this.invincibilityCollisionCooldownUntil = 0;
+                this.updateInvincibilityToggleLabel();
+                this.setTelemetryStatus(`Invincibility ${this.invincibilityEnabled ? 'enabled' : 'disabled'}.`);
+            }
+
             setTutorialHud(text = '') {
                 if (this.tutorialHud) this.tutorialHud.textContent = text;
             }
@@ -13402,6 +13436,8 @@ Orb Control Panel Instrument Reference
                 this.tutorialMovementDistance = 0;
                 this.tutorialMovementQualified = false;
                 this.tutorialEnemyAvoidMs = 0;
+                this.tutorialEnemySpawned = false;
+                this.tutorialRelicCollected = false;
                 this.cosmicZapsLeft = 0;
                 this.cosmicZapPressure = 0;
                 this.active = true;
@@ -13447,13 +13483,19 @@ Orb Control Panel Instrument Reference
                     crystal.element.classList.add('next');
                     this.crystals = [crystal];
                     this.tutorialCrystal = crystal;
-                    this.setTutorialHud('COLLECT CRYSTALLS');
+                    this.setTutorialHud('COLLECT CRYSTALS');
                 } else if (step === 'enemy') {
                     this.clearTutorialObjects();
                     this.cosmicZapsLeft = 0;
                     this.tutorialEnemyAvoidMs = 0;
-                    this.spawnTutorialEnemy();
+                    this.tutorialEnemySpawned = false;
                     this.setTutorialHud('AVOID BLOCK-A-ZOIDS');
+                    this.tutorialStepTimer = setTimeout(() => {
+                        this.tutorialStepTimer = null;
+                        if (!this.tutorialActive || this.tutorialStep !== 'enemy') return;
+                        this.spawnTutorialEnemy();
+                        this.tutorialEnemySpawned = true;
+                    }, this.tutorialEnemySpawnDelayMs);
                 } else if (step === 'zap') {
                     if (!this.tutorialEnemy || !this.enemies.includes(this.tutorialEnemy)) this.spawnTutorialEnemy();
                     this.cosmicZapsLeft = 1;
@@ -13468,12 +13510,15 @@ Orb Control Panel Instrument Reference
                     this.triggerCrtEvent('gridlock');
                     this.audio.playMaxSwarmCue();
                     this.audio.startMaxSwarmBeat(0);
-                    this.spawnTutorialGridlockSequence(0);
+                    this.tutorialStepTimer = setTimeout(() => {
+                        this.tutorialStepTimer = null;
+                        if (this.tutorialActive && this.tutorialStep === 'gridlock') this.spawnTutorialGridlockSequence(0);
+                    }, this.tutorialGridlockStartDelayMs);
                 } else if (step === 'relic') {
-                    this.clearTutorialObjects();
                     this.cosmicZapsLeft = 0;
-                    const x = this.PLAYFIELD_SIZE * 0.70 - this.PRISM_RELIC_SIZE / 2;
-                    const y = this.PLAYFIELD_SIZE * 0.50 - this.PRISM_RELIC_SIZE / 2;
+                    const center = this.PLAYFIELD_SIZE / 2;
+                    const x = center - this.PRISM_RELIC_SIZE / 2;
+                    const y = center - this.PRISM_RELIC_SIZE / 2;
                     this.prismRelic = new PrismRelic(this, x, y);
                     this.audio.playPrismRelicAppear();
                     this.audio.startPrismRelicHum();
@@ -13490,13 +13535,15 @@ Orb Control Panel Instrument Reference
 
             spawnTutorialEnemy() {
                 if (this.tutorialEnemy && this.enemies.includes(this.tutorialEnemy)) return this.tutorialEnemy;
-                const inset = Math.max(24, this.PLAYER_SIZE * 1.25);
-                const enemy = new Enemy(this, 'medium', { x: inset, y: inset });
-                const speed = this.getEnemySpeed('medium');
+                const mediumSize = this.PLAYER_SIZE * 2;
+                const startX = Math.round(this.PLAYFIELD_SIZE * 0.18);
+                const startY = Math.round(this.PLAYFIELD_SIZE * 0.68 - mediumSize / 2);
+                const enemy = new Enemy(this, 'medium', { x: startX, y: startY });
+                const speed = this.BASE_SPEEDS.medium;
                 const diagonalSpeed = speed / Math.SQRT2;
                 enemy.speed = speed;
                 enemy.dx = diagonalSpeed;
-                enemy.dy = diagonalSpeed;
+                enemy.dy = -diagonalSpeed;
                 enemy.updatePosition();
                 this.enemies = [enemy];
                 this.tutorialEnemy = enemy;
@@ -13507,17 +13554,17 @@ Orb Control Panel Instrument Reference
             spawnTutorialGridlockEnemy(index) {
                 if (!this.tutorialActive || this.tutorialStep !== 'gridlock') return null;
                 const p = this.PLAYFIELD_SIZE;
-                const size = this.PLAYER_SIZE;
-                const inset = Math.max(22, this.PLAYER_SIZE * 1.5);
+                const size = this.PLAYER_SIZE * 2;
+                const grid = this.GRID_SIZE;
                 const locations = [
-                    { x: inset, y: inset, sx: 1, sy: 1 },
-                    { x: p - inset - size, y: inset, sx: -1, sy: 1 },
-                    { x: inset, y: p - inset - size, sx: 1, sy: -1 },
-                    { x: p - inset - size, y: p - inset - size, sx: -1, sy: -1 }
+                    { x: grid * 1.25, y: grid * 3.10, sx: 1, sy: 1 },
+                    { x: p - size - grid * 1.25, y: grid * 5.75, sx: -1, sy: -1 },
+                    { x: grid * 5.65, y: grid * 1.25, sx: -1, sy: 1 },
+                    { x: grid * 3.05, y: p - size - grid * 1.25, sx: 1, sy: -1 }
                 ];
                 const location = locations[Math.max(0, Math.min(locations.length - 1, index))];
-                const enemy = new Enemy(this, 'small', { x: location.x, y: location.y });
-                const speed = this.getEnemySpeed('small');
+                const enemy = new Enemy(this, 'medium', { x: location.x, y: location.y });
+                const speed = this.BASE_SPEEDS.medium;
                 const diagonalSpeed = speed / Math.SQRT2;
                 enemy.speed = speed;
                 enemy.dx = location.sx * diagonalSpeed;
@@ -13540,29 +13587,21 @@ Orb Control Panel Instrument Reference
                     return;
                 }
 
-                this.tutorialStepTimer = setTimeout(() => {
-                    this.tutorialStepTimer = null;
-                    if (!this.tutorialActive || this.tutorialStep !== 'gridlock') return;
-                    this.setTutorialHud('COLLECT THE RELIC');
-                    this.tutorialStepTimer = setTimeout(() => {
-                        this.tutorialStepTimer = null;
-                        if (this.tutorialActive && this.tutorialStep === 'gridlock') this.setTutorialStep('relic');
-                    }, 1000);
-                }, this.tutorialGridlockFinalRevealMs);
+                this.setTutorialStep('relic');
             }
 
             resetTutorialCollision() {
                 this.player.reset();
                 if (this.tutorialStep === 'enemy' || this.tutorialStep === 'zap') {
                     if (this.tutorialEnemy) {
-                        const inset = Math.max(24, this.PLAYER_SIZE * 1.25);
-                        const speed = this.getEnemySpeed('medium');
+                        const mediumSize = this.PLAYER_SIZE * 2;
+                        const speed = this.BASE_SPEEDS.medium;
                         const diagonalSpeed = speed / Math.SQRT2;
-                        this.tutorialEnemy.x = inset;
-                        this.tutorialEnemy.y = inset;
+                        this.tutorialEnemy.x = Math.round(this.PLAYFIELD_SIZE * 0.18);
+                        this.tutorialEnemy.y = Math.round(this.PLAYFIELD_SIZE * 0.68 - mediumSize / 2);
                         this.tutorialEnemy.speed = speed;
                         this.tutorialEnemy.dx = diagonalSpeed;
-                        this.tutorialEnemy.dy = diagonalSpeed;
+                        this.tutorialEnemy.dy = -diagonalSpeed;
                         this.tutorialEnemy.updatePosition();
                     }
                     if (this.tutorialStep === 'enemy') this.tutorialEnemyAvoidMs = 0;
@@ -13592,23 +13631,27 @@ Orb Control Panel Instrument Reference
                         this.crystals = [];
                         this.tutorialCrystal = null;
                         this.audio.playCollect();
-                        this.setTutorialStep('enemy');
+                        this.tutorialStep = 'crystal-wait';
+                        this.tutorialStepTimer = setTimeout(() => {
+                            this.tutorialStepTimer = null;
+                            if (this.tutorialActive && this.tutorialStep === 'crystal-wait') this.setTutorialStep('enemy');
+                        }, this.tutorialCrystalAdvanceDelayMs);
                     }
-                } else if (this.tutorialStep === 'enemy' || this.tutorialStep === 'zap' || this.tutorialStep === 'gridlock') {
+                } else if (this.tutorialStep === 'enemy' || this.tutorialStep === 'zap' || this.tutorialStep === 'gridlock' || this.tutorialStep === 'relic' || this.tutorialStep === 'relic-collected') {
                     this.enemies.forEach(enemy => enemy.update(deltaTime));
                     const hit = this.enemies.some(enemy => this.getPlayerPathHitScore(enemy, segments) !== null);
                     if (hit && !this.isCosmicZapProtectingOrb()) this.resetTutorialCollision();
 
-                    if (this.tutorialStep === 'enemy') {
+                    if (this.tutorialStep === 'enemy' && this.tutorialEnemySpawned) {
                         if (!hit) this.tutorialEnemyAvoidMs += deltaTime;
                         if (this.tutorialEnemyAvoidMs >= this.tutorialEnemyAvoidRequiredMs) {
                             this.setTutorialStep('zap');
                         }
-                    }
-                } else if (this.tutorialStep === 'relic') {
-                    if (this.prismRelic && this.getPlayerPathHitScore(this.prismRelic, segments) !== null) {
-                        this.completeOneTimeIntro();
-                        return;
+                    } else if (this.tutorialStep === 'relic' && !hit) {
+                        if (this.prismRelic && this.getPlayerPathHitScore(this.prismRelic, segments) !== null) {
+                            this.completeOneTimeIntro();
+                            return;
+                        }
                     }
                 }
 
@@ -13641,9 +13684,24 @@ Orb Control Panel Instrument Reference
             }
 
             completeOneTimeIntro() {
-                if (!this.tutorialActive || this.tutorialStep !== 'relic') return;
+                if (!this.tutorialActive || this.tutorialStep !== 'relic' || this.tutorialRelicCollected) return;
+                this.tutorialRelicCollected = true;
                 this.saveIntroCompletionFlag();
                 this.audio.playPrismRelicCollect();
+                this.audio.stopPrismRelicHum();
+                if (this.prismRelic) {
+                    try { this.prismRelic.element.remove(); } catch (_) {}
+                    this.prismRelic = null;
+                }
+                this.tutorialStep = 'relic-collected';
+                this.tutorialStepTimer = setTimeout(() => {
+                    this.tutorialStepTimer = null;
+                    this.showTutorialComplete();
+                }, 1000);
+            }
+
+            showTutorialComplete() {
+                if (!this.tutorialActive || this.tutorialStep !== 'relic-collected') return;
                 this.clearTutorialObjects();
                 this.tutorialStep = 'complete';
                 this.tutorialToken++;
@@ -14996,6 +15054,28 @@ Orb Control Panel Instrument Reference
                 this.ui.updateAll();
             }
 
+            handleInvincibleCollision(enemy, enemyType = null) {
+                const now = performance.now();
+                if (now < this.invincibilityCollisionCooldownUntil) return;
+                this.invincibilityCollisionCooldownUntil = now + 850;
+                if (enemy && typeof enemy.flashBorder === 'function') enemy.flashBorder();
+                this.container.classList.add('borderFlash');
+                setTimeout(() => this.container.classList.remove('borderFlash'), 300);
+                if (this.audio) {
+                    this.audio.resume();
+                    this.audio.playExplosionSound();
+                }
+                if (this.currentTelemetrySector) {
+                    this.currentTelemetrySector.invincibilityCollisions = (this.currentTelemetrySector.invincibilityCollisions || 0) + 1;
+                }
+                this.markStabilityEvent('invincibility-collision', {
+                    sector: this.level,
+                    cycle: this.cycle,
+                    enemySize: enemyType || (enemy && enemy.type) || null
+                });
+                this.player.reset();
+            }
+
             // Check the current Orb position and the complete path traveled since the previous frame.
             checkCollisions() {
                 if (this.isGameOver) return;
@@ -15006,6 +15086,10 @@ Orb Control Panel Instrument Reference
                 for (const enemy of this.enemies) {
                     if (this.getPlayerPathHitScore(enemy, movementSegments) !== null) {
                         if (this.isCosmicZapProtectingOrb()) continue;
+                        if (this.invincibilityEnabled) {
+                            this.handleInvincibleCollision(enemy, enemy.type || null);
+                            return;
+                        }
                         this.endGame({ deathEnemySize: enemy.type || null });
                         return;
                     }
@@ -16148,6 +16232,7 @@ Orb Control Panel Instrument Reference
 
             // iPhone control: touch must begin on or near the orb, then dragging moves it.
             handlePointerDown(e) {
+                if (this.game.audio) this.game.audio.resume();
                 if (!this.game.active || this.game.isPaused || this.game.isGameOver) return;
                 const point = this.getBoardPoint(e.clientX, e.clientY);
                 if (!this.pointIsNearPlayer(point)) return; // Prevent tap-anywhere teleporting.
@@ -16532,13 +16617,23 @@ Orb Control Panel Instrument Reference
                 if (!this.muted) this.createAudioContext();
             }
 
+            pruneOneShotAudioForSourceLimit() {
+                this.audioLastCleanupReason = 'source-safety-prune';
+                const target = Math.max(24, this.audioSourceLimit - 16);
+                for (const scope of [...this.audioOneShotScopes]) {
+                    this.cleanupAudioScope(scope, true);
+                    if (this.audioLiveSources.size < target) break;
+                }
+                this.audioSourcesActive = this.audioLiveSources.size;
+            }
+
             createAudioNode(factoryName, ...args) {
                 if (!this.ctx || typeof this.ctx[factoryName] !== 'function') return null;
 
                 const isSource = factoryName === 'createOscillator' || factoryName === 'createBufferSource';
                 if (isSource && this.audioLiveSources.size >= this.audioSourceLimit) {
                     this.audioSourceLimitTrips++;
-                    this.cleanupTransientAudio('source-safety-limit');
+                    this.pruneOneShotAudioForSourceLimit();
                 }
 
                 const node = this.ctx[factoryName](...args);
