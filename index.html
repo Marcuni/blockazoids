@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v298: Adds a one-time interactive intro before Sector 1, strengthens the fixed CRT glare preset, and removes Developer CRT tuning tools.
+Build v299: Refines the one-time intro timing, alignment, training speed, step audio, and INITIALIZE presentation without changing normal Sector 1 gameplay.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -21,7 +21,7 @@ Orb Control Panel Instrument Reference
 - Velocity Glyph Engine — Temporarily displays the Orb’s finger-driven movement speed.
 - Orb Command Socket — Controls the Orb’s pause, resume, and primary interface functions.
 -->
-<html data-build-version="v298">
+<html data-build-version="v299">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -1244,10 +1244,21 @@ Orb Control Panel Instrument Reference
             padding: clamp(14px, 3.6vw, 22px) clamp(10px, 3vw, 18px);
             box-sizing: border-box;
             overflow: hidden;
-            background: rgba(0, 0, 0, 0.46);
+            background: transparent;
             border: none;
-            opacity: 0.82;
+            opacity: 0.92;
             text-align: center;
+        }
+
+        .activation-how-to-title {
+            color: #fff;
+            font-family: 'Orbitron';
+            font-size: clamp(30px, 9vw, 52px);
+            font-weight: 800;
+            line-height: 1;
+            letter-spacing: clamp(3px, 1.5vw, 8px);
+            text-shadow: 0 0 10px rgba(255,255,255,0.82), 0 0 24px rgba(255,255,255,0.42);
+            white-space: nowrap;
         }
 
         .activation-how-to-list {
@@ -8168,13 +8179,8 @@ Orb Control Panel Instrument Reference
         <div id="screenFade"></div>
         <div id="gameOverlay"></div>
         <div id="activationHowToOverlay" aria-hidden="true">
-            <div class="activation-how-to-panel" role="img" aria-label="Drag the white orb. Collect blinking crystals. Avoid Block-A-Zoids. Shake to Cosmic Zap.">
-                <ul class="activation-how-to-list" aria-hidden="true">
-                    <li>Drag the white orb.</li>
-                    <li>Collect blinking crystals.</li>
-                    <li>Avoid Block-A-Zoids.</li>
-                    <li>Shake to Cosmic Zap.</li>
-                </ul>
+            <div class="activation-how-to-panel" role="img" aria-label="Initialize">
+                <div class="activation-how-to-title" aria-hidden="true">INITIALIZE</div>
             </div>
         </div>
         <div id="instructionsWindow" style="display: none;"></div>
@@ -8460,7 +8466,7 @@ Orb Control Panel Instrument Reference
     </div>
 
     <script>
-        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'v298'}`;
+        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'v299'}`;
 
         // Central diagnostic feature flags. Change values here before loading the page to isolate systems.
         const GAME_FEATURE_FLAGS = window.BLOCKAZOIDS_FEATURE_FLAGS = {
@@ -9166,7 +9172,7 @@ Orb Control Panel Instrument Reference
                 this.showHudDuringSectorIntro = false; // Keep bottom HUD visible while sector name/number is displayed
                 this.cockpitActivated = false;          // Clock, Orbital Tally core, and Zap gauge power on after PLAY
                 this.activationHowToPending = false;   // Legacy flag retained for compatibility; the guide now appears before PLAY.
-                this.cockpitSectorDisplayName = 'ACTIVATE';
+                this.cockpitSectorDisplayName = 'INITIALIZE';
                 this.cockpitSectorDisplayLevel = null;
                 this.startInputLocked = false;        // Blocks stray menu/start taps while a sector is starting
                 this.isPaused = false;                // Temporary pause-screen state
@@ -9181,6 +9187,11 @@ Orb Control Panel Instrument Reference
                 this.tutorialLastFrameTime = 0;
                 this.tutorialMovementDistance = 0;
                 this.tutorialMovementRequired = 150;
+                this.tutorialMovementQualified = false;
+                this.tutorialMovementAdvanceDelayMs = 2000;
+                this.tutorialEnemyMovementMs = 0;
+                this.tutorialEnemyMovementRequiredMs = 2000;
+                this.tutorialEnemyLastMovementAt = 0;
                 this.tutorialStepTimer = null;
                 this.tutorialEnemy = null;
                 this.tutorialCrystal = null;
@@ -13381,6 +13392,9 @@ Orb Control Panel Instrument Reference
                 this.tutorialActive = true;
                 this.tutorialToken++;
                 this.tutorialMovementDistance = 0;
+                this.tutorialMovementQualified = false;
+                this.tutorialEnemyMovementMs = 0;
+                this.tutorialEnemyLastMovementAt = 0;
                 this.cosmicZapsLeft = 0;
                 this.cosmicZapPressure = 0;
                 this.active = true;
@@ -13408,26 +13422,32 @@ Orb Control Panel Instrument Reference
                 if (step === 'movement') {
                     this.clearTutorialObjects();
                     this.tutorialMovementDistance = 0;
+                    this.tutorialMovementQualified = false;
                     this.cosmicZapsLeft = 0;
                     this.setTutorialHud('DRAG THE ORB AROUND');
                 } else if (step === 'crystal') {
                     this.clearTutorialObjects();
                     this.cosmicZapsLeft = 0;
-                    const x = Math.min(this.PLAYFIELD_SIZE - this.CRYSTAL_SIZE - 28, this.PLAYFIELD_SIZE * 0.72);
-                    const y = Math.max(28, this.PLAYFIELD_SIZE * 0.48);
-                    const crystal = new Crystal(this, x, y, 'blue', 1);
+                    const gridX = Math.min(this.PLAYFIELD_SIZE - this.GRID_SIZE, this.GRID_SIZE * 7);
+                    const gridY = Math.min(this.PLAYFIELD_SIZE - this.GRID_SIZE, this.GRID_SIZE * 5);
+                    const crystal = new Crystal(
+                        this,
+                        gridX - this.CRYSTAL_OFFSET,
+                        gridY - this.CRYSTAL_OFFSET,
+                        'blue',
+                        1
+                    );
                     crystal.element.classList.add('next');
                     this.crystals = [crystal];
                     this.tutorialCrystal = crystal;
-                    this.setTutorialHud('COLLECT BLINKING CRYSTALS');
+                    this.setTutorialHud('COLLECT THE CRYSTAL');
                 } else if (step === 'enemy') {
                     this.clearTutorialObjects();
                     this.cosmicZapsLeft = 0;
+                    this.tutorialEnemyMovementMs = 0;
+                    this.tutorialEnemyLastMovementAt = 0;
                     this.spawnTutorialEnemy();
                     this.setTutorialHud('AVOID BLOCK-A-ZOIDS');
-                    this.tutorialStepTimer = setTimeout(() => {
-                        if (this.tutorialActive && this.tutorialStep === 'enemy') this.setTutorialStep('zap');
-                    }, 4300);
                 } else if (step === 'zap') {
                     if (!this.tutorialEnemy || !this.enemies.includes(this.tutorialEnemy)) this.spawnTutorialEnemy();
                     this.cosmicZapsLeft = 1;
@@ -13456,6 +13476,11 @@ Orb Control Panel Instrument Reference
                     this.audio.startPrismRelicHum();
                     this.setTutorialHud('COLLECT PRISM RELIC');
                 }
+
+                const tutorialStepIndex = { movement: 0, crystal: 1, enemy: 2, zap: 3, gridlock: 4, relic: 5 }[step] || 0;
+                if (this.audio && typeof this.audio.playTutorialStepBeep === 'function') {
+                    this.audio.playTutorialStepBeep(tutorialStepIndex);
+                }
                 this.syncMotionListenerState();
                 this.ui.updateAll();
             }
@@ -13463,9 +13488,10 @@ Orb Control Panel Instrument Reference
             spawnTutorialEnemy() {
                 if (this.tutorialEnemy && this.enemies.includes(this.tutorialEnemy)) return this.tutorialEnemy;
                 const enemy = new Enemy(this, 'small', { x: 26, y: Math.max(34, this.PLAYFIELD_SIZE * 0.18) });
-                const speed = Math.max(0.36, this.PLAYFIELD_SIZE / 1600);
+                const speed = this.BASE_SPEEDS.small;
+                enemy.speed = speed;
                 enemy.dx = speed;
-                enemy.dy = speed * 0.34;
+                enemy.dy = 0;
                 enemy.updatePosition();
                 this.enemies = [enemy];
                 this.tutorialEnemy = enemy;
@@ -13484,7 +13510,8 @@ Orb Control Panel Instrument Reference
                 ];
                 this.enemies = locations.map((location, index) => {
                     const enemy = new Enemy(this, 'small', location);
-                    const speed = Math.max(0.30, p / 1900);
+                    const speed = this.BASE_SPEEDS.small;
+                    enemy.speed = speed;
                     enemy.dx = (index % 2 === 0 ? 1 : -1) * speed;
                     enemy.dy = (index < 2 ? 1 : -1) * speed;
                     enemy.updatePosition();
@@ -13514,7 +13541,12 @@ Orb Control Panel Instrument Reference
                     segments.forEach(segment => {
                         this.tutorialMovementDistance += Math.hypot(segment.x2 - segment.x1, segment.y2 - segment.y1);
                     });
-                    if (this.tutorialMovementDistance >= this.tutorialMovementRequired) this.setTutorialStep('crystal');
+                    if (this.tutorialMovementDistance >= this.tutorialMovementRequired && !this.tutorialMovementQualified) {
+                        this.tutorialMovementQualified = true;
+                        this.tutorialStepTimer = setTimeout(() => {
+                            if (this.tutorialActive && this.tutorialStep === 'movement') this.setTutorialStep('crystal');
+                        }, this.tutorialMovementAdvanceDelayMs);
+                    }
                 } else if (this.tutorialStep === 'crystal') {
                     const crystal = this.tutorialCrystal;
                     if (crystal && this.getPlayerPathHitScore(crystal, segments) !== null) {
@@ -13528,6 +13560,17 @@ Orb Control Panel Instrument Reference
                     this.enemies.forEach(enemy => enemy.update(deltaTime));
                     const hit = this.enemies.some(enemy => this.getPlayerPathHitScore(enemy, segments) !== null);
                     if (hit && !this.isCosmicZapProtectingOrb()) this.resetTutorialCollision();
+
+                    if (this.tutorialStep === 'enemy') {
+                        if (segments.length > 0) this.tutorialEnemyLastMovementAt = timestamp;
+                        const activelyMoving = this.player.isTouchActive &&
+                            this.tutorialEnemyLastMovementAt > 0 &&
+                            timestamp - this.tutorialEnemyLastMovementAt <= 120;
+                        if (activelyMoving) this.tutorialEnemyMovementMs += deltaTime;
+                        if (this.tutorialEnemyMovementMs >= this.tutorialEnemyMovementRequiredMs) {
+                            this.setTutorialStep('zap');
+                        }
+                    }
                 } else if (this.tutorialStep === 'relic') {
                     if (this.prismRelic && this.getPlayerPathHitScore(this.prismRelic, segments) !== null) {
                         this.completeOneTimeIntro();
@@ -16998,6 +17041,33 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 edge.stop(start + duration + 0.05);
             }
 
+            // Short console confirmation used when each tutorial instruction becomes active.
+            playTutorialStepBeep(stepIndex = 0) {
+                if (!this.ensureAudio() || !this.ctx) return;
+                const now = this.ctx.currentTime;
+                const pitches = [440, 520, 620, 740, 880, 1040];
+                const baseFrequency = pitches[Math.max(0, Math.min(pitches.length - 1, Math.floor(stepIndex) || 0))];
+                const oscillator = this.createAudioNode('createOscillator');
+                const gain = this.createAudioNode('createGain');
+                const filter = this.createAudioNode('createBiquadFilter');
+
+                oscillator.type = 'square';
+                oscillator.frequency.setValueAtTime(baseFrequency, now);
+                oscillator.frequency.exponentialRampToValueAtTime(baseFrequency * 1.12, now + 0.11);
+                filter.type = 'bandpass';
+                filter.frequency.setValueAtTime(baseFrequency * 1.35, now);
+                filter.Q.setValueAtTime(3.2, now);
+                gain.gain.setValueAtTime(0.001, now);
+                gain.gain.linearRampToValueAtTime(0.055, now + 0.012);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.16);
+
+                oscillator.connect(filter);
+                filter.connect(gain);
+                this.connectOutput(gain);
+                oscillator.start(now);
+                oscillator.stop(now + 0.18);
+            }
+
 // Countdown cue: regular ticks reuse the crystal pickup tone; GO is a rising launch hum.
             playCountdownBeep(isGo = false) {
                 this.ensureAudio();
@@ -18362,6 +18432,7 @@ startMaxSwarmBeat(delaySeconds = 0) {
             playCollect: 1200,
             playSpawn: 2200,
             playUiClick: 1800,
+            playTutorialStepBeep: 900,
             playCountdownBeep: 2600,
             playBonusCountUp: 6500,
             playPrismRelicAppear: 5500,
@@ -18770,10 +18841,10 @@ startMaxSwarmBeat(delaySeconds = 0) {
 
                 const rawDisplayName = this.game.cockpitSectorDisplayName;
                 const storedDisplayName = rawDisplayName === null || rawDisplayName === undefined
-                    ? 'ACTIVATE'
+                    ? 'INITIALIZE'
                     : String(rawDisplayName).toUpperCase();
-                const displayName = this.game.cockpitActivated && storedDisplayName === 'ACTIVATE' ? 'ACTIVATED' : storedDisplayName;
-                const waitingForActivation = !this.game.cockpitActivated && storedDisplayName === 'ACTIVATE';
+                const displayName = this.game.cockpitActivated && storedDisplayName === 'INITIALIZE' ? 'INITIALIZED' : storedDisplayName;
+                const waitingForActivation = !this.game.cockpitActivated && storedDisplayName === 'INITIALIZE';
                 const displayLevel = this.game.cockpitSectorDisplayLevel;
                 const signature = `${showLevelHud}|${displayName}|${waitingForActivation}|${displayLevel || 0}`;
                 if (signature === this.lastAlienLevelSignature) return;
