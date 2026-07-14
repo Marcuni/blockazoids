@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v291: Adds audio graph disposal and node diagnostics, makes Sound Off create no audio nodes, suspends motion sampling when it cannot be used, and recenters the reset report.
+Build v292: Keeps one AudioContext for the webpage session, cleans transient audio at source end and sector transitions, adds source-limit protection, and retains reset diagnostics.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -21,7 +21,7 @@ Orb Control Panel Instrument Reference
 - Velocity Glyph Engine — Temporarily displays the Orb’s finger-driven movement speed.
 - Orb Command Socket — Controls the Orb’s pause, resume, and primary interface functions.
 -->
-<html data-build-version="v291">
+<html data-build-version="v292">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -7787,7 +7787,7 @@ Orb Control Panel Instrument Reference
             }
         }
 
-        /* v291 stability report shown only after an interrupted in-progress run. */
+        /* Stability report shown only after an interrupted in-progress run. */
         #stabilityReport {
             position: fixed;
             left: 50%;
@@ -9436,7 +9436,7 @@ Orb Control Panel Instrument Reference
                 const audio = this.audio || {};
                 return {
                     schema: 'blockazoids-stability-v1',
-                    build: 'v291',
+                    build: 'v292',
                     sessionId: this.stabilitySessionId,
                     savedAt: Date.now(),
                     cleanExit: !!cleanExit,
@@ -9474,6 +9474,11 @@ Orb Control Panel Instrument Reference
                     audioNodesCreatedThisContext: Number(audio.audioNodesCreatedThisContext) || 0,
                     audioNodesCreatedTotal: Number(audio.audioNodesCreatedTotal) || 0,
                     audioSourcesActive: Number(audio.audioSourcesActive) || 0,
+                    audioTrackedNodes: audio.audioTrackedNodes instanceof Set ? audio.audioTrackedNodes.size : 0,
+                    audioManagedTimers: audio.audioManagedTimers instanceof Set ? audio.audioManagedTimers.size : 0,
+                    audioTransitionCleanupCount: Number(audio.audioTransitionCleanupCount) || 0,
+                    audioSourceLimitTrips: Number(audio.audioSourceLimitTrips) || 0,
+                    audioLastCleanupReason: audio.audioLastCleanupReason || 'unknown',
                     audioCleanupTimers: audio.audioCleanupTimers instanceof Set ? audio.audioCleanupTimers.size : 0
                 };
             }
@@ -9508,7 +9513,8 @@ Orb Control Panel Instrument Reference
                     `Last state: ${String(report.phase || 'unknown').toUpperCase()} · Sector ${report.sector || '?'} · Cycle ${report.cycle || '?'}`,
                     `Last event: ${report.lastEvent || 'heartbeat'}${eventDetails ? ` · ${eventDetails}` : ''}`,
                     `Objects: ${report.enemies || 0} enemies · ${report.warnings || 0} warnings · ${report.transientEffects || 0} effects · ${report.documentNodes || 0} DOM nodes`,
-                    `Audio: ${report.soundMuted ? 'OFF' : 'ON'} · context ${report.audioContextState || 'unknown'} #${report.audioContextGeneration || 0} · nodes ${report.audioNodesCreatedThisContext || 0}/${report.audioNodesCreatedTotal || 0} · active sources ${report.audioSourcesActive || 0}`,
+                    `Audio: ${report.soundMuted ? 'OFF' : 'ON'} · context ${report.audioContextState || 'unknown'} #${report.audioContextGeneration || 0} · nodes ${report.audioNodesCreatedThisContext || 0}/${report.audioNodesCreatedTotal || 0} · tracked ${report.audioTrackedNodes || 0} · active sources ${report.audioSourcesActive || 0}`,
+                    `Audio cleanup: ${report.audioLastCleanupReason || 'unknown'} · transitions ${report.audioTransitionCleanupCount || 0} · timers ${report.audioManagedTimers || 0} · limit trips ${report.audioSourceLimitTrips || 0}`,
                     `Viewport: ${report.viewport || '?'} · Board ${report.boardSize || '?'} · Saved ${Math.max(0, Math.round((Date.now() - (report.savedAt || Date.now())) / 1000))}s before reload`
                 ];
                 if (this.stabilityReportTitle) this.stabilityReportTitle.textContent = 'UNEXPECTED WEBPAGE RESET';
@@ -15397,68 +15403,160 @@ Orb Control Panel Instrument Reference
                 this.audioSourcesActive = 0;
                 this.audioCleanupCount = 0;
                 this.audioCleanupTimers = new Set();
+                this.audioManagedTimers = new Set();
                 this.audioScopeStack = [];
+                this.audioOneShotScopes = new Set();
                 this.audioPersistentNodes = new Set();
+                this.audioTrackedNodes = new Set();
+                this.audioLiveSources = new Set();
+                this.audioTransitionCleanupCount = 0;
+                this.audioSourceLimit = 96;
+                this.audioSourceLimitTrips = 0;
+                this.audioLastCleanupReason = 'boot';
                 if (!this.muted) this.createAudioContext();
             }
 
             createAudioNode(factoryName, ...args) {
                 if (!this.ctx || typeof this.ctx[factoryName] !== 'function') return null;
+
+                const isSource = factoryName === 'createOscillator' || factoryName === 'createBufferSource';
+                if (isSource && this.audioLiveSources.size >= this.audioSourceLimit) {
+                    this.audioSourceLimitTrips++;
+                    this.cleanupTransientAudio('source-safety-limit');
+                }
+
                 const node = this.ctx[factoryName](...args);
                 this.audioNodesCreatedTotal++;
                 this.audioNodesCreatedThisContext++;
+                this.audioTrackedNodes.add(node);
 
-                if (this.audioScopeStack.length) {
-                    this.audioScopeStack[this.audioScopeStack.length - 1].nodes.add(node);
+                const activeScope = this.audioScopeStack.length
+                    ? this.audioScopeStack[this.audioScopeStack.length - 1]
+                    : null;
+                if (activeScope) {
+                    activeScope.nodes.add(node);
+                    if (isSource) activeScope.sources.add(node);
                 }
 
-                if (factoryName === 'createOscillator' || factoryName === 'createBufferSource') {
+                if (isSource) {
                     this.audioSourcesCreatedTotal++;
-                    this.audioSourcesActive++;
+                    this.audioLiveSources.add(node);
+                    this.audioSourcesActive = this.audioLiveSources.size;
                     let released = false;
                     const releaseSource = () => {
                         if (released) return;
                         released = true;
-                        this.audioSourcesActive = Math.max(0, this.audioSourcesActive - 1);
+                        this.audioLiveSources.delete(node);
+                        this.audioSourcesActive = this.audioLiveSources.size;
                         try { node.disconnect(); } catch (_) {}
+                        this.audioTrackedNodes.delete(node);
                     };
+                    node.__blockazoidsReleaseSource = releaseSource;
                     try { node.addEventListener('ended', releaseSource, { once: true }); } catch (_) {}
                 }
 
                 return node;
             }
 
+            scheduleAudioTimer(callback, delayMs = 0) {
+                const timer = window.setTimeout(() => {
+                    this.audioManagedTimers.delete(timer);
+                    try { callback(); } catch (_) {}
+                }, Math.max(0, Number(delayMs) || 0));
+                this.audioManagedTimers.add(timer);
+                return timer;
+            }
+
             beginAudioScope(label) {
-                const scope = { label: String(label || 'audio'), nodes: new Set() };
+                const scope = {
+                    label: String(label || 'audio'),
+                    nodes: new Set(),
+                    sources: new Set(),
+                    cleanupTimer: null,
+                    cleaned: false
+                };
                 this.audioScopeStack.push(scope);
                 return scope;
+            }
+
+            cleanupAudioScope(scope, forceStop = false) {
+                if (!scope || scope.cleaned) return;
+                scope.cleaned = true;
+                if (scope.cleanupTimer) {
+                    clearTimeout(scope.cleanupTimer);
+                    this.audioManagedTimers.delete(scope.cleanupTimer);
+                    this.audioCleanupTimers.delete(scope.cleanupTimer);
+                    scope.cleanupTimer = null;
+                }
+
+                if (forceStop) {
+                    scope.sources.forEach(source => {
+                        try { source.stop(); } catch (_) {}
+                        if (typeof source.__blockazoidsReleaseSource === 'function') {
+                            source.__blockazoidsReleaseSource();
+                        }
+                    });
+                }
+
+                let cleaned = 0;
+                scope.nodes.forEach(node => {
+                    if (!node || this.audioPersistentNodes.has(node)) return;
+                    try { node.disconnect(); } catch (_) {}
+                    this.audioTrackedNodes.delete(node);
+                    cleaned++;
+                });
+                this.audioCleanupCount += cleaned;
+                scope.nodes.clear();
+                scope.sources.clear();
+                this.audioOneShotScopes.delete(scope);
             }
 
             endAudioScope(scope, cleanupDelayMs = 12000) {
                 const index = this.audioScopeStack.lastIndexOf(scope);
                 if (index >= 0) this.audioScopeStack.splice(index, 1);
                 if (!scope || !scope.nodes.size) return;
-                const timer = setTimeout(() => {
-                    let cleaned = 0;
-                    scope.nodes.forEach(node => {
-                        if (!node || this.audioPersistentNodes.has(node)) return;
-                        try { node.disconnect(); cleaned++; } catch (_) {}
-                    });
-                    this.audioCleanupCount += cleaned;
-                    scope.nodes.clear();
-                    this.audioCleanupTimers.delete(timer);
-                }, Math.max(250, cleanupDelayMs));
-                this.audioCleanupTimers.add(timer);
+
+                this.audioOneShotScopes.add(scope);
+                const pendingSources = new Set(
+                    [...scope.sources].filter(source => this.audioLiveSources.has(source))
+                );
+
+                const sourceEnded = source => {
+                    pendingSources.delete(source);
+                    if (!pendingSources.size) this.cleanupAudioScope(scope, false);
+                };
+
+                pendingSources.forEach(source => {
+                    try {
+                        source.addEventListener('ended', () => sourceEnded(source), { once: true });
+                    } catch (_) {}
+                });
+
+                if (!pendingSources.size) {
+                    this.cleanupAudioScope(scope, false);
+                    return;
+                }
+
+                // Safety fallback only. Normal cleanup happens immediately when the final source ends.
+                scope.cleanupTimer = this.scheduleAudioTimer(() => {
+                    this.audioCleanupTimers.delete(scope.cleanupTimer);
+                    this.cleanupAudioScope(scope, true);
+                }, Math.max(1200, Math.min(20000, Number(cleanupDelayMs) || 12000)));
+                this.audioCleanupTimers.add(scope.cleanupTimer);
             }
 
             createAudioContext() {
                 if (this.muted) return false;
+                if (this.ctx && this.ctx.state !== 'closed') return true;
+
                 const AudioContextClass = window.AudioContext || window.webkitAudioContext;
                 if (!AudioContextClass) return false;
 
                 this.ctx = new AudioContextClass();
                 this.audioContextGeneration++;
                 this.audioNodesCreatedThisContext = 0;
+                this.audioLiveSources.clear();
+                this.audioTrackedNodes.clear();
                 this.audioSourcesActive = 0;
                 this.audioPersistentNodes = new Set();
 
@@ -15485,51 +15583,43 @@ Orb Control Panel Instrument Reference
                 return true;
             }
 
-            disposeAudioContext() {
+            cleanupTransientAudio(reason = 'cleanup') {
+                this.audioLastCleanupReason = String(reason || 'cleanup');
+
                 this.backgroundTimers.forEach(timer => clearTimeout(timer));
                 this.maxSwarmBeatTimers.forEach(timer => clearTimeout(timer));
                 this.cycleCompleteMusicTimers.forEach(timer => clearTimeout(timer));
                 this.prismRelicHumTimers.forEach(timer => clearTimeout(timer));
                 this.attractComputerAmbienceTimers.forEach(timer => clearTimeout(timer));
+                this.audioManagedTimers.forEach(timer => clearTimeout(timer));
+                this.audioManagedTimers.clear();
+                this.audioCleanupTimers.clear();
+
+                this.audioScopeStack = [];
+                [...this.audioOneShotScopes].forEach(scope => this.cleanupAudioScope(scope, true));
+                this.audioOneShotScopes.clear();
+
+                [...this.audioLiveSources].forEach(source => {
+                    try { source.stop(); } catch (_) {}
+                    try { source.disconnect(); } catch (_) {}
+                    if (typeof source.__blockazoidsReleaseSource === 'function') {
+                        source.__blockazoidsReleaseSource();
+                    }
+                });
+                this.audioLiveSources.clear();
+                this.audioSourcesActive = 0;
+
+                [...this.audioTrackedNodes].forEach(node => {
+                    if (!node || this.audioPersistentNodes.has(node)) return;
+                    try { node.disconnect(); } catch (_) {}
+                    this.audioTrackedNodes.delete(node);
+                });
+
                 this.backgroundTimers = [];
                 this.maxSwarmBeatTimers = [];
                 this.cycleCompleteMusicTimers = [];
                 this.prismRelicHumTimers = [];
                 this.attractComputerAmbienceTimers = [];
-                this.audioCleanupTimers.forEach(timer => clearTimeout(timer));
-                this.audioCleanupTimers.clear();
-                this.audioScopeStack = [];
-
-                const sources = [
-                    ...this.backgroundOscillators,
-                    ...this.maxSwarmBeatOscillators,
-                    ...this.cycleCompleteOscillators,
-                    ...this.prismRelicHumOscillators,
-                    ...this.pauseMenuReactorOscillators,
-                    ...this.vintageMonitorHumOscillators
-                ];
-                sources.forEach(source => {
-                    try { source.stop(); } catch (_) {}
-                    try { source.disconnect(); } catch (_) {}
-                });
-
-                const nodes = [
-                    ...this.backgroundGains,
-                    ...this.cycleCompleteGains,
-                    ...this.prismRelicHumGains,
-                    this.backgroundMixGain,
-                    this.maxSwarmBeatShaper,
-                    this.pauseMenuReactorGain,
-                    this.vintageMonitorHumGain,
-                    this.musicGain,
-                    this.masterGain,
-                    this.limiter
-                ];
-                nodes.forEach(node => {
-                    if (!node) return;
-                    try { node.disconnect(); } catch (_) {}
-                });
-
                 this.backgroundOscillators = [];
                 this.backgroundGains = [];
                 this.maxSwarmBeatOscillators = [];
@@ -15549,17 +15639,27 @@ Orb Control Panel Instrument Reference
                 this.prismRelicHumPlaying = false;
                 this.pauseMenuReactorPlaying = false;
                 this.attractComputerAmbiencePlaying = false;
-                this.consistentPatrolLoopBuffer = null;
-                this.overtimeClickKickLoopBuffer = null;
-                this.audioSourcesActive = 0;
-                this.audioNodesCreatedThisContext = 0;
+                this.audioTransitionCleanupCount++;
+            }
+
+            disposeAudioContext(reason = 'dispose') {
+                this.cleanupTransientAudio(reason);
+
+                [this.musicGain, this.masterGain, this.limiter].forEach(node => {
+                    if (!node) return;
+                    try { node.disconnect(); } catch (_) {}
+                    this.audioTrackedNodes.delete(node);
+                });
                 this.audioPersistentNodes.clear();
+                this.audioTrackedNodes.clear();
 
                 const oldContext = this.ctx;
                 this.ctx = null;
                 this.masterGain = null;
                 this.musicGain = null;
                 this.limiter = null;
+                this.consistentPatrolLoopBuffer = null;
+                this.overtimeClickKickLoopBuffer = null;
                 if (oldContext && oldContext.state !== 'closed') {
                     try {
                         const closePromise = oldContext.close();
@@ -15570,8 +15670,9 @@ Orb Control Panel Instrument Reference
 
             resetForSectorTransition() {
                 if (this.muted) return;
-                this.disposeAudioContext();
-                this.createAudioContext();
+                this.cleanupTransientAudio('sector-transition');
+                // Keep one AudioContext for the entire webpage session. Recreate only if iOS closed it.
+                if (!this.ctx || this.ctx.state === 'closed') this.createAudioContext();
             }
 
             // Safari can suspend or interrupt audio after page/game restarts.
@@ -15729,7 +15830,7 @@ startMaxSwarmBeat(delaySeconds = 0) {
                         oldMix.gain.setValueAtTime(currentLevel, Math.max(now, loopStart - 0.012));
                         oldMix.gain.linearRampToValueAtTime(0.001, loopStart + 0.030);
                     } catch (_) {}
-                    setTimeout(() => {
+                    this.scheduleAudioTimer(() => {
                         try { oldMix.disconnect(); } catch (_) {}
                     }, Math.max(160, (loopStart - now) * 1000 + 240));
                 }
@@ -16196,7 +16297,7 @@ startMaxSwarmBeat(delaySeconds = 0) {
                     overtone.stop(start + pingDuration + 0.035);
                 }
 
-                setTimeout(() => {
+                this.scheduleAudioTimer(() => {
                     try { sourceBus.disconnect(); } catch (_) {}
                     try { shaper.disconnect(); } catch (_) {}
                     try { echoDelay.disconnect(); } catch (_) {}
@@ -16259,7 +16360,7 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 this.cycleCompleteMusicPlaying = true;
                 if (!this.ctx || this.ctx.state === 'closed') return;
                 const durationMs = this.playCycleComplete() || 5900;
-                const timer = setTimeout(() => {
+                const timer = this.scheduleAudioTimer(() => {
                     this.cycleCompleteMusicTimers = this.cycleCompleteMusicTimers.filter(id => id !== timer);
                     this.cycleCompleteMusicPlaying = false;
                 }, durationMs + 260);
@@ -16673,11 +16774,11 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 const scheduleNext = () => {
                     if (!this.attractComputerAmbiencePlaying || this.musicMuted) return;
                     const delay = 520 + Math.random() * 1550;
-                    const timer = setTimeout(() => {
+                    const timer = this.scheduleAudioTimer(() => {
                         this.attractComputerAmbienceTimers = this.attractComputerAmbienceTimers.filter(id => id !== timer);
                         if (!this.attractComputerAmbiencePlaying || this.musicMuted) return;
                         this.playAttractComputerTick();
-                        if (Math.random() < 0.22) setTimeout(() => this.playAttractComputerTick(true), 82 + Math.random() * 90);
+                        if (Math.random() < 0.22) this.scheduleAudioTimer(() => this.playAttractComputerTick(true), 82 + Math.random() * 90);
                         scheduleNext();
                     }, delay);
                     this.attractComputerAmbienceTimers.push(timer);
@@ -16788,7 +16889,7 @@ startMaxSwarmBeat(delaySeconds = 0) {
                         gain2.gain.exponentialRampToValueAtTime(0.002, now + 0.36);
                     } catch (_) {}
 
-                    const timer = setTimeout(pulse, 540);
+                    const timer = this.scheduleAudioTimer(pulse, 540);
                     this.prismRelicHumTimers.push(timer);
                 };
 
@@ -17209,7 +17310,7 @@ startMaxSwarmBeat(delaySeconds = 0) {
                         this.backgroundMixGain.gain.setValueAtTime(0.001, now);
                     } catch (_) {}
                     const oldMix = this.backgroundMixGain;
-                    setTimeout(() => {
+                    this.scheduleAudioTimer(() => {
                         try { oldMix.disconnect(); } catch (_) {}
                     }, 80);
                     this.backgroundMixGain = null;
@@ -17233,7 +17334,7 @@ startMaxSwarmBeat(delaySeconds = 0) {
             }
         }
 
-        // v291: one-shot sounds own a cleanup scope so completed gain/filter chains do not accumulate.
+        // v292: one-shot sounds clean their full node scope as soon as the final source ends.
         const audioOneShotCleanupDelays = {
             playCollect: 1200,
             playSpawn: 2200,
