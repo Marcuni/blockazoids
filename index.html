@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v297: Restores visible CRT glare, preserves Developer CRT tuning across the master switch, adds a production-reset control, and disables automatic reset reports.
+Build v298: Adds a one-time interactive intro before Sector 1, strengthens the fixed CRT glare preset, and removes Developer CRT tuning tools.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -21,7 +21,7 @@ Orb Control Panel Instrument Reference
 - Velocity Glyph Engine — Temporarily displays the Orb’s finger-driven movement speed.
 - Orb Command Socket — Controls the Orb’s pause, resume, and primary interface functions.
 -->
-<html data-build-version="v297">
+<html data-build-version="v298">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -7971,7 +7971,7 @@ Orb Control Panel Instrument Reference
         #gameContainer.crt-enabled.crt-fx-tint.crt-tint-medium:not(.crt-ui-suspended) .playfield-crt-tint { opacity: 0.13 !important; }
         #gameContainer.crt-enabled.crt-fx-tint.crt-tint-high:not(.crt-ui-suspended) .playfield-crt-tint { opacity: 0.21 !important; }
         #gameContainer.crt-enabled.crt-fx-reflection.crt-reflection-low:not(.crt-ui-suspended) .playfield-crt-reflection { opacity: 0.07 !important; }
-        #gameContainer.crt-enabled.crt-fx-reflection.crt-reflection-medium:not(.crt-ui-suspended) .playfield-crt-reflection { opacity: 0.14 !important; }
+        #gameContainer.crt-enabled.crt-fx-reflection.crt-reflection-medium:not(.crt-ui-suspended) .playfield-crt-reflection { opacity: 0.28 !important; }
         #gameContainer.crt-enabled.crt-fx-reflection.crt-reflection-high:not(.crt-ui-suspended) .playfield-crt-reflection { opacity: 0.22 !important; }
 
         /* PHOSPHOR — CURRENT retains the approved LOW bloom. */
@@ -8005,7 +8005,7 @@ Orb Control Panel Instrument Reference
             opacity: 0.13 !important; stroke-width: 7px !important; filter: drop-shadow(0 0 5px rgba(0,205,255,0.18)) !important;
         }
         #playfieldShell.crt-enabled.crt-fx-glow.crt-glow-medium:not(.crt-ui-suspended) .glow-single {
-            opacity: 0.22 !important; stroke-width: 10px !important; filter: drop-shadow(0 0 7px rgba(0,205,255,0.25)) !important;
+            opacity: 0.35 !important; stroke-width: 12px !important; filter: drop-shadow(0 0 10px rgba(0,205,255,0.40)) !important;
         }
         #playfieldShell.crt-enabled.crt-fx-glow.crt-glow-high:not(.crt-ui-suspended) .glow-single {
             opacity: 0.31 !important; stroke-width: 14px !important; filter: drop-shadow(0 0 10px rgba(0,205,255,0.34)) !important;
@@ -8056,6 +8056,34 @@ Orb Control Panel Instrument Reference
         #gameContainer.crt-zap-medium.crt-zap-event .playfield-crt-event { filter: opacity(0.18) !important; }
         #gameContainer.crt-restore-medium.crt-restore-event .playfield-crt-event { filter: opacity(0.42) !important; }
 
+
+        /* v298: one-time interactive intro replaces the normal top HUD without pausing play. */
+        #tutorialHud {
+            display: none;
+            width: 100%;
+            box-sizing: border-box;
+            padding: 0 8px;
+            color: #fff;
+            font-family: 'Orbitron';
+            font-size: clamp(17px, 5vw, 26px);
+            font-weight: 700;
+            line-height: 1.15;
+            letter-spacing: clamp(1px, 0.7vw, 3px);
+            text-align: center;
+            white-space: nowrap;
+            text-shadow: 0 0 8px rgba(255,255,255,0.72);
+        }
+
+        body.tutorial-active #tutorialHud { display: block; }
+        body.tutorial-active #scoreHud > :not(#tutorialHud) { display: none !important; }
+        body.tutorial-active #scoreHud {
+            justify-content: center;
+            padding-left: 4px;
+            padding-right: 4px;
+        }
+        body.tutorial-active #pauseGridMenu,
+        body.tutorial-active #devLevelSelectHudButton { display: none !important; }
+
     </style>
 </head>
 <body class="crt-phosphor-calibration">
@@ -8077,6 +8105,7 @@ Orb Control Panel Instrument Reference
     <div id="controlPanelBenchmarkStatus" role="status" aria-live="polite" aria-atomic="true"></div>
     <!-- Score display -->
     <div id="scoreHud">
+        <div id="tutorialHud" role="status" aria-live="polite" aria-atomic="true"></div>
         <div class="hud-group" id="cycleHud" aria-live="polite"></div>
         <div id="score">0</div>
         <div id="superGridlockHudAlert" aria-live="polite" aria-atomic="true"></div>
@@ -8294,39 +8323,7 @@ Orb Control Panel Instrument Reference
                 <button id="exportTelemetryButton" class="menu-button settings-toggle">Export Balance Data</button>
                 <button id="clearTelemetryButton" class="menu-button settings-toggle">Clear Balance Data</button>
                 <div id="telemetryStatus" class="telemetry-status"></div>
-                <div id="crtDeveloperSection" class="crt-dev-section">
-                    <div class="crt-dev-heading">CRT INDIVIDUAL EFFECTS</div>
-                    <div id="crtDeveloperMasterState" class="crt-dev-master-state">MASTER CRT: ON</div>
-                    <div class="crt-dev-all-row">
-                        <button id="crtEnableAllButton" class="crt-dev-button" type="button">ENABLE ALL CRT</button>
-                        <button id="crtDisableAllButton" class="crt-dev-button" type="button">DISABLE ALL CRT</button>
-                    </div>
-                    <button id="crtResetProductionButton" class="crt-dev-button crt-dev-reset-button" type="button">RESET TO PRODUCTION</button>
-                    <div class="crt-effect-list">
-                        <div class="crt-effect-category">SCREEN BASE</div>
-                        <div class="crt-effect-row"><span>SCANLINES</span><button class="crt-dev-button crt-effect-level" type="button" data-crt-effect-level="scanlines"></button></div>
-                        <div class="crt-effect-row"><span>TUBE FALLOFF</span><button class="crt-dev-button crt-effect-level" type="button" data-crt-effect-level="vignette"></button></div>
-                        <div class="crt-effect-row"><span>MONITOR TINT</span><button class="crt-dev-button crt-effect-level" type="button" data-crt-effect-level="tint"></button></div>
-                        <div class="crt-effect-row"><span>GLASS REFLECTION</span><button class="crt-dev-button crt-effect-level" type="button" data-crt-effect-level="reflection"></button></div>
-
-                        <div class="crt-effect-category">VECTOR PHOSPHOR</div>
-                        <div class="crt-effect-row"><span>PHOSPHOR BLOOM</span><button class="crt-dev-button crt-effect-level" type="button" data-crt-effect-level="bloom"></button></div>
-                        <div class="crt-effect-row"><span>OUTER MONITOR GLOW</span><button class="crt-dev-button crt-effect-level" type="button" data-crt-effect-level="glow"></button></div>
-
-                        <div class="crt-effect-category">SIGNAL IMPERFECTIONS</div>
-                        <div class="crt-effect-row"><span>MOVING SWEEP</span><button class="crt-dev-button crt-effect-level" type="button" data-crt-effect-level="sweep"></button></div>
-                        <div class="crt-effect-row"><span>RGB GRID SEPARATION</span><button class="crt-dev-button crt-effect-level" type="button" data-crt-effect-level="gridRgb"></button></div>
-                        <div class="crt-effect-row"><span>OBJECT RGB SEPARATION</span><button class="crt-dev-button crt-effect-level" type="button" data-crt-effect-level="objectRgb"></button></div>
-                        <div class="crt-effect-row crt-effect-toggle-row"><span>CRT OVERSCAN MASK</span><button class="crt-dev-button crt-feature-toggle" type="button" data-crt-feature-toggle="curvature"></button></div>
-
-                        <div class="crt-effect-category">EVENT REACTIONS</div>
-                        <div class="crt-effect-row"><span>GRIDLOCK INSTABILITY</span><button class="crt-dev-button crt-effect-level" type="button" data-crt-effect-level="gridlock"></button></div>
-                        <div class="crt-effect-row"><span>COSMIC ZAP OVERLOAD</span><button class="crt-dev-button crt-effect-level" type="button" data-crt-effect-level="zap"></button></div>
-                        <div class="crt-effect-row"><span>SECTOR RESTORE PULSE</span><button class="crt-dev-button crt-effect-level" type="button" data-crt-effect-level="restore"></button></div>
-                        <div class="crt-effect-row crt-effect-toggle-row"><span>DEATH FLICKER</span><button class="crt-dev-button crt-feature-toggle" type="button" data-crt-feature-toggle="death"></button></div>
-                        <div class="crt-effect-row crt-effect-toggle-row"><span>CRT SHUTDOWN</span><button class="crt-dev-button crt-feature-toggle" type="button" data-crt-feature-toggle="shutdown"></button></div>
-                    </div>
-                </div>
+                <button id="resetIntroCompletionButton" class="menu-button settings-toggle" type="button">Reset Intro Completion</button>
                 <button id="telemetryBackButton" class="menu-back-button">Back</button>
             </div>
             <div id="pauseGridMenu" aria-label="Pause menu shortcuts">
@@ -8463,7 +8460,7 @@ Orb Control Panel Instrument Reference
     </div>
 
     <script>
-        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'v297'}`;
+        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'v298'}`;
 
         // Central diagnostic feature flags. Change values here before loading the page to isolate systems.
         const GAME_FEATURE_FLAGS = window.BLOCKAZOIDS_FEATURE_FLAGS = {
@@ -8986,6 +8983,8 @@ Orb Control Panel Instrument Reference
                 this.soundToggleButton = document.getElementById('soundToggleButton');
                 this.musicToggleButton = document.getElementById('musicToggleButton');
                 this.crtToggleButton = document.getElementById('crtToggleButton');
+                this.tutorialHud = document.getElementById('tutorialHud');
+                this.resetIntroCompletionButton = document.getElementById('resetIntroCompletionButton');
                 this.crtStorageKey = 'blockazoidsCrtEnabled';
                 this.crtPresetStorageKey = 'blockazoidsCrtPresetLevelV1';
                 this.crtFeatureStorageKey = 'blockazoidsCrtFeatureStatesV1';
@@ -9031,9 +9030,17 @@ Orb Control Panel Instrument Reference
                 };
                 this.crtPresetLevel = this.loadCrtPresetLevel();
                 this.crtEnabled = GAME_FEATURE_FLAGS.crt && this.crtPresetLevel !== 'off';
-                this.crtFeatures = this.loadCrtFeaturePreferences();
-                this.crtGroups = this.loadCrtGroupPreferences();
-                this.crtEffectLevels = this.loadCrtEffectLevels();
+                // v298: CRT ON uses one fixed production preset. Developer per-effect tuning was removed.
+                this.crtFeatures = {};
+                Object.keys(this.crtFeatureClassMap).forEach(key => { this.crtFeatures[key] = true; });
+                this.crtGroups = {
+                    base: { enabled: true, intensity: 'current' },
+                    phosphor: { enabled: true, intensity: 'current' },
+                    signal: { enabled: true, intensity: 'current' },
+                    events: { enabled: true, intensity: 'current' }
+                };
+                this.crtEffectLevels = {};
+                this.crtAdjustableEffects.forEach(key => { this.crtEffectLevels[key] = 'current'; });
                 this.syncCrtFeaturesFromGroups();
                 this.crtGroupToggleButtons = [];
                 this.crtGroupIntensityButtons = [];
@@ -9164,6 +9171,19 @@ Orb Control Panel Instrument Reference
                 this.startInputLocked = false;        // Blocks stray menu/start taps while a sector is starting
                 this.isPaused = false;                // Temporary pause-screen state
                 this.hasStartedRun = false;           // Distinguishes first Start Game attract mode from Play Again.
+                this.introCompletionStorageKey = 'blockazoidsIntroCompletedV1';
+                this.introCompleted = this.loadIntroCompletionFlag();
+                this.tutorialActive = false;
+                this.tutorialStep = '';
+                this.tutorialToken = 0;
+                this.tutorialRafId = null;
+                this.tutorialStepStartedAt = 0;
+                this.tutorialLastFrameTime = 0;
+                this.tutorialMovementDistance = 0;
+                this.tutorialMovementRequired = 150;
+                this.tutorialStepTimer = null;
+                this.tutorialEnemy = null;
+                this.tutorialCrystal = null;
                 this.resumeCountdownActive = false;   // Blocks repeated resume clicks during the short countdown.
                 this.updateGameTimer = null;          // Enemy spawn timer so pause/resume cannot duplicate spawn loops
                 this.gameplayRunToken = 0;            // Invalidates old animation frames when pausing/restarting
@@ -9587,6 +9607,14 @@ Orb Control Panel Instrument Reference
                         e.stopPropagation();
                         this.playUiClick();
                         this.clearTelemetryData();
+                    });
+                }
+                if (this.resetIntroCompletionButton) {
+                    this.resetIntroCompletionButton.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        this.playUiClick();
+                        this.resetIntroCompletionFlag();
                     });
                 }
                 if (this.telemetryBackButton) {
@@ -11770,6 +11798,13 @@ Orb Control Panel Instrument Reference
 
             // Reset state shared by a fresh level start or a testing jump.
             prepareLevelStart(levelNumber, resetScore = false, options = {}) {
+                if (this.tutorialActive) {
+                    this.tutorialActive = false;
+                    this.tutorialToken++;
+                    this.clearTutorialObjects();
+                    this.setTutorialHud('');
+                    document.body.classList.remove('tutorial-active');
+                }
                 this.stopRunRecordActionClock();
                 this.active = false;
                 this.levelActionStarted = false;
@@ -13271,6 +13306,290 @@ Orb Control Panel Instrument Reference
                 this.bonusTextElement.style.opacity = '0';
             }
 
+            // One-time intro persistence. The flag is written only after the tutorial Relic is collected.
+            loadIntroCompletionFlag() {
+                try { return localStorage.getItem(this.introCompletionStorageKey || 'blockazoidsIntroCompletedV1') === '1'; }
+                catch (_) { return false; }
+            }
+
+            saveIntroCompletionFlag() {
+                try { localStorage.setItem(this.introCompletionStorageKey, '1'); } catch (_) {}
+                this.introCompleted = true;
+            }
+
+            resetIntroCompletionFlag() {
+                try { localStorage.removeItem(this.introCompletionStorageKey); } catch (_) {}
+                this.introCompleted = false;
+                this.setTelemetryStatus('Intro reset. The next new game will start with the tutorial.');
+            }
+
+            setTutorialHud(text = '') {
+                if (this.tutorialHud) this.tutorialHud.textContent = text;
+            }
+
+            clearTutorialStepTimer() {
+                if (this.tutorialStepTimer) {
+                    clearTimeout(this.tutorialStepTimer);
+                    this.tutorialStepTimer = null;
+                }
+            }
+
+            clearTutorialObjects() {
+                this.clearTutorialStepTimer();
+                this.clearPendingSpawnWarnings(true);
+                this.enemies.forEach(enemy => {
+                    try { enemy.element.remove(); } catch (_) {}
+                });
+                this.enemies = [];
+                this.tutorialEnemy = null;
+                this.crystals.forEach(crystal => {
+                    try { crystal.element.remove(); } catch (_) {}
+                });
+                this.crystals = [];
+                this.activeBlinkingCrystals = [];
+                this.tutorialCrystal = null;
+                if (this.prismRelic) {
+                    try { this.prismRelic.element.remove(); } catch (_) {}
+                    this.prismRelic = null;
+                }
+                this.maxSwarmActive = false;
+                this.overtimeActive = false;
+                if (this.audio) {
+                    this.audio.stopMaxSwarmBeat();
+                    this.audio.stopPrismRelicHum();
+                }
+            }
+
+            startOneTimeIntro() {
+                this.hideActivationHowToOverlay();
+                this.hasStartedRun = true;
+                this.cockpitActivated = true;
+                this.stopAttractMode();
+                this.clearGameplayObjects();
+                this.clearTutorialObjects();
+                this.audio.resume();
+                this.audio.stopBackgroundMusic();
+                this.score = 0;
+                this.level = 1;
+                this.cycle = 1;
+                this.isGameOver = false;
+                this.isPaused = false;
+                this.finalGridlockActive = false;
+                this.finalCompletionActive = false;
+                this.sectorTransitionActive = true;
+                this.startInputLocked = false;
+                this.tutorialActive = true;
+                this.tutorialToken++;
+                this.tutorialMovementDistance = 0;
+                this.cosmicZapsLeft = 0;
+                this.cosmicZapPressure = 0;
+                this.active = true;
+                this.levelActionStarted = true;
+                this.player.reset();
+                document.body.classList.add('tutorial-active');
+                this.setGameOverlayVisible(false);
+                this.setCrtUiSuspended(false);
+                this.setCrtPaused(false);
+                this.setTutorialStep('movement');
+                this.syncMotionListenerState();
+                this.ui.updateAll();
+                this.tutorialLastFrameTime = performance.now();
+                const token = this.tutorialToken;
+                this.tutorialRafId = requestAnimationFrame((timestamp) => this.updateTutorial(timestamp, token));
+            }
+
+            setTutorialStep(step) {
+                if (!this.tutorialActive) return;
+                this.clearTutorialStepTimer();
+                this.tutorialStep = step;
+                this.tutorialStepStartedAt = performance.now();
+                this.player.consumeMovementSegments();
+
+                if (step === 'movement') {
+                    this.clearTutorialObjects();
+                    this.tutorialMovementDistance = 0;
+                    this.cosmicZapsLeft = 0;
+                    this.setTutorialHud('DRAG THE ORB AROUND');
+                } else if (step === 'crystal') {
+                    this.clearTutorialObjects();
+                    this.cosmicZapsLeft = 0;
+                    const x = Math.min(this.PLAYFIELD_SIZE - this.CRYSTAL_SIZE - 28, this.PLAYFIELD_SIZE * 0.72);
+                    const y = Math.max(28, this.PLAYFIELD_SIZE * 0.48);
+                    const crystal = new Crystal(this, x, y, 'blue', 1);
+                    crystal.element.classList.add('next');
+                    this.crystals = [crystal];
+                    this.tutorialCrystal = crystal;
+                    this.setTutorialHud('COLLECT BLINKING CRYSTALS');
+                } else if (step === 'enemy') {
+                    this.clearTutorialObjects();
+                    this.cosmicZapsLeft = 0;
+                    this.spawnTutorialEnemy();
+                    this.setTutorialHud('AVOID BLOCK-A-ZOIDS');
+                    this.tutorialStepTimer = setTimeout(() => {
+                        if (this.tutorialActive && this.tutorialStep === 'enemy') this.setTutorialStep('zap');
+                    }, 4300);
+                } else if (step === 'zap') {
+                    if (!this.tutorialEnemy || !this.enemies.includes(this.tutorialEnemy)) this.spawnTutorialEnemy();
+                    this.cosmicZapsLeft = 1;
+                    this.setTutorialHud('SHAKE TO COSMIC ZAP');
+                    this.syncMotionListenerState();
+                    this.ui.updateCosmicZapIndicators();
+                } else if (step === 'gridlock') {
+                    this.clearTutorialObjects();
+                    this.cosmicZapsLeft = 0;
+                    this.setTutorialHud('GRIDLOCK — SURVIVE');
+                    this.spawnTutorialGridlock();
+                    this.maxSwarmActive = true;
+                    this.triggerCrtEvent('gridlock');
+                    this.audio.playMaxSwarmCue();
+                    this.audio.startMaxSwarmBeat(0);
+                    this.tutorialStepTimer = setTimeout(() => {
+                        if (this.tutorialActive && this.tutorialStep === 'gridlock') this.setTutorialStep('relic');
+                    }, 5000);
+                } else if (step === 'relic') {
+                    this.clearTutorialObjects();
+                    this.cosmicZapsLeft = 0;
+                    const x = this.PLAYFIELD_SIZE * 0.70 - this.PRISM_RELIC_SIZE / 2;
+                    const y = this.PLAYFIELD_SIZE * 0.50 - this.PRISM_RELIC_SIZE / 2;
+                    this.prismRelic = new PrismRelic(this, x, y);
+                    this.audio.playPrismRelicAppear();
+                    this.audio.startPrismRelicHum();
+                    this.setTutorialHud('COLLECT PRISM RELIC');
+                }
+                this.syncMotionListenerState();
+                this.ui.updateAll();
+            }
+
+            spawnTutorialEnemy() {
+                if (this.tutorialEnemy && this.enemies.includes(this.tutorialEnemy)) return this.tutorialEnemy;
+                const enemy = new Enemy(this, 'small', { x: 26, y: Math.max(34, this.PLAYFIELD_SIZE * 0.18) });
+                const speed = Math.max(0.36, this.PLAYFIELD_SIZE / 1600);
+                enemy.dx = speed;
+                enemy.dy = speed * 0.34;
+                enemy.updatePosition();
+                this.enemies = [enemy];
+                this.tutorialEnemy = enemy;
+                this.updateEnemyColors();
+                return enemy;
+            }
+
+            spawnTutorialGridlock() {
+                const p = this.PLAYFIELD_SIZE;
+                const inset = Math.max(22, this.PLAYER_SIZE * 1.5);
+                const locations = [
+                    { x: inset, y: inset },
+                    { x: p - inset - this.PLAYER_SIZE, y: inset },
+                    { x: inset, y: p - inset - this.PLAYER_SIZE },
+                    { x: p - inset - this.PLAYER_SIZE, y: p - inset - this.PLAYER_SIZE }
+                ];
+                this.enemies = locations.map((location, index) => {
+                    const enemy = new Enemy(this, 'small', location);
+                    const speed = Math.max(0.30, p / 1900);
+                    enemy.dx = (index % 2 === 0 ? 1 : -1) * speed;
+                    enemy.dy = (index < 2 ? 1 : -1) * speed;
+                    enemy.updatePosition();
+                    return enemy;
+                });
+                this.updateEnemyColors();
+            }
+
+            resetTutorialCollision() {
+                this.player.reset();
+                if (this.tutorialStep === 'enemy' || this.tutorialStep === 'zap') {
+                    if (this.tutorialEnemy) {
+                        this.tutorialEnemy.x = 26;
+                        this.tutorialEnemy.y = Math.max(34, this.PLAYFIELD_SIZE * 0.18);
+                        this.tutorialEnemy.updatePosition();
+                    }
+                }
+            }
+
+            updateTutorial(timestamp, token) {
+                if (!this.tutorialActive || token !== this.tutorialToken) return;
+                const deltaTime = Math.max(0, Math.min(50, timestamp - this.tutorialLastFrameTime));
+                this.tutorialLastFrameTime = timestamp;
+                const segments = this.player.consumeMovementSegments();
+
+                if (this.tutorialStep === 'movement') {
+                    segments.forEach(segment => {
+                        this.tutorialMovementDistance += Math.hypot(segment.x2 - segment.x1, segment.y2 - segment.y1);
+                    });
+                    if (this.tutorialMovementDistance >= this.tutorialMovementRequired) this.setTutorialStep('crystal');
+                } else if (this.tutorialStep === 'crystal') {
+                    const crystal = this.tutorialCrystal;
+                    if (crystal && this.getPlayerPathHitScore(crystal, segments) !== null) {
+                        crystal.element.remove();
+                        this.crystals = [];
+                        this.tutorialCrystal = null;
+                        this.audio.playCollect();
+                        this.setTutorialStep('enemy');
+                    }
+                } else if (this.tutorialStep === 'enemy' || this.tutorialStep === 'zap' || this.tutorialStep === 'gridlock') {
+                    this.enemies.forEach(enemy => enemy.update(deltaTime));
+                    const hit = this.enemies.some(enemy => this.getPlayerPathHitScore(enemy, segments) !== null);
+                    if (hit && !this.isCosmicZapProtectingOrb()) this.resetTutorialCollision();
+                } else if (this.tutorialStep === 'relic') {
+                    if (this.prismRelic && this.getPlayerPathHitScore(this.prismRelic, segments) !== null) {
+                        this.completeOneTimeIntro();
+                        return;
+                    }
+                }
+
+                if (this.ui && this.ui.updateDynamicHud) this.ui.updateDynamicHud();
+                this.tutorialRafId = requestAnimationFrame((nextTimestamp) => this.updateTutorial(nextTimestamp, token));
+            }
+
+            handleTutorialCosmicZap() {
+                if (!this.tutorialActive || this.tutorialStep !== 'zap' || this.cosmicZapsLeft <= 0) return;
+                const now = performance.now();
+                if (now - this.lastCosmicZapTriggerTime < this.cosmicZapInputCooldownMs) return;
+                this.lastCosmicZapTriggerTime = now;
+                this.cosmicZapProtectionUntil = now + this.cosmicZapProtectionMs;
+                const clearedEnemies = this.enemies.slice();
+                this.cosmicZapsLeft = 0;
+                this.audio.playCosmicZapSound();
+                this.triggerCrtEvent('zap');
+                this.playCosmicZapDischarge(clearedEnemies);
+                clearedEnemies.forEach(enemy => {
+                    enemy.element.classList.add('cosmicZapDissolve');
+                    setTimeout(() => enemy.element.remove(), 170);
+                });
+                this.enemies = [];
+                this.tutorialEnemy = null;
+                this.syncMotionListenerState();
+                this.ui.updateCosmicZapIndicators();
+                setTimeout(() => {
+                    if (this.tutorialActive && this.tutorialStep === 'zap') this.setTutorialStep('gridlock');
+                }, 650);
+            }
+
+            completeOneTimeIntro() {
+                if (!this.tutorialActive || this.tutorialStep !== 'relic') return;
+                this.saveIntroCompletionFlag();
+                this.audio.playPrismRelicCollect();
+                this.clearTutorialObjects();
+                this.tutorialActive = false;
+                this.tutorialStep = '';
+                this.tutorialToken++;
+                if (this.tutorialRafId) cancelAnimationFrame(this.tutorialRafId);
+                this.tutorialRafId = null;
+                this.active = false;
+                this.levelActionStarted = false;
+                this.sectorTransitionActive = true;
+                this.cosmicZapsLeft = 0;
+                this.setTutorialHud('');
+                document.body.classList.remove('tutorial-active');
+                this.syncMotionListenerState();
+                this.ui.updateAll();
+
+                const loadToken = ++this.levelLoadToken;
+                if (this.telemetryEnabled) this.beginTelemetryRun('start-game');
+                this.prepareLevelStart(1, true);
+                this.startInputLocked = true;
+                this.ui.updateAll();
+                this.startPreparedLevel(loadToken);
+            }
+
             // Start a new game
 
             handlePlayPauseControlClick(e) {
@@ -13278,6 +13597,7 @@ Orb Control Panel Instrument Reference
                     e.preventDefault();
                     e.stopPropagation();
                 }
+                if (this.tutorialActive) return;
                 if (this.showHudDuringSectorIntro || this.resumeCountdownActive || this.startInputLocked) return;
                 if (this.finalGridlockResultActive) {
                     this.playUiClick();
@@ -13342,6 +13662,14 @@ Orb Control Panel Instrument Reference
                     this.selectedStartSector = 1; // Return future fresh runs to Sector 1 after the END test.
                     this.ui.updateAll();
                     this.startEndCycleTest();
+                    return;
+                }
+
+                if (!this.introCompleted) {
+                    this.selectedStartSector = 1;
+                    this.selectedStartCycle = 1;
+                    this.cycle = 1;
+                    this.startOneTimeIntro();
                     return;
                 }
 
@@ -14918,6 +15246,10 @@ Orb Control Panel Instrument Reference
 
             // Handle Cosmic Zap discharge with instant protection, danger clearing, and target overload feedback.
             handleCosmicZap() {
+                if (this.tutorialActive) {
+                    this.handleTutorialCosmicZap();
+                    return;
+                }
                 if (this.finalGridlockActive) return;
                 if (this.cosmicZapsLeft > 0 && this.active && !this.isPaused && !this.isGameOver) {
                     const now = performance.now();
