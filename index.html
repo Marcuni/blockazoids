@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v292: Keeps one AudioContext for the webpage session, cleans transient audio at source end and sector transitions, adds source-limit protection, and retains reset diagnostics.
+Build v293: Diagnostic build that fully disables control-panel rendering and updates while retaining only the Orb Command Socket, gameplay, audio safeguards, and reset diagnostics.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -21,7 +21,7 @@ Orb Control Panel Instrument Reference
 - Velocity Glyph Engine — Temporarily displays the Orb’s finger-driven movement speed.
 - Orb Command Socket — Controls the Orb’s pause, resume, and primary interface functions.
 -->
-<html data-build-version="v292">
+<html data-build-version="v293">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -7847,7 +7847,46 @@ Orb Control Panel Instrument Reference
             touch-action: manipulation;
         }
 
-</style>
+
+
+        /* v293 diagnostic: remove the control-panel instruments and all of their visual work.
+           The Orb Command Socket remains available so runs can still be started and paused. */
+        body.control-panel-diagnostic-disabled #bottomHud {
+            flex: 0 0 calc(var(--grid-size, 60px) * 1.92);
+            min-height: calc(var(--grid-size, 60px) * 1.92);
+            height: calc(var(--grid-size, 60px) * 1.92);
+            margin-top: calc(var(--grid-size, 60px) * 0.10);
+            margin-bottom: max(8px, env(safe-area-inset-bottom));
+            overflow: visible;
+        }
+
+        body.control-panel-diagnostic-disabled #bottomProgressPanel {
+            position: relative;
+            inset: auto;
+            width: 100%;
+            height: 100%;
+            min-height: 0;
+            padding: 0;
+            overflow: visible;
+            background: #000;
+        }
+
+        body.control-panel-diagnostic-disabled #bottomProgressPanel > :not(#bottomControlRow) {
+            display: none !important;
+            visibility: hidden !important;
+            animation: none !important;
+            transition: none !important;
+        }
+
+        body.control-panel-diagnostic-disabled #bottomControlRow {
+            top: 50%;
+            bottom: auto;
+            width: calc(var(--grid-size, 60px) * 2.10);
+            min-height: calc(var(--grid-size, 60px) * 1.82);
+            transform: translate(-50%, -50%);
+        }
+
+    </style>
 </head>
 <body class="crt-phosphor-calibration">
     <div id="splashScreen" aria-label="Block-A-Zoids intro">
@@ -8255,6 +8294,8 @@ Orb Control Panel Instrument Reference
 
     <script>
         const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'v271'}`;
+        const CONTROL_PANEL_DIAGNOSTIC_DISABLED = true;
+        if (CONTROL_PANEL_DIAGNOSTIC_DISABLED) document.body.classList.add('control-panel-diagnostic-disabled');
         const splashBuildVersion = document.getElementById('splashBuildVersion');
         if (splashBuildVersion) splashBuildVersion.textContent = BUILD_VERSION;
 
@@ -8273,6 +8314,10 @@ Orb Control Panel Instrument Reference
         // v250 unified instrument-frame overlays. The frame geometry is updated
         // from each instrument's real pixel dimensions so every notch stays small.
         (() => {
+            if (CONTROL_PANEL_DIAGNOSTIC_DISABLED) {
+                window.ensureUnifiedInstrumentFrame = () => null;
+                return;
+            }
             const instrumentIds = [
                 'alienLevelHud',
                 'greenCrystalGauge',
@@ -8525,7 +8570,7 @@ Orb Control Panel Instrument Reference
                 this.performanceTelemetryLastTimestamp = 0;
                 this.performanceTelemetryLastRender = 0;
                 this.performanceTelemetryRafId = null;
-                this.stabilityStorageKey = 'blockazoidsStabilityHeartbeatV1';
+                this.stabilityStorageKey = 'blockazoidsStabilityHeartbeatControlPanelV1';
                 this.stabilityReportElement = document.getElementById('stabilityReport');
                 this.stabilityReportTitle = document.getElementById('stabilityReportTitle');
                 this.stabilityReportBody = document.getElementById('stabilityReportBody');
@@ -8720,7 +8765,7 @@ Orb Control Panel Instrument Reference
                     }
                     this.handlePlayPauseControlClick(e);
                 });
-                if (this.bottomProgressPanel) {
+                if (this.bottomProgressPanel && !CONTROL_PANEL_DIAGNOSTIC_DISABLED) {
                     this.bottomProgressPanel.addEventListener('pointerup', (e) => this.handleControlPanelInstrumentTap(e), { passive: true });
                 }
                 if (this.howToButton) {
@@ -9145,6 +9190,7 @@ Orb Control Panel Instrument Reference
             }
 
             showControlPanelInstrumentName(name) {
+                if (CONTROL_PANEL_DIAGNOSTIC_DISABLED) return;
                 if (!this.instrumentNameOverlay || !name) return;
                 if (this.instrumentNameTimer) clearTimeout(this.instrumentNameTimer);
                 this.instrumentNameOverlay.classList.remove('visible');
@@ -9515,6 +9561,7 @@ Orb Control Panel Instrument Reference
                     `Objects: ${report.enemies || 0} enemies · ${report.warnings || 0} warnings · ${report.transientEffects || 0} effects · ${report.documentNodes || 0} DOM nodes`,
                     `Audio: ${report.soundMuted ? 'OFF' : 'ON'} · context ${report.audioContextState || 'unknown'} #${report.audioContextGeneration || 0} · nodes ${report.audioNodesCreatedThisContext || 0}/${report.audioNodesCreatedTotal || 0} · tracked ${report.audioTrackedNodes || 0} · active sources ${report.audioSourcesActive || 0}`,
                     `Audio cleanup: ${report.audioLastCleanupReason || 'unknown'} · transitions ${report.audioTransitionCleanupCount || 0} · timers ${report.audioManagedTimers || 0} · limit trips ${report.audioSourceLimitTrips || 0}`,
+                    `Control panel: ${CONTROL_PANEL_DIAGNOSTIC_DISABLED ? 'DISABLED' : 'ENABLED'}`,
                     `Viewport: ${report.viewport || '?'} · Board ${report.boardSize || '?'} · Saved ${Math.max(0, Math.round((Date.now() - (report.savedAt || Date.now())) / 1000))}s before reload`
                 ];
                 if (this.stabilityReportTitle) this.stabilityReportTitle.textContent = 'UNEXPECTED WEBPAGE RESET';
@@ -17397,6 +17444,7 @@ startMaxSwarmBeat(delaySeconds = 0) {
         class UI {
             constructor(game) {
                 this.game = game; // Reference to game instance
+                this.controlPanelDiagnosticDisabled = CONTROL_PANEL_DIAGNOSTIC_DISABLED;
                 this.scoreHud = document.getElementById('scoreHud'); // Fixed top-HUD container
                 this.scoreElement = document.getElementById('score'); // Score DOM element
                 this.superGridlockHudAlert = document.getElementById('superGridlockHudAlert'); // Absolute bonus overlay; never changes HUD height
@@ -17561,6 +17609,7 @@ startMaxSwarmBeat(delaySeconds = 0) {
 
             // One completed-grid symbol represents each fully completed campaign cycle.
             updateCycleIndicator() {
+                if (CONTROL_PANEL_DIAGNOSTIC_DISABLED) return;
                 if (!this.cycleElement) return;
                 const completedCycles = (this.game.finalCompletionActive || this.game.finalGridlockActive || this.game.finalGridlockResultActive)
                     ? this.game.MAX_CYCLES
@@ -17623,6 +17672,7 @@ startMaxSwarmBeat(delaySeconds = 0) {
 
             // Update the 15-sector conquest row across the top of the cockpit HUD.
             updateLevelIndicators() {
+                if (CONTROL_PANEL_DIAGNOSTIC_DISABLED) return;
                 if (!this.levelIndicators) return;
                 this.levelIndicators.style.display = 'grid';
                 this.levelIndicators.innerHTML = '';
@@ -17686,6 +17736,7 @@ startMaxSwarmBeat(delaySeconds = 0) {
             }
 
             updateAlienLevelInstrument() {
+                if (CONTROL_PANEL_DIAGNOSTIC_DISABLED) return;
                 const showLevelHud = true;
                 if (this.alienLevelHud) this.alienLevelHud.classList.toggle('visible', showLevelHud);
                 if (!this.alienLevelGlyphs) return;
@@ -17713,6 +17764,7 @@ startMaxSwarmBeat(delaySeconds = 0) {
             }
 
             updateAlienRelicInstrument() {
+                if (CONTROL_PANEL_DIAGNOSTIC_DISABLED) return;
                 if (this.alienRelicHud) {
                     this.alienRelicHud.classList.remove('visible');
                     this.alienRelicHud.setAttribute('aria-hidden', 'true');
@@ -17739,6 +17791,7 @@ startMaxSwarmBeat(delaySeconds = 0) {
             }
 
             playOrbitalTallyCollectionEffect(marker) {
+                if (CONTROL_PANEL_DIAGNOSTIC_DISABLED) return;
                 if (!marker || !this.orbitalTallyHud || !this.orbitalTallyOrb) return;
 
                 marker.classList.remove('newly-collected');
@@ -17764,6 +17817,7 @@ startMaxSwarmBeat(delaySeconds = 0) {
             }
 
             updateOrbitalTallyInstrument() {
+                if (CONTROL_PANEL_DIAGNOSTIC_DISABLED) return;
                 const powered = !!this.game.cockpitActivated;
                 const recoveredSectors = powered && this.game.getRecoveredRelicSectorNumbers
                     ? this.game.getRecoveredRelicSectorNumbers()
@@ -17814,6 +17868,7 @@ startMaxSwarmBeat(delaySeconds = 0) {
             }
 
             updateTimerInstrument() {
+                if (CONTROL_PANEL_DIAGNOSTIC_DISABLED) return;
                 const powered = !!this.game.cockpitActivated;
                 const displayValue = powered ? this.formatHudTimer() : '0000';
                 if (this.timerValue) {
@@ -17894,6 +17949,7 @@ startMaxSwarmBeat(delaySeconds = 0) {
             }
 
             animateCrystalIntoSpine(playfieldPosition, sourceSize = 10) {
+                if (CONTROL_PANEL_DIAGNOSTIC_DISABLED) return;
                 if (!this.greenCrystalGauge) return;
                 const targetCount = Math.max(1, Math.min(80, this.game.collectedPositions.length));
                 const targetSegment = this.getCrystalSpineTargetSegment(targetCount);
@@ -17949,6 +18005,7 @@ startMaxSwarmBeat(delaySeconds = 0) {
             }
 
             renderVerticalCrystalGauge(container) {
+                if (CONTROL_PANEL_DIAGNOSTIC_DISABLED) return;
                 if (!container) return;
                 const powered = !!this.game.cockpitActivated;
                 const spineCapacity = 80;
@@ -18028,6 +18085,7 @@ startMaxSwarmBeat(delaySeconds = 0) {
             }
 
             updateTriLockSingularity() {
+                if (CONTROL_PANEL_DIAGNOSTIC_DISABLED) return;
                 if (!this.triLockSingularity) return;
                 const survivalDisabled = !!(this.game.finalGridlockActive || this.game.finalGridlockResultActive);
                 const powered = !!this.game.cockpitActivated && !survivalDisabled;
@@ -18095,6 +18153,7 @@ startMaxSwarmBeat(delaySeconds = 0) {
             }
 
             renderZapGauge(container) {
+                if (CONTROL_PANEL_DIAGNOSTIC_DISABLED) return;
                 if (!container) return;
                 const powered = !!this.game.cockpitActivated;
                 const segmentCount = Math.max(1, this.getZapGaugeCapacity());
@@ -18119,10 +18178,12 @@ startMaxSwarmBeat(delaySeconds = 0) {
             }
 
             updateCrystalGauges() {
+                if (CONTROL_PANEL_DIAGNOSTIC_DISABLED) return;
                 this.renderVerticalCrystalGauge(this.greenCrystalGauge);
             }
 
             updateRecursionGlyphEngine() {
+                if (CONTROL_PANEL_DIAGNOSTIC_DISABLED) return;
                 if (!this.recursionGlyphEngine) return;
                 const powered = !!this.game.cockpitActivated;
                 const velocityLevel = powered && this.game.active && !this.game.isPaused && !this.game.isGameOver && this.game.player && this.game.player.getVelocityGaugeLevel
@@ -18184,6 +18245,7 @@ startMaxSwarmBeat(delaySeconds = 0) {
             }
 
             updateProximityAlert() {
+                if (CONTROL_PANEL_DIAGNOSTIC_DISABLED) return;
                 const powered = !!this.game.cockpitActivated;
                 const active = powered && this.hasHeadOnCollisionWarning();
                 if (this.radarAlarmHud) {
@@ -18194,6 +18256,7 @@ startMaxSwarmBeat(delaySeconds = 0) {
             }
 
             updateBottomHudBorder() {
+                if (CONTROL_PANEL_DIAGNOSTIC_DISABLED) return;
                 if (!this.bottomProgressPanel || !this.bottomHudBorder || !this.bottomHudBorderPath) return;
                 const panelRect = this.bottomProgressPanel.getBoundingClientRect();
                 if (!panelRect.width || !panelRect.height) return;
@@ -18268,6 +18331,7 @@ startMaxSwarmBeat(delaySeconds = 0) {
             }
 
             updateDynamicHud() {
+                if (CONTROL_PANEL_DIAGNOSTIC_DISABLED) return;
                 this.updateBottomHudBorder();
                 this.updateCrystalGauges();
                 this.updateRecursionGlyphEngine();
