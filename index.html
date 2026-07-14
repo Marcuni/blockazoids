@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v296: Adds swept-path Orb collision, locks corner menus throughout sector transitions, replaces player CRT tiers with ON/OFF, optimizes the production CRT preset, and centralizes diagnostic feature flags.
+Build v297: Restores visible CRT glare, preserves Developer CRT tuning across the master switch, adds a production-reset control, and disables automatic reset reports.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -21,7 +21,7 @@ Orb Control Panel Instrument Reference
 - Velocity Glyph Engine — Temporarily displays the Orb’s finger-driven movement speed.
 - Orb Command Socket — Controls the Orb’s pause, resume, and primary interface functions.
 -->
-<html data-build-version="v296">
+<html data-build-version="v297">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -5680,6 +5680,12 @@ Orb Control Panel Instrument Reference
             font-size: clamp(10px, 2.8vw, 13px);
         }
 
+        .crt-dev-reset-button {
+            min-height: 38px;
+            margin-bottom: 7px;
+            font-size: clamp(10px, 2.8vw, 13px);
+        }
+
         @media (max-width: 420px) {
             .crt-dev-controls { grid-template-columns: 1fr; }
         }
@@ -7945,7 +7951,7 @@ Orb Control Panel Instrument Reference
         .crt-dev-button.is-current { box-shadow: inset 0 0 0 1px rgba(255,255,255,0.72); }
         .crt-dev-button.is-above { text-shadow: 0 0 8px rgba(255,255,255,0.80); }
 
-        /* SCREEN BASE — CURRENT preserves the former player LOW look, except reflection is slightly reduced. */
+        /* SCREEN BASE — CURRENT restores most of the former LOW glass glare while keeping the optimized CRT workload. */
         #gameContainer.crt-enabled.crt-fx-scanlines.crt-scanlines-low:not(.crt-ui-suspended) .playfield-crt-scanlines {
             opacity: 0.15 !important;
             background: repeating-linear-gradient(to bottom, rgba(0,0,0,0.34) 0 1px, transparent 1px 5.2px) !important;
@@ -7964,9 +7970,9 @@ Orb Control Panel Instrument Reference
         #gameContainer.crt-enabled.crt-fx-tint.crt-tint-low:not(.crt-ui-suspended) .playfield-crt-tint { opacity: 0.07 !important; }
         #gameContainer.crt-enabled.crt-fx-tint.crt-tint-medium:not(.crt-ui-suspended) .playfield-crt-tint { opacity: 0.13 !important; }
         #gameContainer.crt-enabled.crt-fx-tint.crt-tint-high:not(.crt-ui-suspended) .playfield-crt-tint { opacity: 0.21 !important; }
-        #gameContainer.crt-enabled.crt-fx-reflection.crt-reflection-low:not(.crt-ui-suspended) .playfield-crt-reflection { opacity: 0.04 !important; }
-        #gameContainer.crt-enabled.crt-fx-reflection.crt-reflection-medium:not(.crt-ui-suspended) .playfield-crt-reflection { opacity: 0.08 !important; }
-        #gameContainer.crt-enabled.crt-fx-reflection.crt-reflection-high:not(.crt-ui-suspended) .playfield-crt-reflection { opacity: 0.16 !important; }
+        #gameContainer.crt-enabled.crt-fx-reflection.crt-reflection-low:not(.crt-ui-suspended) .playfield-crt-reflection { opacity: 0.07 !important; }
+        #gameContainer.crt-enabled.crt-fx-reflection.crt-reflection-medium:not(.crt-ui-suspended) .playfield-crt-reflection { opacity: 0.14 !important; }
+        #gameContainer.crt-enabled.crt-fx-reflection.crt-reflection-high:not(.crt-ui-suspended) .playfield-crt-reflection { opacity: 0.22 !important; }
 
         /* PHOSPHOR — CURRENT retains the approved LOW bloom. */
         #gameContainer.crt-enabled.crt-fx-bloom.crt-bloom-low:not(.crt-ui-suspended) {
@@ -7996,13 +8002,13 @@ Orb Control Panel Instrument Reference
             opacity: 0;
         }
         #playfieldShell.crt-enabled.crt-fx-glow.crt-glow-low:not(.crt-ui-suspended) .glow-single {
-            opacity: 0.10 !important; stroke-width: 6px !important; filter: drop-shadow(0 0 4px rgba(0,205,255,0.14)) !important;
+            opacity: 0.13 !important; stroke-width: 7px !important; filter: drop-shadow(0 0 5px rgba(0,205,255,0.18)) !important;
         }
         #playfieldShell.crt-enabled.crt-fx-glow.crt-glow-medium:not(.crt-ui-suspended) .glow-single {
-            opacity: 0.16 !important; stroke-width: 9px !important; filter: drop-shadow(0 0 6px rgba(0,205,255,0.18)) !important;
+            opacity: 0.22 !important; stroke-width: 10px !important; filter: drop-shadow(0 0 7px rgba(0,205,255,0.25)) !important;
         }
         #playfieldShell.crt-enabled.crt-fx-glow.crt-glow-high:not(.crt-ui-suspended) .glow-single {
-            opacity: 0.24 !important; stroke-width: 13px !important; filter: drop-shadow(0 0 9px rgba(0,205,255,0.26)) !important;
+            opacity: 0.31 !important; stroke-width: 14px !important; filter: drop-shadow(0 0 10px rgba(0,205,255,0.34)) !important;
         }
 
         /* SIGNAL — CURRENT keeps grid separation, reduces object separation, and slows the sweep to 20 seconds. */
@@ -8295,6 +8301,7 @@ Orb Control Panel Instrument Reference
                         <button id="crtEnableAllButton" class="crt-dev-button" type="button">ENABLE ALL CRT</button>
                         <button id="crtDisableAllButton" class="crt-dev-button" type="button">DISABLE ALL CRT</button>
                     </div>
+                    <button id="crtResetProductionButton" class="crt-dev-button crt-dev-reset-button" type="button">RESET TO PRODUCTION</button>
                     <div class="crt-effect-list">
                         <div class="crt-effect-category">SCREEN BASE</div>
                         <div class="crt-effect-row"><span>SCANLINES</span><button class="crt-dev-button crt-effect-level" type="button" data-crt-effect-level="scanlines"></button></div>
@@ -8456,7 +8463,7 @@ Orb Control Panel Instrument Reference
     </div>
 
     <script>
-        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'v296'}`;
+        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'v297'}`;
 
         // Central diagnostic feature flags. Change values here before loading the page to isolate systems.
         const GAME_FEATURE_FLAGS = window.BLOCKAZOIDS_FEATURE_FLAGS = {
@@ -8469,7 +8476,7 @@ Orb Control Panel Instrument Reference
             visualEffects: true,
             gridlockVisualEffects: true,
             telemetry: true,
-            stabilityDiagnostics: true,
+            stabilityDiagnostics: false,
             sweptOrbCollision: true,
             cornerMenus: true
         };
@@ -9034,6 +9041,7 @@ Orb Control Panel Instrument Reference
                 this.crtFeatureToggleButtons = Array.from(document.querySelectorAll('[data-crt-feature-toggle]'));
                 this.crtEnableAllButton = document.getElementById('crtEnableAllButton');
                 this.crtDisableAllButton = document.getElementById('crtDisableAllButton');
+                this.crtResetProductionButton = document.getElementById('crtResetProductionButton');
                 this.crtDeveloperMasterState = document.getElementById('crtDeveloperMasterState');
                 this.crtEventTimers = {};
                 this.sectorDecreaseButton = document.getElementById('sectorDecreaseButton');
@@ -9076,7 +9084,7 @@ Orb Control Panel Instrument Reference
                 this.stabilitySessionId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
                 this.stabilityLastEvent = 'boot';
                 this.stabilityLastEventDetails = {};
-                this.pendingStabilityReport = this.readPriorStabilityReport();
+                this.pendingStabilityReport = GAME_FEATURE_FLAGS.stabilityDiagnostics ? this.readPriorStabilityReport() : null;
                 this.resetHighScorePending = false;
                 this.resetHighScoreConfirmTimer = null;
                 this.menuButtons = document.getElementById('menuButtons');
@@ -9492,6 +9500,14 @@ Orb Control Panel Instrument Reference
                         e.stopPropagation();
                         this.playUiClick();
                         this.setAllCrtFeatures(false);
+                    });
+                }
+                if (this.crtResetProductionButton) {
+                    this.crtResetProductionButton.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        this.playUiClick();
+                        this.resetCrtToProduction();
                     });
                 }
                 if (this.sectorDecreaseButton) {
@@ -9985,7 +10001,7 @@ Orb Control Panel Instrument Reference
                 const controlPanel = this.ui && this.ui.getControlPanelDiagnosticState ? this.ui.getControlPanelDiagnosticState() : null;
                 return {
                     schema: 'blockazoids-stability-v1',
-                    build: 'v295',
+                    build: 'v297',
                     sessionId: this.stabilitySessionId,
                     savedAt: Date.now(),
                     cleanExit: !!cleanExit,
@@ -12296,18 +12312,7 @@ Orb Control Panel Instrument Reference
                 this.crtPresetLevel = normalizedLevel;
                 this.crtEnabled = normalizedLevel === 'on';
 
-                if (this.crtEnabled) {
-                    Object.keys(this.crtEffectLevels || {}).forEach(key => {
-                        this.crtEffectLevels[key] = 'current';
-                    });
-                    ['curvature', 'death', 'shutdown'].forEach(key => {
-                        if (this.crtFeatures && key in this.crtFeatures) this.crtFeatures[key] = true;
-                    });
-                    this.syncCrtFeaturesFromGroups();
-                    this.saveCrtEffectLevels();
-                    this.saveCrtFeaturePreferences();
-                }
-
+                // The player setting is only a master switch. Developer effect values remain untouched.
                 this.saveCrtPreference();
                 this.applyCrtPreference();
             }
@@ -12371,6 +12376,26 @@ Orb Control Panel Instrument Reference
                 this.saveCrtFeaturePreferences();
                 this.applyCrtFeatureClasses();
                 if (!enabled) this.clearCrtEventEffects();
+            }
+
+            resetCrtToProduction() {
+                Object.keys(this.crtEffectLevels || {}).forEach(key => {
+                    this.crtEffectLevels[key] = 'current';
+                });
+                ['curvature', 'death', 'shutdown'].forEach(key => {
+                    if (this.crtFeatures && key in this.crtFeatures) this.crtFeatures[key] = true;
+                });
+                Object.keys(this.crtGroups || {}).forEach(key => {
+                    if (!this.crtGroups[key]) return;
+                    this.crtGroups[key].enabled = true;
+                    this.crtGroups[key].intensity = 'current';
+                });
+                this.syncCrtFeaturesFromGroups();
+                this.saveCrtEffectLevels();
+                this.saveCrtFeaturePreferences();
+                this.saveCrtGroupPreferences();
+                this.clearCrtEventEffects();
+                this.applyCrtFeatureClasses();
             }
 
             setCrtPaused(paused) {
