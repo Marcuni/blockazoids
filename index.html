@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v316: Begins Phase 3B by migrating isolated transient UI timers to the centralized scheduling manager without changing gameplay timing.
+Build v317: Completes Phase 3C by migrating splash, marquee, and non-gameplay visual-effect timers to the centralized scheduling manager; adds a high-score reset confirmation beep and removes the Help pulse.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -21,7 +21,7 @@ Orb Control Panel Instrument Reference
 - Velocity Glyph Engine — Temporarily displays the Orb’s finger-driven movement speed.
 - Orb Command Socket — Controls the Orb’s pause, resume, and primary interface functions.
 -->
-<html data-build-version="v316">
+<html data-build-version="v317">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -2335,40 +2335,6 @@ Orb Control Panel Instrument Reference
             pointer-events: none;
         }
 
-        #howToButton.game-over-tip-pulse,
-        #pauseHowToButton.game-over-tip-pulse {
-            animation: howToGameOverTipPulse 0.58s ease-in-out 4;
-            transform-origin: center;
-            z-index: 20;
-        }
-
-        @keyframes howToGameOverTipPulse {
-            0% {
-                transform: scale(1);
-                box-shadow: none;
-                filter: brightness(1);
-            }
-            24% {
-                transform: scale(1.18);
-                box-shadow: 0 0 14px #fff, 0 0 30px rgba(255,255,255,0.95), 0 0 48px rgba(255,255,255,0.52);
-                filter: brightness(1.34);
-            }
-            50% {
-                transform: scale(0.98);
-                box-shadow: 0 0 7px rgba(255,255,255,0.74), 0 0 16px rgba(255,255,255,0.42);
-                filter: brightness(1.08);
-            }
-            74% {
-                transform: scale(1.12);
-                box-shadow: 0 0 12px #fff, 0 0 26px rgba(255,255,255,0.86);
-                filter: brightness(1.24);
-            }
-            100% {
-                transform: scale(1);
-                box-shadow: none;
-                filter: brightness(1);
-            }
-        }
 
         .hud-group {
             display: flex;
@@ -8863,7 +8829,7 @@ Orb Control Panel Instrument Reference
     </div>
 
     <script>
-        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'v315'}`;
+        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'v317'}`;
 
         // Central diagnostic feature flags. Change values here before loading the page to isolate systems.
         const GAME_FEATURE_FLAGS = window.BLOCKAZOIDS_FEATURE_FLAGS = {
@@ -8995,8 +8961,8 @@ Orb Control Panel Instrument Reference
                 GAME_OVER: 'game-over'
         });
 
-        // Phase 3 scheduling foundation. Phase 3B uses it for isolated transient UI
-        // timers while gameplay, tutorial, transition, attract, visual, and audio timing remain native.
+        // Phase 3 scheduling foundation. Phase 3C now owns transient UI, splash, marquee,
+        // and non-gameplay visual-effect timing. Gameplay, tutorial progression, transitions, attract, and audio remain native.
         class SchedulingManager {
             constructor() {
                 this.tasksByKey = new Map();
@@ -9272,6 +9238,7 @@ Orb Control Panel Instrument Reference
         class Game {
             constructor() {
                 this.scheduler = new SchedulingManager();
+                this.visualEffectSequence = 0;
                 this.flow = new GameFlowController(this);
 
                 // Define RGB color constants for consistency across the game
@@ -9331,8 +9298,6 @@ Orb Control Panel Instrument Reference
                 this.pauseGridMenu = document.getElementById('pauseGridMenu');
                 this.pauseSettingsButton = document.getElementById('pauseSettingsButton');
                 this.pauseHowToButton = document.getElementById('pauseHowToButton');
-                this.gameOverHelpTipStorageKey = 'blockazoidsGameOverHelpTipVisibleLossesV2';
-                this.gameOverHelpTipLosses = this.loadGameOverHelpTipLosses();
                 this.pauseScoresButton = document.getElementById('pauseScoresButton');
                 this.pauseLaunchSetupButton = document.getElementById('pauseLaunchSetupButton');
                 this.pauseMenuCloseButton = document.getElementById('pauseMenuCloseButton');
@@ -10120,6 +10085,11 @@ Orb Control Panel Instrument Reference
                 this.refreshGameOverlay();
             }
 
+            nextVisualEffectTaskName(prefix = 'effect') {
+                this.visualEffectSequence++;
+                return `${prefix}-${this.visualEffectSequence}`;
+            }
+
             getControlPanelInstrumentAtPoint(clientX, clientY) {
                 const instruments = [
                     ['Sector Ascension Array', document.getElementById('levelHud')],
@@ -10196,7 +10166,7 @@ Orb Control Panel Instrument Reference
 
                 this.splashIntroActive = true;
                 this.splashEasterEggReady = false;
-                if (this.splashEasterEggTimer) clearTimeout(this.splashEasterEggTimer);
+                this.scheduler.cancelTask('splash', 'easter-egg-ready');
                 this.splashEasterEggTimer = null; // Intro easter egg disabled for now.
 
                 const continueFromSplash = (e) => {
@@ -10213,7 +10183,7 @@ Orb Control Panel Instrument Reference
                 if (!this.splashIntroActive) return;
                 this.splashIntroActive = false;
                 this.splashEasterEggReady = false;
-                if (this.splashEasterEggTimer) clearTimeout(this.splashEasterEggTimer);
+                this.scheduler.cancelTask('splash', 'easter-egg-ready');
                 this.splashEasterEggTimer = null;
                 this.resetSplashEasterEgg();
 
@@ -10221,13 +10191,17 @@ Orb Control Panel Instrument Reference
 
                 if (this.splashScreen) {
                     this.splashScreen.classList.add('hidden');
-                    setTimeout(() => {
+                    this.scheduler.scheduleTimeout('splash', 'dismiss-display', () => {
                         if (this.splashScreen) this.splashScreen.style.display = 'none';
                     }, 420);
                 }
 
                 // The four direct menu controls become available as soon as the cabinet reaches Activate mode.
-                if (this.pendingStabilityReport) window.setTimeout(() => this.showPendingStabilityReport(), 460);
+                if (this.pendingStabilityReport) {
+                    this.scheduler.scheduleTimeout('splash', 'stability-report-after-dismiss', () => {
+                        this.showPendingStabilityReport();
+                    }, 460);
+                }
                 this.showMainMenuButtons();
                 this.updatePauseGridMenu();
                 this.refreshGameOverlay();
@@ -10235,9 +10209,9 @@ Orb Control Panel Instrument Reference
             }
 
             resetSplashEasterEgg() {
-                if (this.splashEasterEggTimer) clearTimeout(this.splashEasterEggTimer);
-                if (this.splashReturnTimer) clearTimeout(this.splashReturnTimer);
-                if (this.splashMidGlitchTimer) clearTimeout(this.splashMidGlitchTimer);
+                ['easter-egg-ready', 'mid-glitch', 'return', 'glitch-cleanup', 'image-swap'].forEach(name => {
+                    this.scheduler.cancelTask('splash', name);
+                });
                 this.splashEasterEggTimer = null;
                 this.splashReturnTimer = null;
                 this.splashMidGlitchTimer = null;
@@ -10258,17 +10232,19 @@ Orb Control Panel Instrument Reference
                 if (!this.marqueeAlternateAvailable || this.splashEasterEggActive) return;
 
                 this.splashEasterEggActive = true;
-                if (this.splashReturnTimer) clearTimeout(this.splashReturnTimer);
-                if (this.splashMidGlitchTimer) clearTimeout(this.splashMidGlitchTimer);
+                this.scheduler.cancelTask('splash', 'return');
+                this.scheduler.cancelTask('splash', 'mid-glitch');
 
                 if (this.audio && this.audio.startVintageMonitorHum) this.audio.startVintageMonitorHum(7000);
                 this.swapSplashMarqueeImageWithGlitch(this.marqueeAlternateSrc, true, () => {
-                    this.splashMidGlitchTimer = setTimeout(() => {
+                    this.splashMidGlitchTimer = this.scheduler.scheduleTimeout('splash', 'mid-glitch', () => {
+                        this.splashMidGlitchTimer = null;
                         if (!this.splashIntroActive || !this.splashEasterEggActive) return;
                         this.pulseSplashCrtGlitch(false);
                     }, 3500);
 
-                    this.splashReturnTimer = setTimeout(() => {
+                    this.splashReturnTimer = this.scheduler.scheduleTimeout('splash', 'return', () => {
+                        this.splashReturnTimer = null;
                         this.swapSplashMarqueeImageWithGlitch(this.marqueeOriginalSrc, false, () => {
                             this.splashEasterEggActive = false;
                         });
@@ -10282,7 +10258,7 @@ Orb Control Panel Instrument Reference
                 this.splashScreen.classList.remove('splash-shake-egg', 'splash-crt-glitch');
                 void this.splashScreen.offsetWidth;
                 this.splashScreen.classList.add('splash-shake-egg', 'splash-crt-glitch');
-                setTimeout(() => {
+                this.scheduler.scheduleTimeout('splash', 'glitch-cleanup', () => {
                     if (this.splashScreen) this.splashScreen.classList.remove('splash-shake-egg', 'splash-crt-glitch');
                 }, 760);
             }
@@ -10293,7 +10269,7 @@ Orb Control Panel Instrument Reference
                 this.pulseSplashCrtGlitch(true);
                 this.splashMarqueeImage.classList.add('splash-marquee-fade-swap');
 
-                setTimeout(() => {
+                this.scheduler.scheduleTimeout('splash', 'image-swap', () => {
                     if (!this.splashIntroActive || !this.splashScreen || !this.splashMarqueeImage) return;
                     this.splashMarqueeImage.src = nextSrc;
                     this.splashScreen.classList.toggle('splash-vintage-active', !!vintageActive);
@@ -10579,10 +10555,8 @@ Orb Control Panel Instrument Reference
             }
 
             purgeTransientPlayfieldEffects() {
-                if (this.crtEventTimers) {
-                    Object.values(this.crtEventTimers).forEach(timer => clearTimeout(timer));
-                    this.crtEventTimers = {};
-                }
+                this.clearCrtEventEffects();
+                this.crtEventTimers = {};
                 if (this.container) {
                     this.container.querySelectorAll('.spawn-warning, .cosmic-zap-line, .cosmic-zap-spark, .cosmic-zap-overload-ring, .explosion, .cycle-reboot-line, .cycle-reboot-cell').forEach(element => element.remove());
                     this.container.classList.remove('shake', 'borderFlash', 'cosmicZapShake', 'gridRestoreSequence', 'cycleCelebrationSequence');
@@ -11821,50 +11795,6 @@ Orb Control Panel Instrument Reference
                 requestAnimationFrame(() => this.clearMenuButtonFocus());
             }
 
-            loadGameOverHelpTipLosses() {
-                try {
-                    const stored = Number.parseInt(localStorage.getItem(this.gameOverHelpTipStorageKey) || '0', 10);
-                    return Number.isFinite(stored) ? Math.max(0, stored) : 0;
-                } catch (_) {
-                    return 0;
-                }
-            }
-
-            saveGameOverHelpTipLosses() {
-                try {
-                    localStorage.setItem(this.gameOverHelpTipStorageKey, String(this.gameOverHelpTipLosses));
-                } catch (_) {}
-            }
-
-            pulseHowToButtonForGameOver() {
-                if (this.gameOverHelpTipLosses >= 3) return;
-
-                this.updateContextButtons();
-                requestAnimationFrame(() => {
-                    const candidates = [this.howToButton, this.pauseHowToButton].filter(Boolean);
-                    candidates.forEach(button => button.classList.remove('game-over-tip-pulse'));
-
-                    const isVisibleHelpButton = (button) => {
-                        if (!button || button.getAttribute('aria-hidden') === 'true') return false;
-                        if (button === this.howToButton && button.dataset.action !== 'howTo') return false;
-                        const style = window.getComputedStyle(button);
-                        const rect = button.getBoundingClientRect();
-                        return style.display !== 'none' && style.visibility !== 'hidden' && Number(style.opacity || 1) > 0 && rect.width > 0 && rect.height > 0;
-                    };
-
-                    const targetButton = candidates.find(isVisibleHelpButton);
-                    if (!targetButton) return;
-
-                    void targetButton.offsetWidth;
-                    targetButton.classList.add('game-over-tip-pulse');
-                    this.gameOverHelpTipLosses++;
-                    this.saveGameOverHelpTipLosses();
-                    this.scheduler.scheduleTimeout('ui', 'game-over-how-to-pulse-cleanup', () => {
-                        if (targetButton) targetButton.classList.remove('game-over-tip-pulse');
-                    }, 2500);
-                });
-            }
-
             updateTelemetrySummary() {
                 if (!this.telemetryButton && !this.telemetrySummary) return;
                 if (this.telemetryButton) this.telemetryButton.style.display = 'none';
@@ -11997,9 +11927,7 @@ Orb Control Panel Instrument Reference
             }
 
             resetMarqueeEasterEgg() {
-                if (this.marqueeEasterEggTimer) clearTimeout(this.marqueeEasterEggTimer);
-                if (this.marqueeReturnTimer) clearTimeout(this.marqueeReturnTimer);
-                if (this.marqueeMidGlitchTimer) clearTimeout(this.marqueeMidGlitchTimer);
+                this.scheduler.cancelScope('marquee');
                 this.marqueeEasterEggTimer = null;
                 this.marqueeReturnTimer = null;
                 this.marqueeMidGlitchTimer = null;
@@ -12019,18 +11947,18 @@ Orb Control Panel Instrument Reference
                 if (!this.marqueeAlternateAvailable || this.marqueeEasterEggActive || !this.marqueeElement || !this.marqueeImageElement) return;
 
                 this.marqueeEasterEggActive = true;
-                if (this.marqueeEasterEggTimer) clearTimeout(this.marqueeEasterEggTimer);
-                if (this.marqueeReturnTimer) clearTimeout(this.marqueeReturnTimer);
-                if (this.marqueeMidGlitchTimer) clearTimeout(this.marqueeMidGlitchTimer);
+                this.scheduler.cancelScope('marquee');
 
                 if (this.audio) this.audio.startVintageMonitorHum(7000);
                 this.swapMarqueeImageWithGlitch(this.marqueeAlternateSrc, true, () => {
-                    this.marqueeMidGlitchTimer = setTimeout(() => {
+                    this.marqueeMidGlitchTimer = this.scheduler.scheduleTimeout('marquee', 'mid-glitch', () => {
+                        this.marqueeMidGlitchTimer = null;
                         if (!this.marqueeEasterEggActive || !this.isAttractModeActive()) return;
                         this.pulseMarqueeCrtGlitch(false);
                     }, 3500);
 
-                    this.marqueeEasterEggTimer = setTimeout(() => {
+                    this.marqueeEasterEggTimer = this.scheduler.scheduleTimeout('marquee', 'return-to-original', () => {
+                        this.marqueeEasterEggTimer = null;
                         this.swapMarqueeImageWithGlitch(this.marqueeOriginalSrc, false, () => {
                             this.marqueeEasterEggActive = false;
                         });
@@ -12041,11 +11969,12 @@ Orb Control Panel Instrument Reference
             pulseMarqueeCrtGlitch(playStatic = true) {
                 if (!this.marqueeElement) return;
                 if (playStatic && this.audio) this.audio.playMarqueeGlitchZap();
-                if (this.marqueeReturnTimer) clearTimeout(this.marqueeReturnTimer);
+                this.scheduler.cancelTask('marquee', 'glitch-cleanup');
                 this.marqueeElement.classList.remove('vintageCrtGlitch');
                 void this.marqueeElement.offsetWidth;
                 this.marqueeElement.classList.add('vintageCrtGlitch');
-                this.marqueeReturnTimer = setTimeout(() => {
+                this.marqueeReturnTimer = this.scheduler.scheduleTimeout('marquee', 'glitch-cleanup', () => {
+                    this.marqueeReturnTimer = null;
                     if (this.marqueeElement) this.marqueeElement.classList.remove('vintageCrtGlitch');
                 }, 760);
             }
@@ -12056,7 +11985,7 @@ Orb Control Panel Instrument Reference
                 this.pulseMarqueeCrtGlitch(true);
                 this.marqueeImageElement.classList.add('marqueeFadeSwap');
 
-                setTimeout(() => {
+                this.scheduler.scheduleTimeout('marquee', 'image-swap', () => {
                     if (!this.marqueeImageElement || !this.marqueeElement) return;
                     this.marqueeImageElement.src = nextSrc;
                     this.marqueeElement.classList.toggle('vintageCrtActive', !!vintageActive);
@@ -12921,8 +12850,7 @@ Orb Control Panel Instrument Reference
             clearCrtEventEffects() {
                 if (!this.container) return;
                 ['gridlock', 'zap', 'death', 'restore'].forEach(type => {
-                    const timer = this.crtEventTimers && this.crtEventTimers[type];
-                    if (timer) clearTimeout(timer);
+                    this.scheduler.cancelTask('visual-effects', `crt-${type}`);
                     if (this.crtEventTimers) this.crtEventTimers[type] = null;
                     this.container.classList.remove(`crt-${type}-event`);
                 });
@@ -12940,11 +12868,11 @@ Orb Control Panel Instrument Reference
                 const durations = { gridlock: 540, zap: 440, death: 1320, restore: 580 };
                 if (!durations[type]) return;
                 const className = `crt-${type}-event`;
-                if (this.crtEventTimers[type]) clearTimeout(this.crtEventTimers[type]);
+                this.scheduler.cancelTask('visual-effects', `crt-${type}`);
                 this.container.classList.remove(className);
                 void this.container.offsetWidth;
                 this.container.classList.add(className);
-                this.crtEventTimers[type] = setTimeout(() => {
+                this.crtEventTimers[type] = this.scheduler.scheduleTimeout('visual-effects', `crt-${type}`, () => {
                     this.container.classList.remove(className);
                     this.crtEventTimers[type] = null;
                 }, durations[type]);
@@ -13424,6 +13352,7 @@ Orb Control Panel Instrument Reference
                 }
 
                 this.resetHighScore();
+                if (this.audio && typeof this.audio.playHighScoreResetBeep === 'function') this.audio.playHighScoreResetBeep();
                 this.resetHighScorePending = false;
                 this.resetHighScoreButton.textContent = 'High Score Reset';
                 if (this.resetHighScoreConfirmTimer) {
@@ -14172,7 +14101,7 @@ Orb Control Panel Instrument Reference
                     this.audio.playExplosionSound();
                 }
                 this.container.classList.add('borderFlash');
-                setTimeout(() => this.container.classList.remove('borderFlash'), 300);
+                this.scheduler.scheduleTimeout('visual-effects', 'tutorial-border-flash', () => this.container.classList.remove('borderFlash'), 300);
                 this.tutorialToken++;
                 if (this.tutorialRafId) cancelAnimationFrame(this.tutorialRafId);
                 this.tutorialRafId = null;
@@ -14272,7 +14201,7 @@ Orb Control Panel Instrument Reference
                 this.playCosmicZapDischarge(clearedEnemies);
                 clearedEnemies.forEach(enemy => {
                     enemy.element.classList.add('cosmicZapDissolve');
-                    setTimeout(() => enemy.element.remove(), 170);
+                    this.scheduler.scheduleTimeout('visual-effects', this.nextVisualEffectTaskName('enemy-dissolve'), () => enemy.element.remove(), 170);
                 });
                 this.enemies = [];
                 this.tutorialEnemy = null;
@@ -15429,7 +15358,7 @@ Orb Control Panel Instrument Reference
                         this.ui.updateScore();
                         this.checkHighScore();
                         if (scoreElement) {
-                            setTimeout(() => scoreElement.classList.remove('bonusScoreCount'), 120);
+                            this.scheduler.scheduleTimeout('visual-effects', 'bonus-score-count-cleanup', () => scoreElement.classList.remove('bonusScoreCount'), 120);
                         }
                         resolve(true);
                     };
@@ -15670,7 +15599,7 @@ Orb Control Panel Instrument Reference
                 this.invincibilityCollisionCooldownUntil = now + 850;
                 if (enemy && typeof enemy.flashBorder === 'function') enemy.flashBorder();
                 this.container.classList.add('borderFlash');
-                setTimeout(() => this.container.classList.remove('borderFlash'), 300);
+                this.scheduler.scheduleTimeout('visual-effects', 'invincibility-border-flash', () => this.container.classList.remove('borderFlash'), 300);
                 if (this.audio) {
                     this.audio.resume();
                     this.audio.playExplosionSound();
@@ -15986,7 +15915,7 @@ Orb Control Panel Instrument Reference
                 this.player.element.classList.remove('cosmicZapOrbFlash');
                 void this.player.element.offsetWidth;
                 this.player.element.classList.add('cosmicZapOrbFlash');
-                setTimeout(() => this.player.element.classList.remove('cosmicZapOrbFlash'), 430);
+                this.scheduler.scheduleTimeout('visual-effects', 'cosmic-zap-orb-flash', () => this.player.element.classList.remove('cosmicZapOrbFlash'), 430);
 
                 const targets = clearedEnemies.length > 0
                     ? clearedEnemies.map(enemy => ({ x: enemy.x + enemy.size / 2, y: enemy.y + enemy.size / 2 }))
@@ -16007,14 +15936,14 @@ Orb Control Panel Instrument Reference
                     line.style.width = `${distance}px`;
                     line.style.transform = `translateY(-50%) rotate(${angle}deg)`;
                     line.style.animationDelay = `${Math.min(0.08, index * 0.012)}s`;
-                    setTimeout(() => line.remove(), 320);
+                    this.scheduler.scheduleTimeout('visual-effects', this.nextVisualEffectTaskName('cosmic-zap-line'), () => line.remove(), 320);
                 });
 
                 clearedEnemies.forEach(enemy => {
                     const ex = enemy.x + enemy.size / 2;
                     const ey = enemy.y + enemy.size / 2;
                     const overloadRing = this.createCosmicZapElement('cosmic-zap-overload-ring', ex, ey);
-                    setTimeout(() => overloadRing.remove(), 460);
+                    this.scheduler.scheduleTimeout('visual-effects', this.nextVisualEffectTaskName('cosmic-zap-ring'), () => overloadRing.remove(), 460);
                     for (let i = 0; i < 3; i++) {
                         const spark = this.createCosmicZapElement('cosmic-zap-spark', ex - 2, ey - 2);
                         const angle = (i / 3) * Math.PI * 2 + Math.random() * 0.5;
@@ -16022,7 +15951,7 @@ Orb Control Panel Instrument Reference
                         spark.style.setProperty('--zap-spark-x', `${Math.cos(angle) * distance}px`);
                         spark.style.setProperty('--zap-spark-y', `${Math.sin(angle) * distance}px`);
                         spark.style.animationDelay = `${i * 0.018}s`;
-                        setTimeout(() => spark.remove(), 460);
+                        this.scheduler.scheduleTimeout('visual-effects', this.nextVisualEffectTaskName('cosmic-zap-spark'), () => spark.remove(), 460);
                     }
                 });
             }
@@ -16062,7 +15991,7 @@ Orb Control Panel Instrument Reference
                     if (this.enemies.length > 0) {
                         this.enemies.forEach(enemy => {
                             enemy.element.classList.add('cosmicZapDissolve');
-                            setTimeout(() => enemy.element.remove(), 170);
+                            this.scheduler.scheduleTimeout('visual-effects', this.nextVisualEffectTaskName('enemy-dissolve'), () => enemy.element.remove(), 170);
                         });
                         this.enemies = [];
                     }
@@ -16079,7 +16008,7 @@ Orb Control Panel Instrument Reference
 
                     this.applyLevelParameters();
                     this.spawnCounter = Math.max(0, this.spawnDelay - 1);
-                    setTimeout(() => this.container.classList.remove('cosmicZapShake'), 300);
+                    this.scheduler.scheduleTimeout('visual-effects', 'cosmic-zap-shake', () => this.container.classList.remove('cosmicZapShake'), 300);
                     this.updateCrystalHighlight();
                 }
             }
@@ -16308,7 +16237,7 @@ Orb Control Panel Instrument Reference
                         this.container.classList.remove('cycleStartPulse');
                         void this.container.offsetWidth;
                         this.container.classList.add('cycleStartPulse');
-                        setTimeout(() => this.container.classList.remove('cycleStartPulse'), 1200);
+                        this.scheduler.scheduleTimeout('visual-effects', 'cycle-start-pulse', () => this.container.classList.remove('cycleStartPulse'), 1200);
                         this.startPreparedLevel(loadToken, { skipGridFade: true });
                     });
                 }, 500);
@@ -16505,7 +16434,7 @@ Orb Control Panel Instrument Reference
                 this.bonusTextElement.style.opacity = '0';
                 this.setGameOverlayVisible(false);
                 if (this.ui) {
-                    if (this.ui.scoreAlertTimer) clearTimeout(this.ui.scoreAlertTimer);
+                    this.scheduler.cancelTask('ui-effects', 'score-alert');
                     this.ui.scoreAlertTimer = null;
                     this.ui.scoreAlertActive = false;
                     if (this.ui.scoreHud) this.ui.scoreHud.classList.remove('gridlock-announcement-active');
@@ -16685,7 +16614,7 @@ Orb Control Panel Instrument Reference
                 const filledSquares = this.container.getElementsByClassName('filled-square');
                 while (filledSquares.length > 0) filledSquares[0].remove(); // Clear filled squares
 
-                setTimeout(() => this.container.classList.remove('shake'), 500); // Remove shake after 500ms
+                this.scheduler.scheduleTimeout('visual-effects', 'game-over-shake', () => this.container.classList.remove('shake'), 500); // Remove shake after 500ms
 
                 setTimeout(() => { // Show game over sequence
                     this.bonusTextElement.classList.remove('countdownText');
@@ -16734,7 +16663,6 @@ Orb Control Panel Instrument Reference
                             this.updateDifficultyLabel();
                             this.startAttractMode();
                             this.ui.updateAll();
-                            this.pulseHowToButtonForGameOver();
                             this.refreshGameOverlay(); // Restart attract mode
                         }, 500);
                     }, 2000);
@@ -16970,6 +16898,7 @@ Orb Control Panel Instrument Reference
         class Enemy {
             constructor(game, type, spawnLocation = null) {
                 this.game = game; // Reference to game instance
+                this.visualEffectKey = game.nextVisualEffectTaskName('enemy');
                 this.type = type;
                 if (type === 'small') { // Small enemy
                     this.size = game.PLAYER_SIZE;
@@ -17009,7 +16938,7 @@ Orb Control Panel Instrument Reference
                 this.element.style.transform = 'scale(0)'; // Start scaled down
                 this.updatePosition(); // Set initial position
                 game.container.appendChild(this.element); // Add to DOM
-                setTimeout(() => { // Fade in animation
+                this.game.scheduler.scheduleTimeout('visual-effects', `${this.visualEffectKey}-spawn`, () => { // Fade in animation
                     this.element.style.opacity = '1';
                     this.element.style.transform = 'scale(1)';
                 }, 50);
@@ -17069,7 +16998,7 @@ Orb Control Panel Instrument Reference
             flashBorder() {
                 this.element.classList.add('enemyBorderFlash'); // Enemy flash
                 this.game.container.classList.add('borderFlash'); // Container flash
-                setTimeout(() => {
+                this.game.scheduler.scheduleTimeout('visual-effects', `${this.visualEffectKey}-border-flash`, () => {
                     this.element.classList.remove('enemyBorderFlash');
                     this.game.container.classList.remove('borderFlash');
                     this.updateAnimation(); // Reset animation
@@ -17178,6 +17107,7 @@ Orb Control Panel Instrument Reference
         class Explosion {
             constructor(game, x, y, isPlayer = false) {
                 this.game = game; // Reference to game instance
+                this.visualEffectKey = game.nextVisualEffectTaskName('explosion');
                 this.x = x; // Center X of explosion
                 this.y = y; // Center Y of explosion
                 this.isPlayer = isPlayer; // Flag for player explosion
@@ -17191,7 +17121,7 @@ Orb Control Panel Instrument Reference
                 this.element.style.opacity = '1'; // Fully visible
                 this.game.container.appendChild(this.element); // Add to DOM
                 
-                setTimeout(() => { // Expand explosion
+                this.game.scheduler.scheduleTimeout('visual-effects', `${this.visualEffectKey}-expand`, () => { // Expand explosion
                     this.element.style.width = '160px';
                     this.element.style.height = '160px';
                     this.element.style.left = `${this.x - 80}px`; // Center expansion
@@ -17199,7 +17129,9 @@ Orb Control Panel Instrument Reference
                     if (this.isPlayer) this.game.player.element.style.display = 'none'; // Hide player
                 }, 0);
                 
-                setTimeout(() => this.element.style.opacity = '0', this.isPlayer ? 800 : 600); // Fade out
+                this.game.scheduler.scheduleTimeout('visual-effects', `${this.visualEffectKey}-fade`, () => {
+                    this.element.style.opacity = '0';
+                }, this.isPlayer ? 800 : 600); // Fade out
 
                 this.alive = true; // Explosion state
             }
@@ -17207,7 +17139,7 @@ Orb Control Panel Instrument Reference
             // Update explosion state and remove when faded
             update() {
                 if (this.element.style.opacity === '0') {
-                    setTimeout(() => this.element.remove(), 600); // Remove after fade
+                    this.game.scheduler.scheduleTimeout('visual-effects', `${this.visualEffectKey}-remove`, () => this.element.remove(), 600); // Remove after fade
                     this.alive = false; // Mark as dead
                 }
                 return this.alive; // Return alive state
@@ -18592,6 +18524,31 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 contact.stop(now + 0.028);
             }
 
+            playHighScoreResetBeep() {
+                this.ensureAudio();
+                const now = this.ctx.currentTime;
+                const beep = this.createAudioNode('createOscillator');
+                const beepGain = this.createAudioNode('createGain');
+                const beepFilter = this.createAudioNode('createBiquadFilter');
+
+                beep.type = 'sine';
+                beep.frequency.setValueAtTime(760, now);
+                beep.frequency.exponentialRampToValueAtTime(1080, now + 0.12);
+                beepFilter.type = 'bandpass';
+                beepFilter.frequency.setValueAtTime(980, now);
+                beepFilter.Q.setValueAtTime(2.4, now);
+                beepGain.gain.setValueAtTime(0.001, now);
+                beepGain.gain.linearRampToValueAtTime(0.15, now + 0.012);
+                beepGain.gain.setValueAtTime(0.15, now + 0.075);
+                beepGain.gain.exponentialRampToValueAtTime(0.001, now + 0.17);
+
+                beep.connect(beepFilter);
+                beepFilter.connect(beepGain);
+                this.connectOutput(beepGain);
+                beep.start(now);
+                beep.stop(now + 0.19);
+            }
+
             startPauseMenuReactorHum() {
                 if (this.pauseMenuReactorPlaying || this.musicMuted) return;
                 this.ensureAudio();
@@ -19247,6 +19204,7 @@ startMaxSwarmBeat(delaySeconds = 0) {
             playCollect: 1200,
             playSpawn: 2200,
             playUiClick: 1800,
+            playHighScoreResetBeep: 1200,
             playTutorialStepBeep: 900,
             playCountdownBeep: 2600,
             playBonusCountUp: 6500,
@@ -19415,14 +19373,14 @@ startMaxSwarmBeat(delaySeconds = 0) {
 
             flashGridlockMessage(message) {
                 if (!this.scoreElement) return;
-                if (this.scoreAlertTimer) clearTimeout(this.scoreAlertTimer);
+                if (this.scoreAlertTimer) this.game.scheduler.cancelTask('ui-effects', 'score-alert');
                 this.scoreAlertActive = true;
                 if (this.scoreHud) this.scoreHud.classList.add('gridlock-announcement-active');
                 this.scoreElement.classList.remove('scoreHidden', 'attractHighScore', 'highScoreFlash', 'bonusScoreCount', 'gridlockAlert', 'superGridlockAlert');
                 this.scoreElement.textContent = message;
                 void this.scoreElement.offsetWidth;
                 this.scoreElement.classList.add('gridlockAlert');
-                this.scoreAlertTimer = setTimeout(() => {
+                this.scoreAlertTimer = this.game.scheduler.scheduleTimeout('ui-effects', 'score-alert', () => {
                     this.scoreAlertActive = false;
                     if (this.scoreHud) this.scoreHud.classList.remove('gridlock-announcement-active');
                     this.scoreElement.classList.remove('gridlockAlert');
@@ -19505,7 +19463,7 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 this.scoreElement.classList.remove('highScoreFlash');
                 void this.scoreElement.offsetWidth;
                 this.scoreElement.classList.add('highScoreFlash');
-                setTimeout(() => this.scoreElement.classList.remove('highScoreFlash'), 700);
+                this.game.scheduler.scheduleTimeout('ui-effects', 'high-score-flash', () => this.scoreElement.classList.remove('highScoreFlash'), 700);
             }
 
             // One completed-grid symbol represents each fully completed campaign cycle.
@@ -19716,7 +19674,7 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 marker.classList.remove('newly-collected');
                 void marker.offsetWidth;
                 marker.classList.add('newly-collected');
-                window.setTimeout(() => marker.classList.remove('newly-collected'), 680);
+                this.game.scheduler.scheduleTimeout('ui-effects', this.game.nextVisualEffectTaskName('orbital-tally-marker'), () => marker.classList.remove('newly-collected'), 680);
 
                 const x = Number(marker.dataset.x);
                 const y = Number(marker.dataset.y);
@@ -19732,7 +19690,7 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 chargeLine.style.setProperty('--charge-width', `${distance}%`);
                 chargeLine.style.setProperty('--charge-angle', `${angle}deg`);
                 this.orbitalTallyHud.appendChild(chargeLine);
-                window.setTimeout(() => chargeLine.remove(), 520);
+                this.game.scheduler.scheduleTimeout('ui-effects', this.game.nextVisualEffectTaskName('orbital-tally-charge'), () => chargeLine.remove(), 520);
             }
 
             updateOrbitalTallyInstrument() {
@@ -20009,7 +19967,7 @@ startMaxSwarmBeat(delaySeconds = 0) {
                         targetSegment.classList.remove('just-collected');
                         void targetSegment.offsetWidth;
                         targetSegment.classList.add('just-collected');
-                        window.setTimeout(() => targetSegment && targetSegment.classList.remove('just-collected'), 420);
+                        this.game.scheduler.scheduleTimeout('ui-effects', this.game.nextVisualEffectTaskName('crystal-spine-flash'), () => targetSegment && targetSegment.classList.remove('just-collected'), 420);
                     }
                 }
 
@@ -20048,21 +20006,21 @@ startMaxSwarmBeat(delaySeconds = 0) {
                         this.triLockSingularity.classList.remove('reserve-discharged');
                         void this.triLockSingularity.offsetWidth;
                         this.triLockSingularity.classList.add('reserve-discharged');
-                        window.setTimeout(() => this.triLockSingularity && this.triLockSingularity.classList.remove('reserve-discharged'), 480);
+                        this.game.scheduler.scheduleTimeout('ui-effects', 'tri-lock-reserve-discharge', () => this.triLockSingularity && this.triLockSingularity.classList.remove('reserve-discharged'), 480);
                     } else if (previousZaps <= 3) {
                         const releasedArm = this.triLockArms[Math.max(0, Math.min(2, actualZaps))];
                         if (releasedArm) {
                             releasedArm.classList.remove('just-opened');
                             void releasedArm.getBoundingClientRect();
                             releasedArm.classList.add('just-opened');
-                            window.setTimeout(() => releasedArm && releasedArm.classList.remove('just-opened'), 520);
+                            this.game.scheduler.scheduleTimeout('ui-effects', `tri-lock-arm-release-${Math.max(0, Math.min(2, actualZaps))}`, () => releasedArm && releasedArm.classList.remove('just-opened'), 520);
                         }
                     }
                     if (this.game.startButton) {
                         this.game.startButton.classList.remove('zap-pulse');
                         void this.game.startButton.offsetWidth;
                         this.game.startButton.classList.add('zap-pulse');
-                        window.setTimeout(() => this.game.startButton && this.game.startButton.classList.remove('zap-pulse'), 620);
+                        this.game.scheduler.scheduleTimeout('ui-effects', 'orb-command-zap-pulse', () => this.game.startButton && this.game.startButton.classList.remove('zap-pulse'), 620);
                     }
                 } else if (powered && Number.isFinite(previousZaps) && actualZaps > previousZaps && actualZaps <= 3) {
                     const restoredArm = this.triLockArms[Math.max(0, Math.min(2, actualZaps - 1))];
@@ -20070,7 +20028,7 @@ startMaxSwarmBeat(delaySeconds = 0) {
                         restoredArm.classList.remove('just-restored');
                         void restoredArm.getBoundingClientRect();
                         restoredArm.classList.add('just-restored');
-                        window.setTimeout(() => restoredArm && restoredArm.classList.remove('just-restored'), 380);
+                        this.game.scheduler.scheduleTimeout('ui-effects', `tri-lock-arm-restore-${Math.max(0, Math.min(2, actualZaps - 1))}`, () => restoredArm && restoredArm.classList.remove('just-restored'), 380);
                     }
                 }
 
