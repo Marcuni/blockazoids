@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v312: Fixes remaining Phase 2B tutorial input regressions by unlocking Orb drag directly from interactive tutorial steps and routing tutorial shake/double-tap Cosmic Zap through the shared input gates.
+Build v313: Stabilizes tutorial Orb control with single-pointer ownership, explicit pointer-capture release, and drag-session invalidation across tutorial steps and game-flow transitions.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -21,7 +21,7 @@ Orb Control Panel Instrument Reference
 - Velocity Glyph Engine — Temporarily displays the Orb’s finger-driven movement speed.
 - Orb Command Socket — Controls the Orb’s pause, resume, and primary interface functions.
 -->
-<html data-build-version="v312">
+<html data-build-version="v313">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -9016,6 +9016,12 @@ Orb Control Panel Instrument Reference
                 this.reason = reason;
                 this.changedAt = performance.now();
                 this.revision++;
+
+                // A pointer stream may not survive a pause, transition, death, or menu state.
+                // Clearing it here prevents an old iPhone drag from replaying after input reopens.
+                if (this.game.player && !this.allowsOrbDragInput()) {
+                    this.game.player.invalidateDragSession(`flow:${nextState}`);
+                }
                 return true;
             }
 
@@ -9480,6 +9486,9 @@ Orb Control Panel Instrument Reference
                 this.handlePointerDown = (e) => this.player.handlePointerDown(e);
                 this.handlePointerMove = (e) => this.player.handlePointerMove(e);
                 this.handlePointerUp = (e) => this.player.handlePointerUp(e);
+                this.handlePointerCaptureLost = (e) => this.player.handlePointerCaptureLost(e);
+                this.handleGlobalPointerEnd = (e) => this.player.handlePointerUp(e);
+                this.handleWindowBlur = () => this.player.invalidateDragSession('window-blur');
                 this.handleDeviceMotion = (e) => this.handleShakeMotion(e);
                 this.handlePlayfieldCosmicZapPointerDown = (e) => this.recordPlayfieldCosmicZapPointerDown(e);
                 this.handlePlayfieldCosmicZapPointerUp = (e) => this.recordPlayfieldCosmicZapPointerUp(e);
@@ -9489,6 +9498,10 @@ Orb Control Panel Instrument Reference
                 this.container.addEventListener('pointermove', this.handlePointerMove, { passive: false });
                 this.container.addEventListener('pointerup', this.handlePointerUp, { passive: false });
                 this.container.addEventListener('pointercancel', this.handlePointerUp, { passive: false });
+                this.container.addEventListener('lostpointercapture', this.handlePointerCaptureLost, { passive: true });
+                window.addEventListener('pointerup', this.handleGlobalPointerEnd, { passive: false });
+                window.addEventListener('pointercancel', this.handleGlobalPointerEnd, { passive: false });
+                window.addEventListener('blur', this.handleWindowBlur, { passive: true });
                 this.container.addEventListener('pointerdown', this.handlePlayfieldCosmicZapPointerDown, { passive: true });
                 this.container.addEventListener('pointerup', this.handlePlayfieldCosmicZapPointerUp, { passive: false });
                 this.container.addEventListener('pointercancel', this.handlePlayfieldCosmicZapPointerCancel, { passive: true });
@@ -10272,7 +10285,7 @@ Orb Control Panel Instrument Reference
                 const controlPanel = this.ui && this.ui.getControlPanelDiagnosticState ? this.ui.getControlPanelDiagnosticState() : null;
                 return {
                     schema: 'blockazoids-stability-v1',
-                    build: 'v309',
+                    build: 'v313',
                     sessionId: this.stabilitySessionId,
                     savedAt: Date.now(),
                     cleanExit: !!cleanExit,
@@ -10391,6 +10404,7 @@ Orb Control Panel Instrument Reference
             }
 
             handleViewportChange(reason = 'resize') {
+                this.player.invalidateDragSession(`viewport:${reason}`);
                 this.markStabilityEvent(reason, { width: window.innerWidth, height: window.innerHeight });
                 if (this.stabilityViewportTimer) clearTimeout(this.stabilityViewportTimer);
                 this.stabilityViewportTimer = window.setTimeout(() => {
@@ -13339,6 +13353,7 @@ Orb Control Panel Instrument Reference
             handleVisibilityChange() {
                 this.markStabilityEvent(`visibility-${document.visibilityState}`);
                 if (document.visibilityState === 'hidden') {
+                    this.player.invalidateDragSession('page-hidden');
                     this.beginTelemetryPause('page-hidden');
                     return;
                 }
@@ -13739,6 +13754,7 @@ Orb Control Panel Instrument Reference
                 if (!this.tutorialActive) return;
                 this.clearTutorialStepTimer();
                 this.clearTutorialHudTimer();
+                this.player.invalidateDragSession(`tutorial-step:${step}`);
                 this.tutorialStep = step;
                 this.tutorialStepStartedAt = performance.now();
                 this.player.consumeMovementSegments();
@@ -16534,6 +16550,10 @@ Orb Control Panel Instrument Reference
                 this.element = document.getElementById('player'); // Player DOM element
                 this.size = game.PLAYER_SIZE; // Player size from game parameters
                 this.isTouchActive = false; // Touch/pointer drag state
+                this.activePointerId = null;
+                this.activePointerType = '';
+                this.dragSessionRevision = 0;
+                this.inputWindowRevision = 0;
                 this.touchDragOffsetX = 0;
                 this.touchDragOffsetY = 0;
                 this.touchActivationPadding = Math.max(18, game.PLAYER_SIZE * 1.5);
@@ -16551,7 +16571,7 @@ Orb Control Panel Instrument Reference
                 this.x = this.game.PLAYFIELD_SIZE / 2 - this.size / 2; // Center X
                 this.y = this.game.PLAYFIELD_SIZE / 2 - this.size / 2; // Center Y
                 this.element.style.display = 'block'; // Show player
-                this.isTouchActive = false; // Disable touch control
+                this.invalidateDragSession('player-reset');
                 this.touchDragOffsetX = 0;
                 this.touchDragOffsetY = 0;
                 this.velocityGaugeSpeed = 0;
@@ -16626,18 +16646,64 @@ Orb Control Panel Instrument Reference
             }
 
 
-            // iPhone control: touch must begin on or near the orb, then dragging moves it.
+            releaseActivePointerCapture(pointerId = this.activePointerId) {
+                if (pointerId === null || pointerId === undefined) return;
+                if (!this.game.container || !this.game.container.releasePointerCapture) return;
+                try {
+                    if (!this.game.container.hasPointerCapture || this.game.container.hasPointerCapture(pointerId)) {
+                        this.game.container.releasePointerCapture(pointerId);
+                    }
+                } catch (_) {}
+            }
+
+            cancelPointerDrag(e = null, reason = 'cancel') {
+                if (e && this.activePointerId !== null && e.pointerId !== this.activePointerId) return false;
+                const pointerId = this.activePointerId;
+                this.isTouchActive = false;
+                this.activePointerId = null;
+                this.activePointerType = '';
+                this.dragSessionRevision = this.inputWindowRevision;
+                this.touchDragOffsetX = 0;
+                this.touchDragOffsetY = 0;
+                this.velocityGaugeLastSampleTime = 0;
+                this.releaseActivePointerCapture(pointerId);
+                return true;
+            }
+
+            invalidateDragSession(reason = 'state-change') {
+                this.inputWindowRevision++;
+                this.cancelPointerDrag(null, reason);
+                this.movementSegments.length = 0;
+            }
+
+            handlePointerCaptureLost(e) {
+                if (this.activePointerId === null || !e || e.pointerId !== this.activePointerId) return;
+                this.cancelPointerDrag(e, 'lost-pointer-capture');
+            }
+
+            // iPhone control: one specific finger must begin on or near the Orb.
             handlePointerDown(e) {
+                if (!e || e.isPrimary === false) return;
+                if (e.pointerType === 'mouse' && e.button !== 0) return;
                 if (this.game.audio) this.game.audio.resume();
-                if (!this.game.flow.allowsOrbDragInput()) return;
+                if (!this.game.flow.allowsOrbDragInput()) {
+                    this.cancelPointerDrag(null, 'input-closed');
+                    return;
+                }
+                if (this.activePointerId !== null) return;
+
                 const point = this.getBoardPoint(e.clientX, e.clientY);
                 if (!this.pointIsNearPlayer(point)) return; // Prevent tap-anywhere teleporting.
 
                 e.preventDefault();
                 this.isTouchActive = true;
+                this.activePointerId = e.pointerId;
+                this.activePointerType = e.pointerType || '';
+                this.dragSessionRevision = this.inputWindowRevision;
                 this.touchDragOffsetX = point.x - (this.x + this.size / 2);
                 this.touchDragOffsetY = point.y - (this.y + this.size / 2);
                 this.velocityGaugeLastSampleTime = performance.now();
+                this.movementSegments.length = 0;
 
                 if (this.game.container.setPointerCapture) {
                     try { this.game.container.setPointerCapture(e.pointerId); } catch (_) {}
@@ -16645,19 +16711,28 @@ Orb Control Panel Instrument Reference
             }
 
             handlePointerMove(e) {
-                if (!this.game.flow.allowsOrbDragInput() || !this.isTouchActive) return;
+                if (!e || !this.isTouchActive || this.activePointerId === null) return;
+                if (e.pointerId !== this.activePointerId) return;
+                if (!this.game.flow.allowsOrbDragInput() || this.dragSessionRevision !== this.inputWindowRevision) {
+                    this.cancelPointerDrag(e, 'input-window-changed');
+                    return;
+                }
+                if (this.activePointerType === 'mouse' && e.buttons === 0) {
+                    this.cancelPointerDrag(e, 'mouse-button-released');
+                    return;
+                }
+
                 e.preventDefault();
-                const point = this.getBoardPoint(e.clientX, e.clientY);
+                const coalesced = typeof e.getCoalescedEvents === 'function' ? e.getCoalescedEvents() : null;
+                const sample = coalesced && coalesced.length ? coalesced[coalesced.length - 1] : e;
+                const point = this.getBoardPoint(sample.clientX, sample.clientY);
                 this.moveToPoint(point, true);
             }
 
             handlePointerUp(e) {
-                if (e && this.isTouchActive) e.preventDefault();
-
-                this.isTouchActive = false;
-                this.touchDragOffsetX = 0;
-                this.touchDragOffsetY = 0;
-                this.velocityGaugeLastSampleTime = 0;
+                if (!e || this.activePointerId === null || e.pointerId !== this.activePointerId) return;
+                if (this.isTouchActive && e.cancelable) e.preventDefault();
+                this.cancelPointerDrag(e, e.type || 'pointer-end');
             }
 
             // Update player position in DOM
