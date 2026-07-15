@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v307: Restores gameplay music to a simple isolated audio path, separate from transient sound tracking, cleanup scopes, and source limits.
+Build v308: Phase 1 architecture cleanup removes dormant benchmark and legacy collision/UI paths without changing gameplay behavior.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -21,7 +21,7 @@ Orb Control Panel Instrument Reference
 - Velocity Glyph Engine — Temporarily displays the Orb’s finger-driven movement speed.
 - Orb Command Socket — Controls the Orb’s pause, resume, and primary interface functions.
 -->
-<html data-build-version="v307">
+<html data-build-version="v308">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -2644,12 +2644,6 @@ Orb Control Panel Instrument Reference
             --gauge-inactive-color: var(--dark-green-color);
         }
 
-        #blueCrystalGauge {
-            right: var(--hud-side-inset);
-            color: var(--blue-color);
-            --gauge-inactive-color: var(--dark-blue-color);
-        }
-
         /* Recursion Glyph Engine replaces the former right-side Cosmic Zap meter. */
         #recursionGlyphEngine {
             position: absolute;
@@ -2787,11 +2781,6 @@ Orb Control Panel Instrument Reference
             left: var(--hud-side-inset);
             color: #fff;
             display: none;
-        }
-
-        #blueCrystalGaugeIcon {
-            right: var(--hud-side-inset);
-            color: #fff;
         }
 
         .gauge-icon-diamond,
@@ -3198,24 +3187,6 @@ Orb Control Panel Instrument Reference
                              0 0 calc(var(--default-glow) * 3.2px) rgba(255,255,0,0.90),
                              0 0 calc(var(--default-glow) * 5.2px) rgba(255,255,150,0.58);
             }
-        }
-
-        #blueCrystalGauge.powered-off {
-            opacity: 0.38;
-        }
-
-        #blueCrystalGauge.powered-off .crystal-gauge-segment {
-            background: #050505;
-            box-shadow: none;
-            opacity: 0.34;
-        }
-
-        #blueCrystalGaugeIcon.powered-off {
-            opacity: 0.32;
-        }
-
-        #blueCrystalGaugeIcon.powered-off .gauge-icon-zap {
-            box-shadow: none;
         }
 
         .orbital-tally-charge-line {
@@ -3637,7 +3608,6 @@ Orb Control Panel Instrument Reference
 
         /* Every inactive cockpit instrument uses the same frame treatment. */
         #greenCrystalGauge.powered-off,
-        #blueCrystalGauge.powered-off,
         #recursionGlyphEngine.powered-off,
         #timerHud.powered-off,
         #orbitalTallyHud.powered-off,
@@ -7862,50 +7832,7 @@ Orb Control Panel Instrument Reference
 
 
 
-        /* v294 quantitative control-panel benchmark. */
-        #controlPanelBenchmarkStatus {
-            position: fixed;
-            left: 50%;
-            top: max(7px, env(safe-area-inset-top));
-            transform: translateX(-50%);
-            z-index: 5002;
-            display: none;
-            max-width: calc(100vw - 18px);
-            padding: 4px 7px;
-            color: #fff;
-            background: rgba(0, 0, 0, 0.88);
-            border: 1px solid rgba(255, 255, 255, 0.72);
-            font-family: 'Orbitron', 'Courier New', monospace;
-            font-size: clamp(8px, 2.2vw, 11px);
-            line-height: 1.2;
-            letter-spacing: 0.5px;
-            text-align: center;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            pointer-events: none;
-        }
-
-        #controlPanelBenchmarkStatus.visible {
-            display: block;
-        }
-
-        #stabilityReport.benchmark-report {
-            width: min(96vw, 470px);
-            max-height: min(92dvh, 720px);
-            overflow-y: auto;
-            box-sizing: border-box;
-        }
-
-        #stabilityReport.benchmark-report #stabilityReportBody {
-            font-family: 'Courier New', monospace;
-            font-size: clamp(8px, 2.15vw, 11px);
-            line-height: 1.34;
-            white-space: pre-wrap;
-        }
-
-
-        /* v293 diagnostic: remove the control-panel instruments and all of their visual work.
+/* v293 diagnostic: remove the control-panel instruments and all of their visual work.
            The Orb Command Socket remains available so runs can still be started and paused. */
         body.control-panel-diagnostic-disabled #bottomHud {
             flex: 0 0 calc(var(--grid-size, 60px) * 1.92);
@@ -8583,7 +8510,6 @@ Orb Control Panel Instrument Reference
         <div id="stabilityReportBody"></div>
         <button id="stabilityReportDismiss" type="button">DISMISS REPORT</button>
     </div>
-    <div id="controlPanelBenchmarkStatus" role="status" aria-live="polite" aria-atomic="true"></div>
     <!-- Score display -->
     <div id="scoreHud">
         <div id="tutorialHud" role="status" aria-live="polite" aria-atomic="true"></div>
@@ -8937,7 +8863,7 @@ Orb Control Panel Instrument Reference
     </div>
 
     <script>
-        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'v307'}`;
+        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'v308'}`;
 
         // Central diagnostic feature flags. Change values here before loading the page to isolate systems.
         const GAME_FEATURE_FLAGS = window.BLOCKAZOIDS_FEATURE_FLAGS = {
@@ -8956,322 +8882,8 @@ Orb Control Panel Instrument Reference
         };
 
         const CONTROL_PANEL_DIAGNOSTIC_DISABLED = !GAME_FEATURE_FLAGS.controlPanel;
-        const CONTROL_PANEL_BENCHMARK_MODE = false;
         if (CONTROL_PANEL_DIAGNOSTIC_DISABLED) document.body.classList.add('control-panel-diagnostic-disabled');
-        if (CONTROL_PANEL_BENCHMARK_MODE) document.body.classList.add('control-panel-benchmark');
         if (!GAME_FEATURE_FLAGS.visualEffects) document.body.classList.add('feature-visual-effects-off');
-
-        class ControlPanelBenchmark {
-            constructor(ui, game) {
-                this.ui = ui;
-                this.game = game;
-                this.statusElement = document.getElementById('controlPanelBenchmarkStatus');
-                this.components = [
-                    { key: 'border', short: 'BORDER', label: 'Outer Panel Border', run: () => this.ui.updateBottomHudBorder() },
-                    { key: 'ascension', short: 'ASCENSION', label: 'Sector Ascension Array', run: () => this.ui.updateLevelIndicators() },
-                    { key: 'cartouche', short: 'CARTOUCHE', label: 'Sector Cartouche', run: () => this.ui.updateAlienLevelInstrument() },
-                    { key: 'spine', short: 'SPINE', label: 'Crystal Spine', run: () => this.ui.updateCrystalGauges() },
-                    { key: 'nexus', short: 'NEXUS', label: 'Impact Nexus', run: () => this.ui.updateProximityAlert() },
-                    { key: 'chrono', short: 'CHRONO', label: 'Chrono Drift', run: () => this.ui.updateTimerInstrument() },
-                    { key: 'trilock', short: 'TRI-LOCK', label: 'Tri-Lock Singularity', run: () => this.ui.updateTriLockSingularity() },
-                    { key: 'reliquary', short: 'RELIQUARY', label: 'Prism Reliquary', run: () => this.ui.updateOrbitalTallyInstrument() },
-                    { key: 'velocity', short: 'VELOCITY', label: 'Velocity Glyph Engine', run: () => this.ui.updateRecursionGlyphEngine() },
-                    { key: 'socket', short: 'SOCKET', label: 'Orb Command Socket', run: () => this.ui.updateStartPauseButton() }
-                ];
-                this.baselineMeasureMs = 2000;
-                this.componentMeasureMs = 3000;
-                this.warmupMs = 300;
-                this.componentIndex = 0;
-                this.phaseType = 'baseline';
-                this.phaseElapsedMs = 0;
-                this.phaseMetric = this.createMetric();
-                this.pendingBaseline = null;
-                this.results = [];
-                this.started = false;
-                this.completed = false;
-                this.lastTickAt = null;
-                this.lastStatusAt = 0;
-                this.totalMeasuredActiveMs = 0;
-                this.reportShown = false;
-                this.installLayoutReadCounter();
-                window.__blockazoidsControlPanelBenchmark = this;
-            }
-
-            installLayoutReadCounter() {
-                if (window.__blockazoidsBenchmarkLayoutCounterInstalled) return;
-                window.__blockazoidsBenchmarkLayoutCounterInstalled = true;
-                const originalRect = Element.prototype.getBoundingClientRect;
-                Element.prototype.getBoundingClientRect = function(...args) {
-                    const metric = window.__blockazoidsBenchmarkActiveMetric;
-                    if (metric) metric.layoutReads += 1;
-                    return originalRect.apply(this, args);
-                };
-                const originalComputedStyle = window.getComputedStyle.bind(window);
-                window.getComputedStyle = function(...args) {
-                    const metric = window.__blockazoidsBenchmarkActiveMetric;
-                    if (metric) metric.layoutReads += 1;
-                    return originalComputedStyle(...args);
-                };
-            }
-
-            createMetric() {
-                return {
-                    handlerSamples: [],
-                    frameSamples: [],
-                    totalHandlerMs: 0,
-                    measuredMs: 0,
-                    calls: 0,
-                    layoutReads: 0,
-                    errors: 0
-                };
-            }
-
-            percentile(values, percentileValue) {
-                if (!values || !values.length) return 0;
-                const sorted = [...values].sort((a, b) => a - b);
-                const index = Math.min(sorted.length - 1, Math.max(0, Math.ceil((percentileValue / 100) * sorted.length) - 1));
-                return sorted[index] || 0;
-            }
-
-            summarize(metric) {
-                const seconds = Math.max(0.001, metric.measuredMs / 1000);
-                const handlerTotal = metric.totalHandlerMs || 0;
-                const handlerAverage = metric.calls ? handlerTotal / metric.calls : 0;
-                const frameAverage = metric.frameSamples.length
-                    ? metric.frameSamples.reduce((sum, value) => sum + value, 0) / metric.frameSamples.length
-                    : 0;
-                return {
-                    calls: metric.calls,
-                    callsPerSecond: metric.calls / seconds,
-                    handlerAverage,
-                    handlerP95: this.percentile(metric.handlerSamples, 95),
-                    handlerMax: metric.handlerSamples.length ? Math.max(...metric.handlerSamples) : 0,
-                    handlerMsPerSecond: handlerTotal / seconds,
-                    frameAverage,
-                    frameP95: this.percentile(metric.frameSamples, 95),
-                    frameMax: metric.frameSamples.length ? Math.max(...metric.frameSamples) : 0,
-                    slow20PerSecond: metric.frameSamples.filter(value => value > 20).length / seconds,
-                    slow33PerSecond: metric.frameSamples.filter(value => value > 33.4).length / seconds,
-                    layoutReadsPerSecond: metric.layoutReads / seconds,
-                    errors: metric.errors
-                };
-            }
-
-            prepareStaticPanel() {
-                const methods = [
-                    'updateBottomHudBorder',
-                    'updateLevelIndicators',
-                    'updateAlienLevelInstrument',
-                    'updateCrystalGauges',
-                    'updateProximityAlert',
-                    'updateTimerInstrument',
-                    'updateTriLockSingularity',
-                    'updateOrbitalTallyInstrument',
-                    'updateRecursionGlyphEngine',
-                    'updateStartPauseButton'
-                ];
-                methods.forEach(name => {
-                    try {
-                        if (typeof this.ui[name] === 'function') this.ui[name]();
-                    } catch (_) {
-                        // A benchmark setup failure must not stop gameplay.
-                    }
-                });
-            }
-
-            isGameplayMeasurable() {
-                return !!(this.game && this.game.active && this.game.levelActionStarted && !this.game.isPaused && !this.game.isGameOver && !this.game.showHudDuringSectorIntro && !this.game.cycleTransitionActive);
-            }
-
-            currentComponent() {
-                return this.components[Math.min(this.componentIndex, this.components.length - 1)] || null;
-            }
-
-            runCurrentPhase(measure) {
-                const component = this.currentComponent();
-                if (!component || this.phaseType === 'baseline') return;
-                if (!measure) {
-                    try { component.run(); } catch (_) {}
-                    return;
-                }
-                const start = performance.now();
-                window.__blockazoidsBenchmarkActiveMetric = this.phaseMetric;
-                try {
-                    component.run();
-                } catch (_) {
-                    this.phaseMetric.errors += 1;
-                } finally {
-                    window.__blockazoidsBenchmarkActiveMetric = null;
-                }
-                const duration = Math.max(0, performance.now() - start);
-                this.phaseMetric.handlerSamples.push(duration);
-                this.phaseMetric.totalHandlerMs += duration;
-                this.phaseMetric.calls += 1;
-            }
-
-            updateStatus(force = false) {
-                if (!this.statusElement || this.completed) return;
-                const now = performance.now();
-                if (!force && now - this.lastStatusAt < 220) return;
-                this.lastStatusAt = now;
-                const component = this.currentComponent();
-                if (!component) return;
-                const totalMs = this.warmupMs + (this.phaseType === 'baseline' ? this.baselineMeasureMs : this.componentMeasureMs);
-                const progress = Math.max(0, Math.min(100, Math.round((this.phaseElapsedMs / totalMs) * 100)));
-                const phaseLabel = this.phaseType === 'baseline' ? `STATIC BEFORE ${component.short}` : component.short;
-                this.statusElement.textContent = `PANEL BENCH ${this.componentIndex + 1}/${this.components.length} · ${phaseLabel} · ${progress}%`;
-                this.statusElement.classList.add('visible');
-            }
-
-            finishPhase() {
-                const summary = this.summarize(this.phaseMetric);
-                if (this.phaseType === 'baseline') {
-                    this.pendingBaseline = summary;
-                    this.phaseType = 'component';
-                } else {
-                    const component = this.currentComponent();
-                    const baseline = this.pendingBaseline || this.summarize(this.createMetric());
-                    this.results.push({
-                        key: component.key,
-                        short: component.short,
-                        label: component.label,
-                        component: summary,
-                        baseline,
-                        frameP95Delta: summary.frameP95 - baseline.frameP95,
-                        slow20Delta: summary.slow20PerSecond - baseline.slow20PerSecond,
-                        frameAverageDelta: summary.frameAverage - baseline.frameAverage
-                    });
-                    this.componentIndex += 1;
-                    this.pendingBaseline = null;
-                    this.phaseType = 'baseline';
-                }
-                this.phaseElapsedMs = 0;
-                this.phaseMetric = this.createMetric();
-                this.lastTickAt = null;
-
-                if (this.componentIndex >= this.components.length) this.complete();
-            }
-
-            tick() {
-                if (this.completed) return;
-                if (!this.isGameplayMeasurable()) {
-                    this.lastTickAt = null;
-                    if (this.started && this.statusElement) {
-                        this.statusElement.textContent = 'PANEL BENCH · WAITING FOR ACTIVE PLAY';
-                        this.statusElement.classList.add('visible');
-                    }
-                    return;
-                }
-
-                const now = performance.now();
-                if (!this.started) {
-                    this.prepareStaticPanel();
-                    this.started = true;
-                    this.phaseElapsedMs = 0;
-                    this.lastTickAt = now;
-                    if (this.game && this.game.markStabilityEvent) this.game.markStabilityEvent('control-panel-benchmark-start');
-                    this.updateStatus(true);
-                    return;
-                }
-
-                let delta = this.lastTickAt === null ? 0 : now - this.lastTickAt;
-                this.lastTickAt = now;
-                if (!Number.isFinite(delta) || delta < 0 || delta > 120) delta = 0;
-                this.phaseElapsedMs += delta;
-
-                const measuring = this.phaseElapsedMs > this.warmupMs;
-                if (measuring) {
-                    this.phaseMetric.measuredMs += delta;
-                    this.totalMeasuredActiveMs += delta;
-                    if (delta > 0) this.phaseMetric.frameSamples.push(delta);
-                }
-                this.runCurrentPhase(measuring);
-                this.updateStatus();
-
-                const target = this.warmupMs + (this.phaseType === 'baseline' ? this.baselineMeasureMs : this.componentMeasureMs);
-                if (this.phaseElapsedMs >= target) this.finishPhase();
-            }
-
-            getCrashState() {
-                const component = this.currentComponent();
-                const best = [...this.results].sort((a, b) => b.component.handlerMsPerSecond - a.component.handlerMsPerSecond)[0];
-                return {
-                    active: this.started && !this.completed,
-                    completed: this.completed,
-                    componentIndex: Math.min(this.componentIndex, this.components.length),
-                    componentTotal: this.components.length,
-                    phase: this.phaseType,
-                    component: component ? component.label : 'complete',
-                    resultsCompleted: this.results.length,
-                    highestJsSoFar: best ? `${best.short} ${best.component.handlerMsPerSecond.toFixed(2)}ms/s` : 'none'
-                };
-            }
-
-            formatSigned(value, digits = 1) {
-                const safe = Number.isFinite(value) ? value : 0;
-                return `${safe >= 0 ? '+' : ''}${safe.toFixed(digits)}`;
-            }
-
-            buildReportText() {
-                const byJs = [...this.results].sort((a, b) => b.component.handlerMsPerSecond - a.component.handlerMsPerSecond);
-                const byFrame = [...this.results].sort((a, b) => b.frameP95Delta - a.frameP95Delta);
-                const topJs = byJs[0];
-                const topFrame = byFrame[0];
-                const lines = [
-                    `Equal per-frame stress test · ${Math.round(this.totalMeasuredActiveMs / 1000)}s active play`,
-                    `Highest JS: ${topJs ? `${topJs.label} ${topJs.component.handlerMsPerSecond.toFixed(2)} ms/s` : 'none'}`,
-                    `Highest frame penalty: ${topFrame ? `${topFrame.label} ${this.formatSigned(topFrame.frameP95Delta)} ms p95` : 'none'}`,
-                    '',
-                    'RANK  PART        JS/s  CALL95/MAX  ΔF95  ΔSLOW  READ/s'
-                ];
-                byJs.forEach((result, index) => {
-                    const name = result.short.padEnd(10, ' ').slice(0, 10);
-                    const js = result.component.handlerMsPerSecond.toFixed(2).padStart(5, ' ');
-                    const call = `${result.component.handlerP95.toFixed(2)}/${result.component.handlerMax.toFixed(2)}`.padStart(10, ' ');
-                    const frame = this.formatSigned(result.frameP95Delta).padStart(5, ' ');
-                    const slow = this.formatSigned(result.slow20Delta).padStart(6, ' ');
-                    const reads = result.component.layoutReadsPerSecond.toFixed(0).padStart(6, ' ');
-                    lines.push(`${String(index + 1).padStart(2, ' ')}    ${name} ${js} ${call} ${frame} ${slow} ${reads}`);
-                });
-                lines.push('', 'JS/s = panel code milliseconds per second');
-                lines.push('ΔF95 = frame p95 change vs nearby static baseline');
-                lines.push('ΔSLOW = slow frames/sec change vs baseline');
-                return lines.join('\n');
-            }
-
-            complete() {
-                if (this.completed) return;
-                this.completed = true;
-                if (this.statusElement) this.statusElement.classList.remove('visible');
-                if (this.game && this.game.markStabilityEvent) {
-                    const top = [...this.results].sort((a, b) => b.component.handlerMsPerSecond - a.component.handlerMsPerSecond)[0];
-                    this.game.markStabilityEvent('control-panel-benchmark-complete', {
-                        highestJs: top ? top.label : 'none',
-                        highestJsMsPerSecond: top ? top.component.handlerMsPerSecond.toFixed(2) : '0'
-                    });
-                }
-                if (this.game && this.game.active && !this.game.isPaused && typeof this.game.pauseGame === 'function') {
-                    this.game.pauseGame({ showOverlay: false });
-                }
-                this.showReport();
-            }
-
-            showReport() {
-                if (this.reportShown || !this.game) return;
-                const panel = this.game.stabilityReportElement;
-                const title = this.game.stabilityReportTitle;
-                const body = this.game.stabilityReportBody;
-                const button = this.game.stabilityReportDismiss;
-                if (!panel || !title || !body) return;
-                this.reportShown = true;
-                this.game.benchmarkReportActive = true;
-                title.textContent = 'CONTROL PANEL BENCHMARK';
-                body.textContent = this.buildReportText();
-                if (button) button.textContent = 'RESUME GAME';
-                panel.classList.add('visible', 'benchmark-report');
-                panel.setAttribute('aria-hidden', 'false');
-            }
-        }
 
         const splashBuildVersion = document.getElementById('splashBuildVersion');
         if (splashBuildVersion) splashBuildVersion.textContent = BUILD_VERSION;
@@ -10602,10 +10214,7 @@ Orb Control Panel Instrument Reference
                     audioSourceLimitTrips: Number(audio.audioSourceLimitTrips) || 0,
                     audioLastCleanupReason: audio.audioLastCleanupReason || 'unknown',
                     audioCleanupTimers: audio.audioCleanupTimers instanceof Set ? audio.audioCleanupTimers.size : 0,
-                    controlPanel,
-                    benchmark: window.__blockazoidsControlPanelBenchmark && window.__blockazoidsControlPanelBenchmark.getCrashState
-                        ? window.__blockazoidsControlPanelBenchmark.getCrashState()
-                        : null
+                    controlPanel
                 };
             }
 
@@ -10646,7 +10255,6 @@ Orb Control Panel Instrument Reference
                     `Audio cleanup: ${report.audioLastCleanupReason || 'unknown'} · transitions ${report.audioTransitionCleanupCount || 0} · timers ${report.audioManagedTimers || 0} · limit trips ${report.audioSourceLimitTrips || 0}`,
                     `Gameplay music: isolated path · sources ${report.backgroundMusicSources || 0}`,
                     `Control panel: ${CONTROL_PANEL_DIAGNOSTIC_DISABLED ? 'DISABLED' : 'OPTIMIZED'}${report.controlPanel ? ` · live ${report.controlPanel.liveHz || 10}Hz · border rebuilds ${report.controlPanel.borderRebuilds || 0} · timer passes ${report.controlPanel.timerPasses || 0}` : ''}`,
-                    ...(report.benchmark ? [`Benchmark: ${report.benchmark.resultsCompleted || 0}/${report.benchmark.componentTotal || 10} complete · ${report.benchmark.phase || '?'} ${report.benchmark.component || '?'} · top JS ${report.benchmark.highestJsSoFar || 'none'}`] : []),
                     `Viewport: ${report.viewport || '?'} · Board ${report.boardSize || '?'} · Saved ${Math.max(0, Math.round((Date.now() - (report.savedAt || Date.now())) / 1000))}s before reload`
                 ];
                 if (this.stabilityReportTitle) this.stabilityReportTitle.textContent = 'UNEXPECTED WEBPAGE RESET';
@@ -10658,13 +10266,10 @@ Orb Control Panel Instrument Reference
 
             dismissStabilityReport() {
                 if (!this.stabilityReportElement) return;
-                const resumeBenchmark = !!this.benchmarkReportActive;
-                this.benchmarkReportActive = false;
-                this.stabilityReportElement.classList.remove('visible', 'benchmark-report');
+                this.stabilityReportElement.classList.remove('visible');
                 this.stabilityReportElement.setAttribute('aria-hidden', 'true');
                 if (this.stabilityReportTitle) this.stabilityReportTitle.textContent = 'UNEXPECTED WEBPAGE RESET';
                 if (this.stabilityReportDismiss) this.stabilityReportDismiss.textContent = 'DISMISS REPORT';
-                if (resumeBenchmark && this.isPaused && !this.isGameOver && typeof this.resumeGame === 'function') this.resumeGame();
             }
 
             purgeTransientPlayfieldEffects() {
@@ -15769,11 +15374,6 @@ Orb Control Panel Instrument Reference
                     }
                 }
 
-                if (this.player.isOutOfBounds()) {
-                    this.endGame({ deathEnemySize: 'out-of-bounds' });
-                    return;
-                }
-
                 if (this.prismRelic && this.getPlayerPathHitScore(this.prismRelic, movementSegments) !== null) {
                     this.collectPrismRelic();
                 }
@@ -16946,10 +16546,6 @@ Orb Control Panel Instrument Reference
                 this.element.style.top = `${this.y}px`;
             }
 
-            // The player is clamped inside the playfield, so touching the wall is safe.
-            isOutOfBounds() {
-                return false;
-            }
         }
 
         // Warning telegraph shown before an enemy actually appears.
@@ -17126,9 +16722,6 @@ Orb Control Panel Instrument Reference
             }
 
             // Check collision with player
-            collidesWithPlayer() {
-                return this.collidesWith(this.game.player);
-            }
         }
 
         // Optional temporary pickup that appears when about two-thirds of the maximum Block-A-Zoids are active.
@@ -17158,12 +16751,6 @@ Orb Control Panel Instrument Reference
                 this.element.style.top = `${this.y}px`;
             }
 
-            collidesWithPlayer() {
-                return (this.x < this.game.player.x + this.game.player.size &&
-                        this.x + this.size > this.game.player.x &&
-                        this.y < this.game.player.y + this.game.player.size &&
-                        this.y + this.size > this.game.player.y);
-            }
         }
 
         // Crystal class for collectible items
@@ -17189,12 +16776,6 @@ Orb Control Panel Instrument Reference
             }
 
             // Check collision with player
-            collidesWithPlayer() {
-                return (this.x < this.game.player.x + this.game.player.size &&
-                        this.x + this.size > this.game.player.x &&
-                        this.y < this.game.player.y + this.game.player.size &&
-                        this.y + this.size > this.game.player.y);
-            }
         }
 
         // Explosion class for visual effects
@@ -19274,7 +18855,6 @@ startMaxSwarmBeat(delaySeconds = 0) {
             playCountdownBeep: 2600,
             playBonusCountUp: 6500,
             playPrismRelicAppear: 5500,
-            playPrismRelicCollect: 3500,
             playCosmicZapSound: 6500,
             playExplosionSound: 6000,
             playExplosion: 6500,
@@ -20104,38 +19684,6 @@ startMaxSwarmBeat(delaySeconds = 0) {
                     : (powered
                         ? `Tri-Lock Singularity: ${actualZaps} Cosmic Zap${actualZaps === 1 ? '' : 's'} available`
                         : 'Tri-Lock Singularity dimmed'));
-            }
-
-            getZapGaugeCapacity() {
-                if (this.game.active || this.game.isPaused || this.game.isGameOver || this.game.showHudDuringSectorIntro || this.game.hasStartedRun) {
-                    return Math.max(this.game.cosmicZapsLeft, this.game.getCosmicZapsForCurrentCycle());
-                }
-                return this.game.getCosmicZapsForCurrentCycle();
-            }
-
-            renderZapGauge(container) {
-                if (CONTROL_PANEL_DIAGNOSTIC_DISABLED) return;
-                if (!container) return;
-                const powered = !!this.game.cockpitActivated;
-                const segmentCount = Math.max(1, this.getZapGaugeCapacity());
-                const visibleZaps = powered ? Math.max(0, Math.min(segmentCount, this.game.cosmicZapsLeft)) : 0;
-                container.classList.toggle('powered-off', !powered);
-                if (this.blueCrystalGaugeIcon) this.blueCrystalGaugeIcon.classList.toggle('powered-off', !powered);
-                if (container.dataset.segmentCount !== String(segmentCount)) {
-                    container.innerHTML = '';
-                    container.style.gridTemplateRows = `repeat(${segmentCount}, 1fr)`;
-                    for (let i = 0; i < segmentCount; i++) {
-                        const segment = document.createElement('span');
-                        segment.className = 'crystal-gauge-segment';
-                        container.appendChild(segment);
-                    }
-                    container.dataset.segmentCount = String(segmentCount);
-                }
-                [...container.children].forEach((segment, index) => {
-                    const fromBottom = segmentCount - 1 - index;
-                    segment.classList.toggle('filled', fromBottom < visibleZaps);
-                });
-                container.setAttribute('aria-label', `${visibleZaps} of ${segmentCount} Cosmic Zaps remaining`);
             }
 
             updateCrystalGauges() {
