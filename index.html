@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v308: Phase 1 architecture cleanup removes dormant benchmark and legacy collision/UI paths without changing gameplay behavior.
+Build v309: Phase 2A adds a central game-flow controller that mirrors major legacy state transitions without changing gameplay behavior.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -21,7 +21,7 @@ Orb Control Panel Instrument Reference
 - Velocity Glyph Engine — Temporarily displays the Orb’s finger-driven movement speed.
 - Orb Command Socket — Controls the Orb’s pause, resume, and primary interface functions.
 -->
-<html data-build-version="v308">
+<html data-build-version="v309">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -8863,7 +8863,7 @@ Orb Control Panel Instrument Reference
     </div>
 
     <script>
-        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'v308'}`;
+        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'v309'}`;
 
         // Central diagnostic feature flags. Change values here before loading the page to isolate systems.
         const GAME_FEATURE_FLAGS = window.BLOCKAZOIDS_FEATURE_FLAGS = {
@@ -8977,8 +8977,66 @@ Orb Control Panel Instrument Reference
         })();
 
         // Main game class managing state and logic
+        // Phase 2A compatibility controller: one authoritative label mirrors the existing
+        // gameplay flags while legacy checks remain in place for regression safety.
+        const GAME_FLOW_STATES = Object.freeze({
+                SPLASH: 'splash',
+                ATTRACT: 'attract',
+                TUTORIAL: 'tutorial',
+                SECTOR_INTRO: 'sector-intro',
+                PLAYING: 'playing',
+                PAUSED: 'paused',
+                RESUME_COUNTDOWN: 'resume-countdown',
+                SECTOR_RESTORE: 'sector-restore',
+                CYCLE_COMPLETE: 'cycle-complete',
+                FINAL_COMPLETE: 'final-complete',
+                FINAL_GRIDLOCK: 'final-gridlock',
+            GAME_OVER: 'game-over'
+        });
+
+        class GameFlowController {
+            constructor(game) {
+                this.game = game;
+                this.current = GAME_FLOW_STATES.SPLASH;
+                this.previous = null;
+                this.reason = 'constructor';
+                this.changedAt = performance.now();
+                this.revision = 0;
+            }
+
+            enter(nextState, reason = 'unspecified') {
+                if (!Object.values(GAME_FLOW_STATES).includes(nextState)) return false;
+                if (this.current === nextState) {
+                    this.reason = reason;
+                    return false;
+                }
+                this.previous = this.current;
+                this.current = nextState;
+                this.reason = reason;
+                this.changedAt = performance.now();
+                this.revision++;
+                return true;
+            }
+
+            is(state) {
+                return this.current === state;
+            }
+
+            snapshot() {
+                return {
+                    current: this.current,
+                    previous: this.previous,
+                    reason: this.reason,
+                    revision: this.revision,
+                    changedAt: this.changedAt
+                };
+            }
+        }
+
         class Game {
             constructor() {
+                this.flow = new GameFlowController(this);
+
                 // Define RGB color constants for consistency across the game
                 this.RED_COLOR = '#F00';    // Red color constant
                 this.GREEN_COLOR = '#0F0';  // Green color constant
@@ -10149,6 +10207,7 @@ Orb Control Panel Instrument Reference
             }
 
             getStabilityPhase() {
+                if (this.flow && this.flow.current) return this.flow.current;
                 if (this.finalGridlockActive) return 'final-gridlock';
                 if (this.isGameOver) return 'game-over';
                 if (this.isPaused) return 'paused';
@@ -10168,13 +10227,14 @@ Orb Control Panel Instrument Reference
                 const controlPanel = this.ui && this.ui.getControlPanelDiagnosticState ? this.ui.getControlPanelDiagnosticState() : null;
                 return {
                     schema: 'blockazoids-stability-v1',
-                    build: 'v307',
+                    build: 'v309',
                     sessionId: this.stabilitySessionId,
                     savedAt: Date.now(),
                     cleanExit: !!cleanExit,
                     exitReason: exitReason || null,
                     inRun: !!(this.hasStartedRun && !this.isGameOver),
                     phase: this.getStabilityPhase(),
+                    flow: this.flow ? this.flow.snapshot() : null,
                     lastEvent: this.stabilityLastEvent || 'heartbeat',
                     eventDetails: this.stabilityLastEventDetails || {},
                     sector: Number(this.level) || 1,
@@ -11944,6 +12004,7 @@ Orb Control Panel Instrument Reference
 
             // Reset state shared by a fresh level start or a testing jump.
             prepareLevelStart(levelNumber, resetScore = false, options = {}) {
+                this.flow.enter(GAME_FLOW_STATES.SECTOR_INTRO, 'prepare-level-start');
                 if (this.tutorialActive) {
                     this.tutorialActive = false;
                     this.tutorialToken++;
@@ -12072,6 +12133,7 @@ Orb Control Panel Instrument Reference
 
             // Start the current prepared level after the grid appears and a 3-second countdown finishes.
             startPreparedLevel(loadToken, options = {}) {
+                this.flow.enter(GAME_FLOW_STATES.SECTOR_INTRO, 'start-prepared-level');
                 this.activationHowToPending = false;
 
                 this.runIntroAnimation(options)
@@ -12154,6 +12216,7 @@ Orb Control Panel Instrument Reference
                 this.startRunRecordActionClock();
                 this.levelActionStarted = true;
                 this.sectorTransitionActive = false;
+                this.flow.enter(this.finalGridlockActive ? GAME_FLOW_STATES.FINAL_GRIDLOCK : GAME_FLOW_STATES.PLAYING, 'begin-level-action');
                 this.startInputLocked = false;
                 this.syncMotionListenerState();
                 this.ui.updateAll();
@@ -13333,6 +13396,7 @@ Orb Control Panel Instrument Reference
                 this.beginRunRecordPause();
                 this.isPaused = true;
                 this.active = false;
+                this.flow.enter(GAME_FLOW_STATES.PAUSED, 'pause-game');
                 this.syncMotionListenerState();
                 this.setCrtPaused(true);
                 this.setCrtUiSuspended(true);
@@ -13364,6 +13428,7 @@ Orb Control Panel Instrument Reference
                 if (!this.isPaused || this.isGameOver || this.resumeCountdownActive) return;
 
                 this.resumeCountdownActive = true;
+                this.flow.enter(GAME_FLOW_STATES.RESUME_COUNTDOWN, 'resume-countdown');
                 this.menuOpenedAt = 0;
                 this.clearMenuButtonFocus();
                 this.pauseWindow.style.display = 'none';
@@ -13418,6 +13483,7 @@ Orb Control Panel Instrument Reference
                 this.endRunRecordPause();
                 this.isPaused = false;
                 this.active = true;
+                this.flow.enter(this.finalGridlockActive ? GAME_FLOW_STATES.FINAL_GRIDLOCK : GAME_FLOW_STATES.PLAYING, 'resume-live-action');
                 this.syncMotionListenerState();
                 this.setCrtPaused(false);
                 this.setCrtUiSuspended(false);
@@ -13581,6 +13647,7 @@ Orb Control Panel Instrument Reference
             }
 
             startOneTimeIntro() {
+                this.flow.enter(GAME_FLOW_STATES.TUTORIAL, 'start-one-time-intro');
                 this.hideActivationHowToOverlay();
                 this.hasStartedRun = true;
                 this.cockpitActivated = true;
@@ -13977,6 +14044,7 @@ Orb Control Panel Instrument Reference
             }
 
             showTutorialComplete() {
+                this.flow.enter(GAME_FLOW_STATES.SECTOR_INTRO, 'tutorial-complete-transition');
                 if (!this.tutorialActive || this.tutorialStep !== 'relic-collected') return;
                 this.saveIntroCompletionFlag();
                 this.clearTutorialObjects();
@@ -15110,6 +15178,7 @@ Orb Control Panel Instrument Reference
 
             // Dramatic level-ending ritual before the next grid sector begins.
             async runGridRestoreSequence(completedLevel, transitionToken, options = {}) {
+                this.flow.enter(GAME_FLOW_STATES.SECTOR_RESTORE, 'sector-restoration');
                 this.markStabilityEvent('sector-restoration-start', { sector: completedLevel, transitionToken });
                 const fadeMs = 350;
                 const removeEnemies = options.removeEnemies !== false;
@@ -15787,6 +15856,7 @@ Orb Control Panel Instrument Reference
 
             // Start attract mode with Conway's Game of Life pattern, less busy
             startAttractMode() {
+                this.flow.enter(GAME_FLOW_STATES.ATTRACT, 'start-attract-mode');
                 this.stopAttractMode(); // Clear any existing attract mode
                 this.container.classList.remove('crt-shutdown-blackout');
                 this.setCrtPaused(false);
@@ -15983,6 +16053,7 @@ Orb Control Panel Instrument Reference
 
             // Completing the final cycle ends the run instead of opening another cycle.
             async finishFinalCompletion(transitionToken = this.levelLoadToken) {
+                this.flow.enter(GAME_FLOW_STATES.FINAL_COMPLETE, 'final-cycle-complete');
                 if (this.cycleTransitionActive || this.isGameOver) return;
 
                 this.cycleTransitionActive = true;
@@ -16117,6 +16188,7 @@ Orb Control Panel Instrument Reference
             }
 
             async startFinalGridlock() {
+                this.flow.enter(GAME_FLOW_STATES.FINAL_GRIDLOCK, 'start-final-gridlock');
                 if (!this.finalCompletionActive || !this.isGameOver || !this.restartReady) return;
                 const loadToken = ++this.levelLoadToken;
                 this.finalCompletionActive = false;
@@ -16212,6 +16284,7 @@ Orb Control Panel Instrument Reference
                 this.finalCompletionActive = false;
 
                 this.cycleTransitionActive = true;
+                this.flow.enter(GAME_FLOW_STATES.CYCLE_COMPLETE, 'cycle-complete');
                 this.stopRunRecordActionClock();
                 this.active = false;
                 this.levelActionStarted = false;
@@ -16284,6 +16357,7 @@ Orb Control Panel Instrument Reference
                 this.stopRunRecordActionClock();
                 this.active = false; // Pause game
                 this.isGameOver = true;
+                this.flow.enter(GAME_FLOW_STATES.GAME_OVER, endedInFinalGridlock ? 'final-gridlock-game-over' : 'game-over');
                 this.markStabilityEvent('game-over-state', { sector: this.level, cycle: this.cycle, score: this.score });
                 this.restartReady = false;
                 this.ui.updateAll();
