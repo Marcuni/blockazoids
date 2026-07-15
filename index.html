@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v309: Phase 2A adds a central game-flow controller that mirrors major legacy state transitions without changing gameplay behavior.
+Build v310: Phase 2B makes the central game-flow controller authoritative for gameplay input, pause/resume, transition, menu, and terminal-state gates while preserving compatibility fields for rendering.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -21,7 +21,7 @@ Orb Control Panel Instrument Reference
 - Velocity Glyph Engine — Temporarily displays the Orb’s finger-driven movement speed.
 - Orb Command Socket — Controls the Orb’s pause, resume, and primary interface functions.
 -->
-<html data-build-version="v309">
+<html data-build-version="v310">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -8977,8 +8977,9 @@ Orb Control Panel Instrument Reference
         })();
 
         // Main game class managing state and logic
-        // Phase 2A compatibility controller: one authoritative label mirrors the existing
-        // gameplay flags while legacy checks remain in place for regression safety.
+        // Phase 2B flow controller: the flow state is now the authoritative gate for
+        // gameplay input, pause/resume, transitions, menus, and terminal screens.
+        // Legacy fields remain synchronized only where older rendering code still reads them.
         const GAME_FLOW_STATES = Object.freeze({
                 SPLASH: 'splash',
                 ATTRACT: 'attract',
@@ -8991,7 +8992,7 @@ Orb Control Panel Instrument Reference
                 CYCLE_COMPLETE: 'cycle-complete',
                 FINAL_COMPLETE: 'final-complete',
                 FINAL_GRIDLOCK: 'final-gridlock',
-            GAME_OVER: 'game-over'
+                GAME_OVER: 'game-over'
         });
 
         class GameFlowController {
@@ -9020,6 +9021,43 @@ Orb Control Panel Instrument Reference
 
             is(state) {
                 return this.current === state;
+            }
+
+            isAny(...states) {
+                return states.includes(this.current);
+            }
+
+            isLiveAction() {
+                return this.isAny(GAME_FLOW_STATES.PLAYING, GAME_FLOW_STATES.FINAL_GRIDLOCK);
+            }
+
+            isPausedState() {
+                return this.isAny(GAME_FLOW_STATES.PAUSED, GAME_FLOW_STATES.RESUME_COUNTDOWN);
+            }
+
+            isTransition() {
+                return this.isAny(
+                    GAME_FLOW_STATES.SECTOR_INTRO,
+                    GAME_FLOW_STATES.SECTOR_RESTORE,
+                    GAME_FLOW_STATES.CYCLE_COMPLETE,
+                    GAME_FLOW_STATES.FINAL_COMPLETE
+                );
+            }
+
+            isTerminal() {
+                return this.is(GAME_FLOW_STATES.GAME_OVER);
+            }
+
+            allowsGameplayInput() {
+                return this.isLiveAction();
+            }
+
+            allowsPause() {
+                return this.isLiveAction();
+            }
+
+            allowsResume() {
+                return this.is(GAME_FLOW_STATES.PAUSED);
             }
 
             snapshot() {
@@ -11345,7 +11383,7 @@ Orb Control Panel Instrument Reference
                                 this.showHudDuringSectorIntro || this.resumeCountdownActive || this.startInputLocked;
                 if (blocked) return false;
                 if (this.isPaused && !this.isGameOver) return true;
-                if (this.active && this.levelActionStarted && !this.isPaused && !this.isGameOver) return false;
+                if (this.flow.isLiveAction()) return false;
                 if (this.isGameOver) return !!this.restartReady;
                 return !this.active;
             }
@@ -11531,7 +11569,7 @@ Orb Control Panel Instrument Reference
                     return;
                 }
 
-                if (this.active && this.levelActionStarted && !this.isPaused && !this.isGameOver) {
+                if (this.flow.isLiveAction()) {
                     this.pauseGame({ showOverlay: false });
                 }
 
@@ -11552,7 +11590,7 @@ Orb Control Panel Instrument Reference
 
                 this.enableShakeCosmicZap();
 
-                if (this.active && this.levelActionStarted && !this.isPaused && !this.isGameOver) {
+                if (this.flow.isLiveAction()) {
                     this.pauseGame({ showOverlay: false });
                 }
 
@@ -13298,7 +13336,7 @@ Orb Control Panel Instrument Reference
                     return;
                 }
                 this.endTelemetryPause('page-visible');
-                if (this.active && !this.isPaused && !this.isGameOver) {
+                if (this.flow.isLiveAction()) {
                     this.lastFrameTime = performance.now();
                     this.requestWakeLock();
                 }
@@ -13320,15 +13358,15 @@ Orb Control Panel Instrument Reference
                 const showingInstructions = this.instructionsWindow && this.instructionsWindow.style.display !== 'none';
                 const showingPauseShell = this.pauseWindow && this.pauseWindow.style.display === 'flex';
                 const showingMenuPanel = !!this.getCurrentMenuContext();
-                const showingPause = showingPauseShell && (this.isPaused || showingMenuPanel);
+                const showingPause = showingPauseShell && (this.flow.isPausedState() || showingMenuPanel);
                 const showingLevelSelect = this.levelSelectWindow && this.levelSelectWindow.style.display === 'flex';
                 const showingMessagePanel = this.isMessagePanelVisible();
-                const showingResultScreen = !!(this.finalGridlockResultActive || (this.isGameOver && !this.restartReady));
-                const shouldSuspendCrt = !!(showingMenuPanel || this.isPaused || showingLevelSelect || showingInstructions);
+                const showingResultScreen = !!(this.finalGridlockResultActive || (this.flow.is(GAME_FLOW_STATES.GAME_OVER) && !this.restartReady));
+                const shouldSuspendCrt = !!(showingMenuPanel || this.flow.isPausedState() || showingLevelSelect || showingInstructions);
                 this.setCrtUiSuspended(shouldSuspendCrt);
 
                 // Let the Start / Play Again attract colors show clearly.
-                if (showingInstructions && !this.active && !showingPause && !showingLevelSelect && !showingMessagePanel) {
+                if (showingInstructions && this.flow.is(GAME_FLOW_STATES.ATTRACT) && !showingPause && !showingLevelSelect && !showingMessagePanel) {
                     this.setGameOverlayVisible(false);
                     this.syncAttractModeAudio();
                     return;
@@ -13336,7 +13374,7 @@ Orb Control Panel Instrument Reference
 
                 const activeWindow = showingPause || showingLevelSelect || showingMessagePanel;
 
-                if (this.active && !this.isPaused && this.levelActionStarted && !activeWindow) {
+                if (this.flow.isLiveAction() && !activeWindow) {
                     this.setGameOverlayVisible(false);
                     return;
                 }
@@ -13346,7 +13384,7 @@ Orb Control Panel Instrument Reference
             }
 
             clearGameOverlayForGameplay() {
-                if (this.active && !this.isPaused && !this.isGameOver && this.levelActionStarted) {
+                if (this.flow.isLiveAction()) {
                     this.setGameOverlayVisible(false);
                 }
             }
@@ -13359,7 +13397,7 @@ Orb Control Panel Instrument Reference
                 this.screenFadeElement.style.transition = `opacity ${durationMs}ms ease-in-out`;
                 this.screenFadeElement.classList.add('visible');
                 await this.wait(durationMs);
-                return loadToken === this.levelLoadToken && !this.isGameOver;
+                return loadToken === this.levelLoadToken && !this.flow.isTerminal();
             }
 
             async fadeScreenFromBlack(loadToken, durationMs = this.screenFadeDurationMs) {
@@ -13367,7 +13405,7 @@ Orb Control Panel Instrument Reference
                 this.screenFadeElement.classList.remove('visible');
                 this.refreshGameOverlay();
                 await this.wait(durationMs);
-                return loadToken === this.levelLoadToken && !this.isGameOver;
+                return loadToken === this.levelLoadToken && !this.flow.isTerminal();
             }
 
 
@@ -13389,7 +13427,7 @@ Orb Control Panel Instrument Reference
             }
 
             pauseGame(options = {}) {
-                if (!this.active || this.isGameOver || !this.levelActionStarted || this.isPaused) return;
+                if (!this.flow.allowsPause()) return;
                 const showOverlay = !!options.showOverlay;
 
                 this.beginTelemetryPause('manual-pause');
@@ -13425,7 +13463,7 @@ Orb Control Panel Instrument Reference
             }
 
             async resumeGame() {
-                if (!this.isPaused || this.isGameOver || this.resumeCountdownActive) return;
+                if (!this.flow.allowsResume()) return;
 
                 this.resumeCountdownActive = true;
                 this.flow.enter(GAME_FLOW_STATES.RESUME_COUNTDOWN, 'resume-countdown');
@@ -13442,7 +13480,7 @@ Orb Control Panel Instrument Reference
 
                 const loadToken = ++this.levelLoadToken;
                 const countdownCompleted = await this.runResumeCountdown(loadToken);
-                if (!countdownCompleted || loadToken !== this.levelLoadToken || this.isGameOver) {
+                if (!countdownCompleted || loadToken !== this.levelLoadToken || this.flow.isTerminal()) {
                     if (this.audio) this.audio.stopBackgroundMusic();
                     this.resumeCountdownActive = false;
                     return;
@@ -13461,7 +13499,7 @@ Orb Control Panel Instrument Reference
                 this.bonusTextElement.style.opacity = '1';
 
                 for (const step of steps) {
-                    if (loadToken !== this.levelLoadToken || this.isGameOver) break;
+                    if (loadToken !== this.levelLoadToken || this.flow.isTerminal()) break;
                     this.bonusTextElement.textContent = step;
                     if (this.audio) this.audio.playCountdownBeep(false);
                     await wait(1000);
@@ -13472,11 +13510,11 @@ Orb Control Panel Instrument Reference
                 this.bonusTextElement.classList.remove('resumeCountdownText');
                 this.bonusTextElement.textContent = '';
                 this.refreshGameOverlay();
-                return loadToken === this.levelLoadToken && !this.isGameOver;
+                return loadToken === this.levelLoadToken && !this.flow.isTerminal();
             }
 
             resumeLiveAction() {
-                if (!this.isPaused || this.isGameOver) return;
+                if (!this.flow.is(GAME_FLOW_STATES.RESUME_COUNTDOWN)) return;
 
                 this.stopPauseMenuReactorHum();
                 this.endTelemetryPause('manual-resume');
@@ -14119,7 +14157,7 @@ Orb Control Panel Instrument Reference
                 this.playUiClick();
                 this.enableShakeCosmicZap();
 
-                if (this.active && this.levelActionStarted && !this.isPaused && !this.isGameOver) {
+                if (this.flow.isLiveAction()) {
                     this.pauseGame({ showOverlay: true });
                     return;
                 }
@@ -14615,7 +14653,7 @@ Orb Control Panel Instrument Reference
                     this.prismRelicCueTimer = null;
                     if (attemptNumber !== this.gridlockRelicAttemptNumber) return;
                     if (this.prismRelicSpawnedThisSector || this.prismRelicRecoveredThisSector || this.prismRelic) return;
-                    if (!this.active || this.isPaused || this.isGameOver || !this.levelActionStarted) return;
+                    if (!this.flow.isLiveAction()) return;
                     if (!this.maxSwarmActive || this.enemies.length < this.normalSwarmSize) return;
 
                     const center = this.PLAYFIELD_SIZE / 2;
@@ -14633,7 +14671,7 @@ Orb Control Panel Instrument Reference
             checkPrismRelicSpawnProgress() {
                 if (this.finalGridlockActive) return;
                 if (this.prismRelicSpawnedThisSector || this.prismRelicRecoveredThisSector || this.prismRelic || this.prismRelicCueTimer) return;
-                if (!this.active || this.isPaused || this.isGameOver || !this.levelActionStarted) return;
+                if (!this.flow.isLiveAction()) return;
                 if (!this.maxSwarmActive || this.enemies.length < this.normalSwarmSize) return;
                 this.spawnPrismRelic();
             }
@@ -14651,12 +14689,12 @@ Orb Control Panel Instrument Reference
 
             checkMaxSwarmProgress() {
                 if (this.maxSwarmActive || this.maxSwarmCueTimer) return;
-                if (!this.active || this.isPaused || this.isGameOver || !this.levelActionStarted) return;
+                if (!this.flow.isLiveAction()) return;
 
                 if (this.enemies.length >= this.normalSwarmSize) {
                     this.maxSwarmCueTimer = setTimeout(() => {
                         this.maxSwarmCueTimer = null;
-                        if (!this.active || this.isPaused || this.isGameOver || !this.levelActionStarted) return;
+                        if (!this.flow.isLiveAction()) return;
                         if (this.enemies.length < this.normalSwarmSize) return;
                         this.maxSwarmActive = true;
                         this.survivalistEarnedThisSector = true;
@@ -14685,7 +14723,7 @@ Orb Control Panel Instrument Reference
 
             scheduleOvertimeEnemy(delayMs = null) {
                 this.clearOvertimeEnemyTimer();
-                if (!this.overtimeActive || !this.active || this.isPaused || this.isGameOver || !this.levelActionStarted) return;
+                if (!this.overtimeActive || !this.flow.isLiveAction()) return;
 
                 let resolvedDelay = delayMs;
                 if (!Number.isFinite(resolvedDelay)) {
@@ -14701,7 +14739,7 @@ Orb Control Panel Instrument Reference
 
                 this.overtimeEnemyTimer = setTimeout(() => {
                     this.overtimeEnemyTimer = null;
-                    if (!this.overtimeActive || !this.active || this.isPaused || this.isGameOver || !this.levelActionStarted) return;
+                    if (!this.overtimeActive || !this.flow.isLiveAction()) return;
 
                     const warningStarted = this.spawnOvertimeEnemy();
                     if (!warningStarted) this.scheduleOvertimeEnemy(5000);
@@ -14718,7 +14756,7 @@ Orb Control Panel Instrument Reference
             }
 
             spawnOvertimeEnemy() {
-                if (!this.overtimeActive || !this.active || this.isPaused || this.isGameOver || !this.levelActionStarted) return false;
+                if (!this.overtimeActive || !this.flow.isLiveAction()) return false;
                 const type = this.chooseOvertimeEnemyType();
                 return this.startEnemySpawnWarning(type, {
                     requeueOnCancel: false,
@@ -14909,7 +14947,7 @@ Orb Control Panel Instrument Reference
 
             // Main game loop for real-time updates
             gameLoop(timestamp, runToken = this.gameplayRunToken) {
-                if (runToken !== this.gameplayRunToken || !this.active || this.isPaused || this.isGameOver || !this.levelActionStarted) return; // Exit if game is paused, waiting, or over
+                if (runToken !== this.gameplayRunToken || !this.flow.isLiveAction()) return; // Flow state owns live simulation access.
                 const deltaTime = timestamp - this.lastFrameTime; // Time since last frame
                 this.lastFrameTime = timestamp;
                 this.awardSurvivalTimePoints(deltaTime); // +1 point for each active gameplay second
@@ -15033,7 +15071,7 @@ Orb Control Panel Instrument Reference
                     this.pendingSpawnWarnings = this.pendingSpawnWarnings.filter(item => item !== pending);
                     warning.remove();
 
-                    if (!this.active || this.isPaused || this.isGameOver || !this.levelActionStarted) {
+                    if (!this.flow.isLiveAction()) {
                         if (options.requeueOnCancel !== false) this.spawnQueue.unshift(type);
                         return;
                     }
@@ -15056,7 +15094,7 @@ Orb Control Panel Instrument Reference
             // Periodic update for enemy spawning
             updateGame() {
                 this.updateGameTimer = null;
-                if (!this.active || this.isPaused || this.isGameOver || !this.levelActionStarted) return; // Exit if game is paused, waiting, or over
+                if (!this.flow.isLiveAction()) return; // Flow state owns live simulation access.
 
                 if (this.spawnCounter >= this.spawnDelay && 
                     this.enemies.length + this.pendingSpawnWarnings.length < this.normalSwarmSize &&
@@ -15579,7 +15617,7 @@ Orb Control Panel Instrument Reference
             }
 
             canTriggerPlayfieldCosmicZap() {
-                return this.active && !this.isPaused && !this.isGameOver && !this.finalGridlockActive && this.levelActionStarted && this.cosmicZapsLeft > 0;
+                return this.flow.is(GAME_FLOW_STATES.PLAYING) && this.cosmicZapsLeft > 0;
             }
 
             triggerPlayfieldCosmicZapFromDoubleInput(e) {
@@ -15644,7 +15682,7 @@ Orb Control Panel Instrument Reference
             shouldListenForMotion() {
                 if (!GAME_FEATURE_FLAGS.motionShake || !this.motionPermissionGranted || this.splashIntroActive) return false;
                 if (this.isAttractModeActive()) return true;
-                return !!(this.active && !this.isPaused && !this.isGameOver && !this.finalGridlockActive && this.levelActionStarted && this.cosmicZapsLeft > 0);
+                return !!(this.flow.is(GAME_FLOW_STATES.PLAYING) && this.cosmicZapsLeft > 0);
             }
 
             syncMotionListenerState() {
@@ -16581,7 +16619,7 @@ Orb Control Panel Instrument Reference
             // iPhone control: touch must begin on or near the orb, then dragging moves it.
             handlePointerDown(e) {
                 if (this.game.audio) this.game.audio.resume();
-                if (!this.game.active || this.game.isPaused || this.game.isGameOver) return;
+                if (!this.game.flow.allowsGameplayInput()) return;
                 const point = this.getBoardPoint(e.clientX, e.clientY);
                 if (!this.pointIsNearPlayer(point)) return; // Prevent tap-anywhere teleporting.
 
@@ -16597,7 +16635,7 @@ Orb Control Panel Instrument Reference
             }
 
             handlePointerMove(e) {
-                if (!this.game.active || this.game.isPaused || this.game.isGameOver || !this.isTouchActive) return;
+                if (!this.game.flow.allowsGameplayInput() || !this.isTouchActive) return;
                 e.preventDefault();
                 const point = this.getBoardPoint(e.clientX, e.clientY);
                 this.moveToPoint(point, true);
@@ -19147,8 +19185,8 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 const startButton = this.game.startButton;
                 if (!startButton) return;
 
-                const canPause = this.game.active && this.game.levelActionStarted && !this.game.isPaused && !this.game.isGameOver;
-                const canResume = this.game.isPaused && this.game.levelActionStarted && !this.game.isGameOver;
+                const canPause = this.game.flow.allowsPause();
+                const canResume = this.game.flow.allowsResume();
                 const continueCycleReady = this.game.cycleTransitionActive && !!this.game.pendingCycleContinueToken && !this.game.isGameOver;
                 const temporarilyBlocked = (this.game.cycleTransitionActive && !continueCycleReady) || this.game.showHudDuringSectorIntro || this.game.startInputLocked || this.game.finalCompletionActive || (this.game.isGameOver && !this.game.restartReady);
                 const signature = [canPause, canResume, continueCycleReady, temporarilyBlocked, !!this.game.finalGridlockResultActive].join('|');
@@ -19793,7 +19831,7 @@ startMaxSwarmBeat(delaySeconds = 0) {
             }
 
             hasHeadOnCollisionWarning() {
-                if (!this.game.active || this.game.isPaused || this.game.isGameOver || !this.game.levelActionStarted) return false;
+                if (!this.game.flow.isLiveAction()) return false;
                 if (!this.game.player || !this.game.enemies || !this.game.enemies.length) return false;
 
                 const playerCenterX = this.game.player.x + this.game.player.size / 2;
