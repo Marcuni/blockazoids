@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v314: Keeps Orb dragging continuous across tutorial HUD and step changes, removes the blank instruction gap, and reserves drag cancellation for actual tutorial interruptions.
+Build v315: Adds the Phase 3A centralized scheduling manager foundation without migrating or changing existing game timers.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -21,7 +21,7 @@ Orb Control Panel Instrument Reference
 - Velocity Glyph Engine — Temporarily displays the Orb’s finger-driven movement speed.
 - Orb Command Socket — Controls the Orb’s pause, resume, and primary interface functions.
 -->
-<html data-build-version="v314">
+<html data-build-version="v315">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -8863,7 +8863,7 @@ Orb Control Panel Instrument Reference
     </div>
 
     <script>
-        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'v309'}`;
+        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'v315'}`;
 
         // Central diagnostic feature flags. Change values here before loading the page to isolate systems.
         const GAME_FEATURE_FLAGS = window.BLOCKAZOIDS_FEATURE_FLAGS = {
@@ -8995,6 +8995,191 @@ Orb Control Panel Instrument Reference
                 GAME_OVER: 'game-over'
         });
 
+        // Phase 3A scheduling foundation. Existing timers remain native until they are
+        // migrated in small, separately tested groups during later Phase 3 work.
+        class SchedulingManager {
+            constructor() {
+                this.tasksByKey = new Map();
+                this.tasksByToken = new Map();
+                this.sequence = 0;
+            }
+
+            scheduleTimeout(scope, name, callback, delayMs = 0) {
+                this._requireCallback(callback);
+                const record = this._prepareRecord('timeout', scope, name);
+                const delay = Math.max(0, Number(delayMs) || 0);
+
+                const wrappedCallback = (...args) => {
+                    if (!this._isCurrent(record)) return;
+                    try {
+                        callback(...args);
+                    } finally {
+                        this._forget(record);
+                    }
+                };
+
+                record.nativeId = window.setTimeout(wrappedCallback, delay);
+                this._register(record);
+                return record.token;
+            }
+
+            scheduleInterval(scope, name, callback, delayMs = 0) {
+                this._requireCallback(callback);
+                const record = this._prepareRecord('interval', scope, name);
+                const delay = Math.max(0, Number(delayMs) || 0);
+
+                const wrappedCallback = (...args) => {
+                    if (!this._isCurrent(record)) return;
+                    try {
+                        callback(...args);
+                    } catch (error) {
+                        this._cancelRecord(record);
+                        throw error;
+                    }
+                };
+
+                record.nativeId = window.setInterval(wrappedCallback, delay);
+                this._register(record);
+                return record.token;
+            }
+
+            scheduleAnimationFrame(scope, name, callback) {
+                this._requireCallback(callback);
+                const record = this._prepareRecord('animation-frame', scope, name);
+
+                const wrappedCallback = (timestamp) => {
+                    if (!this._isCurrent(record)) return;
+                    try {
+                        callback(timestamp);
+                    } finally {
+                        this._forget(record);
+                    }
+                };
+
+                record.nativeId = window.requestAnimationFrame(wrappedCallback);
+                this._register(record);
+                return record.token;
+            }
+
+            cancelTask(tokenOrScope, name) {
+                let record = null;
+
+                if (name !== undefined) {
+                    const key = this._makeKey(this._normalizeScope(tokenOrScope), this._normalizeName(name));
+                    record = this.tasksByKey.get(key) || null;
+                } else {
+                    record = this.tasksByToken.get(String(tokenOrScope)) || null;
+                }
+
+                if (!record) return false;
+                this._cancelRecord(record);
+                return true;
+            }
+
+            cancelScope(scope) {
+                const normalizedScope = this._normalizeScope(scope);
+                const records = Array.from(this.tasksByKey.values())
+                    .filter((record) => record.scope === normalizedScope);
+
+                records.forEach((record) => this._cancelRecord(record));
+                return records.length;
+            }
+
+            cancelAll() {
+                const records = Array.from(this.tasksByKey.values());
+                records.forEach((record) => this._cancelRecord(record));
+                return records.length;
+            }
+
+            hasTask(scope, name) {
+                const key = this._makeKey(this._normalizeScope(scope), this._normalizeName(name));
+                return this.tasksByKey.has(key);
+            }
+
+            snapshot() {
+                const counts = {
+                    total: this.tasksByKey.size,
+                    timeout: 0,
+                    interval: 0,
+                    animationFrame: 0,
+                    scopes: {}
+                };
+
+                this.tasksByKey.forEach((record) => {
+                    if (record.type === 'timeout') counts.timeout++;
+                    if (record.type === 'interval') counts.interval++;
+                    if (record.type === 'animation-frame') counts.animationFrame++;
+                    counts.scopes[record.scope] = (counts.scopes[record.scope] || 0) + 1;
+                });
+
+                return counts;
+            }
+
+            _prepareRecord(type, scope, name) {
+                const taskNumber = ++this.sequence;
+                const normalizedScope = this._normalizeScope(scope);
+                const normalizedName = this._normalizeName(name, `${type}-${taskNumber}`);
+
+                this.cancelTask(normalizedScope, normalizedName);
+
+                return {
+                    type,
+                    scope: normalizedScope,
+                    name: normalizedName,
+                    key: this._makeKey(normalizedScope, normalizedName),
+                    token: `scheduled-task-${taskNumber}`,
+                    nativeId: null
+                };
+            }
+
+            _register(record) {
+                this.tasksByKey.set(record.key, record);
+                this.tasksByToken.set(record.token, record);
+            }
+
+            _isCurrent(record) {
+                return this.tasksByKey.get(record.key) === record;
+            }
+
+            _forget(record) {
+                if (this.tasksByKey.get(record.key) === record) {
+                    this.tasksByKey.delete(record.key);
+                }
+                if (this.tasksByToken.get(record.token) === record) {
+                    this.tasksByToken.delete(record.token);
+                }
+            }
+
+            _cancelRecord(record) {
+                if (record.nativeId !== null) {
+                    if (record.type === 'timeout') window.clearTimeout(record.nativeId);
+                    if (record.type === 'interval') window.clearInterval(record.nativeId);
+                    if (record.type === 'animation-frame') window.cancelAnimationFrame(record.nativeId);
+                }
+                this._forget(record);
+            }
+
+            _normalizeScope(scope) {
+                const value = String(scope ?? '').trim();
+                return value || 'global';
+            }
+
+            _normalizeName(name, fallback = '') {
+                const value = String(name ?? '').trim();
+                return value || fallback;
+            }
+
+            _makeKey(scope, name) {
+                return `${scope}\u0000${name}`;
+            }
+
+            _requireCallback(callback) {
+                if (typeof callback !== 'function') {
+                    throw new TypeError('SchedulingManager callback must be a function.');
+                }
+            }
+        }
+
         class GameFlowController {
             constructor(game) {
                 this.game = game;
@@ -9086,6 +9271,7 @@ Orb Control Panel Instrument Reference
 
         class Game {
             constructor() {
+                this.scheduler = new SchedulingManager();
                 this.flow = new GameFlowController(this);
 
                 // Define RGB color constants for consistency across the game
@@ -10285,7 +10471,7 @@ Orb Control Panel Instrument Reference
                 const controlPanel = this.ui && this.ui.getControlPanelDiagnosticState ? this.ui.getControlPanelDiagnosticState() : null;
                 return {
                     schema: 'blockazoids-stability-v1',
-                    build: 'v314',
+                    build: 'v315',
                     sessionId: this.stabilitySessionId,
                     savedAt: Date.now(),
                     cleanExit: !!cleanExit,
