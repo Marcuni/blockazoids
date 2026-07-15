@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v304: Refines the deterministic tutorial, restores a visible neutral CRT halo, centers Launch Setup controls, and normalizes menu sizing and title styles.
+Build v305: Enlarges the visible Orb without changing collision size, refines High Score and Settings spacing, matches the Launch Setup icon, adds a subtle blue CRT halo, and delays the tutorial Relic prompt.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -21,7 +21,7 @@ Orb Control Panel Instrument Reference
 - Velocity Glyph Engine — Temporarily displays the Orb’s finger-driven movement speed.
 - Orb Command Socket — Controls the Orb’s pause, resume, and primary interface functions.
 -->
-<html data-build-version="v304">
+<html data-build-version="v305">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -8479,6 +8479,92 @@ Orb Control Panel Instrument Reference
             filter: url(#crtOuterGlowFarBlur) !important;
         }
 
+    
+
+        /* v305: stronger visual Orb presence, unified title weight, compact records, and a subtle monitor-tinted halo. */
+        .menu-panel-title,
+        .how-to-panel-title,
+        #scoringPanel #scoringHighScoreLabel {
+            font-weight: 400 !important;
+        }
+
+        /* Match the Launch Setup grid symbol to the visual footprint of the other three shortcuts. */
+        .launch-cycle-grid-icon {
+            width: 68% !important;
+            height: 68% !important;
+        }
+
+        /* Keep the title style unchanged while adding breathing room before the first Settings item. */
+        #settingsPanelTitle + #soundToggleButton {
+            margin-top: clamp(10px, 3vw, 16px);
+        }
+
+        /* Keep the record near the top and prevent the score value from dominating the page. */
+        #highScorePanel .high-score-panel-value,
+        #scoringPanel #scoringHighScoreValue {
+            flex: 0 0 auto !important;
+            min-height: 0 !important;
+            margin: clamp(3px, 1vw, 6px) 0 clamp(9px, 2.5vw, 14px) !important;
+            font-size: clamp(34px, 10.5vw, 58px) !important;
+            line-height: 1 !important;
+            letter-spacing: clamp(1px, 0.6vw, 3px) !important;
+        }
+        #highScorePanel .high-score-panel-details,
+        #scoringPanel .scoring-high-score-run-line {
+            margin-top: 0 !important;
+            margin-bottom: clamp(10px, 3vw, 18px) !important;
+        }
+        #scoringPanel .scoring-record-area {
+            flex: 0 0 auto !important;
+            min-height: 0 !important;
+            justify-content: flex-start !important;
+        }
+        #highScorePanel #highScoreBackButton,
+        #scoringPanel #scoringBackButton {
+            margin-top: auto !important;
+        }
+
+        /* The collision geometry stays unchanged; only the visible Orb grows by roughly fifteen percent. */
+        #player {
+            background: transparent !important;
+            border-color: transparent !important;
+        }
+        #player::before {
+            content: "";
+            position: absolute;
+            inset: -7.5%;
+            box-sizing: border-box;
+            border-radius: 50%;
+            background: #fff;
+            border: 1px solid #fff;
+            box-shadow: 0 0 calc(var(--default-glow) * 0.8px) #fff;
+            pointer-events: none;
+        }
+
+        /* Neutral white glass edge with a slightly larger, softly blue monitor halo. */
+        .playfield-crt-outline .crt-outline-line {
+            stroke: rgba(244,246,248,0.76) !important;
+            stroke-width: 0.86 !important;
+        }
+        .playfield-crt-outer-glow .glow-single {
+            stroke: rgba(188,230,255,0.96) !important;
+        }
+        #playfieldShell.crt-enabled.crt-fx-glow.crt-glow-low:not(.crt-ui-suspended) .glow-single {
+            opacity: 0.30 !important;
+            stroke-width: 6px !important;
+            filter: url(#crtOuterGlowMidBlur) !important;
+        }
+        #playfieldShell.crt-enabled.crt-fx-glow.crt-glow-medium:not(.crt-ui-suspended) .glow-single {
+            opacity: 0.44 !important;
+            stroke-width: 8.5px !important;
+            filter: url(#crtOuterGlowFarBlur) !important;
+        }
+        #playfieldShell.crt-enabled.crt-fx-glow.crt-glow-high:not(.crt-ui-suspended) .glow-single {
+            opacity: 0.58 !important;
+            stroke-width: 10.5px !important;
+            filter: url(#crtOuterGlowFarBlur) !important;
+        }
+
     </style>
 </head>
 <body class="crt-phosphor-calibration">
@@ -8851,7 +8937,7 @@ Orb Control Panel Instrument Reference
     </div>
 
     <script>
-        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'v303'}`;
+        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'v305'}`;
 
         // Central diagnostic feature flags. Change values here before loading the page to isolate systems.
         const GAME_FEATURE_FLAGS = window.BLOCKAZOIDS_FEATURE_FLAGS = {
@@ -9587,6 +9673,7 @@ Orb Control Panel Instrument Reference
                 this.tutorialGridlockSpeedMultiplier = 1.12;
                 this.tutorialRetryMessageMs = 900;
                 this.tutorialGreatMessageMs = 1000;
+                this.tutorialRelicPromptDelayMs = 1000;
                 this.tutorialGridlockStartDelayMs = 1000;
                 this.tutorialGridlockSpawnIntervalMs = 5000;
                 this.tutorialHudGapMs = 300;
@@ -9597,6 +9684,7 @@ Orb Control Panel Instrument Reference
                 this.tutorialEnemySpawned = false;
                 this.tutorialCrystal = null;
                 this.tutorialRelicCollected = false;
+                this.tutorialRelicReady = false;
                 this.resumeCountdownActive = false;   // Blocks repeated resume clicks during the short countdown.
                 this.updateGameTimer = null;          // Enemy spawn timer so pause/resume cannot duplicate spawn loops
                 this.gameplayRunToken = 0;            // Invalidates old animation frames when pausing/restarting
@@ -13871,6 +13959,7 @@ Orb Control Panel Instrument Reference
                 this.crystals = [];
                 this.activeBlinkingCrystals = [];
                 this.tutorialCrystal = null;
+                this.tutorialRelicReady = false;
                 if (this.prismRelic) {
                     try { this.prismRelic.element.remove(); } catch (_) {}
                     this.prismRelic = null;
@@ -13908,6 +13997,7 @@ Orb Control Panel Instrument Reference
                 this.tutorialEnemyAvoidMs = 0;
                 this.tutorialEnemySpawned = false;
                 this.tutorialRelicCollected = false;
+                this.tutorialRelicReady = false;
                 this.cosmicZapsLeft = 0;
                 this.cosmicZapPressure = 0;
                 this.active = true;
@@ -13996,6 +14086,7 @@ Orb Control Panel Instrument Reference
                     });
                 } else if (step === 'relic') {
                     this.cosmicZapsLeft = 0;
+                    this.tutorialRelicReady = false;
                     const center = this.PLAYFIELD_SIZE / 2;
                     const x = center - this.PRISM_RELIC_SIZE / 2;
                     const y = center - this.PRISM_RELIC_SIZE / 2;
@@ -14003,7 +14094,16 @@ Orb Control Panel Instrument Reference
                     this.audio.playPrismRelicAppear();
                     this.audio.startPrismRelicHum();
                     if (!options.preserveHud) {
-                        this.showTutorialHudMessage('COLLECT THE RELIC', 5, { expectedStep: 'relic' });
+                        this.tutorialStepTimer = setTimeout(() => {
+                            this.tutorialStepTimer = null;
+                            if (!this.tutorialActive || this.tutorialStep !== 'relic' || !this.prismRelic) return;
+                            this.showTutorialHudMessage('COLLECT THE RELIC', 5, {
+                                expectedStep: 'relic',
+                                onShown: () => { this.tutorialRelicReady = true; }
+                            });
+                        }, this.tutorialRelicPromptDelayMs);
+                    } else {
+                        this.tutorialRelicReady = true;
                     }
                 }
 
@@ -14141,6 +14241,7 @@ Orb Control Panel Instrument Reference
                 this.tutorialRafId = null;
                 this.clearTutorialObjects();
                 this.tutorialRelicCollected = false;
+                this.tutorialRelicReady = false;
                 this.tutorialEnemyAvoidMs = 0;
                 this.tutorialEnemySpawned = false;
                 this.player.reset();
@@ -14210,7 +14311,7 @@ Orb Control Panel Instrument Reference
                             this.setTutorialStep('zap');
                         }
                     } else if (this.tutorialStep === 'relic' && !hit) {
-                        if (this.prismRelic && this.getPlayerPathHitScore(this.prismRelic, segments) !== null) {
+                        if (this.tutorialRelicReady && this.prismRelic && this.getPlayerPathHitScore(this.prismRelic, segments) !== null) {
                             this.completeOneTimeIntro();
                             return;
                         }
@@ -14248,6 +14349,7 @@ Orb Control Panel Instrument Reference
             completeOneTimeIntro() {
                 if (!this.tutorialActive || this.tutorialStep !== 'relic' || this.tutorialRelicCollected) return;
                 this.tutorialRelicCollected = true;
+                this.tutorialRelicReady = false;
                 this.audio.playPrismRelicCollect();
                 this.audio.stopPrismRelicHum();
                 if (this.prismRelic) {
