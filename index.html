@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v321: Captures tutorial touches at the page level and recovers a missed first touch from the first movement sample so the Orb responds immediately; retains the corrected Launch Setup icon size.
+Build v322: Fully resets the previous game and tutorial lifecycle when Reset Intro Completion is used, preventing stale gameplay timers, transitions, or input state from blocking the Orb on repeated tutorial runs; retains the v321 page-level tutorial touch capture and corrected Launch Setup icon size.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -21,7 +21,7 @@ Orb Control Panel Instrument Reference
 - Velocity Glyph Engine — Temporarily displays the Orb’s finger-driven movement speed.
 - Orb Command Socket — Controls the Orb’s pause, resume, and primary interface functions.
 -->
-<html data-build-version="v321">
+<html data-build-version="v322">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -8836,7 +8836,7 @@ Orb Control Panel Instrument Reference
     </div>
 
     <script>
-        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'v321'}`;
+        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'v322'}`;
 
         // Central diagnostic feature flags. Change values here before loading the page to isolate systems.
         const GAME_FEATURE_FLAGS = window.BLOCKAZOIDS_FEATURE_FLAGS = {
@@ -10468,7 +10468,7 @@ Orb Control Panel Instrument Reference
                 const controlPanel = this.ui && this.ui.getControlPanelDiagnosticState ? this.ui.getControlPanelDiagnosticState() : null;
                 return {
                     schema: 'blockazoids-stability-v1',
-                    build: 'v321',
+                    build: 'v322',
                     sessionId: this.stabilitySessionId,
                     savedAt: Date.now(),
                     cleanExit: !!cleanExit,
@@ -13749,11 +13749,118 @@ Orb Control Panel Instrument Reference
                 this.introCompleted = true;
             }
 
+            // Return the game to the same clean lifecycle state used before the first-ever tutorial.
+            // Clearing only the saved completion flag can leave an older gameplay loop, countdown,
+            // transition, or drag revision alive long enough to close the second tutorial input window.
+            resetForTutorialReplay() {
+                ++this.levelLoadToken;       // Invalidates pending intro/countdown/transition promises.
+                ++this.gameplayRunToken;     // Invalidates any older requestAnimationFrame game loop.
+                ++this.tutorialToken;        // Invalidates any older tutorial animation frame.
+
+                if (this.tutorialRafId !== null) {
+                    cancelAnimationFrame(this.tutorialRafId);
+                    this.tutorialRafId = null;
+                }
+
+                this.clearUpdateGameTimer();
+                this.clearMaxSwarmCueTimer();
+                this.clearPrismRelicCueTimer();
+                this.clearOvertimeEnemyTimer();
+                this.clearTutorialStepTimer();
+                this.clearTutorialHudTimer();
+                this.scheduler.cancelScope('ui');
+                this.scheduler.cancelScope('ui-effects');
+                this.scheduler.cancelScope('visual-effects');
+
+                this.stopRunRecordActionClock();
+                if (this.currentTelemetryRun && !this.currentTelemetryRun.endedAt) {
+                    this.finishTelemetryRun('intro-reset');
+                }
+
+                this.stopAttractMode();
+                this.clearTutorialObjects();
+                this.clearGameplayObjects();
+                this.clearPendingSpawnWarnings(true);
+                this.releaseWakeLock();
+
+                this.tutorialActive = false;
+                this.tutorialStep = '';
+                this.tutorialStepStartedAt = 0;
+                this.tutorialLastFrameTime = 0;
+                this.tutorialMovementDistance = 0;
+                this.tutorialMovementQualified = false;
+                this.tutorialEnemyAvoidMs = 0;
+                this.tutorialEnemySpawned = false;
+                this.tutorialEnemy = null;
+                this.tutorialCrystal = null;
+                this.tutorialRelicCollected = false;
+                this.tutorialRelicReady = false;
+
+                this.active = false;
+                this.levelActionStarted = false;
+                this.isPaused = false;
+                this.resumeCountdownActive = false;
+                this.showHudDuringSectorIntro = false;
+                this.startInputLocked = false;
+                this.sectorTransitionActive = false;
+                this.cycleTransitionActive = false;
+                this.pendingCycleContinueToken = null;
+                this.isGameOver = false;
+                this.restartReady = true;
+                this.finalCompletionActive = false;
+                this.finalGridlockActive = false;
+                this.finalGridlockResultActive = false;
+                this.finalGridlockElapsedMs = 0;
+
+                this.level = 1;
+                this.cycle = 1;
+                this.selectedStartSector = 1;
+                this.selectedStartCycle = 1;
+                this.score = 0;
+                this.cosmicZapsLeft = 0;
+                this.cosmicZapPressure = 0;
+                this.hasStartedRun = false;
+                this.activationHowToPending = false;
+                this.cockpitActivated = false;
+                this.cockpitSectorDisplayName = '';
+                this.cockpitSectorDisplayLevel = null;
+
+                document.body.classList.remove('tutorial-active');
+                document.body.classList.remove('tutorial-pending');
+                this.container.classList.remove('gridRestoreSequence', 'cycleCelebrationSequence', 'cycleRestoredIdle', 'crt-shutdown-blackout');
+                this.screenFadeElement.classList.remove('visible');
+                this.hideCycleContinueButton();
+                this.closeBottomPanelOverlay();
+                this.pauseWindow.style.display = 'none';
+                this.levelSelectWindow.style.display = 'none';
+                this.setGameOverlayVisible(false);
+                this.setCrtPaused(false);
+                this.setCrtUiSuspended(false);
+                this.clearCrtEventEffects();
+
+                if (this.audio) {
+                    this.audio.stopBackgroundMusic();
+                    this.audio.stopMaxSwarmBeat();
+                    this.audio.stopPrismRelicHum();
+                    if (typeof this.audio.stopCycleCompleteMusic === 'function') this.audio.stopCycleCompleteMusic();
+                    if (typeof this.audio.resetForSectorTransition === 'function') this.audio.resetForSectorTransition();
+                }
+
+                this.player.reset();
+                this.player.invalidateDragSession('tutorial-replay-reset');
+                this.flow.enter(GAME_FLOW_STATES.ATTRACT, 'tutorial-replay-reset');
+                this.startAttractMode();
+                this.showActivationHowToOverlay();
+                this.syncMotionListenerState();
+                this.ui.updateAll();
+                this.refreshGameOverlay();
+            }
+
             resetIntroCompletionFlag() {
                 try { localStorage.removeItem(this.introCompletionStorageKey); } catch (_) {}
                 this.introCompleted = false;
-                if (!this.hasStartedRun) this.showActivationHowToOverlay();
-                this.setTelemetryStatus('Intro reset. The next new game will start with the tutorial.');
+                this.resetForTutorialReplay();
+                this.setTelemetryStatus('Intro reset. Start begins a clean tutorial replay.');
             }
 
             updateInvincibilityToggleLabel() {
@@ -13853,6 +13960,20 @@ Orb Control Panel Instrument Reference
             }
 
             startOneTimeIntro() {
+                // A replay can be requested from a previously active, paused, completed, or
+                // transitioning run. Invalidate every older simulation path before opening the
+                // tutorial input window so only this tutorial instance can change game state.
+                ++this.levelLoadToken;
+                ++this.gameplayRunToken;
+                this.clearUpdateGameTimer();
+                this.clearMaxSwarmCueTimer();
+                this.clearPrismRelicCueTimer();
+                this.clearOvertimeEnemyTimer();
+                if (this.tutorialRafId !== null) {
+                    cancelAnimationFrame(this.tutorialRafId);
+                    this.tutorialRafId = null;
+                }
+
                 this.hideActivationHowToOverlay();
                 this.hasStartedRun = true;
                 this.cockpitActivated = true;
