@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v306: Adds automatic gameplay-music recovery when Safari drops the looping background source while preserving sound effects and the active sector.
+Build v307: Restores gameplay music to a simple isolated audio path, separate from transient sound tracking, cleanup scopes, and source limits.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -21,7 +21,7 @@ Orb Control Panel Instrument Reference
 - Velocity Glyph Engine — Temporarily displays the Orb’s finger-driven movement speed.
 - Orb Command Socket — Controls the Orb’s pause, resume, and primary interface functions.
 -->
-<html data-build-version="v306">
+<html data-build-version="v307">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -8937,7 +8937,7 @@ Orb Control Panel Instrument Reference
     </div>
 
     <script>
-        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'v306'}`;
+        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'v307'}`;
 
         // Central diagnostic feature flags. Change values here before loading the page to isolate systems.
         const GAME_FEATURE_FLAGS = window.BLOCKAZOIDS_FEATURE_FLAGS = {
@@ -10556,7 +10556,7 @@ Orb Control Panel Instrument Reference
                 const controlPanel = this.ui && this.ui.getControlPanelDiagnosticState ? this.ui.getControlPanelDiagnosticState() : null;
                 return {
                     schema: 'blockazoids-stability-v1',
-                    build: 'v306',
+                    build: 'v307',
                     sessionId: this.stabilitySessionId,
                     savedAt: Date.now(),
                     cleanExit: !!cleanExit,
@@ -10591,8 +10591,6 @@ Orb Control Panel Instrument Reference
                     musicMuted: !!audio.musicMuted,
                     backgroundMusicPlaying: !!audio.backgroundMusicPlaying,
                     backgroundMusicSources: Array.isArray(audio.backgroundOscillators) ? audio.backgroundOscillators.length : 0,
-                    backgroundMusicRecoveryCount: Number(audio.backgroundMusicRecoveryCount) || 0,
-                    backgroundMusicLastRecoveryReason: audio.backgroundMusicLastRecoveryReason || 'none',
                     audioContextState: audio.ctx ? audio.ctx.state : 'off',
                     audioContextGeneration: Number(audio.audioContextGeneration) || 0,
                     audioNodesCreatedThisContext: Number(audio.audioNodesCreatedThisContext) || 0,
@@ -10646,7 +10644,7 @@ Orb Control Panel Instrument Reference
                     `Objects: ${report.enemies || 0} enemies · ${report.warnings || 0} warnings · ${report.transientEffects || 0} effects · ${report.documentNodes || 0} DOM nodes`,
                     `Audio: ${report.soundMuted ? 'OFF' : 'ON'} · context ${report.audioContextState || 'unknown'} #${report.audioContextGeneration || 0} · nodes ${report.audioNodesCreatedThisContext || 0}/${report.audioNodesCreatedTotal || 0} · tracked ${report.audioTrackedNodes || 0} · active sources ${report.audioSourcesActive || 0}`,
                     `Audio cleanup: ${report.audioLastCleanupReason || 'unknown'} · transitions ${report.audioTransitionCleanupCount || 0} · timers ${report.audioManagedTimers || 0} · limit trips ${report.audioSourceLimitTrips || 0}`,
-                    `Music recovery: ${report.backgroundMusicRecoveryCount || 0} · ${report.backgroundMusicLastRecoveryReason || 'none'} · sources ${report.backgroundMusicSources || 0}`,
+                    `Gameplay music: isolated path · sources ${report.backgroundMusicSources || 0}`,
                     `Control panel: ${CONTROL_PANEL_DIAGNOSTIC_DISABLED ? 'DISABLED' : 'OPTIMIZED'}${report.controlPanel ? ` · live ${report.controlPanel.liveHz || 10}Hz · border rebuilds ${report.controlPanel.borderRebuilds || 0} · timer passes ${report.controlPanel.timerPasses || 0}` : ''}`,
                     ...(report.benchmark ? [`Benchmark: ${report.benchmark.resultsCompleted || 0}/${report.benchmark.componentTotal || 10} complete · ${report.benchmark.phase || '?'} ${report.benchmark.component || '?'} · top JS ${report.benchmark.highestJsSoFar || 'none'}`] : []),
                     `Viewport: ${report.viewport || '?'} · Board ${report.boardSize || '?'} · Saved ${Math.max(0, Math.round((Date.now() - (report.savedAt || Date.now())) / 1000))}s before reload`
@@ -11966,10 +11964,8 @@ Orb Control Panel Instrument Reference
                 const bestSector = runs.reduce((max, run) => Math.max(max, run.highestSectorReached || 0), 0);
                 const bestScore = runs.reduce((max, run) => Math.max(max, run.finalScore || 0), 0);
                 const recoveredLine = this.telemetry && this.telemetry.recoveredActiveRuns ? `\nRecovered Runs: ${this.telemetry.recoveredActiveRuns}` : '';
-                const musicRecoveryCount = this.audio ? (Number(this.audio.backgroundMusicRecoveryCount) || 0) : 0;
-                const musicRecoveryReason = this.audio ? (this.audio.backgroundMusicLastRecoveryReason || 'none') : 'none';
                 this.telemetrySummary.textContent = this.developerModeEnabled ?
-                    `Runs: ${runs.length}\nSector Attempts: ${sectors.length}\nCompleted Sectors: ${completed}\nDeaths: ${deaths}\nGridlock Reached: ${gridlocks}\nGridlock Bonuses: ${relics}\nCosmic Zaps Used: ${zaps}\nBest Sector: ${bestSector}\nBest Score: ${bestScore}\nMusic Recoveries: ${musicRecoveryCount}\nLast Music Recovery: ${musicRecoveryReason}${recoveredLine}` :
+                    `Runs: ${runs.length}\nSector Attempts: ${sectors.length}\nCompleted Sectors: ${completed}\nDeaths: ${deaths}\nGridlock Reached: ${gridlocks}\nGridlock Bonuses: ${relics}\nCosmic Zaps Used: ${zaps}\nBest Sector: ${bestSector}\nBest Score: ${bestScore}${recoveredLine}` :
                     'Developer Mode required. Tap the score ten times to unlock.';
             }
 
@@ -15243,7 +15239,6 @@ Orb Control Panel Instrument Reference
                 if (runToken !== this.gameplayRunToken || !this.active || this.isPaused || this.isGameOver || !this.levelActionStarted) return; // Exit if game is paused, waiting, or over
                 const deltaTime = timestamp - this.lastFrameTime; // Time since last frame
                 this.lastFrameTime = timestamp;
-                if (this.audio && this.audio.checkBackgroundMusicHealth) this.audio.checkBackgroundMusicHealth(timestamp);
                 this.awardSurvivalTimePoints(deltaTime); // +1 point for each active gameplay second
                 this.updatePrismRelic(deltaTime); // Update optional Prism Relic timer
                 this.updateEnemies(deltaTime); // Update enemy positions
@@ -17293,11 +17288,6 @@ Orb Control Panel Instrument Reference
                 this.audioSourceLimit = 96;
                 this.audioSourceLimitTrips = 0;
                 this.audioLastCleanupReason = 'boot';
-                this.backgroundMusicRecoveryCount = 0;
-                this.backgroundMusicLastRecoveryReason = 'none';
-                this.backgroundMusicLastRecoveryAt = 0;
-                this.backgroundMusicWatchdogLastCheckMs = 0;
-                this.backgroundMusicRecoveryCooldownMs = 900;
                 if (!this.muted) this.createAudioContext();
             }
 
@@ -17480,6 +17470,10 @@ Orb Control Panel Instrument Reference
 
             cleanupTransientAudio(reason = 'cleanup') {
                 this.audioLastCleanupReason = String(reason || 'cleanup');
+
+                // Gameplay music uses native, untracked Web Audio nodes. Stop it explicitly
+                // before transient cleanup so sector transitions cannot orphan or stack loops.
+                this.stopBackgroundMusic();
 
                 this.backgroundTimers.forEach(timer => clearTimeout(timer));
                 this.maxSwarmBeatTimers.forEach(timer => clearTimeout(timer));
@@ -17725,14 +17719,23 @@ startMaxSwarmBeat(delaySeconds = 0) {
                         oldMix.gain.setValueAtTime(currentLevel, Math.max(now, loopStart - 0.012));
                         oldMix.gain.linearRampToValueAtTime(0.001, loopStart + 0.030);
                     } catch (_) {}
-                    this.scheduleAudioTimer(() => {
+                    window.setTimeout(() => {
                         try { oldMix.disconnect(); } catch (_) {}
                     }, Math.max(160, (loopStart - now) * 1000 + 240));
                 }
 
-                const shaper = this.createSoftClipper ? this.createSoftClipper(1.18) : null;
+                // Keep gameplay music entirely outside transient node tracking and source limits.
+                const shaper = this.ctx.createWaveShaper();
+                const shaperSamples = 256;
+                const shaperCurve = new Float32Array(shaperSamples);
+                for (let i = 0; i < shaperSamples; i++) {
+                    const x = (i * 2 / (shaperSamples - 1)) - 1;
+                    shaperCurve[i] = Math.tanh(x * 1.18);
+                }
+                shaper.curve = shaperCurve;
+                shaper.oversample = '2x';
                 this.maxSwarmBeatShaper = shaper;
-                this.backgroundMixGain = this.createAudioNode('createGain');
+                this.backgroundMixGain = this.ctx.createGain();
                 this.backgroundMixGain.gain.setValueAtTime(0.001, now);
                 this.backgroundMixGain.gain.setValueAtTime(0.001, Math.max(now, loopStart - 0.012));
                 this.backgroundMixGain.gain.linearRampToValueAtTime(0.42, loopStart + 0.018);
@@ -17744,7 +17747,7 @@ startMaxSwarmBeat(delaySeconds = 0) {
                     this.backgroundMixGain.connect(this.musicGain || this.masterGain);
                 }
 
-                const source = this.createAudioNode('createBufferSource');
+                const source = this.ctx.createBufferSource();
                 source.buffer = this.getOvertimeClickKickLoopBuffer();
                 source.loop = true;
                 source.playbackRate.setValueAtTime(this.getOvertimeSwarmPitchMultiplier(), loopStart);
@@ -18954,89 +18957,19 @@ startMaxSwarmBeat(delaySeconds = 0) {
             }
 
 
-            hasLiveBackgroundMusicSource() {
-                if (!this.ctx || this.ctx.state === 'closed' || !this.backgroundMixGain) return false;
-                return this.backgroundOscillators.some(source => source && this.audioLiveSources.has(source));
-            }
-
-            clearBackgroundLoopOnly() {
-                this.backgroundMusicPlaying = false;
-                this.backgroundTimers.forEach(timer => clearTimeout(timer));
-                this.backgroundTimers = [];
-
-                const now = this.ctx ? this.ctx.currentTime : 0;
-                if (this.backgroundMixGain && this.ctx) {
-                    try {
-                        this.backgroundMixGain.gain.cancelScheduledValues(now);
-                        this.backgroundMixGain.gain.setValueAtTime(0.001, now);
-                    } catch (_) {}
-                    try { this.backgroundMixGain.disconnect(); } catch (_) {}
-                    this.backgroundMixGain = null;
-                }
-
-                this.backgroundOscillators.forEach(source => {
-                    try { source.stop(now); } catch (_) {}
-                    try { source.disconnect(); } catch (_) {}
-                    if (typeof source.__blockazoidsReleaseSource === 'function') {
-                        source.__blockazoidsReleaseSource();
-                    }
-                });
-                this.backgroundGains.forEach(gainNode => {
-                    try { gainNode.disconnect(); } catch (_) {}
-                });
-                this.backgroundOscillators = [];
-                this.backgroundGains = [];
-            }
-
-            recoverBackgroundMusic(reason = 'missing-loop-source') {
-                if (this.muted || this.musicMuted) return false;
-
-                const nowMs = performance.now();
-                if (nowMs - this.backgroundMusicLastRecoveryAt < this.backgroundMusicRecoveryCooldownMs) return false;
-                this.backgroundMusicLastRecoveryAt = nowMs;
-                this.ensureAudio();
-                if (!this.ctx || this.ctx.state === 'closed') return false;
-
-                this.clearBackgroundLoopOnly();
-                this.backgroundMusicPlaying = true;
-                try {
-                    this.startClassicBackgroundLoop();
-                    if (!this.hasLiveBackgroundMusicSource()) throw new Error('background source unavailable');
-                    this.backgroundMusicRecoveryCount++;
-                    this.backgroundMusicLastRecoveryReason = String(reason || 'missing-loop-source');
-                    this.audioLastCleanupReason = `music-recovery:${this.backgroundMusicLastRecoveryReason}`;
-                    return true;
-                } catch (_) {
-                    this.clearBackgroundLoopOnly();
-                    this.backgroundMusicLastRecoveryReason = `failed:${String(reason || 'missing-loop-source')}`;
-                    return false;
-                }
-            }
-
-            checkBackgroundMusicHealth(nowMs = performance.now()) {
-                const checkTime = Number(nowMs) || performance.now();
-                if (checkTime - this.backgroundMusicWatchdogLastCheckMs < 750) return false;
-                this.backgroundMusicWatchdogLastCheckMs = checkTime;
-                if (this.muted || this.musicMuted) return false;
-
-                this.ensureAudio();
-                if (this.backgroundMusicPlaying && this.hasLiveBackgroundMusicSource()) return true;
-                return this.recoverBackgroundMusic(this.backgroundMusicPlaying ? 'loop-source-ended' : 'music-flag-cleared');
-            }
-
             // Start the gameplay background for the current sector.
+            // This path intentionally uses native Web Audio nodes rather than transient
+            // tracking so sound-effect cleanup can never disconnect or prune the music.
             startBackgroundMusic(levelNumber = this.currentGameplayMusicLevel || 1) {
-                this.currentGameplayMusicLevel = Math.max(1, parseInt(levelNumber, 10) || 1);
                 this.ensureAudio();
+                if (!this.ctx || this.ctx.state === 'closed') return;
+                if (this.backgroundMusicPlaying) return;
 
-                if (this.musicMuted) {
-                    this.clearBackgroundLoopOnly();
-                    return;
-                }
-                if (this.backgroundMusicPlaying && this.hasLiveBackgroundMusicSource()) return;
-
-                this.clearBackgroundLoopOnly();
+                this.currentGameplayMusicLevel = Math.max(1, parseInt(levelNumber, 10) || 1);
+                this.stopBackgroundMusic();
                 this.backgroundMusicPlaying = true;
+
+                if (this.musicMuted) return;
                 this.startClassicBackgroundLoop();
             }
 
@@ -19272,12 +19205,15 @@ startMaxSwarmBeat(delaySeconds = 0) {
 
 
             startClassicBackgroundLoop() {
-                this.backgroundMixGain = this.createAudioNode('createGain');
+                if (!this.ctx || this.ctx.state === 'closed') return;
+
+                // Native nodes keep gameplay music independent from transient SFX ownership.
+                this.backgroundMixGain = this.ctx.createGain();
                 this.backgroundMixGain.gain.setValueAtTime(0.001, this.ctx.currentTime);
                 this.backgroundMixGain.gain.linearRampToValueAtTime(0.40, this.ctx.currentTime + 0.08);
                 this.backgroundMixGain.connect(this.musicGain || this.masterGain);
 
-                const source = this.createAudioNode('createBufferSource');
+                const source = this.ctx.createBufferSource();
                 source.buffer = this.getConsistentPatrolLoopBuffer();
                 source.loop = true;
                 source.connect(this.backgroundMixGain);
@@ -19285,19 +19221,41 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 source.onended = () => {
                     this.backgroundOscillators = this.backgroundOscillators.filter(item => item !== source);
                     try { source.disconnect(); } catch (_) {}
-                    if (!this.backgroundOscillators.length && this.backgroundMusicPlaying) {
-                        this.backgroundMusicPlaying = false;
-                        this.backgroundMusicLastRecoveryReason = 'loop-source-ended';
-                    }
                 };
                 source.start(this.ctx.currentTime + 0.035);
             }
 
-            // Stop background music and clear oscillators/timers
+            // Stop only the isolated gameplay-music path. Transient SFX remain untouched.
             stopBackgroundMusic() {
                 this.stopMaxSwarmBeat();
                 this.setMaxSwarmBeatIntensity(0);
-                this.clearBackgroundLoopOnly();
+                this.backgroundMusicPlaying = false;
+                this.backgroundTimers.forEach(timer => clearTimeout(timer));
+                this.backgroundTimers = [];
+
+                const now = this.ctx ? this.ctx.currentTime : 0;
+                const oldMix = this.backgroundMixGain;
+                if (oldMix && this.ctx) {
+                    try {
+                        oldMix.gain.cancelScheduledValues(now);
+                        oldMix.gain.setValueAtTime(0.001, now);
+                    } catch (_) {}
+                }
+
+                this.backgroundOscillators.forEach(source => {
+                    try { source.stop(now); } catch (_) {}
+                    try { source.disconnect(); } catch (_) {}
+                });
+                this.backgroundGains.forEach(gainNode => {
+                    try { gainNode.disconnect(); } catch (_) {}
+                });
+                this.backgroundOscillators = [];
+                this.backgroundGains = [];
+
+                if (oldMix) {
+                    try { oldMix.disconnect(); } catch (_) {}
+                }
+                this.backgroundMixGain = null;
             }
 
             // Resume audio context after user gestures and after Safari/iOS interruptions.
