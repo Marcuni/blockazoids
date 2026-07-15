@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v311: Fixes the Phase 2B tutorial Orb-input regression by allowing drag control only during the interactive tutorial steps while preserving all normal flow-state gates.
+Build v312: Fixes remaining Phase 2B tutorial input regressions by unlocking Orb drag directly from interactive tutorial steps and routing tutorial shake/double-tap Cosmic Zap through the shared input gates.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -21,7 +21,7 @@ Orb Control Panel Instrument Reference
 - Velocity Glyph Engine — Temporarily displays the Orb’s finger-driven movement speed.
 - Orb Command Socket — Controls the Orb’s pause, resume, and primary interface functions.
 -->
-<html data-build-version="v311">
+<html data-build-version="v312">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -9053,9 +9053,10 @@ Orb Control Panel Instrument Reference
             }
 
             allowsOrbDragInput() {
-                if (this.isLiveAction()) return true;
-                if (!this.is(GAME_FLOW_STATES.TUTORIAL) || !this.game.tutorialActive) return false;
-                return ['movement', 'crystal', 'enemy', 'zap', 'gridlock', 'relic'].includes(this.game.tutorialStep);
+                if (this.game.tutorialActive) {
+                    return ['movement', 'crystal', 'enemy', 'zap', 'gridlock', 'relic'].includes(this.game.tutorialStep);
+                }
+                return this.isLiveAction();
             }
 
             allowsPause() {
@@ -13786,6 +13787,8 @@ Orb Control Panel Instrument Reference
                 } else if (step === 'zap') {
                     if (!this.tutorialEnemy || !this.enemies.includes(this.tutorialEnemy)) this.spawnTutorialEnemy();
                     this.cosmicZapsLeft = 1;
+                    this.playfieldCosmicZapTapStart = null;
+                    this.lastPlayfieldCosmicZapTapTime = 0;
                     this.showTutorialHudMessage('SHAKE TO COSMIC ZAP', 3, { expectedStep: 'zap' });
                     this.syncMotionListenerState();
                     this.ui.updateCosmicZapIndicators();
@@ -15623,7 +15626,8 @@ Orb Control Panel Instrument Reference
             }
 
             canTriggerPlayfieldCosmicZap() {
-                return this.flow.is(GAME_FLOW_STATES.PLAYING) && this.cosmicZapsLeft > 0;
+                const tutorialZapActive = this.tutorialActive && this.tutorialStep === 'zap';
+                return (this.flow.is(GAME_FLOW_STATES.PLAYING) || tutorialZapActive) && this.cosmicZapsLeft > 0;
             }
 
             triggerPlayfieldCosmicZapFromDoubleInput(e) {
@@ -15688,7 +15692,7 @@ Orb Control Panel Instrument Reference
             shouldListenForMotion() {
                 if (!GAME_FEATURE_FLAGS.motionShake || !this.motionPermissionGranted || this.splashIntroActive) return false;
                 if (this.isAttractModeActive()) return true;
-                return !!(this.flow.is(GAME_FLOW_STATES.PLAYING) && this.cosmicZapsLeft > 0);
+                return this.canTriggerPlayfieldCosmicZap();
             }
 
             syncMotionListenerState() {
@@ -15744,7 +15748,7 @@ Orb Control Panel Instrument Reference
                     return;
                 }
 
-                if (!this.active || this.isPaused || this.isGameOver || this.finalGridlockActive || !this.levelActionStarted || this.cosmicZapsLeft <= 0) return;
+                if (!this.canTriggerPlayfieldCosmicZap()) return;
                 if (now - this.lastShakeCosmicZapTime >= this.shakeCosmicZapCooldownMs) {
                     this.lastShakeCosmicZapTime = now;
                     this.handleCosmicZap();
