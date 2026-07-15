@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v318: Restores immediate tutorial Orb control and enlarges the bottom-right Launch Setup grid icon to match the other three corner controls.
+Build v319: Adds an iPhone touch-event fallback for immediate tutorial Orb dragging when Safari drops the opening pointer stream; retains the corrected Launch Setup icon size.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -21,7 +21,7 @@ Orb Control Panel Instrument Reference
 - Velocity Glyph Engine — Temporarily displays the Orb’s finger-driven movement speed.
 - Orb Command Socket — Controls the Orb’s pause, resume, and primary interface functions.
 -->
-<html data-build-version="v318">
+<html data-build-version="v319">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -8836,7 +8836,7 @@ Orb Control Panel Instrument Reference
     </div>
 
     <script>
-        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'v318'}`;
+        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'v319'}`;
 
         // Central diagnostic feature flags. Change values here before loading the page to isolate systems.
         const GAME_FEATURE_FLAGS = window.BLOCKAZOIDS_FEATURE_FLAGS = {
@@ -9645,6 +9645,9 @@ Orb Control Panel Instrument Reference
                 this.handlePointerMove = (e) => this.player.handlePointerMove(e);
                 this.handlePointerUp = (e) => this.player.handlePointerUp(e);
                 this.handlePointerCaptureLost = (e) => this.player.handlePointerCaptureLost(e);
+                this.handleTutorialTouchStart = (e) => this.player.handleTutorialTouchStart(e);
+                this.handleTutorialTouchMove = (e) => this.player.handleTutorialTouchMove(e);
+                this.handleTutorialTouchEnd = (e) => this.player.handleTutorialTouchEnd(e);
                 this.handleGlobalPointerEnd = (e) => this.player.handlePointerUp(e);
                 this.handleWindowBlur = () => this.player.invalidateDragSession('window-blur');
                 this.handleDeviceMotion = (e) => this.handleShakeMotion(e);
@@ -9657,6 +9660,12 @@ Orb Control Panel Instrument Reference
                 this.container.addEventListener('pointerup', this.handlePointerUp, { passive: false });
                 this.container.addEventListener('pointercancel', this.handlePointerUp, { passive: false });
                 this.container.addEventListener('lostpointercapture', this.handlePointerCaptureLost, { passive: true });
+                // v319: Safari can occasionally omit the pointerdown that begins the one-time tutorial.
+                // Native touch events provide a tutorial-only fallback while preserving normal pointer controls.
+                this.container.addEventListener('touchstart', this.handleTutorialTouchStart, { passive: false });
+                this.container.addEventListener('touchmove', this.handleTutorialTouchMove, { passive: false });
+                this.container.addEventListener('touchend', this.handleTutorialTouchEnd, { passive: false });
+                this.container.addEventListener('touchcancel', this.handleTutorialTouchEnd, { passive: false });
                 window.addEventListener('pointerup', this.handleGlobalPointerEnd, { passive: false });
                 window.addEventListener('pointercancel', this.handleGlobalPointerEnd, { passive: false });
                 window.addEventListener('blur', this.handleWindowBlur, { passive: true });
@@ -16692,6 +16701,7 @@ Orb Control Panel Instrument Reference
                 this.isTouchActive = false; // Touch/pointer drag state
                 this.activePointerId = null;
                 this.activePointerType = '';
+                this.activeTouchIdentifier = null;
                 this.dragSessionRevision = 0;
                 this.inputWindowRevision = 0;
                 this.touchDragOffsetX = 0;
@@ -16802,6 +16812,7 @@ Orb Control Panel Instrument Reference
                 this.isTouchActive = false;
                 this.activePointerId = null;
                 this.activePointerType = '';
+                this.activeTouchIdentifier = null;
                 this.dragSessionRevision = this.inputWindowRevision;
                 this.touchDragOffsetX = 0;
                 this.touchDragOffsetY = 0;
@@ -16819,6 +16830,61 @@ Orb Control Panel Instrument Reference
             handlePointerCaptureLost(e) {
                 if (this.activePointerId === null || !e || e.pointerId !== this.activePointerId) return;
                 this.cancelPointerDrag(e, 'lost-pointer-capture');
+            }
+
+            findTouchByIdentifier(touchList, identifier = null) {
+                if (!touchList || !touchList.length) return null;
+                for (let i = 0; i < touchList.length; i++) {
+                    const touch = touchList[i];
+                    if (identifier === null || identifier === undefined || touch.identifier === identifier) return touch;
+                }
+                return null;
+            }
+
+            // Tutorial-only iPhone fallback. Pointer events remain the primary control path.
+            // If Safari drops the opening pointerdown, touchstart still preserves the real
+            // finger origin so a quick first drag is not rejected after it leaves the Orb.
+            handleTutorialTouchStart(e) {
+                if (!e || !this.game.tutorialActive || !this.game.flow.allowsOrbDragInput()) return;
+                if (this.activePointerId !== null) return;
+
+                const touch = this.findTouchByIdentifier(e.changedTouches) || this.findTouchByIdentifier(e.touches);
+                if (!touch) return;
+                const point = this.getBoardPoint(touch.clientX, touch.clientY);
+                if (!this.pointIsNearPlayer(point)) return;
+
+                if (e.cancelable) e.preventDefault();
+                this.isTouchActive = true;
+                this.activeTouchIdentifier = touch.identifier;
+                this.activePointerId = `tutorial-touch-${touch.identifier}`;
+                this.activePointerType = 'touch-fallback';
+                this.dragSessionRevision = this.inputWindowRevision;
+                this.touchDragOffsetX = point.x - (this.x + this.size / 2);
+                this.touchDragOffsetY = point.y - (this.y + this.size / 2);
+                this.velocityGaugeLastSampleTime = performance.now();
+                this.movementSegments.length = 0;
+            }
+
+            handleTutorialTouchMove(e) {
+                if (!e || this.activePointerType !== 'touch-fallback' || this.activeTouchIdentifier === null) return;
+                if (!this.game.flow.allowsOrbDragInput() || this.dragSessionRevision !== this.inputWindowRevision) {
+                    this.cancelPointerDrag(null, 'tutorial-touch-window-changed');
+                    return;
+                }
+
+                const touch = this.findTouchByIdentifier(e.touches, this.activeTouchIdentifier);
+                if (!touch) return;
+                if (e.cancelable) e.preventDefault();
+                this.moveToPoint(this.getBoardPoint(touch.clientX, touch.clientY), true);
+            }
+
+            handleTutorialTouchEnd(e) {
+                if (!e || this.activePointerType !== 'touch-fallback' || this.activeTouchIdentifier === null) return;
+                const endedTouch = this.findTouchByIdentifier(e.changedTouches, this.activeTouchIdentifier);
+                const stillActive = this.findTouchByIdentifier(e.touches, this.activeTouchIdentifier);
+                if (!endedTouch && stillActive) return;
+                if (e.cancelable) e.preventDefault();
+                this.cancelPointerDrag(null, e.type || 'tutorial-touch-end');
             }
 
             // iPhone control: one specific finger must begin on or near the Orb.
@@ -16839,6 +16905,7 @@ Orb Control Panel Instrument Reference
                 this.isTouchActive = true;
                 this.activePointerId = e.pointerId;
                 this.activePointerType = e.pointerType || '';
+                this.activeTouchIdentifier = null;
                 this.dragSessionRevision = this.inputWindowRevision;
                 this.touchDragOffsetX = point.x - (this.x + this.size / 2);
                 this.touchDragOffsetY = point.y - (this.y + this.size / 2);
@@ -16868,6 +16935,7 @@ Orb Control Panel Instrument Reference
                             this.isTouchActive = true;
                             this.activePointerId = e.pointerId;
                             this.activePointerType = e.pointerType || '';
+                            this.activeTouchIdentifier = null;
                             this.dragSessionRevision = this.inputWindowRevision;
                             this.touchDragOffsetX = recoveryPoint.x - (this.x + this.size / 2);
                             this.touchDragOffsetY = recoveryPoint.y - (this.y + this.size / 2);
