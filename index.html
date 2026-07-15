@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v310: Phase 2B makes the central game-flow controller authoritative for gameplay input, pause/resume, transition, menu, and terminal-state gates while preserving compatibility fields for rendering.
+Build v311: Fixes the Phase 2B tutorial Orb-input regression by allowing drag control only during the interactive tutorial steps while preserving all normal flow-state gates.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -21,7 +21,7 @@ Orb Control Panel Instrument Reference
 - Velocity Glyph Engine — Temporarily displays the Orb’s finger-driven movement speed.
 - Orb Command Socket — Controls the Orb’s pause, resume, and primary interface functions.
 -->
-<html data-build-version="v310">
+<html data-build-version="v311">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -9052,6 +9052,12 @@ Orb Control Panel Instrument Reference
                 return this.isLiveAction();
             }
 
+            allowsOrbDragInput() {
+                if (this.isLiveAction()) return true;
+                if (!this.is(GAME_FLOW_STATES.TUTORIAL) || !this.game.tutorialActive) return false;
+                return ['movement', 'crystal', 'enemy', 'zap', 'gridlock', 'relic'].includes(this.game.tutorialStep);
+            }
+
             allowsPause() {
                 return this.isLiveAction();
             }
@@ -16619,7 +16625,7 @@ Orb Control Panel Instrument Reference
             // iPhone control: touch must begin on or near the orb, then dragging moves it.
             handlePointerDown(e) {
                 if (this.game.audio) this.game.audio.resume();
-                if (!this.game.flow.allowsGameplayInput()) return;
+                if (!this.game.flow.allowsOrbDragInput()) return;
                 const point = this.getBoardPoint(e.clientX, e.clientY);
                 if (!this.pointIsNearPlayer(point)) return; // Prevent tap-anywhere teleporting.
 
@@ -16635,7 +16641,7 @@ Orb Control Panel Instrument Reference
             }
 
             handlePointerMove(e) {
-                if (!this.game.flow.allowsGameplayInput() || !this.isTouchActive) return;
+                if (!this.game.flow.allowsOrbDragInput() || !this.isTouchActive) return;
                 e.preventDefault();
                 const point = this.getBoardPoint(e.clientX, e.clientY);
                 this.moveToPoint(point, true);
