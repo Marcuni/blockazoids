@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v320: Makes native iPhone touch events authoritative throughout the tutorial so repeated tutorial runs cannot lose Orb movement after a partial Safari pointer stream; retains the corrected Launch Setup icon size.
+Build v321: Captures tutorial touches at the page level and recovers a missed first touch from the first movement sample so the Orb responds immediately; retains the corrected Launch Setup icon size.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -21,7 +21,7 @@ Orb Control Panel Instrument Reference
 - Velocity Glyph Engine — Temporarily displays the Orb’s finger-driven movement speed.
 - Orb Command Socket — Controls the Orb’s pause, resume, and primary interface functions.
 -->
-<html data-build-version="v319">
+<html data-build-version="v321">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -8836,7 +8836,7 @@ Orb Control Panel Instrument Reference
     </div>
 
     <script>
-        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'v319'}`;
+        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'v321'}`;
 
         // Central diagnostic feature flags. Change values here before loading the page to isolate systems.
         const GAME_FEATURE_FLAGS = window.BLOCKAZOIDS_FEATURE_FLAGS = {
@@ -9660,12 +9660,15 @@ Orb Control Panel Instrument Reference
                 this.container.addEventListener('pointerup', this.handlePointerUp, { passive: false });
                 this.container.addEventListener('pointercancel', this.handlePointerUp, { passive: false });
                 this.container.addEventListener('lostpointercapture', this.handlePointerCaptureLost, { passive: true });
-                // v320: Safari can provide an incomplete pointer stream during any tutorial run.
-                // Native touch events take authority in the tutorial while normal gameplay keeps pointer controls.
-                this.container.addEventListener('touchstart', this.handleTutorialTouchStart, { passive: false });
-                this.container.addEventListener('touchmove', this.handleTutorialTouchMove, { passive: false });
-                this.container.addEventListener('touchend', this.handleTutorialTouchEnd, { passive: false });
-                this.container.addEventListener('touchcancel', this.handleTutorialTouchEnd, { passive: false });
+                // v321: Capture tutorial touches at the document level. On iPhone, the first
+                // touch can be targeted at a temporary page layer instead of the grid, so a
+                // container-only listener never sees it. Capture-phase listeners observe the
+                // gesture before any overlay or control can own it. Normal gameplay still uses
+                // the existing pointer controls.
+                document.addEventListener('touchstart', this.handleTutorialTouchStart, { passive: false, capture: true });
+                document.addEventListener('touchmove', this.handleTutorialTouchMove, { passive: false, capture: true });
+                document.addEventListener('touchend', this.handleTutorialTouchEnd, { passive: false, capture: true });
+                document.addEventListener('touchcancel', this.handleTutorialTouchEnd, { passive: false, capture: true });
                 window.addEventListener('pointerup', this.handleGlobalPointerEnd, { passive: false });
                 window.addEventListener('pointercancel', this.handleGlobalPointerEnd, { passive: false });
                 window.addEventListener('blur', this.handleWindowBlur, { passive: true });
@@ -10465,7 +10468,7 @@ Orb Control Panel Instrument Reference
                 const controlPanel = this.ui && this.ui.getControlPanelDiagnosticState ? this.ui.getControlPanelDiagnosticState() : null;
                 return {
                     schema: 'blockazoids-stability-v1',
-                    build: 'v315',
+                    build: 'v321',
                     sessionId: this.stabilitySessionId,
                     savedAt: Date.now(),
                     cleanExit: !!cleanExit,
@@ -16841,24 +16844,32 @@ Orb Control Panel Instrument Reference
                 return null;
             }
 
-            // Tutorial-only iPhone control. Native touch events are authoritative here.
-            // Safari may deliver pointerdown but then lose that pointer's movement stream,
-            // especially after the tutorial has been reset. Always taking over on touchstart
-            // avoids a race between a partial pointer stream and the reliable touch stream.
-            handleTutorialTouchStart(e) {
-                if (!e || !this.game.tutorialActive || !this.game.flow.allowsOrbDragInput()) return;
+            findTutorialTouchNearPlayer(touchList) {
+                if (!touchList || !touchList.length) return null;
+                const centerX = this.x + this.size / 2;
+                const centerY = this.y + this.size / 2;
+                let best = null;
 
-                const touch = this.findTouchByIdentifier(e.changedTouches) || this.findTouchByIdentifier(e.touches);
-                if (!touch) return;
-                const point = this.getBoardPoint(touch.clientX, touch.clientY);
-                if (!this.pointIsNearPlayer(point)) return;
+                for (let i = 0; i < touchList.length; i++) {
+                    const touch = touchList[i];
+                    const point = this.getBoardPoint(touch.clientX, touch.clientY);
+                    if (!this.pointIsNearPlayer(point)) continue;
+                    const distance = Math.hypot(point.x - centerX, point.y - centerY);
+                    if (!best || distance < best.distance) best = { touch, point, distance };
+                }
 
-                if (e.cancelable) e.preventDefault();
+                return best;
+            }
 
-                // A pointerdown for this same finger may already have opened a drag. Replace it
-                // with the native touch session rather than letting the two event systems race.
+            beginTutorialNativeTouch(touch, point, recoverFromMove = false) {
+                if (!touch || !point) return false;
+
+                // A pointer event for the same finger may already have opened an incomplete
+                // session. Replace it with one native touch owner instead of racing both paths.
                 if (this.activePointerId !== null || this.isTouchActive) {
-                    this.cancelPointerDrag(null, 'tutorial-native-touch-takeover');
+                    this.cancelPointerDrag(null, recoverFromMove
+                        ? 'tutorial-touchmove-recovery'
+                        : 'tutorial-native-touch-takeover');
                 }
 
                 this.isTouchActive = true;
@@ -16866,15 +16877,43 @@ Orb Control Panel Instrument Reference
                 this.activePointerId = `tutorial-touch-${touch.identifier}`;
                 this.activePointerType = 'touch-fallback';
                 this.dragSessionRevision = this.inputWindowRevision;
-                this.touchDragOffsetX = point.x - (this.x + this.size / 2);
-                this.touchDragOffsetY = point.y - (this.y + this.size / 2);
+                this.touchDragOffsetX = recoverFromMove ? 0 : point.x - (this.x + this.size / 2);
+                this.touchDragOffsetY = recoverFromMove ? 0 : point.y - (this.y + this.size / 2);
                 this.velocityGaugeLastSampleTime = performance.now();
                 this.movementSegments.length = 0;
+
+                // When touchstart itself was missed, the current touchmove is the first reliable
+                // sample. Move on that same sample so the player does not feel a second delay.
+                if (recoverFromMove) this.moveToPoint(point, false);
+                return true;
+            }
+
+            // Tutorial-only iPhone control. Capture-phase document listeners make the first
+            // touch visible even when Safari targets a fading menu or HUD layer above the grid.
+            handleTutorialTouchStart(e) {
+                if (!e || !this.game.tutorialActive || !this.game.flow.allowsOrbDragInput()) return;
+
+                const candidate = this.findTutorialTouchNearPlayer(e.changedTouches) ||
+                    this.findTutorialTouchNearPlayer(e.touches);
+                if (!candidate) return;
+                if (e.cancelable) e.preventDefault();
+                this.beginTutorialNativeTouch(candidate.touch, candidate.point, false);
             }
 
             handleTutorialTouchMove(e) {
-                if (!e || this.activePointerType !== 'touch-fallback' || this.activeTouchIdentifier === null) return;
-                if (!this.game.flow.allowsOrbDragInput() || this.dragSessionRevision !== this.inputWindowRevision) {
+                if (!e || !this.game.tutorialActive || !this.game.flow.allowsOrbDragInput()) return;
+
+                // If Safari omitted or redirected touchstart, claim the first move that is still
+                // on or near the Orb. This is tutorial-only and cannot create tap-anywhere movement.
+                if (this.activePointerType !== 'touch-fallback' || this.activeTouchIdentifier === null) {
+                    const recovery = this.findTutorialTouchNearPlayer(e.touches);
+                    if (!recovery) return;
+                    if (e.cancelable) e.preventDefault();
+                    this.beginTutorialNativeTouch(recovery.touch, recovery.point, true);
+                    return;
+                }
+
+                if (this.dragSessionRevision !== this.inputWindowRevision) {
                     this.cancelPointerDrag(null, 'tutorial-touch-window-changed');
                     return;
                 }
