@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v313: Stabilizes tutorial Orb control with single-pointer ownership, explicit pointer-capture release, and drag-session invalidation across tutorial steps and game-flow transitions.
+Build v314: Keeps Orb dragging continuous across tutorial HUD and step changes, removes the blank instruction gap, and reserves drag cancellation for actual tutorial interruptions.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -21,7 +21,7 @@ Orb Control Panel Instrument Reference
 - Velocity Glyph Engine — Temporarily displays the Orb’s finger-driven movement speed.
 - Orb Command Socket — Controls the Orb’s pause, resume, and primary interface functions.
 -->
-<html data-build-version="v313">
+<html data-build-version="v314">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -9060,7 +9060,7 @@ Orb Control Panel Instrument Reference
 
             allowsOrbDragInput() {
                 if (this.game.tutorialActive) {
-                    return ['movement', 'crystal', 'enemy', 'zap', 'gridlock', 'relic'].includes(this.game.tutorialStep);
+                    return ['movement', 'crystal', 'crystal-wait', 'enemy', 'zap', 'gridlock', 'relic'].includes(this.game.tutorialStep);
                 }
                 return this.isLiveAction();
             }
@@ -10285,7 +10285,7 @@ Orb Control Panel Instrument Reference
                 const controlPanel = this.ui && this.ui.getControlPanelDiagnosticState ? this.ui.getControlPanelDiagnosticState() : null;
                 return {
                     schema: 'blockazoids-stability-v1',
-                    build: 'v313',
+                    build: 'v314',
                     sessionId: this.stabilitySessionId,
                     savedAt: Date.now(),
                     cleanExit: !!cleanExit,
@@ -13639,7 +13639,7 @@ Orb Control Panel Instrument Reference
             }
 
             showTutorialHudMessage(text, stepIndex = 0, options = {}) {
-                const gap = options.gap !== false;
+                const gap = options.gap === true;
                 const flash = options.flash === true;
                 const expectedStep = options.expectedStep || this.tutorialStep;
                 const onShown = typeof options.onShown === 'function' ? options.onShown : null;
@@ -13754,7 +13754,8 @@ Orb Control Panel Instrument Reference
                 if (!this.tutorialActive) return;
                 this.clearTutorialStepTimer();
                 this.clearTutorialHudTimer();
-                this.player.invalidateDragSession(`tutorial-step:${step}`);
+                // Normal tutorial instructions are visual/gameplay changes, not input-window changes.
+                // Preserve the active finger so the Orb remains continuously draggable between steps.
                 this.tutorialStep = step;
                 this.tutorialStepStartedAt = performance.now();
                 this.player.consumeMovementSegments();
