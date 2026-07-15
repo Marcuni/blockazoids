@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v317: Completes Phase 3C by migrating splash, marquee, and non-gameplay visual-effect timers to the centralized scheduling manager; adds a high-score reset confirmation beep and removes the Help pulse.
+Build v318: Restores immediate tutorial Orb control and enlarges the bottom-right Launch Setup grid icon to match the other three corner controls.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -21,7 +21,7 @@ Orb Control Panel Instrument Reference
 - Velocity Glyph Engine — Temporarily displays the Orb’s finger-driven movement speed.
 - Orb Command Socket — Controls the Orb’s pause, resume, and primary interface functions.
 -->
-<html data-build-version="v317">
+<html data-build-version="v318">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -8458,7 +8458,14 @@ Orb Control Panel Instrument Reference
             filter: url(#crtOuterGlowFarBlur) !important;
         }
 
-    </style>
+    
+
+        /* v318: Match the bottom-right Launch Setup symbol to the visual footprint of the other corner controls. */
+        #pauseLaunchSetupButton .launch-cycle-grid-icon {
+            width: 82% !important;
+            height: 82% !important;
+        }
+</style>
 </head>
 <body class="crt-phosphor-calibration">
     <div id="splashScreen" aria-label="Block-A-Zoids intro">
@@ -8829,7 +8836,7 @@ Orb Control Panel Instrument Reference
     </div>
 
     <script>
-        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'v317'}`;
+        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'v318'}`;
 
         // Central diagnostic feature flags. Change values here before loading the page to isolate systems.
         const GAME_FEATURE_FLAGS = window.BLOCKAZOIDS_FEATURE_FLAGS = {
@@ -13834,7 +13841,6 @@ Orb Control Panel Instrument Reference
             }
 
             startOneTimeIntro() {
-                this.flow.enter(GAME_FLOW_STATES.TUTORIAL, 'start-one-time-intro');
                 this.hideActivationHowToOverlay();
                 this.hasStartedRun = true;
                 this.cockpitActivated = true;
@@ -13850,9 +13856,13 @@ Orb Control Panel Instrument Reference
                 this.isPaused = false;
                 this.finalGridlockActive = false;
                 this.finalCompletionActive = false;
-                this.sectorTransitionActive = true;
+                // The tutorial is live interaction, not a sector transition. Open the input window
+                // before entering the tutorial flow so the first touch cannot be discarded.
+                this.sectorTransitionActive = false;
                 this.startInputLocked = false;
                 this.tutorialActive = true;
+                this.tutorialStep = 'movement';
+                this.flow.enter(GAME_FLOW_STATES.TUTORIAL, 'start-one-time-intro');
                 this.tutorialToken++;
                 this.tutorialMovementDistance = 0;
                 this.tutorialMovementQualified = false;
@@ -13870,6 +13880,9 @@ Orb Control Panel Instrument Reference
                 this.setCrtUiSuspended(false);
                 this.setCrtPaused(false);
                 this.setTutorialStep('movement');
+                // Start with a clean, explicitly open pointer session. This also prevents a stale
+                // attract/menu pointer revision from delaying the first tutorial drag.
+                this.player.invalidateDragSession('tutorial-input-ready');
                 this.syncMotionListenerState();
                 this.ui.updateAll();
                 this.tutorialLastFrameTime = performance.now();
@@ -16838,7 +16851,36 @@ Orb Control Panel Instrument Reference
             }
 
             handlePointerMove(e) {
-                if (!e || !this.isTouchActive || this.activePointerId === null) return;
+                if (!e) return;
+
+                // iOS can occasionally deliver the first movement sample after the tutorial opens
+                // without preserving the preceding pointer-down stream. Recover that touch only in
+                // the movement lesson, and only while a finger/pen is actively pressed near the Orb.
+                if (!this.isTouchActive && this.activePointerId === null &&
+                    this.game.tutorialActive && this.game.tutorialStep === 'movement' &&
+                    this.game.flow.allowsOrbDragInput()) {
+                    const pressedPointer = e.pointerType === 'touch' || e.pointerType === 'pen' ||
+                        (e.pointerType === 'mouse' && e.buttons === 1);
+                    if (pressedPointer) {
+                        const recoveryPoint = this.getBoardPoint(e.clientX, e.clientY);
+                        if (this.pointIsNearPlayer(recoveryPoint)) {
+                            if (e.cancelable) e.preventDefault();
+                            this.isTouchActive = true;
+                            this.activePointerId = e.pointerId;
+                            this.activePointerType = e.pointerType || '';
+                            this.dragSessionRevision = this.inputWindowRevision;
+                            this.touchDragOffsetX = recoveryPoint.x - (this.x + this.size / 2);
+                            this.touchDragOffsetY = recoveryPoint.y - (this.y + this.size / 2);
+                            this.velocityGaugeLastSampleTime = performance.now();
+                            this.movementSegments.length = 0;
+                            if (this.game.container.setPointerCapture) {
+                                try { this.game.container.setPointerCapture(e.pointerId); } catch (_) {}
+                            }
+                        }
+                    }
+                }
+
+                if (!this.isTouchActive || this.activePointerId === null) return;
                 if (e.pointerId !== this.activePointerId) return;
                 if (!this.game.flow.allowsOrbDragInput() || this.dragSessionRevision !== this.inputWindowRevision) {
                     this.cancelPointerDrag(e, 'input-window-changed');
