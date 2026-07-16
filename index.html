@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v335: Phase 4B routes new-run, sector, pause/resume, completion, run-end, cycle, Final Gridlock, and attract-mode changes through explicit lifecycle entry points while preserving all prior behavior.
+Build v336: Phase 4C adds lifecycle guards and development-mode validation warnings so duplicate, incompatible, and stale state changes fail safely without altering normal gameplay.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -21,7 +21,7 @@ Orb Control Panel Instrument Reference
 - Velocity Glyph Engine — Temporarily displays the Orb’s finger-driven movement speed.
 - Orb Command Socket — Controls the Orb’s pause, resume, and primary interface functions.
 -->
-<html data-build-version="v335">
+<html data-build-version="v336">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -8836,7 +8836,7 @@ Orb Control Panel Instrument Reference
     </div>
 
     <script>
-        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'v335'}`;
+        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'v336'}`;
 
         // Central diagnostic feature flags. Change values here before loading the page to isolate systems.
         const GAME_FEATURE_FLAGS = window.BLOCKAZOIDS_FEATURE_FLAGS = {
@@ -10529,7 +10529,7 @@ Orb Control Panel Instrument Reference
                 const controlPanel = this.ui && this.ui.getControlPanelDiagnosticState ? this.ui.getControlPanelDiagnosticState() : null;
                 return {
                     schema: 'blockazoids-stability-v1',
-                    build: 'v335',
+                    build: 'v336',
                     sessionId: this.stabilitySessionId,
                     savedAt: Date.now(),
                     cleanExit: !!cleanExit,
@@ -10594,6 +10594,32 @@ Orb Control Panel Instrument Reference
                 this.stabilityLastEvent = String(name || 'event').slice(0, 80);
                 this.stabilityLastEventDetails = details && typeof details === 'object' ? details : {};
                 this.writeStabilityHeartbeat(false);
+            }
+
+            // Phase 4C lifecycle validation: invalid state changes are harmless in production.
+            // Developer Mode also records the rejected call for architecture testing.
+            rejectLifecycleAction(action, reason, details = {}) {
+                if (this.developerModeEnabled) {
+                    const warning = {
+                        action: String(action || 'unknown'),
+                        reason: String(reason || 'invalid-state'),
+                        flow: this.flow ? this.flow.current : 'unknown',
+                        previousFlow: this.flow ? this.flow.previous : null,
+                        active: !!this.active,
+                        paused: !!this.isPaused,
+                        sector: this.level,
+                        cycle: this.cycle,
+                        gameOver: !!this.isGameOver,
+                        ...details
+                    };
+                    console.warn(`[${BUILD_VERSION}] Lifecycle guard blocked ${warning.action}: ${warning.reason}`, warning);
+                    this.markStabilityEvent('lifecycle-guard-warning', warning);
+                }
+                return false;
+            }
+
+            requireLifecycleAction(action, condition, reason, details = {}) {
+                return condition ? true : this.rejectLifecycleAction(action, reason, details);
             }
 
             markStabilityExit(reason) {
@@ -12383,6 +12409,23 @@ Orb Control Panel Instrument Reference
             // Phase 4B lifecycle entry: prepare all state needed to enter a sector.
             // The existing startPreparedLevel() sequence still owns intro/countdown timing.
             beginSector(levelNumber, resetScore = false, options = {}) {
+                const targetLevel = Math.max(1, Math.min(this.MAX_LEVEL, levelNumber));
+                const incompatibleFlow = this.flow.isLiveAction() || this.flow.isAny(
+                    GAME_FLOW_STATES.SECTOR_INTRO,
+                    GAME_FLOW_STATES.RESUME_COUNTDOWN,
+                    GAME_FLOW_STATES.SECTOR_RESTORE,
+                    GAME_FLOW_STATES.CYCLE_COMPLETE,
+                    GAME_FLOW_STATES.FINAL_COMPLETE,
+                    GAME_FLOW_STATES.FINAL_GRIDLOCK
+                );
+                const terminalNotReady = this.flow.is(GAME_FLOW_STATES.GAME_OVER) && !this.restartReady;
+                if (!this.requireLifecycleAction(
+                    'beginSector',
+                    !incompatibleFlow && !terminalNotReady,
+                    this.flow.is(GAME_FLOW_STATES.SECTOR_INTRO) ? 'sector-already-starting' : 'incompatible-flow',
+                    { requestedSector: targetLevel, resetScore: !!resetScore }
+                )) return false;
+
                 this.beginTransitionGroup('sector-intro', this.levelLoadToken);
                 this.flow.enter(GAME_FLOW_STATES.SECTOR_INTRO, 'prepare-level-start');
                 if (this.tutorialActive) {
@@ -12430,7 +12473,7 @@ Orb Control Panel Instrument Reference
                 this.clearGameplayObjects();
                 this.player.reset();
 
-                this.level = Math.max(1, Math.min(this.MAX_LEVEL, levelNumber));
+                this.level = targetLevel;
                 this.markStabilityEvent('prepare-sector', { sector: this.level, cycle: this.cycle, resetScore: !!resetScore });
                 this.recordProgressUnlocks(this.level, this.cycle);
                 this.cockpitSectorDisplayName = '';
@@ -12439,6 +12482,7 @@ Orb Control Panel Instrument Reference
                 this.updateRunRecordProgress();
                 this.resetSectorState();
                 this.ui.updateAll();
+                return true;
             }
 
             showActivationHowToOverlay() {
@@ -13796,7 +13840,11 @@ Orb Control Panel Instrument Reference
 
             // Canonical lifecycle entry for leaving live action without ending the run.
             pauseGameplay(options = {}) {
-                if (!this.flow.allowsPause()) return;
+                if (!this.requireLifecycleAction(
+                    'pauseGameplay',
+                    this.flow.allowsPause() && !this.isPaused && !this.resumeCountdownActive && !this.isGameOver,
+                    'gameplay-not-pausable'
+                )) return false;
                 this.cancelTransitionGroup('pause-menu');
                 const showOverlay = !!options.showOverlay;
 
@@ -13829,7 +13877,11 @@ Orb Control Panel Instrument Reference
 
             // Canonical lifecycle entry for returning from pause to live action.
             async resumeGameplay() {
-                if (!this.flow.allowsResume()) return;
+                if (!this.requireLifecycleAction(
+                    'resumeGameplay',
+                    this.flow.allowsResume() && this.isPaused && this.levelActionStarted && !this.resumeCountdownActive && !this.isGameOver,
+                    'gameplay-not-resumable'
+                )) return false;
 
                 this.resumeCountdownActive = true;
                 this.flow.enter(GAME_FLOW_STATES.RESUME_COUNTDOWN, 'resume-countdown');
@@ -14594,6 +14646,20 @@ Orb Control Panel Instrument Reference
 
             // Canonical lifecycle entry for a fresh campaign run or Play Again.
             beginNewRun() {
+                const allowedFlow = this.flow.isAny(
+                    GAME_FLOW_STATES.ATTRACT,
+                    GAME_FLOW_STATES.PAUSED,
+                    GAME_FLOW_STATES.GAME_OVER
+                );
+                const blockedByLifecycle = this.tutorialActive || this.cycleTransitionActive || this.sectorTransitionActive ||
+                    this.resumeCountdownActive || this.startInputLocked || this.finalCompletionActive;
+                if (!this.requireLifecycleAction(
+                    'beginNewRun',
+                    allowedFlow && !blockedByLifecycle && !this.active &&
+                        (!this.flow.is(GAME_FLOW_STATES.GAME_OVER) || this.restartReady),
+                    'new-run-not-available'
+                )) return false;
+
                 this.cancelTransitionGroup('new-run');
                 const selectedOption = Math.max(1, Math.min(this.getSectorSelectOptionCount(), this.selectedStartSector || 1));
                 const endOption = this.getEndSectorOptionValue();
@@ -15541,8 +15607,14 @@ Orb Control Panel Instrument Reference
 
             // Canonical lifecycle entry for sector completion and restoration.
             completeSector() {
-                if (this.isGameOver || this.finalGridlockActive) return; // Final Gridlock has no crystal completion state
-                if (this.crystals.length !== 0) return; // Level still has crystals
+                if (this.crystals.length !== 0) return false; // Normal readiness check: the sector is not complete yet.
+                if (!this.requireLifecycleAction(
+                    'completeSector',
+                    this.flow.is(GAME_FLOW_STATES.PLAYING) && this.active && this.levelActionStarted &&
+                        !this.isGameOver && !this.finalGridlockActive && !this.sectorTransitionActive && !this.cycleTransitionActive,
+                    'sector-not-completable',
+                    { remainingCrystals: this.crystals.length }
+                )) return false;
 
                 const completedLevel = this.level;
                 const transitionToken = ++this.levelLoadToken;
@@ -16313,6 +16385,17 @@ Orb Control Panel Instrument Reference
 
             // Canonical lifecycle entry for attract mode, including its scheduler and audio ownership.
             returnToAttractMode() {
+                const allowedFlow = this.flow.isAny(
+                    GAME_FLOW_STATES.SPLASH,
+                    GAME_FLOW_STATES.GAME_OVER,
+                    GAME_FLOW_STATES.CYCLE_COMPLETE
+                ) || (this.flow.is(GAME_FLOW_STATES.ATTRACT) && !this.attractInterval);
+                if (!this.requireLifecycleAction(
+                    'returnToAttractMode',
+                    allowedFlow && !this.active && !this.isPaused && !this.resumeCountdownActive,
+                    this.flow.is(GAME_FLOW_STATES.ATTRACT) ? 'attract-mode-already-running' : 'attract-mode-not-available'
+                )) return false;
+
                 this.flow.enter(GAME_FLOW_STATES.ATTRACT, 'start-attract-mode');
                 this.stopAttractMode(); // Clear any existing attract mode
                 this.container.classList.remove('crt-shutdown-blackout');
@@ -16475,7 +16558,13 @@ Orb Control Panel Instrument Reference
             // Canonical lifecycle entry after the player continues from a completed cycle.
             async beginNextCycle() {
                 const transitionToken = this.pendingCycleContinueToken;
-                if (!this.cycleTransitionActive || !transitionToken || transitionToken !== this.levelLoadToken || this.isGameOver) return;
+                if (!this.requireLifecycleAction(
+                    'beginNextCycle',
+                    this.flow.is(GAME_FLOW_STATES.ATTRACT) && this.cycleTransitionActive && !this.finalCompletionActive &&
+                        !!transitionToken && transitionToken === this.levelLoadToken && !this.isGameOver,
+                    'cycle-continuation-not-ready',
+                    { transitionToken, currentLoadToken: this.levelLoadToken }
+                )) return false;
                 this.ensureTransitionGroup('cycle-continue', transitionToken);
 
                 this.hideCycleContinueButton();
@@ -16643,8 +16732,15 @@ Orb Control Panel Instrument Reference
 
             // Canonical lifecycle entry from final campaign completion into endless survival.
             async beginFinalGridlock() {
+                if (!this.requireLifecycleAction(
+                    'beginFinalGridlock',
+                    this.flow.is(GAME_FLOW_STATES.FINAL_COMPLETE) && this.finalCompletionActive && this.isGameOver &&
+                        this.restartReady && !this.finalGridlockActive && !this.finalGridlockResultActive &&
+                        !this.cycleTransitionActive && this.cycle >= this.MAX_CYCLES && this.level === this.MAX_LEVEL,
+                    'final-gridlock-not-ready'
+                )) return false;
+
                 this.flow.enter(GAME_FLOW_STATES.FINAL_GRIDLOCK, 'start-final-gridlock');
-                if (!this.finalCompletionActive || !this.isGameOver || !this.restartReady) return;
                 const loadToken = ++this.levelLoadToken;
                 this.beginTransitionGroup('final-gridlock-start', loadToken);
                 this.finalCompletionActive = false;
@@ -16797,7 +16893,12 @@ Orb Control Panel Instrument Reference
 
             // Canonical lifecycle entry for death and terminal run cleanup.
             async endRun(deathDetails = {}) {
-                if (this.isGameOver) return;
+                if (!this.requireLifecycleAction(
+                    'endRun',
+                    this.flow.isLiveAction() && this.active && this.levelActionStarted && !this.isGameOver &&
+                        !this.sectorTransitionActive && !this.cycleTransitionActive && !this.resumeCountdownActive,
+                    'run-not-endable'
+                )) return false;
                 const transitionToken = ++this.levelLoadToken;
                 this.beginTransitionGroup('game-over', transitionToken);
                 this.markStabilityEvent('game-over-start', { sector: this.level, cycle: this.cycle, enemies: this.enemies.length }); // Exit if already over
