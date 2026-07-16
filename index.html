@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Trackpad Prototype p004: Full-surface relative Orb control with gesture-coordinated Zap and Pause/Menu input; tutorial disabled.
+Trackpad Prototype p005: Full-surface relative Orb control with 15-sector progress row; Pause/Menu gesture disabled; tutorial disabled.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="trackpad-p004">
+<html data-build-version="trackpad-p005">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -5925,14 +5925,72 @@ Font License Notices
             height: 82% !important;
         }
 
-        /* Trackpad Prototype p004: the visible webpage is one relative-motion surface.
-           Menus retain their existing interactive layers; there is no permanent trackpad graphic. */
+        /* Trackpad Prototype p005: the visible webpage remains one relative-motion surface.
+           A noninteractive 15-sector progress row and gesture guide sit beneath the playfield. */
         body.full-surface-control-prototype {
             padding-bottom: max(6px, env(safe-area-inset-bottom));
         }
 
         body.full-surface-control-prototype.gameplay-gesture-active {
             cursor: crosshair;
+        }
+
+        /* Compact, noninteractive progress and control reference directly below the Grid. */
+        #sectorProgressPanel {
+            width: min(600px, calc(100vw - 8px));
+            box-sizing: border-box;
+            margin: clamp(5px, 1.4vw, 9px) 0 0;
+            padding: 0 clamp(5px, 1.5vw, 10px);
+            pointer-events: none;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        #sectorProgressIndicators {
+            display: grid;
+            grid-template-columns: repeat(15, minmax(0, 1fr));
+            align-items: center;
+            justify-items: center;
+            width: 100%;
+            gap: clamp(2px, 0.65vw, 6px);
+        }
+
+        .sector-progress-circle {
+            width: clamp(11px, 3.1vw, 19px);
+            aspect-ratio: 1;
+            box-sizing: border-box;
+            border: 1.5px solid rgba(255,255,255,0.30);
+            border-radius: 50%;
+            background: #000;
+            box-shadow: none;
+        }
+
+        .sector-progress-circle.current {
+            border-color: rgba(255,255,255,0.92);
+            background: rgba(255,255,255,0.34);
+            box-shadow: 0 0 5px rgba(255,255,255,0.42), inset 0 0 4px rgba(255,255,255,0.38);
+        }
+
+        .sector-progress-circle.completed {
+            border-color: #fff;
+            background: #fff;
+            box-shadow: 0 0 6px rgba(255,255,255,0.78), 0 0 11px rgba(255,255,255,0.34);
+        }
+
+        #gestureReference {
+            margin-top: clamp(5px, 1.4vw, 9px);
+            padding-bottom: max(2px, env(safe-area-inset-bottom));
+            color: rgba(255,255,255,0.58);
+            font-family: "Orbitron", monospace;
+            font-size: clamp(7px, 2.05vw, 10px);
+            line-height: 1.45;
+            letter-spacing: clamp(0.45px, 0.22vw, 1.15px);
+            text-align: center;
+            white-space: nowrap;
+        }
+
+        #gestureReference span {
+            display: block;
         }
 
 </style>
@@ -6184,11 +6242,19 @@ Font License Notices
         </div>
     </div>
 
+    <div id="sectorProgressPanel" aria-label="Sector progress and gesture controls">
+        <div id="sectorProgressIndicators" aria-label="15-sector progress"></div>
+        <div id="gestureReference" aria-hidden="true">
+            <span>SWIPE ANYWHERE — MOVE ORB</span>
+            <span>DOUBLE TAP / SHAKE — COSMIC ZAP</span>
+        </div>
+    </div>
+
     <!-- Hidden compatibility control. Full-surface gestures route through the canonical lifecycle methods. -->
     <button id="startButton" type="button" hidden aria-label="Start game"></button>
 
     <script>
-        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'trackpad-p004'}`;
+        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'trackpad-p005'}`;
 
         // Central diagnostic feature flags. Change values here before loading the page to isolate systems.
         const GAME_FEATURE_FLAGS = window.BLOCKAZOIDS_FEATURE_FLAGS = {
@@ -6299,9 +6365,6 @@ Font License Notices
                 gestureTapMaxDurationMs: 280,
                 gestureDoubleTapWindowMs: 330,
                 gestureDoubleTapMaxSeparation: 48,
-                twoFingerChordWindowMs: 180,
-                twoFingerTapMaxMove: 12,
-                twoFingerTapMaxDurationMs: 350,
                 shakeCooldownMs: 1200,
                 shakeThreshold: 32
             }),
@@ -7217,14 +7280,14 @@ Font License Notices
         }
 
 
-        // p004 input boundary: one owner classifies every page-level pointer stream before
-        // routing it to movement, Cosmic Zap, lifecycle pause/resume, or normal menu clicks.
+        // p005 input boundary: one owner classifies every page-level pointer stream before
+        // routing it to movement, Cosmic Zap, or normal menu clicks. Multitouch is rejected.
         class FullSurfaceGestureCoordinator {
             constructor(game) {
                 this.game = game;
                 this.pointers = new Map();
                 this.primaryPointerId = null;
-                this.twoFingerCandidate = null;
+                this.multitouchBlocked = false;
                 this.lastGameplayTap = null;
                 this.suppressClicksUntil = 0;
                 this.attached = false;
@@ -7251,7 +7314,7 @@ Font License Notices
             reset(reason = 'reset', options = {}) {
                 this.pointers.clear();
                 this.primaryPointerId = null;
-                this.twoFingerCandidate = null;
+                this.multitouchBlocked = false;
                 if (options.keepTapHistory !== true) this.lastGameplayTap = null;
                 document.body.classList.remove('gameplay-gesture-active');
             }
@@ -7279,11 +7342,6 @@ Font License Notices
                 const visible = (element) => !!(element && element.getClientRects && element.getClientRects().length &&
                     getComputedStyle(element).display !== 'none' && getComputedStyle(element).visibility !== 'hidden');
                 return !!(game.isPaused || game.developerAttractMenuOpen || visible(game.levelSelectWindow));
-            }
-
-            canTogglePauseMenu() {
-                const game = this.game;
-                return game.flow.allowsPause() || game.flow.allowsResume() || !!game.developerAttractMenuOpen;
             }
 
             createPointerState(event) {
@@ -7322,34 +7380,15 @@ Font License Notices
                     return;
                 }
 
+                // p005 deliberately assigns no command to multitouch. As soon as another
+                // contact arrives, reject the whole chord until every pointer is lifted. This keeps
+                // secondary fingers from moving the Orb, completing a Zap tap, or clicking a menu.
                 this.lastGameplayTap = null;
+                this.multitouchBlocked = true;
                 this.pointers.forEach(activePointer => { activePointer.multitouchSeen = true; });
-                if (this.pointers.size > 2) {
-                    this.suppressClicksUntil = this.now() + 250;
-                    if (event.cancelable) event.preventDefault();
-                    this.reset('too-many-pointers');
-                    return;
-                }
-
-                const pointers = Array.from(this.pointers.values());
-                const first = pointers.reduce((a, b) => a.startedAt <= b.startedAt ? a : b);
-                const second = first === pointers[0] ? pointers[1] : pointers[0];
-                const chordDelay = second.startedAt - first.startedAt;
-                const eligible = this.canTogglePauseMenu() &&
-                    chordDelay >= 0 && chordDelay <= GAME_CONFIG.input.twoFingerChordWindowMs &&
-                    !first.movementCommitted && first.travel <= GAME_CONFIG.input.twoFingerTapMaxMove;
-
-                if (eligible) {
-                    this.twoFingerCandidate = {
-                        id: ++this.sequence,
-                        pointerIds: new Set([first.id, second.id]),
-                        startedAt: first.startedAt,
-                        eligible: true,
-                        released: new Set()
-                    };
-                    this.suppressClicksUntil = this.now() + 600;
-                    if (event.cancelable) event.preventDefault();
-                }
+                this.suppressClicksUntil = this.now() + 600;
+                document.body.classList.remove('gameplay-gesture-active');
+                if (event.cancelable) event.preventDefault();
             }
 
             updatePointer(pointer, event) {
@@ -7378,10 +7417,7 @@ Font License Notices
 
                 for (const sample of events) {
                     const movement = this.updatePointer(pointer, sample);
-                    if (this.twoFingerCandidate && this.twoFingerCandidate.pointerIds.has(pointer.id)) {
-                        if (pointer.travel > GAME_CONFIG.input.twoFingerTapMaxMove) {
-                            this.twoFingerCandidate.eligible = false;
-                        }
+                    if (this.multitouchBlocked) {
                         if (event.cancelable) event.preventDefault();
                         continue;
                     }
@@ -7404,22 +7440,12 @@ Font License Notices
                 this.updatePointer(pointer, event);
                 pointer.ended = true;
 
-                if (this.twoFingerCandidate && this.twoFingerCandidate.pointerIds.has(pointer.id)) {
+                if (this.multitouchBlocked) {
                     if (event.cancelable) event.preventDefault();
-                    if (canceled || pointer.travel > GAME_CONFIG.input.twoFingerTapMaxMove) {
-                        this.twoFingerCandidate.eligible = false;
-                    }
-                    this.twoFingerCandidate.released.add(pointer.id);
                     this.pointers.delete(pointer.id);
-
-                    if (this.twoFingerCandidate.released.size === this.twoFingerCandidate.pointerIds.size) {
-                        const candidate = this.twoFingerCandidate;
-                        const duration = this.now() - candidate.startedAt;
-                        const valid = candidate.eligible && !canceled &&
-                            duration <= GAME_CONFIG.input.twoFingerTapMaxDurationMs;
-                        this.reset('two-finger-complete');
-                        this.suppressClicksUntil = this.now() + 100;
-                        if (valid) this.togglePauseMenu();
+                    if (this.pointers.size === 0) {
+                        this.reset('multitouch-complete');
+                        this.suppressClicksUntil = this.now() + 120;
                     }
                     return;
                 }
@@ -7467,27 +7493,6 @@ Font License Notices
                 if (this.isMenuMode()) return; // Let the native click activate menu controls.
                 if (this.isInteractiveTarget(pointer.target)) return;
                 if (!game.active && !game.tutorialActive) game.handlePlayPauseControlClick();
-            }
-
-            togglePauseMenu() {
-                const game = this.game;
-                this.lastGameplayTap = null;
-
-                if (game.flow.allowsPause()) {
-                    game.pauseGameplay({ showOverlay: true });
-                    return;
-                }
-
-                if (game.flow.allowsResume() && game.isPaused && game.levelActionStarted && !game.isGameOver) {
-                    game.closeBottomPanelOverlay();
-                    game.resumeGameplay();
-                    game.ui.updateAll();
-                    return;
-                }
-
-                if (game.developerAttractMenuOpen) {
-                    game.closeDeveloperMenuToStartScreen();
-                }
             }
 
             handleClickCapture(event) {
@@ -8524,7 +8529,7 @@ Font License Notices
                 const audio = this.audio || {};
                 return {
                     schema: 'blockazoids-stability-v1',
-                    build: 'trackpad-p004',
+                    build: 'trackpad-p005',
                     sessionId: this.stabilitySessionId,
                     savedAt: Date.now(),
                     cleanExit: !!cleanExit,
@@ -9990,6 +9995,7 @@ Font License Notices
             openMenuPanel(panelName) {
                 if (this.cycleTransitionActive || this.showHudDuringSectorIntro || this.resumeCountdownActive || this.startInputLocked) return;
                 if (this.isGameOver && !this.restartReady) return;
+                if (this.flow.isLiveAction()) return; // p005: Pause/Menu access is intentionally disabled during play.
                 this.enableShakeCosmicZap();
 
                 const panelMap = {
@@ -10021,6 +10027,7 @@ Font License Notices
             openDeveloperLevelSelectShortcut() {
                 if (this.cycleTransitionActive || this.showHudDuringSectorIntro || this.resumeCountdownActive || this.startInputLocked) return;
                 if (this.isGameOver && !this.restartReady) return;
+                if (this.flow.isLiveAction()) return; // p005: no live-game menu or level-select entry.
 
                 this.enableShakeCosmicZap();
 
@@ -10190,7 +10197,7 @@ Font License Notices
                             size: Number(player.size) || 0
                         },
                         gesturePointersActive: this.gestures ? this.gestures.pointers.size : 0,
-                        gestureTwoFingerCandidate: !!(this.gestures && this.gestures.twoFingerCandidate),
+                        gestureMultitouchBlocked: !!(this.gestures && this.gestures.multitouchBlocked),
                         gestureTapPending: !!(this.gestures && this.gestures.lastGameplayTap),
                         motionListenerAttached: !!this.motionListenerAttached
                     },
@@ -12807,8 +12814,7 @@ Font License Notices
                 this.enableShakeCosmicZap();
 
                 if (this.flow.isLiveAction()) {
-                    this.pauseGameplay({ showOverlay: true });
-                    return;
+                    return; // p005: active gameplay has no Pause/Menu command.
                 }
 
                 if (this.isPaused && this.levelActionStarted && !this.isGameOver) {
@@ -17448,11 +17454,13 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 this.scoreElement = document.getElementById('score');
                 this.cosmicZapIndicators = document.getElementById('cosmicZapIndicators');
                 this.cycleElement = document.getElementById('cycleHud');
+                this.sectorProgressIndicators = document.getElementById('sectorProgressIndicators');
                 this.scoreAlertActive = false;
                 this.scoreAlertTimer = null;
                 this.cosmicZapIcons = this.cosmicZapIndicators ? [...this.cosmicZapIndicators.querySelectorAll('.cosmic-zap-icon')] : [];
                 this.lastStartPauseSignature = null;
                 this.lastCycleIndicatorSignature = null;
+                this.lastSectorProgressSignature = null;
                 this.lastZapHudSignature = null;
             }
 
@@ -17544,12 +17552,11 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 const startButton = this.game.startButton;
                 if (!startButton) return;
 
-                const canPause = this.game.flow.allowsPause();
                 const canResume = this.game.flow.allowsResume();
                 const continueCycleReady = this.game.cycleTransitionActive && !!this.game.pendingCycleContinueToken && !this.game.isGameOver;
                 const controlLabel = this.game.finalGridlockResultActive
                     ? 'Restart Prism Campaign'
-                    : (canPause ? 'Pause game' : (canResume ? 'Resume game' : (continueCycleReady ? 'Continue to next cycle' : 'Start game')));
+                    : (canResume ? 'Resume game' : (continueCycleReady ? 'Continue to next cycle' : 'Start game'));
                 startButton.setAttribute('aria-label', controlLabel);
             }
 
@@ -17593,6 +17600,41 @@ startMaxSwarmBeat(delaySeconds = 0) {
 
                 this.cycleElement.classList.toggle('visible', showCompletedGrid);
                 this.cycleElement.setAttribute('aria-label', showCompletedGrid ? `${completedCycles} completed ${completedCycles === 1 ? 'grid' : 'grids'}` : '');
+            }
+
+            // Update the 15-sector progress row below the playfield. Sector numbering is 1–15;
+            // there is intentionally no Sector 0 display slot.
+            updateSectorProgressIndicators() {
+                if (!this.sectorProgressIndicators) return;
+
+                const totalSectors = Math.max(1, Math.min(15, Number(this.game.MAX_LEVEL) || 15));
+                const campaignComplete = !!(this.game.finalCompletionActive || this.game.finalGridlockActive || this.game.finalGridlockResultActive);
+                const inRunContext = !!(this.game.hasStartedRun || this.game.active || this.game.isPaused ||
+                    this.game.showHudDuringSectorIntro || this.game.isGameOver || campaignComplete);
+                const currentSector = campaignComplete
+                    ? 0
+                    : Math.max(1, Math.min(totalSectors, Number(inRunContext ? this.game.level : this.game.selectedStartSector) || 1));
+                const completedCount = campaignComplete
+                    ? totalSectors
+                    : (inRunContext ? Math.max(0, Math.min(totalSectors, currentSector - 1)) : 0);
+                const signature = `${totalSectors}|${campaignComplete}|${completedCount}|${currentSector}`;
+                if (signature === this.lastSectorProgressSignature) return;
+                this.lastSectorProgressSignature = signature;
+
+                const fragment = document.createDocumentFragment();
+                for (let sector = 1; sector <= totalSectors; sector += 1) {
+                    const circle = document.createElement('span');
+                    circle.className = 'sector-progress-circle';
+                    circle.setAttribute('aria-hidden', 'true');
+                    if (sector <= completedCount) circle.classList.add('completed');
+                    else if (sector === currentSector) circle.classList.add('current');
+                    fragment.appendChild(circle);
+                }
+                this.sectorProgressIndicators.replaceChildren(fragment);
+                const label = campaignComplete
+                    ? 'All 15 sectors completed'
+                    : `Sector ${currentSector} of ${totalSectors}`;
+                this.sectorProgressIndicators.setAttribute('aria-label', label);
             }
 
             // Update Cosmic Zap indicators based on remaining Cosmic Zaps
@@ -17639,6 +17681,7 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 this.updateHudMenuButton();
                 this.updateStartPauseButton();
                 this.updateCycleIndicator();
+                this.updateSectorProgressIndicators();
                 this.updateCosmicZapIndicators();
             }
         }
