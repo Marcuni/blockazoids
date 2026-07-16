@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v328: Makes the first tutorial Orb drag immediately reliable by stabilizing the playfield before input opens, using one native touch stream on iPhone, deferring ordinary Safari resizes until release, and still canceling on real orientation changes.
+Build v329: Phase 3D centralizes sector, resume, cycle, final-completion, Final Gridlock, and Game Over transition timing under one managed cancellable transition group while preserving all prior gameplay and presentation.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -21,7 +21,7 @@ Orb Control Panel Instrument Reference
 - Velocity Glyph Engine — Temporarily displays the Orb’s finger-driven movement speed.
 - Orb Command Socket — Controls the Orb’s pause, resume, and primary interface functions.
 -->
-<html data-build-version="v328">
+<html data-build-version="v329">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -8836,7 +8836,7 @@ Orb Control Panel Instrument Reference
     </div>
 
     <script>
-        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'v328'}`;
+        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'v329'}`;
 
         // Central diagnostic feature flags. Change values here before loading the page to isolate systems.
         const GAME_FEATURE_FLAGS = window.BLOCKAZOIDS_FEATURE_FLAGS = {
@@ -8968,8 +8968,9 @@ Orb Control Panel Instrument Reference
                 GAME_OVER: 'game-over'
         });
 
-        // Phase 3 scheduling foundation. Phase 3C now owns transient UI, splash, marquee,
-        // and non-gameplay visual-effect timing. Gameplay, tutorial progression, transitions, attract, and audio remain native.
+        // Phase 3 scheduling foundation. Phase 3D now owns transient UI, splash, marquee,
+        // non-gameplay visual effects, and all major non-tutorial game-transition timing.
+        // Gameplay, tutorial progression, attract mode, and audio engines remain native.
         class SchedulingManager {
             constructor() {
                 this.tasksByKey = new Map();
@@ -8996,6 +8997,28 @@ Orb Control Panel Instrument Reference
                 return record.token;
             }
 
+            wait(scope, name, delayMs = 0) {
+                const record = this._prepareRecord('timeout', scope, name);
+                const delay = Math.max(0, Number(delayMs) || 0);
+
+                return new Promise((resolve) => {
+                    let settled = false;
+                    const settle = (completed) => {
+                        if (settled) return;
+                        settled = true;
+                        resolve(!!completed);
+                    };
+
+                    record.onCancel = () => settle(false);
+                    record.nativeId = window.setTimeout(() => {
+                        if (!this._isCurrent(record)) return;
+                        this._forget(record);
+                        settle(true);
+                    }, delay);
+                    this._register(record);
+                });
+            }
+
             scheduleInterval(scope, name, callback, delayMs = 0) {
                 this._requireCallback(callback);
                 const record = this._prepareRecord('interval', scope, name);
@@ -9014,6 +9037,27 @@ Orb Control Panel Instrument Reference
                 record.nativeId = window.setInterval(wrappedCallback, delay);
                 this._register(record);
                 return record.token;
+            }
+
+            nextAnimationFrame(scope, name) {
+                const record = this._prepareRecord('animation-frame', scope, name);
+
+                return new Promise((resolve) => {
+                    let settled = false;
+                    const settle = (timestamp) => {
+                        if (settled) return;
+                        settled = true;
+                        resolve(timestamp);
+                    };
+
+                    record.onCancel = () => settle(null);
+                    record.nativeId = window.requestAnimationFrame((timestamp) => {
+                        if (!this._isCurrent(record)) return;
+                        this._forget(record);
+                        settle(timestamp);
+                    });
+                    this._register(record);
+                });
             }
 
             scheduleAnimationFrame(scope, name, callback) {
@@ -9101,7 +9145,8 @@ Orb Control Panel Instrument Reference
                     name: normalizedName,
                     key: this._makeKey(normalizedScope, normalizedName),
                     token: `scheduled-task-${taskNumber}`,
-                    nativeId: null
+                    nativeId: null,
+                    onCancel: null
                 };
             }
 
@@ -9129,7 +9174,10 @@ Orb Control Panel Instrument Reference
                     if (record.type === 'interval') window.clearInterval(record.nativeId);
                     if (record.type === 'animation-frame') window.cancelAnimationFrame(record.nativeId);
                 }
+                const onCancel = record.onCancel;
+                record.onCancel = null;
                 this._forget(record);
+                if (typeof onCancel === 'function') onCancel();
             }
 
             _normalizeScope(scope) {
@@ -9449,8 +9497,6 @@ Orb Control Panel Instrument Reference
                 this.stabilityReportDismiss = document.getElementById('stabilityReportDismiss');
                 this.stabilityHeartbeatTimer = null;
                 this.stabilityViewportTimer = null;
-                this.tutorialResizePending = false;
-                this.tutorialViewportActivationRafId = null;
                 this.stabilitySessionId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
                 this.stabilityLastEvent = 'boot';
                 this.stabilityLastEventDetails = {};
@@ -10067,7 +10113,10 @@ Orb Control Panel Instrument Reference
                 // Attract mode variables
                 this.attractInterval = null;          // Interval ID for attract mode
                 this.lifeGrid = [];                   // 10x10 grid for Game of Life
-                this.levelLoadToken = 0;             // Cancels older intro/level-start timers during test jumps
+                this.levelLoadToken = 0;             // Cancels older intro/level-start work during test jumps
+                this.transitionGroupRevision = 0;     // Phase 3D: one authoritative cancellable transition sequence at a time
+                this.activeTransitionGroup = null;
+                this.transitionWaitSequence = 0;
                 this.menuOpenedAt = 0;                // Prevents the double-tap that opened the menu from selecting/focusing a button
                 this.menuInputGuardMs = 260;
                 this.cycleTransitionActive = false;
@@ -10470,7 +10519,7 @@ Orb Control Panel Instrument Reference
                 const controlPanel = this.ui && this.ui.getControlPanelDiagnosticState ? this.ui.getControlPanelDiagnosticState() : null;
                 return {
                     schema: 'blockazoids-stability-v1',
-                    build: 'v328',
+                    build: 'v329',
                     sessionId: this.stabilitySessionId,
                     savedAt: Date.now(),
                     cleanExit: !!cleanExit,
@@ -10587,91 +10636,31 @@ Orb Control Panel Instrument Reference
             }
 
             handleViewportChange(reason = 'resize') {
-                const tutorialCanDrag = this.tutorialActive &&
+                // On iPhone, the first finger movement can make Safari settle its address/tool bars,
+                // emitting a normal resize while the board dimensions themselves are unchanged.
+                // Canceling the drag here made the tutorial Orb appear delayed until a second touch.
+                // Preserve only an active tutorial drag during ordinary resize events; genuine
+                // orientation changes and all non-tutorial viewport changes still invalidate input.
+                const preserveTutorialDrag = reason === 'resize' &&
+                    this.tutorialActive &&
                     this.player &&
+                    this.player.isTouchActive &&
                     this.flow &&
                     this.flow.allowsOrbDragInput();
 
-                // A real rotation always ends the current gesture and rebuilds the board.
-                if (reason === 'orientationchange') {
-                    this.tutorialResizePending = false;
-                    if (this.stabilityViewportTimer) {
-                        clearTimeout(this.stabilityViewportTimer);
-                        this.stabilityViewportTimer = null;
-                    }
-                    this.player.invalidateDragSession('viewport:orientationchange');
-                    this.markStabilityEvent(reason, {
-                        width: window.innerWidth,
-                        height: window.innerHeight,
-                        preservedTutorialInput: false
-                    });
-                    this.stabilityViewportTimer = window.setTimeout(() => {
-                        this.stabilityViewportTimer = null;
-                        this.applyResponsiveViewportUpdate('orientationchange');
-                    }, 180);
-                    return;
+                if (!preserveTutorialDrag) {
+                    this.player.invalidateDragSession(`viewport:${reason}`);
                 }
-
-                // Safari can resize the visual viewport when its bars settle during the first drag.
-                // Never rebuild the board under a live tutorial finger. Remember the resize and apply
-                // it immediately after release instead. Before a finger is down, keep the normal
-                // debounce but re-check ownership when the timer fires.
-                if (tutorialCanDrag) {
-                    const dragging = !!this.player.isTouchActive;
-                    if (dragging) this.tutorialResizePending = true;
-                    this.markStabilityEvent(reason, {
-                        width: window.innerWidth,
-                        height: window.innerHeight,
-                        preservedTutorialInput: true,
-                        deferredUntilRelease: dragging
-                    });
-                    if (this.stabilityViewportTimer) clearTimeout(this.stabilityViewportTimer);
-                    this.stabilityViewportTimer = null;
-                    if (dragging) return;
-
-                    this.stabilityViewportTimer = window.setTimeout(() => {
-                        this.stabilityViewportTimer = null;
-                        if (this.tutorialActive && this.flow && this.flow.allowsOrbDragInput()) {
-                            if (this.player && this.player.isTouchActive) {
-                                this.tutorialResizePending = true;
-                                return;
-                            }
-                            this.applyResponsiveViewportUpdate('tutorial-resize-settled');
-                            return;
-                        }
-                        this.applyResponsiveViewportUpdate('resize');
-                    }, 180);
-                    return;
-                }
-
-                this.player.invalidateDragSession(`viewport:${reason}`);
                 this.markStabilityEvent(reason, {
                     width: window.innerWidth,
                     height: window.innerHeight,
-                    preservedTutorialInput: false
+                    preservedTutorialDrag: !!preserveTutorialDrag
                 });
                 if (this.stabilityViewportTimer) clearTimeout(this.stabilityViewportTimer);
                 this.stabilityViewportTimer = window.setTimeout(() => {
                     this.stabilityViewportTimer = null;
                     this.applyResponsiveViewportUpdate(reason);
                 }, 180);
-            }
-
-            flushDeferredTutorialResize(reason = 'tutorial-drag-ended') {
-                if (!this.tutorialResizePending || !this.player || this.player.isTouchActive) return;
-                this.tutorialResizePending = false;
-                if (this.stabilityViewportTimer) {
-                    clearTimeout(this.stabilityViewportTimer);
-                    this.stabilityViewportTimer = null;
-                }
-                requestAnimationFrame(() => {
-                    if (this.player && this.player.isTouchActive) {
-                        this.tutorialResizePending = true;
-                        return;
-                    }
-                    this.applyResponsiveViewportUpdate('tutorial-resize-after-release');
-                    this.markStabilityEvent('tutorial-resize-flushed', { reason });
-                });
             }
 
             applyResponsiveViewportUpdate(reason = 'resize') {
@@ -12282,6 +12271,7 @@ Orb Control Panel Instrument Reference
 
             // Reset state shared by a fresh level start or a testing jump.
             prepareLevelStart(levelNumber, resetScore = false, options = {}) {
+                this.beginTransitionGroup('sector-intro', this.levelLoadToken);
                 this.flow.enter(GAME_FLOW_STATES.SECTOR_INTRO, 'prepare-level-start');
                 if (this.tutorialActive) {
                     this.tutorialActive = false;
@@ -12411,11 +12401,12 @@ Orb Control Panel Instrument Reference
 
             // Start the current prepared level after the grid appears and a 3-second countdown finishes.
             startPreparedLevel(loadToken, options = {}) {
+                this.ensureTransitionGroup('sector-intro', loadToken);
                 this.flow.enter(GAME_FLOW_STATES.SECTOR_INTRO, 'start-prepared-level');
                 this.activationHowToPending = false;
 
-                this.runIntroAnimation(options)
-                    .then(() => this.runLevelCountdown(loadToken))
+                this.runIntroAnimation(loadToken, options)
+                    .then((introCompleted) => introCompleted ? this.runLevelCountdown(loadToken) : false)
                     .then((countdownCompleted) => {
                         if (!countdownCompleted || loadToken !== this.levelLoadToken) {
                             this.startInputLocked = false;
@@ -12437,7 +12428,7 @@ Orb Control Panel Instrument Reference
 
             // Show the level grid first, then count down 3-2-1-GO before live action begins.
             async runLevelCountdown(loadToken) {
-                const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+                this.ensureTransitionGroup('sector-countdown', loadToken);
                 const steps = ['3', '2', '1'];
                 const levelName = this.getLevelPatternName(this.level).toUpperCase();
 
@@ -12464,14 +12455,14 @@ Orb Control Panel Instrument Reference
                 for (const step of steps) {
                     if (loadToken !== this.levelLoadToken) return cancelCountdown();
                     this.audio.playCountdownBeep(false);
-                    await wait(1000);
+                    if (!await this.wait(1000, loadToken, `sector-countdown-${step}`)) return cancelCountdown();
                 }
 
                 if (loadToken !== this.levelLoadToken) return cancelCountdown();
                 this.audio.playCountdownBeep(true);
-                await wait(300);
+                if (!await this.wait(300, loadToken, 'sector-countdown-go')) return cancelCountdown();
                 this.bonusTextElement.style.opacity = '0';
-                await wait(150);
+                if (!await this.wait(150, loadToken, 'sector-countdown-fade')) return cancelCountdown();
                 this.bonusTextElement.classList.remove('countdownText');
                 this.bonusTextElement.textContent = '';
                 this.cockpitSectorDisplayName = levelName;
@@ -12495,6 +12486,7 @@ Orb Control Panel Instrument Reference
                 this.levelActionStarted = true;
                 this.sectorTransitionActive = false;
                 this.flow.enter(this.finalGridlockActive ? GAME_FLOW_STATES.FINAL_GRIDLOCK : GAME_FLOW_STATES.PLAYING, 'begin-level-action');
+                this.completeTransitionGroup('sector-live-action');
                 this.startInputLocked = false;
                 this.syncMotionListenerState();
                 this.ui.updateAll();
@@ -13537,6 +13529,7 @@ Orb Control Panel Instrument Reference
                 if (!this.developerModeEnabled) return;
 
                 const transitionToken = ++this.levelLoadToken;
+                this.beginTransitionGroup('developer-cycle-complete', transitionToken);
                 this.audio.resume();
                 this.hideLevelSelectMenu();
 
@@ -13637,23 +13630,96 @@ Orb Control Panel Instrument Reference
                 }
             }
 
-            wait(ms) {
-                return new Promise(resolve => setTimeout(resolve, ms));
+            beginTransitionGroup(name, loadToken = this.levelLoadToken) {
+                if (this.activeTransitionGroup) {
+                    this.cancelTransitionGroup(`superseded-by:${String(name || 'transition')}`);
+                } else {
+                    this.scheduler.cancelScope('transitions');
+                }
+                this.activeTransitionGroup = {
+                    revision: ++this.transitionGroupRevision,
+                    name: String(name || 'transition'),
+                    loadToken
+                };
+                this.transitionWaitSequence = 0;
+                return this.activeTransitionGroup;
+            }
+
+            ensureTransitionGroup(name, loadToken = this.levelLoadToken) {
+                if (!this.activeTransitionGroup || this.activeTransitionGroup.loadToken !== loadToken) {
+                    return this.beginTransitionGroup(name, loadToken);
+                }
+                this.activeTransitionGroup.name = String(name || this.activeTransitionGroup.name || 'transition');
+                return this.activeTransitionGroup;
+            }
+
+            cancelTransitionGroup(reason = 'cancelled') {
+                const cancelledTasks = this.scheduler.cancelScope('transitions');
+                if (this.activeTransitionGroup) {
+                    this.markStabilityEvent('transition-cancelled', {
+                        name: this.activeTransitionGroup.name,
+                        loadToken: this.activeTransitionGroup.loadToken,
+                        reason,
+                        cancelledTasks
+                    });
+                }
+                this.activeTransitionGroup = null;
+                this.transitionWaitSequence = 0;
+                return cancelledTasks;
+            }
+
+            completeTransitionGroup(reason = 'completed') {
+                const cancelledTasks = this.scheduler.cancelScope('transitions');
+                if (this.activeTransitionGroup) {
+                    this.markStabilityEvent('transition-complete', {
+                        name: this.activeTransitionGroup.name,
+                        loadToken: this.activeTransitionGroup.loadToken,
+                        reason,
+                        cancelledTasks
+                    });
+                }
+                this.activeTransitionGroup = null;
+                this.transitionWaitSequence = 0;
+                return cancelledTasks;
+            }
+
+            isTransitionGroupCurrent(loadToken = this.levelLoadToken) {
+                return !!this.activeTransitionGroup &&
+                       this.activeTransitionGroup.loadToken === loadToken &&
+                       loadToken === this.levelLoadToken;
+            }
+
+            wait(ms, loadToken = this.levelLoadToken, label = 'wait') {
+                if (!this.isTransitionGroupCurrent(loadToken)) return Promise.resolve(false);
+                const group = this.activeTransitionGroup;
+                const taskName = `${group.revision}:${++this.transitionWaitSequence}:${label}`;
+                return this.scheduler.wait('transitions', taskName, ms)
+                    .then((completed) => completed && this.isTransitionGroupCurrent(loadToken));
+            }
+
+            nextTransitionFrame(loadToken = this.levelLoadToken, label = 'frame') {
+                if (!this.isTransitionGroupCurrent(loadToken)) return Promise.resolve(null);
+                const group = this.activeTransitionGroup;
+                const taskName = `${group.revision}:${++this.transitionWaitSequence}:${label}`;
+                return this.scheduler.nextAnimationFrame('transitions', taskName)
+                    .then((timestamp) => timestamp !== null && this.isTransitionGroupCurrent(loadToken) ? timestamp : null);
             }
 
             async fadeScreenToBlack(loadToken, durationMs = this.screenFadeDurationMs) {
+                this.ensureTransitionGroup('screen-fade-to-black', loadToken);
                 this.screenFadeElement.style.transition = `opacity ${durationMs}ms ease-in-out`;
                 this.screenFadeElement.classList.add('visible');
-                await this.wait(durationMs);
-                return loadToken === this.levelLoadToken && !this.flow.isTerminal();
+                const completed = await this.wait(durationMs, loadToken, 'screen-fade-to-black');
+                return completed && loadToken === this.levelLoadToken && !this.flow.isTerminal();
             }
 
             async fadeScreenFromBlack(loadToken, durationMs = this.screenFadeDurationMs) {
+                this.ensureTransitionGroup('screen-fade-from-black', loadToken);
                 this.screenFadeElement.style.transition = `opacity ${durationMs}ms ease-in-out`;
                 this.screenFadeElement.classList.remove('visible');
                 this.refreshGameOverlay();
-                await this.wait(durationMs);
-                return loadToken === this.levelLoadToken && !this.flow.isTerminal();
+                const completed = await this.wait(durationMs, loadToken, 'screen-fade-from-black');
+                return completed && loadToken === this.levelLoadToken && !this.flow.isTerminal();
             }
 
 
@@ -13676,6 +13742,7 @@ Orb Control Panel Instrument Reference
 
             pauseGame(options = {}) {
                 if (!this.flow.allowsPause()) return;
+                this.cancelTransitionGroup('pause-menu');
                 const showOverlay = !!options.showOverlay;
 
                 this.beginTelemetryPause('manual-pause');
@@ -13727,6 +13794,7 @@ Orb Control Panel Instrument Reference
                 if (this.audio) this.audio.startBackgroundMusic(this.level);
 
                 const loadToken = ++this.levelLoadToken;
+                this.beginTransitionGroup('resume-countdown', loadToken);
                 const countdownCompleted = await this.runResumeCountdown(loadToken);
                 if (!countdownCompleted || loadToken !== this.levelLoadToken || this.flow.isTerminal()) {
                     if (this.audio) this.audio.stopBackgroundMusic();
@@ -13739,7 +13807,7 @@ Orb Control Panel Instrument Reference
             }
 
             async runResumeCountdown(loadToken) {
-                const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+                this.ensureTransitionGroup('resume-countdown', loadToken);
                 const steps = ['3', '2', '1'];
                 this.bonusTextElement.classList.remove('countdownText', 'restoreText');
                 this.bonusTextElement.classList.add('resumeCountdownText');
@@ -13750,15 +13818,15 @@ Orb Control Panel Instrument Reference
                     if (loadToken !== this.levelLoadToken || this.flow.isTerminal()) break;
                     this.bonusTextElement.textContent = step;
                     if (this.audio) this.audio.playCountdownBeep(false);
-                    await wait(1000);
+                    if (!await this.wait(1000, loadToken, `resume-countdown-${step}`)) break;
                 }
 
                 this.bonusTextElement.style.opacity = '0';
-                await wait(150);
+                const fadeCompleted = await this.wait(150, loadToken, 'resume-countdown-fade');
                 this.bonusTextElement.classList.remove('resumeCountdownText');
                 this.bonusTextElement.textContent = '';
                 this.refreshGameOverlay();
-                return loadToken === this.levelLoadToken && !this.flow.isTerminal();
+                return fadeCompleted && loadToken === this.levelLoadToken && !this.flow.isTerminal();
             }
 
             resumeLiveAction() {
@@ -13770,6 +13838,7 @@ Orb Control Panel Instrument Reference
                 this.isPaused = false;
                 this.active = true;
                 this.flow.enter(this.finalGridlockActive ? GAME_FLOW_STATES.FINAL_GRIDLOCK : GAME_FLOW_STATES.PLAYING, 'resume-live-action');
+                this.completeTransitionGroup('resume-live-action');
                 this.syncMotionListenerState();
                 this.setCrtPaused(false);
                 this.setCrtUiSuspended(false);
@@ -13830,7 +13899,7 @@ Orb Control Panel Instrument Reference
             }
 
             resetIntroCompletionFlag() {
-                // v328: only clear tutorial completion. The click handler already plays the
+                // Reset Intro Completion only clears tutorial completion. The click handler already plays the
                 // standard menu beep; the user can reload manually when ready to replay it.
                 try { localStorage.removeItem(this.introCompletionStorageKey); } catch (_) {}
                 this.introCompleted = false;
@@ -13948,16 +14017,14 @@ Orb Control Panel Instrument Reference
                 this.isPaused = false;
                 this.finalGridlockActive = false;
                 this.finalCompletionActive = false;
+                // The tutorial is live interaction, not a sector transition. Open the input window
+                // before entering the tutorial flow so the first touch cannot be discarded.
                 this.sectorTransitionActive = false;
                 this.startInputLocked = false;
-
-                // Keep tutorial input closed while Safari and the responsive board finish the PLAY
-                // transition. The Orb and its instruction are intentionally hidden until both are
-                // ready, so any visible movement prompt is guaranteed to accept the first touch.
-                this.tutorialActive = false;
-                this.tutorialStep = '';
-                const token = ++this.tutorialToken;
-                this.flow.enter(GAME_FLOW_STATES.TUTORIAL, 'start-one-time-intro-preflight');
+                this.tutorialActive = true;
+                this.tutorialStep = 'movement';
+                this.flow.enter(GAME_FLOW_STATES.TUTORIAL, 'start-one-time-intro');
+                this.tutorialToken++;
                 this.tutorialMovementDistance = 0;
                 this.tutorialMovementQualified = false;
                 this.tutorialEnemyAvoidMs = 0;
@@ -13968,85 +14035,20 @@ Orb Control Panel Instrument Reference
                 this.cosmicZapPressure = 0;
                 this.active = true;
                 this.levelActionStarted = true;
-                this.tutorialResizePending = false;
-
-                if (this.stabilityViewportTimer) {
-                    clearTimeout(this.stabilityViewportTimer);
-                    this.stabilityViewportTimer = null;
-                }
-                if (this.tutorialViewportActivationRafId !== null) {
-                    cancelAnimationFrame(this.tutorialViewportActivationRafId);
-                    this.tutorialViewportActivationRafId = null;
-                }
-
-                this.player.invalidateDragSession('tutorial-preflight');
-                this.player.element.style.display = 'none';
+                this.player.reset();
                 document.body.classList.add('tutorial-active');
                 this.setGameOverlayVisible(false);
                 this.setCrtUiSuspended(false);
                 this.setCrtPaused(false);
-                this.applyResponsiveViewportUpdate('tutorial-start-preflight');
+                this.setTutorialStep('movement');
+                // Start with a clean, explicitly open pointer session. This also prevents a stale
+                // attract/menu pointer revision from delaying the first tutorial drag.
+                this.player.invalidateDragSession('tutorial-input-ready');
                 this.syncMotionListenerState();
                 this.ui.updateAll();
-
-                const readViewport = () => {
-                    const viewport = window.visualViewport;
-                    return {
-                        width: viewport ? viewport.width : window.innerWidth,
-                        height: viewport ? viewport.height : window.innerHeight,
-                        offsetTop: viewport ? viewport.offsetTop : 0
-                    };
-                };
-                let previousViewport = null;
-                let stableSamples = 0;
-                let attempts = 0;
-
-                const activateTutorialInput = () => {
-                    this.tutorialViewportActivationRafId = null;
-                    if (token !== this.tutorialToken) return;
-
-                    this.applyResponsiveViewportUpdate('tutorial-start-ready');
-                    this.tutorialActive = true;
-                    this.tutorialStep = 'movement';
-                    this.player.reset();
-                    this.setTutorialStep('movement');
-                    this.syncMotionListenerState();
-                    this.ui.updateAll();
-                    this.tutorialLastFrameTime = performance.now();
-                    this.tutorialRafId = requestAnimationFrame((timestamp) => this.updateTutorial(timestamp, token));
-                    this.markStabilityEvent('tutorial-input-ready', {
-                        width: window.innerWidth,
-                        height: window.innerHeight,
-                        board: Number(this.PLAYFIELD_SIZE) || 0,
-                        settleFrames: attempts
-                    });
-                };
-
-                const waitForStableViewport = () => {
-                    if (token !== this.tutorialToken) {
-                        this.tutorialViewportActivationRafId = null;
-                        return;
-                    }
-                    attempts++;
-                    const currentViewport = readViewport();
-                    const stable = previousViewport &&
-                        Math.abs(currentViewport.width - previousViewport.width) < 0.5 &&
-                        Math.abs(currentViewport.height - previousViewport.height) < 0.5 &&
-                        Math.abs(currentViewport.offsetTop - previousViewport.offsetTop) < 0.5;
-                    stableSamples = stable ? stableSamples + 1 : 0;
-                    previousViewport = currentViewport;
-
-                    if (stableSamples >= 2 || attempts >= 18) {
-                        activateTutorialInput();
-                        return;
-                    }
-                    this.tutorialViewportActivationRafId = requestAnimationFrame(waitForStableViewport);
-                };
-
-                // Force the preflight layout to commit, then require consecutive stable viewport
-                // samples before revealing the interactive Orb.
-                void this.container.getBoundingClientRect();
-                this.tutorialViewportActivationRafId = requestAnimationFrame(waitForStableViewport);
+                this.tutorialLastFrameTime = performance.now();
+                const token = this.tutorialToken;
+                this.tutorialRafId = requestAnimationFrame((timestamp) => this.updateTutorial(timestamp, token));
             }
 
             setTutorialStep(step, options = {}) {
@@ -14126,7 +14128,7 @@ Orb Control Panel Instrument Reference
                     this.cosmicZapsLeft = 0;
                     this.tutorialRelicReady = false;
 
-                    // v328: announce the objective before revealing the Relic. Once visible,
+                    // Announce the objective before revealing the Relic. Once visible,
                     // the Relic is immediately collectible, including during a very fast pass.
                     const spawnTutorialRelic = () => {
                         if (!this.tutorialActive || this.tutorialStep !== 'relic' || this.prismRelic) return;
@@ -14511,6 +14513,7 @@ Orb Control Panel Instrument Reference
             }
 
             start() {
+                this.cancelTransitionGroup('new-run');
                 const selectedOption = Math.max(1, Math.min(this.getSectorSelectOptionCount(), this.selectedStartSector || 1));
                 const endOption = this.getEndSectorOptionValue();
 
@@ -14553,17 +14556,19 @@ Orb Control Panel Instrument Reference
                 this.startPreparedLevel(loadToken);
             }
             // Restore the arcade crystal-drop intro before the countdown begins.
-            async runIntroAnimation(options = {}) {
+            async runIntroAnimation(loadToken, options = {}) {
+                this.ensureTransitionGroup('sector-grid-intro', loadToken);
                 this.player.reset(); // Center player
                 if (!options.skipGridFade) {
                     this.container.style.animation = 'gridFadeIn 1s ease-in forwards';
-                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    const gridFadeCompleted = await this.wait(1000, loadToken, 'sector-grid-fade');
                     this.container.style.animation = '';
+                    if (!gridFadeCompleted) return false;
                 }
 
                 this.audio.playIntro(); // Retro arpeggio plays with the crystal drop
                 this.spawnCrystals(true); // Crystals fall into place before the countdown
-                await new Promise(resolve => setTimeout(resolve, 2000));
+                return await this.wait(2000, loadToken, 'sector-crystal-drop');
             }
 
             // Simple seeded random generator so each level has a stable-but-different layout.
@@ -15452,6 +15457,7 @@ Orb Control Panel Instrument Reference
 
                 const completedLevel = this.level;
                 const transitionToken = ++this.levelLoadToken;
+                this.beginTransitionGroup('sector-complete', transitionToken);
                 this.markStabilityEvent('sector-complete-start', { sector: completedLevel, transitionToken });
 
                 this.stopRunRecordActionClock();
@@ -15497,13 +15503,14 @@ Orb Control Panel Instrument Reference
                         return;
                     }
 
-                    this.advanceToNextLevelAfterRestore(completedLevel + 1);
+                    this.advanceToNextLevelAfterRestore(completedLevel + 1, transitionToken);
                 });
             }
 
             // Count up end-sector bonus points only after the sector board and fanfare have played.
-            animateScoreBonus(points, transitionToken, durationMs = 900) {
-                if (!points || points <= 0) return Promise.resolve(true);
+            async animateScoreBonus(points, transitionToken, durationMs = 900) {
+                if (!points || points <= 0) return true;
+                this.ensureTransitionGroup('sector-bonus-count', transitionToken);
 
                 const startScore = this.score;
                 const targetScore = startScore + points;
@@ -15518,39 +15525,32 @@ Orb Control Panel Instrument Reference
 
                 this.audio.playBonusCountUp(durationMs);
 
-                return new Promise(resolve => {
-                    const step = (now) => {
-                        if (transitionToken !== this.levelLoadToken || this.isGameOver) {
-                            if (scoreElement) scoreElement.classList.remove('bonusScoreCount');
-                            resolve(false);
-                            return;
-                        }
+                while (true) {
+                    const now = await this.nextTransitionFrame(transitionToken, 'sector-bonus-count-frame');
+                    if (now === null || transitionToken !== this.levelLoadToken || this.isGameOver) {
+                        if (scoreElement) scoreElement.classList.remove('bonusScoreCount');
+                        return false;
+                    }
 
-                        const progress = Math.min(1, (now - startTime) / durationMs);
-                        const eased = 1 - Math.pow(1 - progress, 3);
-                        const displayScore = Math.round(startScore + points * eased);
-                        if (scoreElement) scoreElement.textContent = `${displayScore}`;
+                    const progress = Math.min(1, (now - startTime) / durationMs);
+                    const eased = 1 - Math.pow(1 - progress, 3);
+                    const displayScore = Math.round(startScore + points * eased);
+                    if (scoreElement) scoreElement.textContent = `${displayScore}`;
+                    if (progress >= 1) break;
+                }
 
-                        if (progress < 1) {
-                            requestAnimationFrame(step);
-                            return;
-                        }
-
-                        this.score = targetScore;
-                        this.ui.updateScore();
-                        this.checkHighScore();
-                        if (scoreElement) {
-                            this.scheduler.scheduleTimeout('visual-effects', 'bonus-score-count-cleanup', () => scoreElement.classList.remove('bonusScoreCount'), 120);
-                        }
-                        resolve(true);
-                    };
-
-                    requestAnimationFrame(step);
-                });
+                this.score = targetScore;
+                this.ui.updateScore();
+                this.checkHighScore();
+                if (scoreElement) {
+                    this.scheduler.scheduleTimeout('visual-effects', 'bonus-score-count-cleanup', () => scoreElement.classList.remove('bonusScoreCount'), 120);
+                }
+                return true;
             }
 
             // Dramatic level-ending ritual before the next grid sector begins.
             async runGridRestoreSequence(completedLevel, transitionToken, options = {}) {
+                this.ensureTransitionGroup('sector-restoration', transitionToken);
                 this.flow.enter(GAME_FLOW_STATES.SECTOR_RESTORE, 'sector-restoration');
                 this.markStabilityEvent('sector-restoration-start', { sector: completedLevel, transitionToken });
                 const fadeMs = 350;
@@ -15587,14 +15587,14 @@ Orb Control Panel Instrument Reference
                 this.bonusTextElement.style.opacity = '1';
 
                 // Start the top-HUD score count exactly when the restore melody window ends.
-                await this.wait(restoreMelodyMs);
+                if (!await this.wait(restoreMelodyMs, transitionToken, 'sector-restore-melody')) return false;
                 if (transitionToken !== this.levelLoadToken || this.isGameOver) return false;
 
                 const scoreAnimationCompleted = await this.animateScoreBonus(totalBonus, transitionToken);
                 const stillCurrent = scoreAnimationCompleted && transitionToken === this.levelLoadToken && !this.isGameOver;
 
                 this.bonusTextElement.style.opacity = '0';
-                await this.wait(fadeMs);
+                if (!await this.wait(fadeMs, transitionToken, 'sector-restore-fade')) return false;
 
                 this.bonusTextElement.classList.remove('restoreText');
                 this.container.classList.remove('gridRestoreSequence');
@@ -15620,7 +15620,7 @@ Orb Control Panel Instrument Reference
             }
 
             // Reset level state behind black, fade in, then begin the next sector intro.
-            advanceToNextLevelAfterRestore(nextLevel) {
+            advanceToNextLevelAfterRestore(nextLevel, transitionToken = this.levelLoadToken) {
                 this.level = nextLevel;
                 this.recordProgressUnlocks(this.level, this.cycle);
                 this.cockpitSectorDisplayName = '';
@@ -15662,7 +15662,9 @@ Orb Control Panel Instrument Reference
                 this.audio.resetForSectorTransition();
                 this.resetCrystalsGameplay();
 
+                if (transitionToken !== this.levelLoadToken || this.isGameOver) return;
                 const loadToken = ++this.levelLoadToken;
+                this.beginTransitionGroup('next-sector-intro', loadToken);
                 this.fadeScreenFromBlack(loadToken).then((fadeCompleted) => {
                     if (!fadeCompleted || loadToken !== this.levelLoadToken || this.isGameOver) return;
                     this.startPreparedLevel(loadToken, { skipGridFade: true });
@@ -16391,9 +16393,10 @@ Orb Control Panel Instrument Reference
                 this.ui.updateAll();
             }
 
-            continueCycle() {
+            async continueCycle() {
                 const transitionToken = this.pendingCycleContinueToken;
                 if (!this.cycleTransitionActive || !transitionToken || transitionToken !== this.levelLoadToken || this.isGameOver) return;
+                this.ensureTransitionGroup('cycle-continue', transitionToken);
 
                 this.hideCycleContinueButton();
                 this.audio.stopCycleCompleteMusic();
@@ -16402,31 +16405,31 @@ Orb Control Panel Instrument Reference
                 this.gameOverElement.style.opacity = '0';
                 this.bonusTextElement.style.opacity = '0';
 
-                setTimeout(() => {
-                    if (transitionToken !== this.levelLoadToken || this.isGameOver) return;
+                if (!await this.wait(500, transitionToken, 'cycle-continue-fade')) return;
+                if (transitionToken !== this.levelLoadToken || this.isGameOver) return;
 
-                    this.gameOverElement.classList.remove('finalCycleText');
-                    this.bonusTextElement.classList.remove('finalCycleSubtext');
-                    this.gameOverElement.textContent = '';
-                    this.bonusTextElement.textContent = '';
+                this.gameOverElement.classList.remove('finalCycleText');
+                this.bonusTextElement.classList.remove('finalCycleSubtext');
+                this.gameOverElement.textContent = '';
+                this.bonusTextElement.textContent = '';
 
-                    const loadToken = ++this.levelLoadToken;
-                    this.prepareLevelStart(1, false, { keepScreenFade: true });
-                    this.cycleTransitionActive = false;
+                const loadToken = ++this.levelLoadToken;
+                this.prepareLevelStart(1, false, { keepScreenFade: true });
+                this.cycleTransitionActive = false;
 
-                    this.fadeScreenFromBlack(loadToken).then((fadeCompleted) => {
-                        if (!fadeCompleted || loadToken !== this.levelLoadToken || this.isGameOver) return;
-                        this.container.classList.remove('cycleStartPulse');
-                        void this.container.offsetWidth;
-                        this.container.classList.add('cycleStartPulse');
-                        this.scheduler.scheduleTimeout('visual-effects', 'cycle-start-pulse', () => this.container.classList.remove('cycleStartPulse'), 1200);
-                        this.startPreparedLevel(loadToken, { skipGridFade: true });
-                    });
-                }, 500);
+                this.fadeScreenFromBlack(loadToken).then((fadeCompleted) => {
+                    if (!fadeCompleted || loadToken !== this.levelLoadToken || this.isGameOver) return;
+                    this.container.classList.remove('cycleStartPulse');
+                    void this.container.offsetWidth;
+                    this.container.classList.add('cycleStartPulse');
+                    this.scheduler.scheduleTimeout('visual-effects', 'cycle-start-pulse', () => this.container.classList.remove('cycleStartPulse'), 1200);
+                    this.startPreparedLevel(loadToken, { skipGridFade: true });
+                });
             }
 
             // Completing the final cycle ends the run instead of opening another cycle.
             async finishFinalCompletion(transitionToken = this.levelLoadToken) {
+                this.ensureTransitionGroup('final-cycle-complete', transitionToken);
                 this.flow.enter(GAME_FLOW_STATES.FINAL_COMPLETE, 'final-cycle-complete');
                 if (this.cycleTransitionActive || this.isGameOver) return;
 
@@ -16467,8 +16470,8 @@ Orb Control Panel Instrument Reference
                 this.removeCycleRebootCells();
                 this.ui.updateAll();
 
-                await this.wait(300);
-                if (transitionToken !== this.levelLoadToken) {
+                const preludeCompleted = await this.wait(300, transitionToken, 'final-complete-prelude');
+                if (!preludeCompleted || transitionToken !== this.levelLoadToken) {
                     this.cycleTransitionActive = false;
                     return;
                 }
@@ -16479,8 +16482,8 @@ Orb Control Panel Instrument Reference
                 this.container.classList.add('cycleCelebrationSequence');
                 this.gameOverElement.style.opacity = '1';
 
-                await this.wait(6200);
-                if (transitionToken !== this.levelLoadToken) {
+                const celebrationCompleted = await this.wait(6200, transitionToken, 'final-complete-celebration');
+                if (!celebrationCompleted || transitionToken !== this.levelLoadToken) {
                     this.audio.stopCycleCompleteMusic();
                     this.container.classList.remove('cycleCelebrationSequence');
                     this.removeCycleRebootCells();
@@ -16501,7 +16504,7 @@ Orb Control Panel Instrument Reference
                 this.updateDifficultyLabel();
                 this.ui.updateAll();
 
-                await this.wait(350);
+                if (!await this.wait(350, transitionToken, 'final-gridlock-handoff')) return;
                 if (transitionToken !== this.levelLoadToken || !this.finalCompletionActive) return;
                 await this.startFinalGridlock();
             }
@@ -16521,8 +16524,8 @@ Orb Control Panel Instrument Reference
             }
 
             async runFinalGridlockCountdown(loadToken) {
-                const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-                const isCurrent = () => loadToken === this.levelLoadToken && this.finalGridlockActive;
+                this.ensureTransitionGroup('final-gridlock-countdown', loadToken);
+                const isCurrent = () => this.isTransitionGroupCurrent(loadToken) && this.finalGridlockActive;
                 const cancelCountdown = () => {
                     this.showHudDuringSectorIntro = false;
                     this.startInputLocked = false;
@@ -16545,13 +16548,13 @@ Orb Control Panel Instrument Reference
                 for (const step of ['3', '2', '1']) {
                     if (!isCurrent()) return cancelCountdown();
                     this.audio.playCountdownBeep(false);
-                    await wait(1000);
+                    if (!await this.wait(1000, loadToken, `final-gridlock-countdown-${step}`)) return cancelCountdown();
                 }
                 if (!isCurrent()) return cancelCountdown();
                 this.audio.playCountdownBeep(true);
-                await wait(300);
+                if (!await this.wait(300, loadToken, 'final-gridlock-go')) return cancelCountdown();
                 this.bonusTextElement.style.opacity = '0';
-                await wait(150);
+                if (!await this.wait(150, loadToken, 'final-gridlock-fade')) return cancelCountdown();
                 this.bonusTextElement.classList.remove('countdownText', 'final-gridlock-intro-flash');
                 this.bonusTextElement.textContent = '';
                 this.showHudDuringSectorIntro = false;
@@ -16565,6 +16568,7 @@ Orb Control Panel Instrument Reference
                 this.flow.enter(GAME_FLOW_STATES.FINAL_GRIDLOCK, 'start-final-gridlock');
                 if (!this.finalCompletionActive || !this.isGameOver || !this.restartReady) return;
                 const loadToken = ++this.levelLoadToken;
+                this.beginTransitionGroup('final-gridlock-start', loadToken);
                 this.finalCompletionActive = false;
                 this.finalGridlockActive = true;
                 this.finalGridlockResultActive = false;
@@ -16631,6 +16635,7 @@ Orb Control Panel Instrument Reference
                 if (!countdownCompleted || loadToken !== this.levelLoadToken || !this.finalGridlockActive) return;
                 this.active = true;
                 this.levelActionStarted = true;
+                this.completeTransitionGroup('final-gridlock-live-action');
                 this.startInputLocked = false;
                 this.lastFrameTime = performance.now();
                 this.ensureTelemetryRun('final-gridlock');
@@ -16650,6 +16655,7 @@ Orb Control Panel Instrument Reference
 
             // Complete the campaign cycle, then wait for player choice before restarting the next cycle.
             async finishGame(transitionToken = this.levelLoadToken) {
+                this.ensureTransitionGroup('cycle-complete', transitionToken);
                 if (this.cycle >= this.MAX_CYCLES) {
                     await this.finishFinalCompletion(transitionToken);
                     return;
@@ -16692,8 +16698,8 @@ Orb Control Panel Instrument Reference
                 this.container.classList.remove('cycleCelebrationSequence', 'cycleRestoredIdle');
                 this.removeCycleRebootCells();
 
-                await this.wait(300);
-                if (transitionToken !== this.levelLoadToken || this.isGameOver) {
+                const preludeCompleted = await this.wait(300, transitionToken, 'cycle-complete-prelude');
+                if (!preludeCompleted || transitionToken !== this.levelLoadToken || this.isGameOver) {
                     this.cycleTransitionActive = false;
                     return;
                 }
@@ -16704,8 +16710,8 @@ Orb Control Panel Instrument Reference
                 this.container.classList.add('cycleCelebrationSequence');
                 this.gameOverElement.style.opacity = '1';
 
-                await this.wait(6200);
-                if (transitionToken !== this.levelLoadToken || this.isGameOver) {
+                const celebrationCompleted = await this.wait(6200, transitionToken, 'cycle-complete-celebration');
+                if (!celebrationCompleted || transitionToken !== this.levelLoadToken || this.isGameOver) {
                     this.audio.stopCycleCompleteMusic();
                     this.container.classList.remove('cycleCelebrationSequence');
                     this.removeCycleRebootCells();
@@ -16722,8 +16728,10 @@ Orb Control Panel Instrument Reference
             }
 
             // End the game with explosion and screen shake
-            endGame(deathDetails = {}) {
+            async endGame(deathDetails = {}) {
                 if (this.isGameOver) return;
+                const transitionToken = ++this.levelLoadToken;
+                this.beginTransitionGroup('game-over', transitionToken);
                 this.markStabilityEvent('game-over-start', { sector: this.level, cycle: this.cycle, enemies: this.enemies.length }); // Exit if already over
                 const endedInFinalGridlock = !!this.finalGridlockActive;
                 this.finalCompletionActive = false;
@@ -16798,57 +16806,56 @@ Orb Control Panel Instrument Reference
 
                 this.scheduler.scheduleTimeout('visual-effects', 'game-over-shake', () => this.container.classList.remove('shake'), 500); // Remove shake after 500ms
 
-                setTimeout(() => { // Show game over sequence
-                    this.bonusTextElement.classList.remove('countdownText');
-                    this.audio.playEnd();
-                    this.audio.resume();
+                if (!await this.wait(1450, transitionToken, 'game-over-reveal')) return;
+                this.bonusTextElement.classList.remove('countdownText');
+                this.audio.playEnd();
+                this.audio.resume();
 
-                    if (endedInFinalGridlock) {
-                        const finalRelics = this.getRecoveredRelicCount();
-                        const finalCampaignTime = this.formatTelemetryDuration(this.getRunRecordElapsedMs());
-                        this.finalGridlockActive = false;
-                        this.finalGridlockResultActive = true;
-                        this.gameOverElement.classList.remove('finalCycleText', 'finalGameCompleteText');
-                        this.gameOverElement.classList.add('finalGridlockGameOverText');
-                        this.bonusTextElement.classList.remove('finalCycleSubtext', 'finalGameSummary');
-                        this.bonusTextElement.classList.add('finalGridlockSummary');
-                        this.gameOverElement.textContent = 'PRISM CAMPAIGN';
-                        this.bonusTextElement.innerHTML = `<span class="campaign-final-score"><span class="campaign-final-score-label">FINAL SCORE</span><span class="campaign-final-score-value">${this.score}</span></span><span class="high-score-run-line campaign-high-score-run-line"><span class="high-score-detail-group"><span class="high-score-detail-label">CYCLE</span><span class="high-score-detail-value">${this.MAX_CYCLES}</span><span class="high-score-detail-label">RELICS</span><span class="high-score-detail-value">${finalRelics}</span></span><span class="high-score-detail-group"><span class="high-score-detail-label">SECTOR</span><span class="high-score-detail-value">${this.MAX_LEVEL}</span><span class="high-score-detail-label">TIME</span><span class="high-score-detail-value">${finalCampaignTime}</span></span></span>`;
-                        this.gameOverElement.style.opacity = '1';
-                        this.bonusTextElement.style.opacity = '1';
-                        this.setGameOverlayVisible(true);
-                        this.highScore = this.loadHighScore();
-                        this.highScoreDetails = this.loadHighScoreDetails();
-                        this.updateHighScoreDisplay();
-                        this.restartReady = true;
-                        this.updateSettingsSectorLabel();
-                        this.updateDifficultyLabel();
-                        this.ui.updateAll();
-                        return;
-                    }
+                if (endedInFinalGridlock) {
+                    const finalRelics = this.getRecoveredRelicCount();
+                    const finalCampaignTime = this.formatTelemetryDuration(this.getRunRecordElapsedMs());
+                    this.finalGridlockActive = false;
+                    this.finalGridlockResultActive = true;
+                    this.gameOverElement.classList.remove('finalCycleText', 'finalGameCompleteText');
+                    this.gameOverElement.classList.add('finalGridlockGameOverText');
+                    this.bonusTextElement.classList.remove('finalCycleSubtext', 'finalGameSummary');
+                    this.bonusTextElement.classList.add('finalGridlockSummary');
+                    this.gameOverElement.textContent = 'PRISM CAMPAIGN';
+                    this.bonusTextElement.innerHTML = `<span class="campaign-final-score"><span class="campaign-final-score-label">FINAL SCORE</span><span class="campaign-final-score-value">${this.score}</span></span><span class="high-score-run-line campaign-high-score-run-line"><span class="high-score-detail-group"><span class="high-score-detail-label">CYCLE</span><span class="high-score-detail-value">${this.MAX_CYCLES}</span><span class="high-score-detail-label">RELICS</span><span class="high-score-detail-value">${finalRelics}</span></span><span class="high-score-detail-group"><span class="high-score-detail-label">SECTOR</span><span class="high-score-detail-value">${this.MAX_LEVEL}</span><span class="high-score-detail-label">TIME</span><span class="high-score-detail-value">${finalCampaignTime}</span></span></span>`;
+                    this.gameOverElement.style.opacity = '1';
+                    this.bonusTextElement.style.opacity = '1';
+                    this.setGameOverlayVisible(true);
+                    this.highScore = this.loadHighScore();
+                    this.highScoreDetails = this.loadHighScoreDetails();
+                    this.updateHighScoreDisplay();
+                    this.restartReady = true;
+                    this.updateSettingsSectorLabel();
+                    this.updateDifficultyLabel();
+                    this.ui.updateAll();
+                    this.completeTransitionGroup('final-gridlock-results-ready');
+                    return;
+                }
 
-                    this.gameOverElement.classList.remove('finalCycleText', 'finalGameCompleteText', 'finalGridlockGameOverText');
-                    this.bonusTextElement.classList.remove('finalCycleSubtext', 'finalGameSummary', 'finalGridlockSummary');
-                    this.bonusTextElement.style.opacity = '0';
-                    this.bonusTextElement.textContent = '';
-                    this.gameOverElement.textContent = 'GAME OVER';
-                    this.gameOverElement.style.opacity = '1'; // Show game over text
-                    setTimeout(() => {
-                        this.gameOverElement.style.opacity = '0'; // Fade out text
-                        setTimeout(() => {
-                            this.instructionsWindow.style.display = 'none';
-                            this.highScore = this.loadHighScore();
-                            this.highScoreDetails = this.loadHighScoreDetails();
-                            this.updateHighScoreDisplay();
-                            this.restartReady = true;
-                            this.updateSettingsSectorLabel();
-                            this.updateDifficultyLabel();
-                            this.startAttractMode();
-                            this.ui.updateAll();
-                            this.refreshGameOverlay(); // Restart attract mode
-                        }, 500);
-                    }, 2000);
-                }, 1450);
+                this.gameOverElement.classList.remove('finalCycleText', 'finalGameCompleteText', 'finalGridlockGameOverText');
+                this.bonusTextElement.classList.remove('finalCycleSubtext', 'finalGameSummary', 'finalGridlockSummary');
+                this.bonusTextElement.style.opacity = '0';
+                this.bonusTextElement.textContent = '';
+                this.gameOverElement.textContent = 'GAME OVER';
+                this.gameOverElement.style.opacity = '1'; // Show game over text
+                if (!await this.wait(2000, transitionToken, 'game-over-title-hold')) return;
+                this.gameOverElement.style.opacity = '0'; // Fade out text
+                if (!await this.wait(500, transitionToken, 'game-over-title-fade')) return;
+                this.instructionsWindow.style.display = 'none';
+                this.highScore = this.loadHighScore();
+                this.highScoreDetails = this.loadHighScoreDetails();
+                this.updateHighScoreDisplay();
+                this.restartReady = true;
+                this.updateSettingsSectorLabel();
+                this.updateDifficultyLabel();
+                this.startAttractMode();
+                this.ui.updateAll();
+                this.refreshGameOverlay(); // Restart attract mode
+                this.completeTransitionGroup('game-over-attract-ready');
             }
         }
 
@@ -16978,9 +16985,6 @@ Orb Control Panel Instrument Reference
                 this.touchDragOffsetY = 0;
                 this.velocityGaugeLastSampleTime = 0;
                 this.releaseActivePointerCapture(pointerId);
-                if (this.game && this.game.flushDeferredTutorialResize) {
-                    this.game.flushDeferredTutorialResize(reason);
-                }
                 return true;
             }
 
@@ -17024,15 +17028,8 @@ Orb Control Panel Instrument Reference
             beginTutorialNativeTouch(touch, point, recoverFromMove = false) {
                 if (!touch || !point) return false;
 
-                // Pointer Events and Touch Events can both report the same iPhone finger. If the
-                // normal pointer path already owns it, keep that valid numeric pointer ID instead
-                // of replacing it with the fallback's synthetic ID. The fallback takes ownership
-                // only when the pointer path was missed or has already been canceled.
-                const nativePointerOwnsTouch = this.isTouchActive &&
-                    this.activePointerId !== null &&
-                    this.activePointerType === 'touch';
-                if (nativePointerOwnsTouch) return true;
-
+                // A pointer event for the same finger may already have opened an incomplete
+                // session. Replace it with one native touch owner instead of racing both paths.
                 if (this.activePointerId !== null || this.isTouchActive) {
                     this.cancelPointerDrag(null, recoverFromMove
                         ? 'tutorial-touchmove-recovery'
@@ -17070,13 +17067,8 @@ Orb Control Panel Instrument Reference
             handleTutorialTouchMove(e) {
                 if (!e || !this.game.tutorialActive || !this.game.flow.allowsOrbDragInput()) return;
 
-                // When the normal pointer stream is alive, it remains the sole owner. This avoids
-                // changing activePointerId between pointerdown and the first pointermove.
-                if (this.isTouchActive && this.activePointerId !== null && this.activePointerType === 'touch') return;
-
-                // If Safari omitted, redirected, or canceled the pointer start, claim the first
-                // touch move that is still on or near the Orb. This remains tutorial-only and
-                // cannot create tap-anywhere movement.
+                // If Safari omitted or redirected touchstart, claim the first move that is still
+                // on or near the Orb. This is tutorial-only and cannot create tap-anywhere movement.
                 if (this.activePointerType !== 'touch-fallback' || this.activeTouchIdentifier === null) {
                     const recovery = this.findTutorialTouchNearPlayer(e.touches);
                     if (!recovery) return;
@@ -17108,9 +17100,6 @@ Orb Control Panel Instrument Reference
             // iPhone control: one specific finger must begin on or near the Orb.
             handlePointerDown(e) {
                 if (!e || e.isPrimary === false) return;
-                // During the tutorial, touchscreen input is owned exclusively by the native
-                // touch listeners. Safari must not create a second pointer owner for the same finger.
-                if (this.game.tutorialActive && e.pointerType === 'touch') return;
                 if (e.pointerType === 'mouse' && e.button !== 0) return;
                 if (this.game.audio) this.game.audio.resume();
                 if (!this.game.flow.allowsOrbDragInput()) {
@@ -17140,7 +17129,6 @@ Orb Control Panel Instrument Reference
 
             handlePointerMove(e) {
                 if (!e) return;
-                if (this.game.tutorialActive && e.pointerType === 'touch') return;
 
                 // iOS can occasionally deliver the first movement sample after the tutorial opens
                 // without preserving the preceding pointer-down stream. Recover that touch only in
@@ -17189,9 +17177,7 @@ Orb Control Panel Instrument Reference
             }
 
             handlePointerUp(e) {
-                if (!e) return;
-                if (this.game.tutorialActive && e.pointerType === 'touch') return;
-                if (this.activePointerId === null || e.pointerId !== this.activePointerId) return;
+                if (!e || this.activePointerId === null || e.pointerId !== this.activePointerId) return;
                 if (this.isTouchActive && e.cancelable) e.preventDefault();
                 this.cancelPointerDrag(e, e.type || 'pointer-end');
             }
