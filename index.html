@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Trackpad Prototype p009: Adds separate Tempest-style Vector and legacy CRT monitor presets while preserving the p008 CRT calibration values.
+Trackpad Prototype p010: Adds restrained pooled phosphor motion trails to the Vector monitor preset while preserving the separate legacy CRT preset and its p008 calibration values.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="trackpad-p009">
+<html data-build-version="trackpad-p010">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -6169,6 +6169,48 @@ Font License Notices
         }
 
 
+        /* Trackpad Prototype p010 — pooled Vector phosphor motion trails.
+           These are true positional afterimages, not a box-shadow transition:
+           - Orb: 48ms lifetime, 11% starting opacity, sampled no faster than every 24ms
+           - Block-A-Zoids: 42ms lifetime, 5.5% starting opacity, sampled no faster than every 38ms
+           - Fixed pools: 4 Orb ghosts + 20 enemy ghosts; no per-frame DOM creation
+           - Vector preset only; CRT and Off keep trails fully disabled
+           - No trails on the grid, crystals, connection lines, or other static objects. */
+        .vector-phosphor-trail {
+            position: absolute;
+            pointer-events: none;
+            opacity: 0;
+            background: currentColor;
+            contain: layout style paint;
+            will-change: opacity;
+        }
+
+        .vector-phosphor-trail.is-player {
+            z-index: 2;
+            color: #fff;
+            border-radius: 50%;
+            box-shadow:
+                0 0 2px rgba(255,255,255,0.82),
+                0 0 6px rgba(255,255,255,0.30);
+        }
+
+        .vector-phosphor-trail.is-enemy {
+            z-index: 4;
+            box-sizing: border-box;
+            border: 1px solid rgba(255,255,255,0.18);
+            box-shadow:
+                0 0 2px currentColor,
+                0 0 5px color-mix(in srgb, currentColor 22%, transparent);
+        }
+
+        #gameContainer:not(.crt-enabled) .vector-phosphor-trail,
+        #gameContainer:not(.monitor-vector) .vector-phosphor-trail,
+        #gameContainer.crt-ui-suspended .vector-phosphor-trail,
+        #gameContainer.crt-paused .vector-phosphor-trail {
+            opacity: 0 !important;
+        }
+
+
 </style>
 </head>
 <body class="crt-phosphor-calibration">
@@ -6434,7 +6476,7 @@ Font License Notices
     <button id="startButton" type="button" hidden aria-label="Start game"></button>
 
     <script>
-        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'trackpad-p009'}`;
+        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'trackpad-p010'}`;
 
         // Central diagnostic feature flags. Change values here before loading the page to isolate systems.
         const GAME_FEATURE_FLAGS = window.BLOCKAZOIDS_FEATURE_FLAGS = {
@@ -6444,6 +6486,7 @@ Font License Notices
             motionShake: true,
             spawnWarnings: true,
             visualEffects: true,
+            vectorPhosphorTrails: true,
             gridlockVisualEffects: true,
             telemetry: true,
             stabilityDiagnostics: false,
@@ -6640,6 +6683,19 @@ Font License Notices
                 marqueeImageSwapMs: 220,
                 gameOverShakeCleanupMs: 500,
                 crtEventsMs: Object.freeze({ gridlock: 540, zap: 440, death: 1320, restore: 580 })
+            }),
+            vectorMonitor: Object.freeze({
+                // Restrained Asteroids-style phosphor persistence. Fixed pools prevent gameplay DOM churn.
+                playerTrailPoolSize: 4,
+                enemyTrailPoolSize: 20,
+                playerTrailDurationMs: 48,
+                playerTrailOpacity: 0.11,
+                playerTrailMinIntervalMs: 24,
+                playerTrailMinDistancePx: 2.5,
+                enemyTrailDurationMs: 42,
+                enemyTrailOpacity: 0.055,
+                enemyTrailMinIntervalMs: 38,
+                enemyTrailMinDistancePx: 1.25
             }),
             storage: Object.freeze({
                 highestSector: 'blockazoidsHighestSectorUnlockedV1',
@@ -7935,6 +7991,7 @@ Font License Notices
 
                 // Game objects and state
                 this.gestures = null;                  // Full-surface gesture owner (attached after DOM listeners are prepared)
+                this.vectorTrail = new VectorPhosphorTrailRenderer(this); // Fixed-pool Vector phosphor afterimages
                 this.player = new Player(this);       // Player instance
                 this.enemies = [];                    // Array of active enemies
                 this.explosions = [];                 // Array of active explosions
@@ -9082,6 +9139,7 @@ Font License Notices
 
             purgeTransientPlayfieldEffects() {
                 this.clearCrtEventEffects();
+                if (this.vectorTrail) this.vectorTrail.clear();
                 this.crtEventTimers = {};
                 if (this.container) {
                     this.container.querySelectorAll('.spawn-warning, .cosmic-zap-line, .cosmic-zap-spark, .cosmic-zap-overload-ring, .explosion, .cycle-reboot-line, .cycle-reboot-cell').forEach(element => element.remove());
@@ -10817,6 +10875,7 @@ Font License Notices
             // Remove active gameplay objects before starting, jumping, or rebuilding a level.
             clearGameplayObjects() {
                 this.purgeTransientPlayfieldEffects();
+                if (this.vectorTrail) this.vectorTrail.clear();
                 this.container.classList.remove('cycleRestoredIdle');
                 this.removeCycleRebootCells();
                 this.cancelGameplayScheduling();
@@ -11501,6 +11560,7 @@ Font License Notices
 
             applyMonitorMode(mode) {
                 const normalizedMode = (GAME_FEATURE_FLAGS.crt && MONITOR_PRESETS[mode]) ? mode : 'off';
+                if (this.vectorTrail) this.vectorTrail.clear();
                 this.monitorMode = normalizedMode;
                 this.crtPresetLevel = normalizedMode === 'off' ? 'off' : 'on';
                 this.crtEnabled = normalizedMode !== 'off';
@@ -11573,11 +11633,13 @@ Font License Notices
             setCrtPaused(paused) {
                 if (!this.container) return;
                 this.container.classList.toggle('crt-paused', !!paused);
+                if (paused && this.vectorTrail) this.vectorTrail.clear();
             }
 
             setCrtUiSuspended(suspended) {
                 if (!this.container) return;
                 this.container.classList.toggle('crt-ui-suspended', !!suspended);
+                if (suspended && this.vectorTrail) this.vectorTrail.clear();
                 if (this.playfieldShell) this.playfieldShell.classList.toggle('crt-ui-suspended', !!suspended);
                 if (suspended) this.clearCrtEventEffects();
             }
@@ -13040,7 +13102,7 @@ Font License Notices
                         }
                     }
                 } else if (this.tutorialStep === 'enemy' || this.tutorialStep === 'zap' || this.tutorialStep === 'gridlock' || this.tutorialStep === 'relic') {
-                    this.updateEnemies(deltaTime);
+                    this.updateEnemies(deltaTime, timestamp);
                     const hit = this.enemies.some(enemy => this.getPlayerPathHitScore(enemy, segments) !== null);
                     if (hit && !this.isCosmicZapProtectingOrb()) {
                         this.restartTutorialAfterCollision();
@@ -13059,6 +13121,7 @@ Font License Notices
                         }
                     }
                 }
+                if (this.vectorTrail) this.vectorTrail.update(timestamp);
                 this.scheduleTutorialAnimationFrame(token);
             }
 
@@ -13778,7 +13841,8 @@ Font License Notices
                 this.lastFrameTime = timestamp;
                 this.awardSurvivalTimePoints(deltaTime); // +1 point for each active gameplay second
                 this.updatePrismRelic(deltaTime); // Update optional Prism Relic timer
-                this.updateEnemies(deltaTime); // Update enemy positions
+                this.updateEnemies(deltaTime, timestamp); // Update enemy positions
+                if (this.vectorTrail) this.vectorTrail.update(timestamp);
                 this.checkCollisions(); // Check for collisions
                 this.completeSector(); // Check if level is complete
                 this.explosions = this.explosions.filter(exp => exp.update()); // Update and filter explosions
@@ -14154,8 +14218,8 @@ Font License Notices
 
 
             // Update enemy positions and resolve collisions
-            updateEnemies(deltaTime) {
-                this.enemies.forEach(enemy => enemy.update(deltaTime)); // Update each enemy
+            updateEnemies(deltaTime, timestamp = performance.now()) {
+                this.enemies.forEach(enemy => enemy.update(deltaTime, timestamp)); // Update each enemy
                 let collisionOccurred = true;
                 const maxIterations = 5; // Max iterations to resolve collisions
                 let iteration = 0;
@@ -14414,6 +14478,7 @@ Font License Notices
             updateEnemyColors() {
                 const currentColor = this.colorMap[this.colorOrder[this.currentColorIndex]];
                 this.enemies.forEach(enemy => {
+                    enemy.baseColor = currentColor;
                     enemy.element.style.backgroundColor = currentColor; // Set color
                     enemy.element.style.setProperty('--enemy-base-color', currentColor);
                     enemy.updateAnimation(); // Update border and glow
@@ -15120,6 +15185,7 @@ Font License Notices
                     'run-not-endable'
                 )) return false;
                 const transitionToken = ++this.levelLoadToken;
+                if (this.vectorTrail) this.vectorTrail.clear();
                 this.beginTransitionGroup('game-over', transitionToken);
                 const endedInFinalGridlock = this.systems.prepareRunEnd(deathDetails);
                 this.validateStateInvariants('endRun');
@@ -15179,6 +15245,134 @@ Font License Notices
             }
         }
 
+
+        // Fixed-pool positional afterimages for the Vector monitor preset.
+        // The pool avoids creating or removing DOM nodes during live gameplay.
+        class VectorPhosphorTrailRenderer {
+            constructor(game) {
+                this.game = game;
+                this.config = GAME_CONFIG.vectorMonitor;
+                this.playerLastSampleAt = 0;
+                this.playerPool = this.createPool('player', this.config.playerTrailPoolSize);
+                this.enemyPool = this.createPool('enemy', this.config.enemyTrailPoolSize);
+            }
+
+            createPool(kind, count) {
+                const pool = [];
+                for (let index = 0; index < count; index += 1) {
+                    const element = document.createElement('div');
+                    element.className = `vector-phosphor-trail is-${kind}`;
+                    element.setAttribute('aria-hidden', 'true');
+                    this.game.container.appendChild(element);
+                    pool.push({ element, active: false, bornAt: 0, durationMs: 0, startOpacity: 0 });
+                }
+                return pool;
+            }
+
+            isEnabled() {
+                return !!(
+                    GAME_FEATURE_FLAGS.vectorPhosphorTrails &&
+                    GAME_FEATURE_FLAGS.visualEffects &&
+                    this.game.crtEnabled &&
+                    this.game.monitorMode === 'vector' &&
+                    !this.game.isPaused &&
+                    this.game.container &&
+                    !this.game.container.classList.contains('crt-ui-suspended')
+                );
+            }
+
+            acquire(pool) {
+                const inactive = pool.find(ghost => !ghost.active);
+                if (inactive) return inactive;
+                return pool.reduce((oldest, ghost) => ghost.bornAt < oldest.bornAt ? ghost : oldest, pool[0]);
+            }
+
+            activateGhost(pool, kind, x, y, size, color, timestamp, durationMs, startOpacity) {
+                if (!pool.length) return;
+                const ghost = this.acquire(pool);
+                const element = ghost.element;
+                ghost.active = true;
+                ghost.bornAt = timestamp;
+                ghost.durationMs = durationMs;
+                ghost.startOpacity = startOpacity;
+                element.style.left = `${x}px`;
+                element.style.top = `${y}px`;
+                element.style.width = `${size}px`;
+                element.style.height = `${size}px`;
+                element.style.color = color;
+                element.style.opacity = `${startOpacity}`;
+                if (kind === 'enemy') element.style.borderRadius = '0';
+            }
+
+            recordPlayerMotion(previousX, previousY, nextX, nextY, size, movedDistance, timestamp = performance.now()) {
+                if (!this.isEnabled() || movedDistance < this.config.playerTrailMinDistancePx) return;
+                if (timestamp - this.playerLastSampleAt < this.config.playerTrailMinIntervalMs) return;
+                this.playerLastSampleAt = timestamp;
+                this.activateGhost(
+                    this.playerPool,
+                    'player',
+                    previousX,
+                    previousY,
+                    size,
+                    '#fff',
+                    timestamp,
+                    this.config.playerTrailDurationMs,
+                    this.config.playerTrailOpacity
+                );
+            }
+
+            recordEnemyMotion(enemy, previousX, previousY, movedDistance, timestamp = performance.now()) {
+                if (!this.isEnabled() || !enemy || movedDistance < this.config.enemyTrailMinDistancePx) return;
+                if (!enemy.element || enemy.element.style.opacity !== '1' || enemy.element.classList.contains('restoring')) return;
+                if (timestamp - (enemy.vectorTrailSampleAt || 0) < this.config.enemyTrailMinIntervalMs) return;
+                enemy.vectorTrailSampleAt = timestamp;
+                this.activateGhost(
+                    this.enemyPool,
+                    'enemy',
+                    previousX,
+                    previousY,
+                    enemy.size,
+                    enemy.baseColor || '#fff',
+                    timestamp,
+                    this.config.enemyTrailDurationMs,
+                    this.config.enemyTrailOpacity
+                );
+            }
+
+            update(timestamp = performance.now()) {
+                if (!this.isEnabled()) {
+                    this.clear();
+                    return;
+                }
+                this.updatePool(this.playerPool, timestamp);
+                this.updatePool(this.enemyPool, timestamp);
+            }
+
+            updatePool(pool, timestamp) {
+                pool.forEach(ghost => {
+                    if (!ghost.active) return;
+                    const progress = Math.max(0, (timestamp - ghost.bornAt) / Math.max(1, ghost.durationMs));
+                    if (progress >= 1) {
+                        ghost.active = false;
+                        ghost.element.style.opacity = '0';
+                        return;
+                    }
+                    const remaining = 1 - progress;
+                    ghost.element.style.opacity = `${ghost.startOpacity * remaining * remaining}`;
+                });
+            }
+
+            clear() {
+                this.playerLastSampleAt = 0;
+                [...this.playerPool, ...this.enemyPool].forEach(ghost => {
+                    ghost.active = false;
+                    ghost.bornAt = 0;
+                    ghost.element.style.opacity = '0';
+                });
+            }
+        }
+
+
         // Player class for handling movement and state
         class Player {
             constructor(game) {
@@ -15215,6 +15409,7 @@ Font License Notices
                 this.velocityGaugeLastSampleTime = 0;
                 this.velocityGaugeLastMoveTime = 0;
                 this.movementSegments = [];
+                if (this.game.vectorTrail) this.game.vectorTrail.clear();
                 this.updatePosition(); // Update DOM position
             }
 
@@ -15248,6 +15443,9 @@ Font License Notices
                     targetCenterY - this.size / 2));
 
                 const movedDistance = Math.hypot(this.x - previousX, this.y - previousY);
+                if (this.game.vectorTrail) {
+                    this.game.vectorTrail.recordPlayerMotion(previousX, previousY, this.x, this.y, this.size, movedDistance, now);
+                }
                 if (movedDistance > 0.01) {
                     this.movementSegments.push({ x1: previousX, y1: previousY, x2: this.x, y2: this.y });
                     if (this.movementSegments.length > 24) this.movementSegments.shift();
@@ -15584,6 +15782,8 @@ Font License Notices
                 this.element.style.width = `${this.size}px`;
                 this.element.style.height = `${this.size}px`;
                 const enemyBaseColor = this.game.colorMap[this.game.colorOrder[this.game.currentColorIndex]];
+                this.baseColor = enemyBaseColor;
+                this.vectorTrailSampleAt = 0;
                 this.element.style.backgroundColor = enemyBaseColor; // Set color
                 this.element.style.setProperty('--enemy-base-color', enemyBaseColor);
                 this.element.style.transform = 'scale(0)'; // Start scaled down
@@ -15615,7 +15815,9 @@ Font License Notices
             }
 
             // Update enemy position based on velocity and time
-            update(deltaTime) {
+            update(deltaTime, timestamp = performance.now()) {
+                const previousX = this.x;
+                const previousY = this.y;
                 this.x += this.dx * (deltaTime / 16.67); // Move X (normalized to 60fps)
                 this.y += this.dy * (deltaTime / 16.67); // Move Y
                 
@@ -15630,6 +15832,10 @@ Font License Notices
                     this.flashBorder();
                 }
                 
+                if (this.game.vectorTrail) {
+                    const movedDistance = Math.hypot(this.x - previousX, this.y - previousY);
+                    this.game.vectorTrail.recordEnemyMotion(this, previousX, previousY, movedDistance, timestamp);
+                }
                 this.updatePosition(); // Update DOM position
             }
 
