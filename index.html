@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Trackpad Prototype p011: Adds one architecture-safe global playfield presentation scale, reducing the actual gameplay square and all derived gameplay measurements while preserving HUD and control-panel sizing.
+Trackpad Prototype p012: Fixes the visual gameplay grid so its cell spacing derives from the reduced playfield grid unit while preserving the architecture-safe global playfield scale and unchanged HUD sizing.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="trackpad-p011">
+<html data-build-version="trackpad-p012">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -6212,27 +6212,27 @@ Font License Notices
 
 
 
-        /* Trackpad Prototype p011 — architecture-safe global playfield reduction.
+        /* Trackpad Prototype p012 — architecture-safe global playfield reduction + grid fix.
            The gameplay square is physically resized; no transform, zoom, or visual-only scaling is used.
            --grid-size remains the pre-reduction UI/HUD grid unit so the marquee, score HUD,
            sector panel, control panel, and menu/control button sizes do not change.
-           --playfield-grid-size is the actual reduced gameplay-cell size used only by the grid,
-           completed cells, and monitor grid layers. All overlays continue to use inset: 0 and
-           therefore remain centered on the true resized playfield. */
+           --playfield-grid-size is assigned at layout initialization from the reduced gameplay GRID_SIZE.
+           It must remain inherited here: a local hard-coded value would override the runtime value and
+           leave the visual grid at its old size. All overlays continue to use inset: 0 and therefore
+           remain centered on the true resized playfield. */
         #gameContainer {
-            --playfield-grid-size: 60px;
-            background-size: var(--playfield-grid-size) var(--playfield-grid-size) !important;
+            background-size: var(--playfield-grid-size, 60px) var(--playfield-grid-size, 60px) !important;
         }
 
         #gameContainer.cycleRestoredIdle,
         #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.crt-ui-suspended),
         body.crt-phosphor-calibration #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.crt-ui-suspended) {
-            background-size: var(--playfield-grid-size) var(--playfield-grid-size) !important;
+            background-size: var(--playfield-grid-size, 60px) var(--playfield-grid-size, 60px) !important;
         }
 
         #gameContainer .filled-square {
-            width: var(--playfield-grid-size) !important;
-            height: var(--playfield-grid-size) !important;
+            width: var(--playfield-grid-size, 60px) !important;
+            height: var(--playfield-grid-size, 60px) !important;
         }
 
 
@@ -6501,7 +6501,7 @@ Font License Notices
     <button id="startButton" type="button" hidden aria-label="Start game"></button>
 
     <script>
-        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'trackpad-p011'}`;
+        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'trackpad-p012'}`;
 
         // Central diagnostic feature flags. Change values here before loading the page to isolate systems.
         const GAME_FEATURE_FLAGS = window.BLOCKAZOIDS_FEATURE_FLAGS = {
