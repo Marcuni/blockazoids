@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v323: Restores the proven v321 tutorial input path and makes Reset Intro Completion reload the game after clearing the saved flag, guaranteeing every tutorial replay starts from a clean browser session; retains the corrected Launch Setup icon size.
+Build v324: Prevents ordinary iPhone Safari viewport resizing from canceling the first active tutorial Orb drag; reset still reloads into a clean tutorial session, normal gameplay and orientation-change safety remain unchanged, and the corrected Launch Setup icon size is retained.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -21,7 +21,7 @@ Orb Control Panel Instrument Reference
 - Velocity Glyph Engine — Temporarily displays the Orb’s finger-driven movement speed.
 - Orb Command Socket — Controls the Orb’s pause, resume, and primary interface functions.
 -->
-<html data-build-version="v323">
+<html data-build-version="v324">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -8836,7 +8836,7 @@ Orb Control Panel Instrument Reference
     </div>
 
     <script>
-        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'v323'}`;
+        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'v324'}`;
 
         // Central diagnostic feature flags. Change values here before loading the page to isolate systems.
         const GAME_FEATURE_FLAGS = window.BLOCKAZOIDS_FEATURE_FLAGS = {
@@ -10468,7 +10468,7 @@ Orb Control Panel Instrument Reference
                 const controlPanel = this.ui && this.ui.getControlPanelDiagnosticState ? this.ui.getControlPanelDiagnosticState() : null;
                 return {
                     schema: 'blockazoids-stability-v1',
-                    build: 'v323',
+                    build: 'v324',
                     sessionId: this.stabilitySessionId,
                     savedAt: Date.now(),
                     cleanExit: !!cleanExit,
@@ -10585,8 +10585,26 @@ Orb Control Panel Instrument Reference
             }
 
             handleViewportChange(reason = 'resize') {
-                this.player.invalidateDragSession(`viewport:${reason}`);
-                this.markStabilityEvent(reason, { width: window.innerWidth, height: window.innerHeight });
+                // On iPhone, the first finger movement can make Safari settle its address/tool bars,
+                // emitting a normal resize while the board dimensions themselves are unchanged.
+                // Canceling the drag here made the tutorial Orb appear delayed until a second touch.
+                // Preserve only an active tutorial drag during ordinary resize events; genuine
+                // orientation changes and all non-tutorial viewport changes still invalidate input.
+                const preserveTutorialDrag = reason === 'resize' &&
+                    this.tutorialActive &&
+                    this.player &&
+                    this.player.isTouchActive &&
+                    this.flow &&
+                    this.flow.allowsOrbDragInput();
+
+                if (!preserveTutorialDrag) {
+                    this.player.invalidateDragSession(`viewport:${reason}`);
+                }
+                this.markStabilityEvent(reason, {
+                    width: window.innerWidth,
+                    height: window.innerHeight,
+                    preservedTutorialDrag: !!preserveTutorialDrag
+                });
                 if (this.stabilityViewportTimer) clearTimeout(this.stabilityViewportTimer);
                 this.stabilityViewportTimer = window.setTimeout(() => {
                     this.stabilityViewportTimer = null;
