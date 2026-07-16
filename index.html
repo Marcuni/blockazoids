@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v329: Phase 3D centralizes sector, resume, cycle, final-completion, Final Gridlock, and Game Over transition timing under one managed cancellable transition group while preserving all prior gameplay and presentation.
+Build v330: Phase 3E centralizes live-gameplay delayed actions under one managed cancellable gameplay scheduling group while preserving all prior gameplay, timing, tutorial, audio, scoring, and presentation.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -21,7 +21,7 @@ Orb Control Panel Instrument Reference
 - Velocity Glyph Engine — Temporarily displays the Orb’s finger-driven movement speed.
 - Orb Command Socket — Controls the Orb’s pause, resume, and primary interface functions.
 -->
-<html data-build-version="v329">
+<html data-build-version="v330">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -8836,7 +8836,7 @@ Orb Control Panel Instrument Reference
     </div>
 
     <script>
-        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'v329'}`;
+        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'v330'}`;
 
         // Central diagnostic feature flags. Change values here before loading the page to isolate systems.
         const GAME_FEATURE_FLAGS = window.BLOCKAZOIDS_FEATURE_FLAGS = {
@@ -8968,9 +8968,9 @@ Orb Control Panel Instrument Reference
                 GAME_OVER: 'game-over'
         });
 
-        // Phase 3 scheduling foundation. Phase 3D now owns transient UI, splash, marquee,
-        // non-gameplay visual effects, and all major non-tutorial game-transition timing.
-        // Gameplay, tutorial progression, attract mode, and audio engines remain native.
+        // Phase 3 scheduling foundation. Phase 3E now owns transient UI, splash, marquee,
+        // non-gameplay visual effects, all major non-tutorial transitions, and live-gameplay delays.
+        // The main gameplay loop, tutorial progression, attract mode, and audio engines remain native.
         class SchedulingManager {
             constructor() {
                 this.tasksByKey = new Map();
@@ -9294,6 +9294,7 @@ Orb Control Panel Instrument Reference
             constructor() {
                 this.scheduler = new SchedulingManager();
                 this.visualEffectSequence = 0;
+                this.gameplayTaskSequence = 0;
                 this.flow = new GameFlowController(this);
 
                 // Define RGB color constants for consistency across the game
@@ -10160,6 +10161,11 @@ Orb Control Panel Instrument Reference
                 return `${prefix}-${this.visualEffectSequence}`;
             }
 
+            nextGameplayTaskName(prefix = 'gameplay') {
+                this.gameplayTaskSequence++;
+                return `${prefix}-${this.gameplayTaskSequence}`;
+            }
+
             getControlPanelInstrumentAtPoint(clientX, clientY) {
                 const instruments = [
                     ['Sector Ascension Array', document.getElementById('levelHud')],
@@ -10519,7 +10525,7 @@ Orb Control Panel Instrument Reference
                 const controlPanel = this.ui && this.ui.getControlPanelDiagnosticState ? this.ui.getControlPanelDiagnosticState() : null;
                 return {
                     schema: 'blockazoids-stability-v1',
-                    build: 'v329',
+                    build: 'v330',
                     sessionId: this.stabilitySessionId,
                     savedAt: Date.now(),
                     cleanExit: !!cleanExit,
@@ -12197,9 +12203,7 @@ Orb Control Panel Instrument Reference
                 this.purgeTransientPlayfieldEffects();
                 this.container.classList.remove('cycleRestoredIdle');
                 this.removeCycleRebootCells();
-                this.clearPendingSpawnWarnings();
-                this.clearMaxSwarmCueTimer();
-                this.clearPrismRelicCueTimer();
+                this.cancelGameplayScheduling();
                 this.resetOvertimeState();
                 this.removePrismRelic();
 
@@ -12224,7 +12228,7 @@ Orb Control Panel Instrument Reference
             // Stop any scheduled enemy-spawn update so pause/restart cannot create stacked timers.
             clearUpdateGameTimer() {
                 if (this.updateGameTimer) {
-                    clearTimeout(this.updateGameTimer);
+                    this.scheduler.cancelTask(this.updateGameTimer);
                     this.updateGameTimer = null;
                 }
             }
@@ -12232,14 +12236,14 @@ Orb Control Panel Instrument Reference
             // Stop any delayed gridlock trigger so it cannot fire after pause, restart, or level transition.
             clearMaxSwarmCueTimer() {
                 if (this.maxSwarmCueTimer) {
-                    clearTimeout(this.maxSwarmCueTimer);
+                    this.scheduler.cancelTask(this.maxSwarmCueTimer);
                     this.maxSwarmCueTimer = null;
                 }
             }
 
             clearOvertimeEnemyTimer() {
                 if (this.overtimeEnemyTimer) {
-                    clearTimeout(this.overtimeEnemyTimer);
+                    this.scheduler.cancelTask(this.overtimeEnemyTimer);
                     this.overtimeEnemyTimer = null;
                 }
             }
@@ -12258,9 +12262,21 @@ Orb Control Panel Instrument Reference
             // Stop any delayed Prism Relic trigger so it cannot fire after pause, restart, or level transition.
             clearPrismRelicCueTimer() {
                 if (this.prismRelicCueTimer) {
-                    clearTimeout(this.prismRelicCueTimer);
+                    this.scheduler.cancelTask(this.prismRelicCueTimer);
                     this.prismRelicCueTimer = null;
                 }
+            }
+
+            // Cancel every delayed action owned by the current live-gameplay session.
+            // Tutorial warnings remain native and are canceled by clearPendingSpawnWarnings itself.
+            cancelGameplayScheduling(options = {}) {
+                const requeueSpawnWarnings = !!options.requeueSpawnWarnings;
+                this.clearPendingSpawnWarnings(requeueSpawnWarnings);
+                this.scheduler.cancelScope('gameplay');
+                this.updateGameTimer = null;
+                this.maxSwarmCueTimer = null;
+                this.overtimeEnemyTimer = null;
+                this.prismRelicCueTimer = null;
             }
 
             // Gridlock Relic timing is deterministic so the bonus is easier to understand and tune.
@@ -12294,10 +12310,7 @@ Orb Control Panel Instrument Reference
                 this.container.classList.remove('crt-shutdown-blackout');
                 this.clearCrtEventEffects();
                 this.gameplayRunToken++;
-                this.clearUpdateGameTimer();
-                this.clearMaxSwarmCueTimer();
-                this.clearPrismRelicCueTimer();
-                this.clearOvertimeEnemyTimer();
+                this.cancelGameplayScheduling();
                 this.releaseWakeLock();
                 this.isGameOver = false;
                 this.finalCompletionActive = false;
@@ -13549,10 +13562,7 @@ Orb Control Panel Instrument Reference
                 this.resumeCountdownActive = false;
                 this.startInputLocked = false;
                 this.gameplayRunToken++;
-                this.clearUpdateGameTimer();
-                this.clearMaxSwarmCueTimer();
-                this.clearPrismRelicCueTimer();
-                this.clearOvertimeEnemyTimer();
+                this.cancelGameplayScheduling();
                 this.audio.stopBackgroundMusic();
                 this.audio.stopCycleCompleteMusic();
                 this.pauseWindow.style.display = 'none';
@@ -13730,9 +13740,7 @@ Orb Control Panel Instrument Reference
                 this.audio.stopBackgroundMusic();
                 this.audio.stopPrismRelicHum();
                 this.audio.resetForSectorTransition();
-                this.clearUpdateGameTimer();
-                this.clearMaxSwarmCueTimer();
-                this.clearPrismRelicCueTimer();
+                this.cancelGameplayScheduling();
                 this.levelSelectWindow.style.display = 'none';
                 this.hideCycleContinueButton();
                 this.stopPauseMenuReactorHum();
@@ -13755,11 +13763,7 @@ Orb Control Panel Instrument Reference
                 this.setCrtUiSuspended(true);
                 this.ui.updateAll();
                 this.gameplayRunToken++;
-                this.clearUpdateGameTimer();
-                this.clearMaxSwarmCueTimer();
-                this.clearPrismRelicCueTimer();
-                this.clearOvertimeEnemyTimer();
-                this.clearPendingSpawnWarnings(true);
+                this.cancelGameplayScheduling({ requeueSpawnWarnings: true });
                 this.audio.stopBackgroundMusic();
                 this.audio.stopPrismRelicHum();
                 this.startPauseMenuReactorHum();
@@ -14989,7 +14993,7 @@ Orb Control Panel Instrument Reference
 
                 this.gridlockRelicAttemptNumber++;
                 const attemptNumber = this.gridlockRelicAttemptNumber;
-                this.prismRelicCueTimer = setTimeout(() => {
+                this.prismRelicCueTimer = this.scheduler.scheduleTimeout('gameplay', 'prism-relic-cue', () => {
                     this.prismRelicCueTimer = null;
                     if (attemptNumber !== this.gridlockRelicAttemptNumber) return;
                     if (this.prismRelicSpawnedThisSector || this.prismRelicRecoveredThisSector || this.prismRelic) return;
@@ -15032,7 +15036,7 @@ Orb Control Panel Instrument Reference
                 if (!this.flow.isLiveAction()) return;
 
                 if (this.enemies.length >= this.normalSwarmSize) {
-                    this.maxSwarmCueTimer = setTimeout(() => {
+                    this.maxSwarmCueTimer = this.scheduler.scheduleTimeout('gameplay', 'gridlock-cue', () => {
                         this.maxSwarmCueTimer = null;
                         if (!this.flow.isLiveAction()) return;
                         if (this.enemies.length < this.normalSwarmSize) return;
@@ -15077,7 +15081,7 @@ Orb Control Panel Instrument Reference
                     }
                 }
 
-                this.overtimeEnemyTimer = setTimeout(() => {
+                this.overtimeEnemyTimer = this.scheduler.scheduleTimeout('gameplay', 'overtime-enemy', () => {
                     this.overtimeEnemyTimer = null;
                     if (!this.overtimeActive || !this.flow.isLiveAction()) return;
 
@@ -15312,7 +15316,10 @@ Orb Control Panel Instrument Reference
                 }
 
                 pending.forEach(item => {
-                    if (item.timeoutId) clearTimeout(item.timeoutId);
+                    if (item.timeoutId) {
+                        if (item.managedByScheduler) this.scheduler.cancelTask(item.timeoutId);
+                        else clearTimeout(item.timeoutId);
+                    }
                     if (item.warning) item.warning.remove();
                 });
             }
@@ -15405,9 +15412,18 @@ Orb Control Panel Instrument Reference
                 }
 
                 const warning = new SpawnWarning(this, location.warningX, location.warningY, this.GRID_SIZE);
-                const pending = { type, warning, size, spawnX: location.x, spawnY: location.y, timeoutId: null, requeueOnCancel: options.requeueOnCancel !== false };
+                const pending = {
+                    type,
+                    warning,
+                    size,
+                    spawnX: location.x,
+                    spawnY: location.y,
+                    timeoutId: null,
+                    managedByScheduler: true,
+                    requeueOnCancel: options.requeueOnCancel !== false
+                };
 
-                pending.timeoutId = setTimeout(() => {
+                pending.timeoutId = this.scheduler.scheduleTimeout('gameplay', this.nextGameplayTaskName('spawn-warning'), () => {
                     this.pendingSpawnWarnings = this.pendingSpawnWarnings.filter(item => item !== pending);
                     warning.remove();
 
@@ -15447,7 +15463,7 @@ Orb Control Panel Instrument Reference
                 }
                 this.spawnCounter++; // Increment spawn counter
 
-                this.updateGameTimer = setTimeout(() => this.updateGame(), 1000); // Schedule next update
+                this.updateGameTimer = this.scheduler.scheduleTimeout('gameplay', 'enemy-spawn-update', () => this.updateGame(), 1000); // Schedule next update
             }
 
             // Check if level is complete and play the restoration sequence before advancing.
@@ -15467,11 +15483,8 @@ Orb Control Panel Instrument Reference
                 this.updatePauseGridMenu();
                 this.ui.updateAll();
                 this.gameplayRunToken++;
-                this.clearUpdateGameTimer();
+                this.cancelGameplayScheduling();
                 this.releaseWakeLock();
-                this.clearPendingSpawnWarnings();
-                this.clearMaxSwarmCueTimer();
-                this.clearOvertimeEnemyTimer();
                 if (!this.prismRelicRecoveredThisSector && (this.prismRelic || this.prismRelicCueTimer || this.prismRelicSpawnedThisSector)) {
                     this.noteTelemetryPrismRelicCanceled('sector-complete');
                 }
@@ -15653,10 +15666,7 @@ Orb Control Panel Instrument Reference
                 this.levelActionStarted = false;
                 this.ui.updateAll();
                 this.gameplayRunToken++;
-                this.clearUpdateGameTimer();
-                this.clearMaxSwarmCueTimer();
-                this.clearPrismRelicCueTimer();
-                this.clearOvertimeEnemyTimer();
+                this.cancelGameplayScheduling();
                 this.player.reset();
                 this.audio.stopBackgroundMusic();
                 this.audio.resetForSectorTransition();
@@ -16443,9 +16453,7 @@ Orb Control Panel Instrument Reference
                 this.isPaused = false;
                 this.resumeCountdownActive = false;
                 this.gameplayRunToken++;
-                this.clearUpdateGameTimer();
-                this.clearMaxSwarmCueTimer();
-                this.clearPrismRelicCueTimer();
+                this.cancelGameplayScheduling();
                 this.resetOvertimeState();
                 this.releaseWakeLock();
                 this.pauseWindow.style.display = 'none';
@@ -16582,11 +16590,7 @@ Orb Control Panel Instrument Reference
                 this.resumeCountdownActive = false;
                 this.startInputLocked = true;
                 this.gameplayRunToken++;
-                this.clearUpdateGameTimer();
-                this.clearPendingSpawnWarnings();
-                this.clearMaxSwarmCueTimer();
-                this.clearPrismRelicCueTimer();
-                this.clearOvertimeEnemyTimer();
+                this.cancelGameplayScheduling();
                 this.removePrismRelic();
                 this.container.classList.remove('cycleCelebrationSequence', 'cycleRestoredIdle');
                 this.removeCycleRebootCells();
@@ -16672,9 +16676,7 @@ Orb Control Panel Instrument Reference
                 this.isPaused = false;
                 this.resumeCountdownActive = false;
                 this.gameplayRunToken++;
-                this.clearUpdateGameTimer();
-                this.clearMaxSwarmCueTimer();
-                this.clearPrismRelicCueTimer();
+                this.cancelGameplayScheduling();
                 this.resetOvertimeState();
                 this.releaseWakeLock();
                 this.pauseWindow.style.display = 'none';
@@ -16746,9 +16748,7 @@ Orb Control Panel Instrument Reference
                 this.isPaused = false;
                 this.resumeCountdownActive = false;
                 this.gameplayRunToken++;
-                this.clearUpdateGameTimer();
-                this.clearMaxSwarmCueTimer();
-                this.clearPrismRelicCueTimer();
+                this.cancelGameplayScheduling();
                 this.releaseWakeLock();
                 this.pauseWindow.style.display = 'none';
                 if (this.menuButtons && this.scoringPanel && this.storyPanel && this.settingsPanel) this.showMainMenuButtons();
