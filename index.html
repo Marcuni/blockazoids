@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v333: Phase 3H gives audio delays and repeating cues managed scheduling ownership, completes the timer audit, and preserves all prior gameplay, timing, input, sound design, scoring, and presentation.
+Build v334: Phase 4A gives sector, run, temporary interaction, and terminal state explicit reset ownership while preserving all prior gameplay, timing, input, sound design, scoring, telemetry, and presentation.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -21,7 +21,7 @@ Orb Control Panel Instrument Reference
 - Velocity Glyph Engine — Temporarily displays the Orb’s finger-driven movement speed.
 - Orb Command Socket — Controls the Orb’s pause, resume, and primary interface functions.
 -->
-<html data-build-version="v333">
+<html data-build-version="v334">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -8836,7 +8836,7 @@ Orb Control Panel Instrument Reference
     </div>
 
     <script>
-        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'v333'}`;
+        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'v334'}`;
 
         // Central diagnostic feature flags. Change values here before loading the page to isolate systems.
         const GAME_FEATURE_FLAGS = window.BLOCKAZOIDS_FEATURE_FLAGS = {
@@ -10529,7 +10529,7 @@ Orb Control Panel Instrument Reference
                 const controlPanel = this.ui && this.ui.getControlPanelDiagnosticState ? this.ui.getControlPanelDiagnosticState() : null;
                 return {
                     schema: 'blockazoids-stability-v1',
-                    build: 'v333',
+                    build: 'v334',
                     sessionId: this.stabilitySessionId,
                     savedAt: Date.now(),
                     cleanExit: !!cleanExit,
@@ -12313,85 +12313,45 @@ Orb Control Panel Instrument Reference
                 this.prismRelicCueDelayMs = this.parameters.gridlockRelicDelayMs;
             }
 
-            // Reset state shared by a fresh level start or a testing jump.
-            prepareLevelStart(levelNumber, resetScore = false, options = {}) {
-                this.beginTransitionGroup('sector-intro', this.levelLoadToken);
-                this.flow.enter(GAME_FLOW_STATES.SECTOR_INTRO, 'prepare-level-start');
-                if (this.tutorialActive) {
-                    this.tutorialActive = false;
-                    this.tutorialToken++;
-                    this.cancelTutorialScheduling();
-                    this.clearTutorialObjects();
-                    this.setTutorialHud('');
-                    document.body.classList.remove('tutorial-active');
-                }
-                this.stopRunRecordActionClock();
+            // Phase 4A state ownership: each reset method owns one lifetime only.
+            // Player.reset() remains the canonical owner of pointer identifiers and drag-session cleanup.
+            resetTemporaryInteractionState() {
                 this.active = false;
                 this.levelActionStarted = false;
                 this.sectorTransitionActive = false;
                 this.showHudDuringSectorIntro = false;
                 this.startInputLocked = false;
-                this.resetMarqueeEasterEgg();
                 this.isPaused = false;
                 this.resumeCountdownActive = false;
-                this.setCrtPaused(false);
-                this.setCrtUiSuspended(false);
-                this.container.classList.remove('crt-shutdown-blackout');
-                this.clearCrtEventEffects();
-                this.cancelGameplayScheduling();
-                this.releaseWakeLock();
-                this.isGameOver = false;
+                this.menuOpenedAt = 0;
+                this.developerAttractMenuOpen = false;
+            }
+
+            resetTerminalState(options = {}) {
+                const clearGameOver = options.clearGameOver !== false;
+                const clearRestartReady = !!options.clearRestartReady;
+                if (clearGameOver) this.isGameOver = false;
                 this.finalCompletionActive = false;
                 this.finalGridlockActive = false;
                 this.finalGridlockResultActive = false;
                 this.finalGridlockElapsedMs = 0;
-                this.instructionsWindow.style.display = 'none';
-                if (this.activationHowToOverlay) {
-                    this.activationHowToOverlay.classList.remove('visible');
-                    this.activationHowToOverlay.setAttribute('aria-hidden', 'true');
-                }
-                this.setGameOverlayVisible(false);
-                this.menuOpenedAt = 0;
-                this.developerAttractMenuOpen = false;
-                if (this.resumeButton) this.resumeButton.textContent = 'Resume';
-                this.pauseWindow.style.display = 'none';
-                this.refreshGameOverlay();
-                if (this.menuButtons && this.scoringPanel && this.storyPanel && this.settingsPanel) this.showMainMenuButtons();
-                this.levelSelectWindow.style.display = 'none';
-                this.hideCycleContinueButton();
-                this.gameOverElement.style.opacity = '0';
-                this.gameOverElement.classList.remove('finalCycleText', 'finalGameCompleteText', 'finalGridlockGameOverText');
-                this.bonusTextElement.classList.remove('countdownText', 'restoreText', 'resumeCountdownText', 'finalCycleSubtext', 'finalGameSummary', 'finalGridlockSummary');
-                this.gameOverElement.textContent = '';
-                this.bonusTextElement.textContent = '';
-                this.bonusTextElement.style.opacity = '0';
-                if (!options.keepScreenFade) this.screenFadeElement.classList.remove('visible');
-                this.container.classList.remove('gridRestoreSequence', 'cycleCelebrationSequence', 'cycleRestoredIdle');
-                this.removeCycleRebootCells();
-                this.player.element.classList.remove('orbRestoreGlow');
-                this.stopAttractMode();
-                this.cancelTutorialScheduling();
-                this.clearGameplayObjects();
-                this.player.reset();
+                if (clearRestartReady) this.restartReady = false;
+            }
 
-                this.level = Math.max(1, Math.min(this.MAX_LEVEL, levelNumber));
-                this.markStabilityEvent('prepare-sector', { sector: this.level, cycle: this.cycle, resetScore: !!resetScore });
-                this.recordProgressUnlocks(this.level, this.cycle);
-                this.cockpitSectorDisplayName = '';
-                this.cockpitSectorDisplayLevel = null;
-                if (resetScore) {
-                    this.score = 0;
-                    this.highScoreTarget = this.highScore;
-                    this.highScoreBeatenThisRun = this.highScoreTarget <= 0;
-                    this.relicRecoveredBySector = {};
-                    this.relicsCollectedThisRun = 0;
-                    if (this.ui) {
-                        this.ui.lastOrbitalTallyCount = 0;
-                        this.ui.lastOrbitalTallySectorSignature = null;
-                    }
-                    this.resetRunRecordTracking(this.level);
+            resetRunState(startLevel = this.level) {
+                this.score = 0;
+                this.highScoreTarget = this.highScore;
+                this.highScoreBeatenThisRun = this.highScoreTarget <= 0;
+                this.relicRecoveredBySector = {};
+                this.relicsCollectedThisRun = 0;
+                if (this.ui) {
+                    this.ui.lastOrbitalTallyCount = 0;
+                    this.ui.lastOrbitalTallySectorSignature = null;
                 }
-                this.updateRunRecordProgress();
+                this.resetRunRecordTracking(startLevel);
+            }
+
+            resetSectorState() {
                 this.removePrismRelic();
                 this.colorGroupsCompletedThisSector = 0;
                 this.prismRelicSpawnedThisSector = false;
@@ -12418,6 +12378,65 @@ Orb Control Panel Instrument Reference
                 this.lastCollectedPos = null;
                 this.applyLevelParameters();
                 this.resetPrismRelicTiming();
+            }
+
+            // Reset state shared by a fresh level start or a testing jump.
+            prepareLevelStart(levelNumber, resetScore = false, options = {}) {
+                this.beginTransitionGroup('sector-intro', this.levelLoadToken);
+                this.flow.enter(GAME_FLOW_STATES.SECTOR_INTRO, 'prepare-level-start');
+                if (this.tutorialActive) {
+                    this.tutorialActive = false;
+                    this.tutorialToken++;
+                    this.cancelTutorialScheduling();
+                    this.clearTutorialObjects();
+                    this.setTutorialHud('');
+                    document.body.classList.remove('tutorial-active');
+                }
+                this.stopRunRecordActionClock();
+                this.resetTemporaryInteractionState();
+                this.resetMarqueeEasterEgg();
+                this.setCrtPaused(false);
+                this.setCrtUiSuspended(false);
+                this.container.classList.remove('crt-shutdown-blackout');
+                this.clearCrtEventEffects();
+                this.cancelGameplayScheduling();
+                this.releaseWakeLock();
+                this.resetTerminalState();
+                this.instructionsWindow.style.display = 'none';
+                if (this.activationHowToOverlay) {
+                    this.activationHowToOverlay.classList.remove('visible');
+                    this.activationHowToOverlay.setAttribute('aria-hidden', 'true');
+                }
+                this.setGameOverlayVisible(false);
+                if (this.resumeButton) this.resumeButton.textContent = 'Resume';
+                this.pauseWindow.style.display = 'none';
+                this.refreshGameOverlay();
+                if (this.menuButtons && this.scoringPanel && this.storyPanel && this.settingsPanel) this.showMainMenuButtons();
+                this.levelSelectWindow.style.display = 'none';
+                this.hideCycleContinueButton();
+                this.gameOverElement.style.opacity = '0';
+                this.gameOverElement.classList.remove('finalCycleText', 'finalGameCompleteText', 'finalGridlockGameOverText');
+                this.bonusTextElement.classList.remove('countdownText', 'restoreText', 'resumeCountdownText', 'finalCycleSubtext', 'finalGameSummary', 'finalGridlockSummary');
+                this.gameOverElement.textContent = '';
+                this.bonusTextElement.textContent = '';
+                this.bonusTextElement.style.opacity = '0';
+                if (!options.keepScreenFade) this.screenFadeElement.classList.remove('visible');
+                this.container.classList.remove('gridRestoreSequence', 'cycleCelebrationSequence', 'cycleRestoredIdle');
+                this.removeCycleRebootCells();
+                this.player.element.classList.remove('orbRestoreGlow');
+                this.stopAttractMode();
+                this.cancelTutorialScheduling();
+                this.clearGameplayObjects();
+                this.player.reset();
+
+                this.level = Math.max(1, Math.min(this.MAX_LEVEL, levelNumber));
+                this.markStabilityEvent('prepare-sector', { sector: this.level, cycle: this.cycle, resetScore: !!resetScore });
+                this.recordProgressUnlocks(this.level, this.cycle);
+                this.cockpitSectorDisplayName = '';
+                this.cockpitSectorDisplayLevel = null;
+                if (resetScore) this.resetRunState(this.level);
+                this.updateRunRecordProgress();
+                this.resetSectorState();
                 this.ui.updateAll();
             }
 
@@ -14576,16 +14595,12 @@ Orb Control Panel Instrument Reference
                 const endOption = this.getEndSectorOptionValue();
 
                 this.hideActivationHowToOverlay();
-                this.finalCompletionActive = false;
-                this.finalGridlockActive = false;
-                this.finalGridlockResultActive = false;
-                this.finalGridlockElapsedMs = 0;
+                this.resetTerminalState({ clearGameOver: false, clearRestartReady: true });
                 this.hasStartedRun = true;
                 this.activationHowToPending = false;
                 this.cockpitActivated = true;
                 this.cockpitSectorDisplayName = '';
                 this.cockpitSectorDisplayLevel = null;
-                this.restartReady = false;
                 this.cycle = Math.max(1, Math.min(this.getMaximumSelectableCycle(), this.selectedStartCycle || 1));
                 this.audio.resume(); // Unlock audio after the player's start tap
                 this.audio.stopBackgroundMusic(); // Stop any background music
