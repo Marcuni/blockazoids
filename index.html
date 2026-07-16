@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v327: Fixes the first tutorial Orb drag by keeping one valid touch owner, preserving tutorial input through Safari resize settling, and still canceling on real orientation changes.
+Build v328: Makes the first tutorial Orb drag immediately reliable by stabilizing the playfield before input opens, using one native touch stream on iPhone, deferring ordinary Safari resizes until release, and still canceling on real orientation changes.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -21,7 +21,7 @@ Orb Control Panel Instrument Reference
 - Velocity Glyph Engine — Temporarily displays the Orb’s finger-driven movement speed.
 - Orb Command Socket — Controls the Orb’s pause, resume, and primary interface functions.
 -->
-<html data-build-version="v327">
+<html data-build-version="v328">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -8836,7 +8836,7 @@ Orb Control Panel Instrument Reference
     </div>
 
     <script>
-        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'v327'}`;
+        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'v328'}`;
 
         // Central diagnostic feature flags. Change values here before loading the page to isolate systems.
         const GAME_FEATURE_FLAGS = window.BLOCKAZOIDS_FEATURE_FLAGS = {
@@ -9449,6 +9449,8 @@ Orb Control Panel Instrument Reference
                 this.stabilityReportDismiss = document.getElementById('stabilityReportDismiss');
                 this.stabilityHeartbeatTimer = null;
                 this.stabilityViewportTimer = null;
+                this.tutorialResizePending = false;
+                this.tutorialViewportActivationRafId = null;
                 this.stabilitySessionId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
                 this.stabilityLastEvent = 'boot';
                 this.stabilityLastEventDetails = {};
@@ -10468,7 +10470,7 @@ Orb Control Panel Instrument Reference
                 const controlPanel = this.ui && this.ui.getControlPanelDiagnosticState ? this.ui.getControlPanelDiagnosticState() : null;
                 return {
                     schema: 'blockazoids-stability-v1',
-                    build: 'v327',
+                    build: 'v328',
                     sessionId: this.stabilitySessionId,
                     savedAt: Date.now(),
                     cleanExit: !!cleanExit,
@@ -10585,41 +10587,91 @@ Orb Control Panel Instrument Reference
             }
 
             handleViewportChange(reason = 'resize') {
-                // On iPhone, the first finger movement can make Safari settle its address/tool bars,
-                // emitting a normal resize before or during the first tutorial pointer stream.
-                // Preserve the entire tutorial input window for ordinary resize events. Do not run
-                // the delayed board-resize pass either, because changing the board beneath that first
-                // finger can break the stream even when the drag-session flags themselves survive.
-                // A genuine orientationchange still invalidates input and performs the full layout pass.
-                const preserveTutorialInput = reason === 'resize' &&
-                    this.tutorialActive &&
+                const tutorialCanDrag = this.tutorialActive &&
                     this.player &&
                     this.flow &&
                     this.flow.allowsOrbDragInput();
 
-                if (!preserveTutorialInput) {
-                    this.player.invalidateDragSession(`viewport:${reason}`);
+                // A real rotation always ends the current gesture and rebuilds the board.
+                if (reason === 'orientationchange') {
+                    this.tutorialResizePending = false;
+                    if (this.stabilityViewportTimer) {
+                        clearTimeout(this.stabilityViewportTimer);
+                        this.stabilityViewportTimer = null;
+                    }
+                    this.player.invalidateDragSession('viewport:orientationchange');
+                    this.markStabilityEvent(reason, {
+                        width: window.innerWidth,
+                        height: window.innerHeight,
+                        preservedTutorialInput: false
+                    });
+                    this.stabilityViewportTimer = window.setTimeout(() => {
+                        this.stabilityViewportTimer = null;
+                        this.applyResponsiveViewportUpdate('orientationchange');
+                    }, 180);
+                    return;
                 }
+
+                // Safari can resize the visual viewport when its bars settle during the first drag.
+                // Never rebuild the board under a live tutorial finger. Remember the resize and apply
+                // it immediately after release instead. Before a finger is down, keep the normal
+                // debounce but re-check ownership when the timer fires.
+                if (tutorialCanDrag) {
+                    const dragging = !!this.player.isTouchActive;
+                    if (dragging) this.tutorialResizePending = true;
+                    this.markStabilityEvent(reason, {
+                        width: window.innerWidth,
+                        height: window.innerHeight,
+                        preservedTutorialInput: true,
+                        deferredUntilRelease: dragging
+                    });
+                    if (this.stabilityViewportTimer) clearTimeout(this.stabilityViewportTimer);
+                    this.stabilityViewportTimer = null;
+                    if (dragging) return;
+
+                    this.stabilityViewportTimer = window.setTimeout(() => {
+                        this.stabilityViewportTimer = null;
+                        if (this.tutorialActive && this.flow && this.flow.allowsOrbDragInput()) {
+                            if (this.player && this.player.isTouchActive) {
+                                this.tutorialResizePending = true;
+                                return;
+                            }
+                            this.applyResponsiveViewportUpdate('tutorial-resize-settled');
+                            return;
+                        }
+                        this.applyResponsiveViewportUpdate('resize');
+                    }, 180);
+                    return;
+                }
+
+                this.player.invalidateDragSession(`viewport:${reason}`);
                 this.markStabilityEvent(reason, {
                     width: window.innerWidth,
                     height: window.innerHeight,
-                    preservedTutorialInput: !!preserveTutorialInput
+                    preservedTutorialInput: false
                 });
                 if (this.stabilityViewportTimer) clearTimeout(this.stabilityViewportTimer);
                 this.stabilityViewportTimer = window.setTimeout(() => {
                     this.stabilityViewportTimer = null;
-                    if (reason === 'resize' && this.tutorialActive && this.flow && this.flow.allowsOrbDragInput()) {
-                        if (this.ui && this.ui.markBottomHudBorderDirty) this.ui.markBottomHudBorderDirty('tutorial-resize-preserved');
-                        if (this.ui && this.ui.updateDynamicHud) this.ui.updateDynamicHud();
-                        this.markStabilityEvent('resize-tutorial-input-preserved', {
-                            width: window.innerWidth,
-                            height: window.innerHeight,
-                            board: Number(this.PLAYFIELD_SIZE) || 0
-                        });
-                        return;
-                    }
                     this.applyResponsiveViewportUpdate(reason);
                 }, 180);
+            }
+
+            flushDeferredTutorialResize(reason = 'tutorial-drag-ended') {
+                if (!this.tutorialResizePending || !this.player || this.player.isTouchActive) return;
+                this.tutorialResizePending = false;
+                if (this.stabilityViewportTimer) {
+                    clearTimeout(this.stabilityViewportTimer);
+                    this.stabilityViewportTimer = null;
+                }
+                requestAnimationFrame(() => {
+                    if (this.player && this.player.isTouchActive) {
+                        this.tutorialResizePending = true;
+                        return;
+                    }
+                    this.applyResponsiveViewportUpdate('tutorial-resize-after-release');
+                    this.markStabilityEvent('tutorial-resize-flushed', { reason });
+                });
             }
 
             applyResponsiveViewportUpdate(reason = 'resize') {
@@ -13778,7 +13830,7 @@ Orb Control Panel Instrument Reference
             }
 
             resetIntroCompletionFlag() {
-                // v327: only clear tutorial completion. The click handler already plays the
+                // v328: only clear tutorial completion. The click handler already plays the
                 // standard menu beep; the user can reload manually when ready to replay it.
                 try { localStorage.removeItem(this.introCompletionStorageKey); } catch (_) {}
                 this.introCompleted = false;
@@ -13896,14 +13948,16 @@ Orb Control Panel Instrument Reference
                 this.isPaused = false;
                 this.finalGridlockActive = false;
                 this.finalCompletionActive = false;
-                // The tutorial is live interaction, not a sector transition. Open the input window
-                // before entering the tutorial flow so the first touch cannot be discarded.
                 this.sectorTransitionActive = false;
                 this.startInputLocked = false;
-                this.tutorialActive = true;
-                this.tutorialStep = 'movement';
-                this.flow.enter(GAME_FLOW_STATES.TUTORIAL, 'start-one-time-intro');
-                this.tutorialToken++;
+
+                // Keep tutorial input closed while Safari and the responsive board finish the PLAY
+                // transition. The Orb and its instruction are intentionally hidden until both are
+                // ready, so any visible movement prompt is guaranteed to accept the first touch.
+                this.tutorialActive = false;
+                this.tutorialStep = '';
+                const token = ++this.tutorialToken;
+                this.flow.enter(GAME_FLOW_STATES.TUTORIAL, 'start-one-time-intro-preflight');
                 this.tutorialMovementDistance = 0;
                 this.tutorialMovementQualified = false;
                 this.tutorialEnemyAvoidMs = 0;
@@ -13914,20 +13968,85 @@ Orb Control Panel Instrument Reference
                 this.cosmicZapPressure = 0;
                 this.active = true;
                 this.levelActionStarted = true;
-                this.player.reset();
+                this.tutorialResizePending = false;
+
+                if (this.stabilityViewportTimer) {
+                    clearTimeout(this.stabilityViewportTimer);
+                    this.stabilityViewportTimer = null;
+                }
+                if (this.tutorialViewportActivationRafId !== null) {
+                    cancelAnimationFrame(this.tutorialViewportActivationRafId);
+                    this.tutorialViewportActivationRafId = null;
+                }
+
+                this.player.invalidateDragSession('tutorial-preflight');
+                this.player.element.style.display = 'none';
                 document.body.classList.add('tutorial-active');
                 this.setGameOverlayVisible(false);
                 this.setCrtUiSuspended(false);
                 this.setCrtPaused(false);
-                this.setTutorialStep('movement');
-                // Start with a clean, explicitly open pointer session. This also prevents a stale
-                // attract/menu pointer revision from delaying the first tutorial drag.
-                this.player.invalidateDragSession('tutorial-input-ready');
+                this.applyResponsiveViewportUpdate('tutorial-start-preflight');
                 this.syncMotionListenerState();
                 this.ui.updateAll();
-                this.tutorialLastFrameTime = performance.now();
-                const token = this.tutorialToken;
-                this.tutorialRafId = requestAnimationFrame((timestamp) => this.updateTutorial(timestamp, token));
+
+                const readViewport = () => {
+                    const viewport = window.visualViewport;
+                    return {
+                        width: viewport ? viewport.width : window.innerWidth,
+                        height: viewport ? viewport.height : window.innerHeight,
+                        offsetTop: viewport ? viewport.offsetTop : 0
+                    };
+                };
+                let previousViewport = null;
+                let stableSamples = 0;
+                let attempts = 0;
+
+                const activateTutorialInput = () => {
+                    this.tutorialViewportActivationRafId = null;
+                    if (token !== this.tutorialToken) return;
+
+                    this.applyResponsiveViewportUpdate('tutorial-start-ready');
+                    this.tutorialActive = true;
+                    this.tutorialStep = 'movement';
+                    this.player.reset();
+                    this.setTutorialStep('movement');
+                    this.syncMotionListenerState();
+                    this.ui.updateAll();
+                    this.tutorialLastFrameTime = performance.now();
+                    this.tutorialRafId = requestAnimationFrame((timestamp) => this.updateTutorial(timestamp, token));
+                    this.markStabilityEvent('tutorial-input-ready', {
+                        width: window.innerWidth,
+                        height: window.innerHeight,
+                        board: Number(this.PLAYFIELD_SIZE) || 0,
+                        settleFrames: attempts
+                    });
+                };
+
+                const waitForStableViewport = () => {
+                    if (token !== this.tutorialToken) {
+                        this.tutorialViewportActivationRafId = null;
+                        return;
+                    }
+                    attempts++;
+                    const currentViewport = readViewport();
+                    const stable = previousViewport &&
+                        Math.abs(currentViewport.width - previousViewport.width) < 0.5 &&
+                        Math.abs(currentViewport.height - previousViewport.height) < 0.5 &&
+                        Math.abs(currentViewport.offsetTop - previousViewport.offsetTop) < 0.5;
+                    stableSamples = stable ? stableSamples + 1 : 0;
+                    previousViewport = currentViewport;
+
+                    if (stableSamples >= 2 || attempts >= 18) {
+                        activateTutorialInput();
+                        return;
+                    }
+                    this.tutorialViewportActivationRafId = requestAnimationFrame(waitForStableViewport);
+                };
+
+                // Force the preflight layout to commit, then require consecutive stable viewport
+                // samples before revealing the interactive Orb.
+                void this.container.getBoundingClientRect();
+                this.tutorialViewportActivationRafId = requestAnimationFrame(waitForStableViewport);
             }
 
             setTutorialStep(step, options = {}) {
@@ -14007,7 +14126,7 @@ Orb Control Panel Instrument Reference
                     this.cosmicZapsLeft = 0;
                     this.tutorialRelicReady = false;
 
-                    // v327: announce the objective before revealing the Relic. Once visible,
+                    // v328: announce the objective before revealing the Relic. Once visible,
                     // the Relic is immediately collectible, including during a very fast pass.
                     const spawnTutorialRelic = () => {
                         if (!this.tutorialActive || this.tutorialStep !== 'relic' || this.prismRelic) return;
@@ -16859,6 +16978,9 @@ Orb Control Panel Instrument Reference
                 this.touchDragOffsetY = 0;
                 this.velocityGaugeLastSampleTime = 0;
                 this.releaseActivePointerCapture(pointerId);
+                if (this.game && this.game.flushDeferredTutorialResize) {
+                    this.game.flushDeferredTutorialResize(reason);
+                }
                 return true;
             }
 
@@ -16986,6 +17108,9 @@ Orb Control Panel Instrument Reference
             // iPhone control: one specific finger must begin on or near the Orb.
             handlePointerDown(e) {
                 if (!e || e.isPrimary === false) return;
+                // During the tutorial, touchscreen input is owned exclusively by the native
+                // touch listeners. Safari must not create a second pointer owner for the same finger.
+                if (this.game.tutorialActive && e.pointerType === 'touch') return;
                 if (e.pointerType === 'mouse' && e.button !== 0) return;
                 if (this.game.audio) this.game.audio.resume();
                 if (!this.game.flow.allowsOrbDragInput()) {
@@ -17015,6 +17140,7 @@ Orb Control Panel Instrument Reference
 
             handlePointerMove(e) {
                 if (!e) return;
+                if (this.game.tutorialActive && e.pointerType === 'touch') return;
 
                 // iOS can occasionally deliver the first movement sample after the tutorial opens
                 // without preserving the preceding pointer-down stream. Recover that touch only in
@@ -17063,7 +17189,9 @@ Orb Control Panel Instrument Reference
             }
 
             handlePointerUp(e) {
-                if (!e || this.activePointerId === null || e.pointerId !== this.activePointerId) return;
+                if (!e) return;
+                if (this.game.tutorialActive && e.pointerType === 'touch') return;
+                if (this.activePointerId === null || e.pointerId !== this.activePointerId) return;
                 if (this.isTouchActive && e.cancelable) e.preventDefault();
                 this.cancelPointerDrag(e, e.type || 'pointer-end');
             }
