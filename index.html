@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v339: Routes sensitive gameplay, transition, Gridlock, Prism Relic, tutorial, and terminal state changes through named controlled-mutation methods while preserving all validated prior behavior.
+Build v340: Adds a read-only Developer Mode state snapshot tool that copies current lifecycle, gameplay, scheduler, input, audio, and telemetry state as formatted JSON.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -21,7 +21,7 @@ Orb Control Panel Instrument Reference
 - Velocity Glyph Engine — Temporarily displays the Orb’s finger-driven movement speed.
 - Orb Command Socket — Controls the Orb’s pause, resume, and primary interface functions.
 -->
-<html data-build-version="v339">
+<html data-build-version="v340">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -7678,6 +7678,7 @@ Orb Control Panel Instrument Reference
         #telemetryPanel > .crt-dev-heading,
         #telemetryPanel > #exportTelemetryButton,
         #telemetryPanel > #clearTelemetryButton,
+        #telemetryPanel > #copyStateSnapshotButton,
         #telemetryPanel > #telemetryStatus {
             flex: 0 0 auto;
         }
@@ -7700,7 +7701,8 @@ Orb Control Panel Instrument Reference
         }
 
         #telemetryPanel #exportTelemetryButton,
-        #telemetryPanel #clearTelemetryButton {
+        #telemetryPanel #clearTelemetryButton,
+        #telemetryPanel #copyStateSnapshotButton {
             margin-top: 2px;
             margin-bottom: 0;
             padding-top: 6px;
@@ -8667,6 +8669,7 @@ Orb Control Panel Instrument Reference
                     <div id="telemetrySummary" class="telemetry-summary">Developer Mode required.</div>
                     <button id="exportTelemetryButton" class="menu-button settings-toggle">Export Balance Data</button>
                     <button id="clearTelemetryButton" class="menu-button settings-toggle">Clear Balance Data</button>
+                    <button id="copyStateSnapshotButton" class="menu-button settings-toggle" type="button">Copy State Snapshot</button>
                     <div id="telemetryStatus" class="telemetry-status"></div>
                     <button id="invincibilityToggleButton" class="menu-button settings-toggle" type="button">Invincibility: OFF</button>
                 </div>
@@ -8836,7 +8839,7 @@ Orb Control Panel Instrument Reference
     </div>
 
     <script>
-        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'v339'}`;
+        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'v340'}`;
 
         // Central diagnostic feature flags. Change values here before loading the page to isolate systems.
         const GAME_FEATURE_FLAGS = window.BLOCKAZOIDS_FEATURE_FLAGS = {
@@ -9481,6 +9484,7 @@ Orb Control Panel Instrument Reference
                 this.telemetrySummary = document.getElementById('telemetrySummary');
                 this.exportTelemetryButton = document.getElementById('exportTelemetryButton');
                 this.clearTelemetryButton = document.getElementById('clearTelemetryButton');
+                this.copyStateSnapshotButton = document.getElementById('copyStateSnapshotButton');
                 this.telemetryStatus = document.getElementById('telemetryStatus');
                 this.telemetryBackButton = document.getElementById('telemetryBackButton');
                 this.crtPerformanceHud = document.getElementById('crtPerformanceHud');
@@ -10078,6 +10082,14 @@ Orb Control Panel Instrument Reference
                         this.clearTelemetryData();
                     });
                 }
+                if (this.copyStateSnapshotButton) {
+                    this.copyStateSnapshotButton.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        this.playUiClick();
+                        this.copyDeveloperStateSnapshot();
+                    });
+                }
                 if (this.invincibilityToggleButton) {
                     this.invincibilityToggleButton.addEventListener('click', (e) => {
                         e.preventDefault();
@@ -10529,7 +10541,7 @@ Orb Control Panel Instrument Reference
                 const controlPanel = this.ui && this.ui.getControlPanelDiagnosticState ? this.ui.getControlPanelDiagnosticState() : null;
                 return {
                     schema: 'blockazoids-stability-v1',
-                    build: 'v339',
+                    build: 'v340',
                     sessionId: this.stabilitySessionId,
                     savedAt: Date.now(),
                     cleanExit: !!cleanExit,
@@ -12113,6 +12125,208 @@ Orb Control Panel Instrument Reference
                 if (this.telemetryStatus) this.telemetryStatus.textContent = message || '';
             }
 
+            // Phase 4F read-only inspection. This deliberately captures values without
+            // pausing gameplay, changing flow state, mutating storage, or repairing anything.
+            buildDeveloperStateSnapshot() {
+                const schedulerSummary = this.scheduler ? this.scheduler.snapshot() : { total: 0, scopes: {} };
+                const schedulerTasks = this.scheduler && this.scheduler.tasksByKey instanceof Map
+                    ? Array.from(this.scheduler.tasksByKey.values())
+                        .map(task => ({ scope: task.scope, name: task.name, type: task.type }))
+                        .sort((a, b) => `${a.scope}:${a.name}`.localeCompare(`${b.scope}:${b.name}`))
+                    : [];
+                const audio = this.audio || {};
+                const player = this.player || {};
+                const remainingByColor = typeof this.getRemainingCrystalsByColor === 'function'
+                    ? this.getRemainingCrystalsByColor()
+                    : null;
+                const currentTelemetryRun = this.currentTelemetryRun || null;
+                const currentTelemetrySector = this.currentTelemetrySector || null;
+                const activeTransition = this.activeTransitionGroup ? {
+                    name: this.activeTransitionGroup.name || null,
+                    revision: Number(this.activeTransitionGroup.revision) || 0,
+                    loadToken: Number(this.activeTransitionGroup.loadToken) || 0
+                } : null;
+                const audioMode = audio.cycleCompleteMusicPlaying ? 'cycle-complete' :
+                    audio.maxSwarmBeatPlaying ? 'gridlock' :
+                    audio.prismRelicHumPlaying ? 'prism-relic' :
+                    audio.pauseMenuReactorPlaying ? 'pause-menu' :
+                    audio.attractComputerAmbiencePlaying ? 'attract' :
+                    audio.backgroundMusicPlaying ? 'gameplay' : 'idle';
+
+                return {
+                    schema: 'blockazoids-state-snapshot-v1',
+                    build: BUILD_VERSION,
+                    capturedAt: new Date().toISOString(),
+                    performanceTimeMs: Math.round(performance.now()),
+                    sessionId: this.stabilitySessionId || null,
+                    lifecycle: {
+                        flow: this.flow ? this.flow.snapshot() : null,
+                        activeTransition,
+                        levelLoadToken: Number(this.levelLoadToken) || 0,
+                        active: !!this.active,
+                        paused: !!this.isPaused,
+                        resumeCountdownActive: !!this.resumeCountdownActive,
+                        levelActionStarted: !!this.levelActionStarted,
+                        startInputLocked: !!this.startInputLocked,
+                        sectorTransitionActive: !!this.sectorTransitionActive,
+                        cycleTransitionActive: !!this.cycleTransitionActive
+                    },
+                    campaign: {
+                        sector: Number(this.level) || 1,
+                        sectorName: typeof this.getLevelPatternName === 'function' ? this.getLevelPatternName(this.level) : null,
+                        cycle: Number(this.cycle) || 1,
+                        score: Number(this.score) || 0,
+                        highScore: Number(this.highScore) || 0,
+                        cosmicZapsLeft: Number(this.cosmicZapsLeft) || 0,
+                        relicsCollectedThisRun: Number(this.relicsCollectedThisRun) || 0,
+                        survivalScoreAccumulator: Number(this.survivalScoreAccumulator) || 0,
+                        sectorElapsedMs: Math.round(Number(this.sectorElapsedMs) || 0)
+                    },
+                    crystals: {
+                        remaining: Array.isArray(this.crystals) ? this.crystals.length : 0,
+                        collected: currentTelemetrySector ? Number(currentTelemetrySector.crystalsCollected) || 0 : null,
+                        remainingByColor,
+                        currentColor: Array.isArray(this.colorOrder) ? this.colorOrder[this.currentColorIndex] || null : null,
+                        currentColorIndex: Number(this.currentColorIndex) || 0,
+                        nextCrystalOrder: Number(this.nextCrystalOrder) || 0,
+                        activeBlinkingCount: Array.isArray(this.activeBlinkingCrystals) ? this.activeBlinkingCrystals.length : 0
+                    },
+                    enemies: {
+                        active: Array.isArray(this.enemies) ? this.enemies.length : 0,
+                        pendingSpawnWarnings: Array.isArray(this.pendingSpawnWarnings) ? this.pendingSpawnWarnings.length : 0,
+                        spawnCounter: Number(this.spawnCounter) || 0,
+                        gameplayUpdateScheduled: !!this.updateGameTimer
+                    },
+                    gridlock: {
+                        active: !!this.maxSwarmActive,
+                        cuePending: !!this.maxSwarmCueTimer,
+                        overtimeActive: !!this.overtimeActive,
+                        overtimeTimerPending: !!this.overtimeEnemyTimer,
+                        overtimeEnemiesAdded: Number(this.overtimeEnemiesAdded) || 0,
+                        superGridlockBonusesThisSector: Number(this.superGridlockBonusesThisSector) || 0
+                    },
+                    prismRelic: {
+                        visible: !!this.prismRelic,
+                        cuePending: !!this.prismRelicCueTimer,
+                        tutorialReady: !!this.tutorialRelicReady,
+                        tutorialCollected: !!this.tutorialRelicCollected
+                    },
+                    tutorial: {
+                        introCompleted: !!this.introCompleted,
+                        active: !!this.tutorialActive,
+                        step: this.tutorialStep || '',
+                        token: Number(this.tutorialToken) || 0,
+                        movementDistance: Number(this.tutorialMovementDistance) || 0,
+                        movementQualified: !!this.tutorialMovementQualified,
+                        enemySpawned: !!this.tutorialEnemySpawned,
+                        relicReady: !!this.tutorialRelicReady,
+                        relicCollected: !!this.tutorialRelicCollected
+                    },
+                    terminal: {
+                        gameOver: !!this.isGameOver,
+                        restartReady: !!this.restartReady,
+                        finalCompletionActive: !!this.finalCompletionActive,
+                        finalGridlockActive: !!this.finalGridlockActive,
+                        finalGridlockResultActive: !!this.finalGridlockResultActive,
+                        finalGridlockElapsedMs: Math.round(Number(this.finalGridlockElapsedMs) || 0)
+                    },
+                    schedulers: {
+                        summary: schedulerSummary,
+                        tasks: schedulerTasks
+                    },
+                    input: {
+                        orbDragAllowed: !!(this.flow && this.flow.allowsOrbDragInput()),
+                        isTouchActive: !!player.isTouchActive,
+                        activePointerId: player.activePointerId ?? null,
+                        activePointerType: player.activePointerType || '',
+                        activeTouchIdentifier: player.activeTouchIdentifier ?? null,
+                        dragSessionRevision: Number(player.dragSessionRevision) || 0,
+                        inputWindowRevision: Number(player.inputWindowRevision) || 0,
+                        movementSegmentsPending: Array.isArray(player.movementSegments) ? player.movementSegments.length : 0,
+                        orbPosition: {
+                            x: Number(player.x) || 0,
+                            y: Number(player.y) || 0,
+                            size: Number(player.size) || 0
+                        },
+                        lastPlayfieldCosmicZapTapTime: Number(this.lastPlayfieldCosmicZapTapTime) || 0,
+                        motionListenerAttached: !!this.motionListenerAttached
+                    },
+                    audio: {
+                        mode: audioMode,
+                        contextState: audio.ctx ? audio.ctx.state : 'off',
+                        soundMuted: !!audio.muted,
+                        musicMuted: !!audio.musicMuted,
+                        backgroundMusicPlaying: !!audio.backgroundMusicPlaying,
+                        gridlockBeatPlaying: !!audio.maxSwarmBeatPlaying,
+                        gridlockBeatIntensity: Number(audio.maxSwarmBeatIntensity) || 0,
+                        cycleCompleteMusicPlaying: !!audio.cycleCompleteMusicPlaying,
+                        prismRelicHumPlaying: !!audio.prismRelicHumPlaying,
+                        pauseMenuReactorPlaying: !!audio.pauseMenuReactorPlaying,
+                        attractComputerAmbiencePlaying: !!audio.attractComputerAmbiencePlaying,
+                        activeSources: Number(audio.audioSourcesActive) || 0,
+                        trackedNodes: audio.audioTrackedNodes instanceof Set ? audio.audioTrackedNodes.size : 0
+                    },
+                    telemetry: {
+                        enabled: !!this.telemetryEnabled,
+                        activeRunId: currentTelemetryRun ? currentTelemetryRun.id || null : null,
+                        activeRunSource: currentTelemetryRun ? currentTelemetryRun.source || null : null,
+                        activeRunStartedAt: currentTelemetryRun ? currentTelemetryRun.startedAt || null : null,
+                        activeSector: currentTelemetrySector ? Number(currentTelemetrySector.sector) || null : null,
+                        activeSectorSource: currentTelemetrySector ? currentTelemetrySector.source || null : null,
+                        activeSectorStartedAt: currentTelemetrySector ? currentTelemetrySector.startedAt || null : null,
+                        savedRunCount: this.telemetry && Array.isArray(this.telemetry.runs) ? this.telemetry.runs.length : 0
+                    }
+                };
+            }
+
+            async copyTextToClipboard(text) {
+                const value = String(text || '');
+                if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+                    try {
+                        await navigator.clipboard.writeText(value);
+                        return true;
+                    } catch (_) {}
+                }
+
+                const textarea = document.createElement('textarea');
+                textarea.value = value;
+                textarea.setAttribute('readonly', '');
+                textarea.style.position = 'fixed';
+                textarea.style.left = '-9999px';
+                textarea.style.top = '0';
+                textarea.style.opacity = '0';
+                document.body.appendChild(textarea);
+                textarea.focus();
+                textarea.select();
+                textarea.setSelectionRange(0, textarea.value.length);
+                let copied = false;
+                try { copied = document.execCommand('copy'); } catch (_) {}
+                textarea.remove();
+                return copied;
+            }
+
+            async copyDeveloperStateSnapshot() {
+                if (!this.developerModeEnabled) {
+                    this.setTelemetryStatus('Developer Mode required.');
+                    return false;
+                }
+
+                const snapshot = this.buildDeveloperStateSnapshot();
+                const copied = await this.copyTextToClipboard(JSON.stringify(snapshot, null, 2));
+                if (!copied) {
+                    this.setTelemetryStatus('Clipboard unavailable.');
+                    return false;
+                }
+
+                if (this.copyStateSnapshotButton) this.copyStateSnapshotButton.textContent = 'Snapshot Copied';
+                this.setTelemetryStatus('State snapshot copied.');
+                this.scheduler.scheduleTimeout('ui', 'state-snapshot-confirmation', () => {
+                    if (this.copyStateSnapshotButton) this.copyStateSnapshotButton.textContent = 'Copy State Snapshot';
+                    this.setTelemetryStatus('Local balance data only.');
+                }, 1200);
+                return true;
+            }
+
             exportTelemetryData() {
                 if (!this.developerModeEnabled) {
                     this.setTelemetryStatus('Developer Mode required.');
@@ -12857,6 +13071,7 @@ Orb Control Panel Instrument Reference
                     this.telemetryButton,
                     this.exportTelemetryButton,
                     this.clearTelemetryButton,
+                    this.copyStateSnapshotButton,
                     this.telemetryBackButton,
                     this.launchSetupBackButton,
                     this.pauseLaunchSetupButton,
