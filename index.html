@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v331: Phase 3F gives the main live-gameplay animation loop one managed owner and immediate cancellation while preserving all prior gameplay, timing, tutorial, audio, scoring, and presentation.
+Build v332: Phase 3G gives tutorial progression and attract mode separate managed scheduling ownership while preserving all prior gameplay, timing, input, audio, scoring, and presentation.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -21,7 +21,7 @@ Orb Control Panel Instrument Reference
 - Velocity Glyph Engine — Temporarily displays the Orb’s finger-driven movement speed.
 - Orb Command Socket — Controls the Orb’s pause, resume, and primary interface functions.
 -->
-<html data-build-version="v331">
+<html data-build-version="v332">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -8836,7 +8836,7 @@ Orb Control Panel Instrument Reference
     </div>
 
     <script>
-        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'v331'}`;
+        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'v332'}`;
 
         // Central diagnostic feature flags. Change values here before loading the page to isolate systems.
         const GAME_FEATURE_FLAGS = window.BLOCKAZOIDS_FEATURE_FLAGS = {
@@ -8968,9 +8968,9 @@ Orb Control Panel Instrument Reference
                 GAME_OVER: 'game-over'
         });
 
-        // Phase 3 scheduling foundation. Phase 3E now owns transient UI, splash, marquee,
-        // non-gameplay visual effects, all major non-tutorial transitions, and live-gameplay delays.
-        // The main gameplay loop, tutorial progression, attract mode, and audio engines remain native.
+        // Phase 3 scheduling foundation. Phase 3G now owns transient UI, splash, marquee,
+        // non-gameplay visual effects, major transitions, live-gameplay delays and loop ownership,
+        // plus separate tutorial and attract-mode scheduling. Audio engines remain native.
         class SchedulingManager {
             constructor() {
                 this.tasksByKey = new Map();
@@ -9586,7 +9586,8 @@ Orb Control Panel Instrument Reference
                 this.tutorialActive = false;
                 this.tutorialStep = '';
                 this.tutorialToken = 0;
-                this.tutorialRafId = null;
+                this.tutorialRafId = null;          // Scheduler token for the single tutorial animation frame.
+                this.tutorialScheduleSequence = 0; // Unique names for simultaneous tutorial spawn warnings.
                 this.tutorialStepStartedAt = 0;
                 this.tutorialLastFrameTime = 0;
                 this.tutorialMovementDistance = 0;
@@ -10112,7 +10113,7 @@ Orb Control Panel Instrument Reference
                 this.updateTelemetrySummary();
 
                 // Attract mode variables
-                this.attractInterval = null;          // Interval ID for attract mode
+                this.attractInterval = null;          // Scheduler token for attract-mode pattern updates
                 this.lifeGrid = [];                   // 10x10 grid for Game of Life
                 this.levelLoadToken = 0;             // Cancels older intro/level-start work during test jumps
                 this.transitionGroupRevision = 0;     // Phase 3D: one authoritative cancellable transition sequence at a time
@@ -10525,7 +10526,7 @@ Orb Control Panel Instrument Reference
                 const controlPanel = this.ui && this.ui.getControlPanelDiagnosticState ? this.ui.getControlPanelDiagnosticState() : null;
                 return {
                     schema: 'blockazoids-stability-v1',
-                    build: 'v331',
+                    build: 'v332',
                     sessionId: this.stabilitySessionId,
                     savedAt: Date.now(),
                     cleanExit: !!cleanExit,
@@ -12290,7 +12291,7 @@ Orb Control Panel Instrument Reference
             }
 
             // Cancel every live-gameplay task, including the main animation loop.
-            // Tutorial warnings remain native and are canceled by clearPendingSpawnWarnings itself.
+            // Tutorial warnings belong to the separate tutorial scope and are canceled by clearPendingSpawnWarnings itself.
             cancelGameplayScheduling(options = {}) {
                 this.stopGameplayLoop();
                 const requeueSpawnWarnings = !!options.requeueSpawnWarnings;
@@ -12315,6 +12316,7 @@ Orb Control Panel Instrument Reference
                 if (this.tutorialActive) {
                     this.tutorialActive = false;
                     this.tutorialToken++;
+                    this.cancelTutorialScheduling();
                     this.clearTutorialObjects();
                     this.setTutorialHud('');
                     document.body.classList.remove('tutorial-active');
@@ -12364,6 +12366,7 @@ Orb Control Panel Instrument Reference
                 this.removeCycleRebootCells();
                 this.player.element.classList.remove('orbRestoreGlow');
                 this.stopAttractMode();
+                this.cancelTutorialScheduling();
                 this.clearGameplayObjects();
                 this.player.reset();
 
@@ -13944,9 +13947,25 @@ Orb Control Panel Instrument Reference
                 if (this.tutorialHud) this.tutorialHud.textContent = text;
             }
 
+            clearTutorialAnimationFrame() {
+                if (this.tutorialRafId) {
+                    this.scheduler.cancelTask(this.tutorialRafId);
+                    this.tutorialRafId = null;
+                }
+            }
+
+            scheduleTutorialAnimationFrame(token = this.tutorialToken) {
+                if (!this.tutorialActive || token !== this.tutorialToken) return null;
+                this.tutorialRafId = this.scheduler.scheduleAnimationFrame('tutorial', 'main-frame', (timestamp) => {
+                    this.tutorialRafId = null;
+                    this.updateTutorial(timestamp, token);
+                });
+                return this.tutorialRafId;
+            }
+
             clearTutorialHudTimer() {
                 if (this.tutorialHudTimer) {
-                    clearTimeout(this.tutorialHudTimer);
+                    this.scheduler.cancelTask(this.tutorialHudTimer);
                     this.tutorialHudTimer = null;
                 }
                 this.tutorialHudMessageToken++;
@@ -13980,7 +13999,7 @@ Orb Control Panel Instrument Reference
                 };
 
                 if (gap) {
-                    this.tutorialHudTimer = setTimeout(showMessage, this.tutorialHudGapMs);
+                    this.tutorialHudTimer = this.scheduler.scheduleTimeout('tutorial', 'hud-message', showMessage, this.tutorialHudGapMs);
                 } else {
                     showMessage();
                 }
@@ -13988,9 +14007,26 @@ Orb Control Panel Instrument Reference
 
             clearTutorialStepTimer() {
                 if (this.tutorialStepTimer) {
-                    clearTimeout(this.tutorialStepTimer);
+                    this.scheduler.cancelTask(this.tutorialStepTimer);
                     this.tutorialStepTimer = null;
                 }
+            }
+
+            scheduleTutorialStepTimer(callback, delayMs) {
+                this.clearTutorialStepTimer();
+                this.tutorialStepTimer = this.scheduler.scheduleTimeout('tutorial', 'step-timer', () => {
+                    this.tutorialStepTimer = null;
+                    callback();
+                }, delayMs);
+                return this.tutorialStepTimer;
+            }
+
+            cancelTutorialScheduling() {
+                const cancelledTasks = this.scheduler.cancelScope('tutorial');
+                this.tutorialRafId = null;
+                this.tutorialHudTimer = null;
+                this.tutorialStepTimer = null;
+                return cancelledTasks;
             }
 
             clearTutorialObjects() {
@@ -14026,6 +14062,7 @@ Orb Control Panel Instrument Reference
                 this.hasStartedRun = true;
                 this.cockpitActivated = true;
                 this.stopAttractMode();
+                this.cancelTutorialScheduling();
                 this.clearGameplayObjects();
                 this.clearTutorialObjects();
                 this.audio.resume();
@@ -14068,7 +14105,7 @@ Orb Control Panel Instrument Reference
                 this.ui.updateAll();
                 this.tutorialLastFrameTime = performance.now();
                 const token = this.tutorialToken;
-                this.tutorialRafId = requestAnimationFrame((timestamp) => this.updateTutorial(timestamp, token));
+                this.scheduleTutorialAnimationFrame(token);
             }
 
             setTutorialStep(step, options = {}) {
@@ -14115,8 +14152,7 @@ Orb Control Panel Instrument Reference
                     this.showTutorialHudMessage('AVOID BLOCK-A-ZOIDS', 2, {
                         expectedStep: 'enemy',
                         onShown: () => {
-                            this.tutorialStepTimer = setTimeout(() => {
-                                this.tutorialStepTimer = null;
+                            this.scheduleTutorialStepTimer(() => {
                                 if (!this.tutorialActive || this.tutorialStep !== 'enemy') return;
                                 this.spawnTutorialEnemy();
                             }, this.tutorialEnemySpawnDelayMs);
@@ -14138,8 +14174,7 @@ Orb Control Panel Instrument Reference
                     this.showTutorialHudMessage('GRIDLOCK — SURVIVE', 4, {
                         expectedStep: 'gridlock',
                         onShown: () => {
-                            this.tutorialStepTimer = setTimeout(() => {
-                                this.tutorialStepTimer = null;
+                            this.scheduleTutorialStepTimer(() => {
                                 if (this.tutorialActive && this.tutorialStep === 'gridlock') this.spawnTutorialGridlockSequence(0);
                             }, this.tutorialGridlockStartDelayMs);
                         }
@@ -14166,8 +14201,7 @@ Orb Control Panel Instrument Reference
                         this.showTutorialHudMessage('COLLECT THE RELIC', 5, {
                             expectedStep: 'relic',
                             onShown: () => {
-                                this.tutorialStepTimer = setTimeout(() => {
-                                    this.tutorialStepTimer = null;
+                                this.scheduleTutorialStepTimer(() => {
                                     spawnTutorialRelic();
                                 }, this.tutorialRelicPromptDelayMs);
                             }
@@ -14194,22 +14228,28 @@ Orb Control Panel Instrument Reference
                     requeueOnCancel: false
                 };
 
-                pending.timeoutId = setTimeout(() => {
-                    this.pendingSpawnWarnings = this.pendingSpawnWarnings.filter(item => item !== pending);
-                    warning.remove();
-                    if (!this.tutorialActive || this.isPaused || this.isGameOver) return;
+                pending.managedByScheduler = true;
+                pending.timeoutId = this.scheduler.scheduleTimeout(
+                    'tutorial',
+                    `spawn-warning-${++this.tutorialScheduleSequence}`,
+                    () => {
+                        this.pendingSpawnWarnings = this.pendingSpawnWarnings.filter(item => item !== pending);
+                        warning.remove();
+                        if (!this.tutorialActive || this.isPaused || this.isGameOver) return;
 
-                    const enemy = new Enemy(this, type, { x: location.x, y: location.y });
-                    const speed = this.getEnemySpeed(type) * speedMultiplier;
-                    const magnitude = Math.hypot(location.sx, location.sy) || 1;
-                    enemy.speed = speed;
-                    enemy.dx = location.sx / magnitude * speed;
-                    enemy.dy = location.sy / magnitude * speed;
-                    enemy.updatePosition();
-                    this.enemies.push(enemy);
-                    this.updateEnemyColors();
-                    if (typeof onSpawn === 'function') onSpawn(enemy);
-                }, this.spawnWarningDurationMs);
+                        const enemy = new Enemy(this, type, { x: location.x, y: location.y });
+                        const speed = this.getEnemySpeed(type) * speedMultiplier;
+                        const magnitude = Math.hypot(location.sx, location.sy) || 1;
+                        enemy.speed = speed;
+                        enemy.dx = location.sx / magnitude * speed;
+                        enemy.dy = location.sy / magnitude * speed;
+                        enemy.updatePosition();
+                        this.enemies.push(enemy);
+                        this.updateEnemyColors();
+                        if (typeof onSpawn === 'function') onSpawn(enemy);
+                    },
+                    this.spawnWarningDurationMs
+                );
 
                 this.pendingSpawnWarnings.push(pending);
                 return true;
@@ -14287,8 +14327,7 @@ Orb Control Panel Instrument Reference
 
                 if (index < 3) {
                     this.spawnTutorialGridlockEnemy(index);
-                    this.tutorialStepTimer = setTimeout(() => {
-                        this.tutorialStepTimer = null;
+                    this.scheduleTutorialStepTimer(() => {
                         this.spawnTutorialGridlockSequence(index + 1);
                     }, this.tutorialGridlockSpawnIntervalMs);
                     return;
@@ -14307,8 +14346,7 @@ Orb Control Panel Instrument Reference
                 this.container.classList.add('borderFlash');
                 this.scheduler.scheduleTimeout('visual-effects', 'tutorial-border-flash', () => this.container.classList.remove('borderFlash'), 300);
                 this.tutorialToken++;
-                if (this.tutorialRafId) cancelAnimationFrame(this.tutorialRafId);
-                this.tutorialRafId = null;
+                this.clearTutorialAnimationFrame();
                 this.clearTutorialObjects();
                 this.tutorialRelicCollected = false;
                 this.tutorialRelicReady = false;
@@ -14317,13 +14355,12 @@ Orb Control Panel Instrument Reference
                 this.player.reset();
                 this.tutorialStep = 'retry';
                 this.showTutorialHudMessage('TRY AGAIN', 7, { gap: false, expectedStep: 'retry' });
-                this.tutorialStepTimer = setTimeout(() => {
-                    this.tutorialStepTimer = null;
+                this.scheduleTutorialStepTimer(() => {
                     if (!this.tutorialActive || this.tutorialStep !== 'retry') return;
                     this.setTutorialStep('movement');
                     this.tutorialLastFrameTime = performance.now();
                     const token = this.tutorialToken;
-                    this.tutorialRafId = requestAnimationFrame((timestamp) => this.updateTutorial(timestamp, token));
+                    this.scheduleTutorialAnimationFrame(token);
                 }, this.tutorialRetryMessageMs);
             }
 
@@ -14339,7 +14376,7 @@ Orb Control Panel Instrument Reference
                     });
                     if (this.tutorialMovementDistance >= this.tutorialMovementRequired && !this.tutorialMovementQualified) {
                         this.tutorialMovementQualified = true;
-                        this.tutorialStepTimer = setTimeout(() => {
+                        this.scheduleTutorialStepTimer(() => {
                             if (this.tutorialActive && this.tutorialStep === 'movement') this.setTutorialStep('crystal');
                         }, this.tutorialMovementAdvanceDelayMs);
                     }
@@ -14361,8 +14398,7 @@ Orb Control Panel Instrument Reference
 
                         if (!this.crystals.length) {
                             this.tutorialStep = 'crystal-wait';
-                            this.tutorialStepTimer = setTimeout(() => {
-                                this.tutorialStepTimer = null;
+                            this.scheduleTutorialStepTimer(() => {
                                 if (this.tutorialActive && this.tutorialStep === 'crystal-wait') this.setTutorialStep('enemy');
                             }, this.tutorialCrystalAdvanceDelayMs);
                         }
@@ -14389,7 +14425,7 @@ Orb Control Panel Instrument Reference
                 }
 
                 if (this.ui && this.ui.updateDynamicHud) this.ui.updateDynamicHud();
-                this.tutorialRafId = requestAnimationFrame((nextTimestamp) => this.updateTutorial(nextTimestamp, token));
+                this.scheduleTutorialAnimationFrame(token);
             }
 
             handleTutorialCosmicZap() {
@@ -14411,7 +14447,7 @@ Orb Control Panel Instrument Reference
                 this.tutorialEnemy = null;
                 this.syncMotionListenerState();
                 this.ui.updateCosmicZapIndicators();
-                setTimeout(() => {
+                this.scheduleTutorialStepTimer(() => {
                     if (this.tutorialActive && this.tutorialStep === 'zap') this.setTutorialStep('gridlock');
                 }, 650);
             }
@@ -14432,8 +14468,7 @@ Orb Control Panel Instrument Reference
                     flash: true,
                     expectedStep: 'relic-collected'
                 });
-                this.tutorialStepTimer = setTimeout(() => {
-                    this.tutorialStepTimer = null;
+                this.scheduleTutorialStepTimer(() => {
                     this.showTutorialComplete();
                 }, this.tutorialGreatMessageMs);
             }
@@ -14445,8 +14480,7 @@ Orb Control Panel Instrument Reference
                 this.clearTutorialObjects();
                 this.tutorialStep = 'complete';
                 this.tutorialToken++;
-                if (this.tutorialRafId) cancelAnimationFrame(this.tutorialRafId);
-                this.tutorialRafId = null;
+                this.clearTutorialAnimationFrame();
                 this.active = false;
                 this.levelActionStarted = false;
                 this.sectorTransitionActive = true;
@@ -14458,8 +14492,7 @@ Orb Control Panel Instrument Reference
                     expectedStep: 'complete',
                     flash: false,
                     onShown: () => {
-                        this.tutorialStepTimer = setTimeout(() => {
-                            this.tutorialStepTimer = null;
+                        this.scheduleTutorialStepTimer(() => {
                             this.finishOneTimeIntroTransition();
                         }, 1000);
                     }
@@ -14470,6 +14503,7 @@ Orb Control Panel Instrument Reference
                 if (!this.tutorialActive || this.tutorialStep !== 'complete') return;
                 this.tutorialActive = false;
                 this.tutorialStep = '';
+                this.cancelTutorialScheduling();
                 this.setTutorialHud('');
                 document.body.classList.remove('tutorial-active');
                 this.syncMotionListenerState();
@@ -16312,16 +16346,14 @@ Orb Control Panel Instrument Reference
                 };
 
                 updatePattern(); // Initial pattern
-                this.attractInterval = setInterval(updatePattern, 1000); // Update every second
+                this.attractInterval = this.scheduler.scheduleInterval('attract-mode', 'life-grid', updatePattern, 1000); // Update every second
                 this.syncAttractModeAudio();
             }
 
             // Stop attract mode and clean up
             stopAttractMode() {
-                if (this.attractInterval) {
-                    clearInterval(this.attractInterval); // Stop interval
-                    this.attractInterval = null;
-                }
+                this.scheduler.cancelScope('attract-mode');
+                this.attractInterval = null;
                 this.attractModeStartedAt = 0;
                 this.stopAttractComputerAmbience();
                 if (this.player && this.player.element) this.player.element.classList.remove('attract-orb-pulse');
