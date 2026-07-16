@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v336: Phase 4C adds lifecycle guards and development-mode validation warnings so duplicate, incompatible, and stale state changes fail safely without altering normal gameplay.
+Build v337: Phase 4D adds development-only state invariants and consistency snapshots after major lifecycle changes without altering or repairing gameplay state.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -21,7 +21,7 @@ Orb Control Panel Instrument Reference
 - Velocity Glyph Engine — Temporarily displays the Orb’s finger-driven movement speed.
 - Orb Command Socket — Controls the Orb’s pause, resume, and primary interface functions.
 -->
-<html data-build-version="v336">
+<html data-build-version="v337">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -8836,7 +8836,7 @@ Orb Control Panel Instrument Reference
     </div>
 
     <script>
-        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'v336'}`;
+        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'v337'}`;
 
         // Central diagnostic feature flags. Change values here before loading the page to isolate systems.
         const GAME_FEATURE_FLAGS = window.BLOCKAZOIDS_FEATURE_FLAGS = {
@@ -10529,7 +10529,7 @@ Orb Control Panel Instrument Reference
                 const controlPanel = this.ui && this.ui.getControlPanelDiagnosticState ? this.ui.getControlPanelDiagnosticState() : null;
                 return {
                     schema: 'blockazoids-stability-v1',
-                    build: 'v336',
+                    build: 'v337',
                     sessionId: this.stabilitySessionId,
                     savedAt: Date.now(),
                     cleanExit: !!cleanExit,
@@ -10620,6 +10620,176 @@ Orb Control Panel Instrument Reference
 
             requireLifecycleAction(action, condition, reason, details = {}) {
                 return condition ? true : this.rejectLifecycleAction(action, reason, details);
+            }
+
+            // Phase 4D development-only consistency checks. These report impossible combinations
+            // after lifecycle changes but never repair, reset, or otherwise alter game state.
+            buildStateInvariantSnapshot(context = 'lifecycle') {
+                const scheduler = this.scheduler ? this.scheduler.snapshot() : { total: 0, scopes: {} };
+                const playerDragActive = !!(this.player && (
+                    this.player.isTouchActive ||
+                    this.player.activePointerId !== null ||
+                    this.player.activeTouchIdentifier !== null
+                ));
+                return {
+                    context: String(context || 'lifecycle'),
+                    flow: this.flow ? this.flow.snapshot() : null,
+                    active: !!this.active,
+                    paused: !!this.isPaused,
+                    resumeCountdownActive: !!this.resumeCountdownActive,
+                    levelActionStarted: !!this.levelActionStarted,
+                    tutorialActive: !!this.tutorialActive,
+                    tutorialStep: this.tutorialStep || '',
+                    sectorTransitionActive: !!this.sectorTransitionActive,
+                    cycleTransitionActive: !!this.cycleTransitionActive,
+                    gridlockActive: !!this.maxSwarmActive,
+                    overtimeActive: !!this.overtimeActive,
+                    prismRelicVisible: !!this.prismRelic,
+                    prismRelicCuePending: !!this.prismRelicCueTimer,
+                    finalCompletionActive: !!this.finalCompletionActive,
+                    finalGridlockActive: !!this.finalGridlockActive,
+                    finalGridlockResultActive: !!this.finalGridlockResultActive,
+                    gameOver: !!this.isGameOver,
+                    restartReady: !!this.restartReady,
+                    inputLocked: !!this.startInputLocked,
+                    sector: this.level,
+                    cycle: this.cycle,
+                    playerDragActive,
+                    orbDragAllowed: !!(this.flow && this.flow.allowsOrbDragInput()),
+                    scheduler
+                };
+            }
+
+            validateStateInvariants(context = 'lifecycle') {
+                if (!this.developerModeEnabled) return true;
+
+                const snapshot = this.buildStateInvariantSnapshot(context);
+                const flowState = snapshot.flow ? snapshot.flow.current : null;
+                const scopes = snapshot.scheduler && snapshot.scheduler.scopes ? snapshot.scheduler.scopes : {};
+                const scopeCount = (scope) => Math.max(0, Number(scopes[scope]) || 0);
+                const issues = [];
+                const addIssue = (code, details = {}) => issues.push({ code, ...details });
+                const liveFlow = flowState === GAME_FLOW_STATES.PLAYING || flowState === GAME_FLOW_STATES.FINAL_GRIDLOCK;
+                const pausedFlow = flowState === GAME_FLOW_STATES.PAUSED || flowState === GAME_FLOW_STATES.RESUME_COUNTDOWN;
+
+                if (snapshot.active && !liveFlow && !snapshot.tutorialActive) {
+                    addIssue('active-outside-live-flow', { flow: flowState });
+                }
+                if (liveFlow && !snapshot.active && !snapshot.inputLocked && !snapshot.gameOver &&
+                    !snapshot.sectorTransitionActive && !snapshot.cycleTransitionActive) {
+                    addIssue('live-flow-without-active-gameplay', { flow: flowState });
+                }
+                if (snapshot.paused && snapshot.active) {
+                    addIssue('paused-and-active');
+                }
+                if (snapshot.paused && !pausedFlow) {
+                    addIssue('paused-flag-outside-paused-flow', { flow: flowState });
+                }
+                if (snapshot.resumeCountdownActive && flowState !== GAME_FLOW_STATES.RESUME_COUNTDOWN) {
+                    addIssue('resume-countdown-flag-flow-mismatch', { flow: flowState });
+                }
+                if (flowState === GAME_FLOW_STATES.RESUME_COUNTDOWN &&
+                    (!snapshot.resumeCountdownActive || !snapshot.paused)) {
+                    addIssue('resume-countdown-flow-state-mismatch', {
+                        paused: snapshot.paused,
+                        resumeCountdownActive: snapshot.resumeCountdownActive
+                    });
+                }
+                if (snapshot.overtimeActive && !snapshot.gridlockActive) {
+                    addIssue('overtime-without-gridlock');
+                }
+                if (snapshot.tutorialActive && flowState !== GAME_FLOW_STATES.TUTORIAL) {
+                    addIssue('tutorial-active-outside-tutorial-flow', { flow: flowState });
+                }
+                if (!snapshot.tutorialActive && flowState === GAME_FLOW_STATES.TUTORIAL) {
+                    addIssue('tutorial-flow-without-tutorial-state');
+                }
+                if (snapshot.tutorialActive && liveFlow) {
+                    addIssue('tutorial-and-normal-gameplay-active');
+                }
+
+                const relicAllowed = snapshot.tutorialActive || liveFlow || pausedFlow;
+                if ((snapshot.prismRelicVisible || snapshot.prismRelicCuePending) && !relicAllowed) {
+                    addIssue('prism-relic-outside-owned-flow', { flow: flowState });
+                }
+
+                const finalModeCount = [
+                    snapshot.finalCompletionActive,
+                    snapshot.finalGridlockActive,
+                    snapshot.finalGridlockResultActive
+                ].filter(Boolean).length;
+                if (finalModeCount > 1) {
+                    addIssue('multiple-final-modes-active');
+                }
+                if (snapshot.finalCompletionActive && flowState !== GAME_FLOW_STATES.FINAL_COMPLETE) {
+                    addIssue('final-completion-flow-mismatch', { flow: flowState });
+                }
+                if (snapshot.finalGridlockActive &&
+                    (snapshot.cycle < this.MAX_CYCLES || snapshot.sector !== this.MAX_LEVEL)) {
+                    addIssue('final-gridlock-before-campaign-completion', {
+                        sector: snapshot.sector,
+                        cycle: snapshot.cycle
+                    });
+                }
+                if (snapshot.finalGridlockActive && flowState !== GAME_FLOW_STATES.FINAL_GRIDLOCK &&
+                    flowState !== GAME_FLOW_STATES.GAME_OVER) {
+                    addIssue('final-gridlock-flow-mismatch', { flow: flowState });
+                }
+                if (snapshot.finalGridlockResultActive &&
+                    (!snapshot.gameOver || flowState !== GAME_FLOW_STATES.GAME_OVER)) {
+                    addIssue('final-gridlock-result-flow-mismatch', { flow: flowState });
+                }
+
+                if (snapshot.sectorTransitionActive &&
+                    (snapshot.active || scopeCount('gameplay-loop') > 0 || scopeCount('gameplay') > 0)) {
+                    addIssue('sector-transition-with-live-gameplay', {
+                        gameplayTasks: scopeCount('gameplay'),
+                        gameplayLoopTasks: scopeCount('gameplay-loop')
+                    });
+                }
+                if (snapshot.cycleTransitionActive && snapshot.active) {
+                    addIssue('cycle-transition-with-live-gameplay');
+                }
+                if (snapshot.restartReady && liveFlow) {
+                    addIssue('restart-ready-during-live-gameplay', { flow: flowState });
+                }
+                if (snapshot.playerDragActive && !snapshot.orbDragAllowed) {
+                    addIssue('active-drag-while-orb-input-closed', { flow: flowState });
+                }
+                if (!liveFlow && (scopeCount('gameplay') > 0 || scopeCount('gameplay-loop') > 0)) {
+                    addIssue('gameplay-scheduler-outside-live-flow', {
+                        flow: flowState,
+                        gameplayTasks: scopeCount('gameplay'),
+                        gameplayLoopTasks: scopeCount('gameplay-loop')
+                    });
+                }
+                if (!snapshot.tutorialActive && scopeCount('tutorial') > 0) {
+                    addIssue('tutorial-scheduler-outside-tutorial');
+                }
+                if (flowState !== GAME_FLOW_STATES.ATTRACT && scopeCount('attract-mode') > 0) {
+                    addIssue('attract-scheduler-outside-attract-flow', { flow: flowState });
+                }
+                if (flowState === GAME_FLOW_STATES.GAME_OVER && !snapshot.gameOver) {
+                    addIssue('game-over-flow-without-terminal-flag');
+                }
+                if (snapshot.gameOver && ![
+                    GAME_FLOW_STATES.GAME_OVER,
+                    GAME_FLOW_STATES.ATTRACT,
+                    GAME_FLOW_STATES.FINAL_COMPLETE
+                ].includes(flowState)) {
+                    addIssue('terminal-flag-outside-terminal-flow', { flow: flowState });
+                }
+
+                if (issues.length === 0) return true;
+
+                const warning = {
+                    context: snapshot.context,
+                    issues,
+                    snapshot
+                };
+                console.warn(`[${BUILD_VERSION}] State invariant warning after ${snapshot.context}`, warning);
+                this.markStabilityEvent('state-invariant-warning', warning);
+                return false;
             }
 
             markStabilityExit(reason) {
@@ -12482,6 +12652,7 @@ Orb Control Panel Instrument Reference
                 this.updateRunRecordProgress();
                 this.resetSectorState();
                 this.ui.updateAll();
+                this.validateStateInvariants('beginSector');
                 return true;
             }
 
@@ -12611,6 +12782,7 @@ Orb Control Panel Instrument Reference
                 this.checkMaxSwarmProgress();
                 this.startGameplayLoop();
                 this.updateGame();
+                this.validateStateInvariants('beginSector:live-action');
             }
 
             // Manual double-tap detector for the iPhone menu shortcut.
@@ -13873,6 +14045,8 @@ Orb Control Panel Instrument Reference
                 } else {
                     this.closeBottomPanelOverlay();
                 }
+                this.validateStateInvariants('pauseGameplay');
+                return true;
             }
 
             // Canonical lifecycle entry for returning from pause to live action.
@@ -13962,6 +14136,8 @@ Orb Control Panel Instrument Reference
                 this.checkMaxSwarmProgress();
                 this.startGameplayLoop();
                 this.updateGame();
+                this.validateStateInvariants('resumeGameplay');
+                return true;
             }
 
             // Testing shortcut: Shift + Up / Down moves one level at a time.
@@ -14184,6 +14360,7 @@ Orb Control Panel Instrument Reference
                 this.tutorialLastFrameTime = performance.now();
                 const token = this.tutorialToken;
                 this.scheduleTutorialAnimationFrame(token);
+                this.validateStateInvariants('beginNewRun:tutorial');
             }
 
             setTutorialStep(step, options = {}) {
@@ -14679,6 +14856,7 @@ Orb Control Panel Instrument Reference
                     this.selectedStartSector = 1; // Return future fresh runs to Sector 1 after the END test.
                     this.ui.updateAll();
                     this.startEndCycleTest();
+                    this.validateStateInvariants('beginNewRun:end-test');
                     return;
                 }
 
@@ -15652,7 +15830,9 @@ Orb Control Panel Instrument Reference
                 });
                 if (completedLevel >= this.MAX_LEVEL) this.noteTelemetryCycleComplete();
 
-                this.runGridRestoreSequence(completedLevel, transitionToken, { bonusLines, totalBonus }).then((sequenceCompleted) => {
+                const restorationSequence = this.runGridRestoreSequence(completedLevel, transitionToken, { bonusLines, totalBonus });
+                this.validateStateInvariants('completeSector');
+                restorationSequence.then((sequenceCompleted) => {
                     if (!sequenceCompleted || transitionToken !== this.levelLoadToken || this.isGameOver) return;
 
                     if (completedLevel >= this.MAX_LEVEL) {
@@ -16454,6 +16634,8 @@ Orb Control Panel Instrument Reference
                 updatePattern(); // Initial pattern
                 this.attractInterval = this.scheduler.scheduleInterval('attract-mode', 'life-grid', updatePattern, 1000); // Update every second
                 this.syncAttractModeAudio();
+                this.validateStateInvariants('returnToAttractMode');
+                return true;
             }
 
             // Stop attract mode and clean up
@@ -16585,6 +16767,7 @@ Orb Control Panel Instrument Reference
                 const loadToken = ++this.levelLoadToken;
                 this.beginSector(1, false, { keepScreenFade: true });
                 this.cycleTransitionActive = false;
+                this.validateStateInvariants('beginNextCycle');
 
                 this.fadeScreenFromBlack(loadToken).then((fadeCompleted) => {
                     if (!fadeCompleted || loadToken !== this.levelLoadToken || this.isGameOver) return;
@@ -16818,6 +17001,8 @@ Orb Control Panel Instrument Reference
                 this.ui.updateAll();
                 this.startGameplayLoop();
                 this.updateGame();
+                this.validateStateInvariants('beginFinalGridlock');
+                return true;
             }
 
             // Complete the campaign cycle, then wait for player choice before restarting the next cycle.
@@ -16971,6 +17156,7 @@ Orb Control Panel Instrument Reference
                 while (filledSquares.length > 0) filledSquares[0].remove(); // Clear filled squares
 
                 this.scheduler.scheduleTimeout('visual-effects', 'game-over-shake', () => this.container.classList.remove('shake'), 500); // Remove shake after 500ms
+                this.validateStateInvariants('endRun');
 
                 if (!await this.wait(1450, transitionToken, 'game-over-reveal')) return;
                 this.bonusTextElement.classList.remove('countdownText');
@@ -16999,6 +17185,7 @@ Orb Control Panel Instrument Reference
                     this.updateDifficultyLabel();
                     this.ui.updateAll();
                     this.completeTransitionGroup('final-gridlock-results-ready');
+                    this.validateStateInvariants('endRun:final-gridlock-results');
                     return;
                 }
 
@@ -17022,6 +17209,7 @@ Orb Control Panel Instrument Reference
                 this.ui.updateAll();
                 this.refreshGameOverlay(); // Restart attract mode
                 this.completeTransitionGroup('game-over-attract-ready');
+                this.validateStateInvariants('endRun:attract-ready');
             }
         }
 
