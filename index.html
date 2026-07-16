@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v324: Prevents ordinary iPhone Safari viewport resizing from canceling the first active tutorial Orb drag; reset still reloads into a clean tutorial session, normal gameplay and orientation-change safety remain unchanged, and the corrected Launch Setup icon size is retained.
+Build v325: Shows the tutorial HUD objective before spawning the Relic, makes the Relic collectible immediately when visible, and makes Reset Intro Completion beep and clear the flag without reloading.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -21,7 +21,7 @@ Orb Control Panel Instrument Reference
 - Velocity Glyph Engine — Temporarily displays the Orb’s finger-driven movement speed.
 - Orb Command Socket — Controls the Orb’s pause, resume, and primary interface functions.
 -->
-<html data-build-version="v324">
+<html data-build-version="v325">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -8836,7 +8836,7 @@ Orb Control Panel Instrument Reference
     </div>
 
     <script>
-        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'v324'}`;
+        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'v325'}`;
 
         // Central diagnostic feature flags. Change values here before loading the page to isolate systems.
         const GAME_FEATURE_FLAGS = window.BLOCKAZOIDS_FEATURE_FLAGS = {
@@ -9552,7 +9552,7 @@ Orb Control Panel Instrument Reference
                 this.tutorialGridlockSpeedMultiplier = 1.12;
                 this.tutorialRetryMessageMs = 900;
                 this.tutorialGreatMessageMs = 1000;
-                this.tutorialRelicPromptDelayMs = 1000;
+                this.tutorialRelicPromptDelayMs = 250;
                 this.tutorialGridlockStartDelayMs = 1000;
                 this.tutorialGridlockSpawnIntervalMs = 5000;
                 this.tutorialHudGapMs = 300;
@@ -10468,7 +10468,7 @@ Orb Control Panel Instrument Reference
                 const controlPanel = this.ui && this.ui.getControlPanelDiagnosticState ? this.ui.getControlPanelDiagnosticState() : null;
                 return {
                     schema: 'blockazoids-stability-v1',
-                    build: 'v324',
+                    build: 'v325',
                     sessionId: this.stabilitySessionId,
                     savedAt: Date.now(),
                     cleanExit: !!cleanExit,
@@ -13768,13 +13768,10 @@ Orb Control Panel Instrument Reference
             }
 
             resetIntroCompletionFlag() {
-                // A tutorial replay must begin from the same clean browser lifecycle as the
-                // first-ever tutorial. Clear the persistent flag, then reload instead of trying
-                // to reconstruct every timer, transition, pointer, and animation state in place.
+                // v325: only clear tutorial completion. The click handler already plays the
+                // standard menu beep; the user can reload manually when ready to replay it.
                 try { localStorage.removeItem(this.introCompletionStorageKey); } catch (_) {}
                 this.introCompleted = false;
-                this.setTelemetryStatus('Intro reset. Reloading for a clean tutorial replay.');
-                window.location.reload();
             }
 
             updateInvincibilityToggleLabel() {
@@ -13999,23 +13996,33 @@ Orb Control Panel Instrument Reference
                 } else if (step === 'relic') {
                     this.cosmicZapsLeft = 0;
                     this.tutorialRelicReady = false;
-                    const center = this.PLAYFIELD_SIZE / 2;
-                    const x = center - this.PRISM_RELIC_SIZE / 2;
-                    const y = center - this.PRISM_RELIC_SIZE / 2;
-                    this.prismRelic = new PrismRelic(this, x, y);
-                    this.audio.playPrismRelicAppear();
-                    this.audio.startPrismRelicHum();
-                    if (!options.preserveHud) {
-                        this.tutorialStepTimer = setTimeout(() => {
-                            this.tutorialStepTimer = null;
-                            if (!this.tutorialActive || this.tutorialStep !== 'relic' || !this.prismRelic) return;
-                            this.showTutorialHudMessage('COLLECT THE RELIC', 5, {
-                                expectedStep: 'relic',
-                                onShown: () => { this.tutorialRelicReady = true; }
-                            });
-                        }, this.tutorialRelicPromptDelayMs);
-                    } else {
+
+                    // v325: announce the objective before revealing the Relic. Once visible,
+                    // the Relic is immediately collectible, including during a very fast pass.
+                    const spawnTutorialRelic = () => {
+                        if (!this.tutorialActive || this.tutorialStep !== 'relic' || this.prismRelic) return;
+                        const center = this.PLAYFIELD_SIZE / 2;
+                        const x = center - this.PRISM_RELIC_SIZE / 2;
+                        const y = center - this.PRISM_RELIC_SIZE / 2;
+                        this.prismRelic = new PrismRelic(this, x, y);
                         this.tutorialRelicReady = true;
+                        this.audio.playPrismRelicAppear();
+                        this.audio.startPrismRelicHum();
+                        this.ui.updateAll();
+                    };
+
+                    if (!options.preserveHud) {
+                        this.showTutorialHudMessage('COLLECT THE RELIC', 5, {
+                            expectedStep: 'relic',
+                            onShown: () => {
+                                this.tutorialStepTimer = setTimeout(() => {
+                                    this.tutorialStepTimer = null;
+                                    spawnTutorialRelic();
+                                }, this.tutorialRelicPromptDelayMs);
+                            }
+                        });
+                    } else {
+                        spawnTutorialRelic();
                     }
                 }
 
