@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v325: Shows the tutorial HUD objective before spawning the Relic, makes the Relic collectible immediately when visible, and makes Reset Intro Completion beep and clear the flag without reloading.
+Build v326: Preserves tutorial Orb input across ordinary Safari resize events whenever tutorial dragging is allowed, while real orientation changes still cancel the drag.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -21,7 +21,7 @@ Orb Control Panel Instrument Reference
 - Velocity Glyph Engine — Temporarily displays the Orb’s finger-driven movement speed.
 - Orb Command Socket — Controls the Orb’s pause, resume, and primary interface functions.
 -->
-<html data-build-version="v325">
+<html data-build-version="v326">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -8836,7 +8836,7 @@ Orb Control Panel Instrument Reference
     </div>
 
     <script>
-        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'v325'}`;
+        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'v326'}`;
 
         // Central diagnostic feature flags. Change values here before loading the page to isolate systems.
         const GAME_FEATURE_FLAGS = window.BLOCKAZOIDS_FEATURE_FLAGS = {
@@ -10468,7 +10468,7 @@ Orb Control Panel Instrument Reference
                 const controlPanel = this.ui && this.ui.getControlPanelDiagnosticState ? this.ui.getControlPanelDiagnosticState() : null;
                 return {
                     schema: 'blockazoids-stability-v1',
-                    build: 'v325',
+                    build: 'v326',
                     sessionId: this.stabilitySessionId,
                     savedAt: Date.now(),
                     cleanExit: !!cleanExit,
@@ -10588,12 +10588,11 @@ Orb Control Panel Instrument Reference
                 // On iPhone, the first finger movement can make Safari settle its address/tool bars,
                 // emitting a normal resize while the board dimensions themselves are unchanged.
                 // Canceling the drag here made the tutorial Orb appear delayed until a second touch.
-                // Preserve only an active tutorial drag during ordinary resize events; genuine
-                // orientation changes and all non-tutorial viewport changes still invalidate input.
+                // Preserve tutorial input during ordinary resize events whenever the tutorial is active
+                // and Orb dragging is allowed; genuine orientation changes still invalidate input.
                 const preserveTutorialDrag = reason === 'resize' &&
                     this.tutorialActive &&
                     this.player &&
-                    this.player.isTouchActive &&
                     this.flow &&
                     this.flow.allowsOrbDragInput();
 
@@ -13768,7 +13767,7 @@ Orb Control Panel Instrument Reference
             }
 
             resetIntroCompletionFlag() {
-                // v325: only clear tutorial completion. The click handler already plays the
+                // v326: only clear tutorial completion. The click handler already plays the
                 // standard menu beep; the user can reload manually when ready to replay it.
                 try { localStorage.removeItem(this.introCompletionStorageKey); } catch (_) {}
                 this.introCompleted = false;
@@ -13997,7 +13996,7 @@ Orb Control Panel Instrument Reference
                     this.cosmicZapsLeft = 0;
                     this.tutorialRelicReady = false;
 
-                    // v325: announce the objective before revealing the Relic. Once visible,
+                    // v326: announce the objective before revealing the Relic. Once visible,
                     // the Relic is immediately collectible, including during a very fast pass.
                     const spawnTutorialRelic = () => {
                         if (!this.tutorialActive || this.tutorialStep !== 'relic' || this.prismRelic) return;
