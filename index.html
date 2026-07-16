@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v326: Preserves tutorial Orb input across ordinary Safari resize events whenever tutorial dragging is allowed, while real orientation changes still cancel the drag.
+Build v327: Fixes the first tutorial Orb drag by keeping one valid touch owner, preserving tutorial input through Safari resize settling, and still canceling on real orientation changes.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -21,7 +21,7 @@ Orb Control Panel Instrument Reference
 - Velocity Glyph Engine — Temporarily displays the Orb’s finger-driven movement speed.
 - Orb Command Socket — Controls the Orb’s pause, resume, and primary interface functions.
 -->
-<html data-build-version="v326">
+<html data-build-version="v327">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -8836,7 +8836,7 @@ Orb Control Panel Instrument Reference
     </div>
 
     <script>
-        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'v326'}`;
+        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'v327'}`;
 
         // Central diagnostic feature flags. Change values here before loading the page to isolate systems.
         const GAME_FEATURE_FLAGS = window.BLOCKAZOIDS_FEATURE_FLAGS = {
@@ -10468,7 +10468,7 @@ Orb Control Panel Instrument Reference
                 const controlPanel = this.ui && this.ui.getControlPanelDiagnosticState ? this.ui.getControlPanelDiagnosticState() : null;
                 return {
                     schema: 'blockazoids-stability-v1',
-                    build: 'v326',
+                    build: 'v327',
                     sessionId: this.stabilitySessionId,
                     savedAt: Date.now(),
                     cleanExit: !!cleanExit,
@@ -10586,27 +10586,38 @@ Orb Control Panel Instrument Reference
 
             handleViewportChange(reason = 'resize') {
                 // On iPhone, the first finger movement can make Safari settle its address/tool bars,
-                // emitting a normal resize while the board dimensions themselves are unchanged.
-                // Canceling the drag here made the tutorial Orb appear delayed until a second touch.
-                // Preserve tutorial input during ordinary resize events whenever the tutorial is active
-                // and Orb dragging is allowed; genuine orientation changes still invalidate input.
-                const preserveTutorialDrag = reason === 'resize' &&
+                // emitting a normal resize before or during the first tutorial pointer stream.
+                // Preserve the entire tutorial input window for ordinary resize events. Do not run
+                // the delayed board-resize pass either, because changing the board beneath that first
+                // finger can break the stream even when the drag-session flags themselves survive.
+                // A genuine orientationchange still invalidates input and performs the full layout pass.
+                const preserveTutorialInput = reason === 'resize' &&
                     this.tutorialActive &&
                     this.player &&
                     this.flow &&
                     this.flow.allowsOrbDragInput();
 
-                if (!preserveTutorialDrag) {
+                if (!preserveTutorialInput) {
                     this.player.invalidateDragSession(`viewport:${reason}`);
                 }
                 this.markStabilityEvent(reason, {
                     width: window.innerWidth,
                     height: window.innerHeight,
-                    preservedTutorialDrag: !!preserveTutorialDrag
+                    preservedTutorialInput: !!preserveTutorialInput
                 });
                 if (this.stabilityViewportTimer) clearTimeout(this.stabilityViewportTimer);
                 this.stabilityViewportTimer = window.setTimeout(() => {
                     this.stabilityViewportTimer = null;
+                    if (reason === 'resize' && this.tutorialActive && this.flow && this.flow.allowsOrbDragInput()) {
+                        if (this.ui && this.ui.markBottomHudBorderDirty) this.ui.markBottomHudBorderDirty('tutorial-resize-preserved');
+                        if (this.ui && this.ui.updateDynamicHud) this.ui.updateDynamicHud();
+                        this.markStabilityEvent('resize-tutorial-input-preserved', {
+                            width: window.innerWidth,
+                            height: window.innerHeight,
+                            board: Number(this.PLAYFIELD_SIZE) || 0
+                        });
+                        return;
+                    }
                     this.applyResponsiveViewportUpdate(reason);
                 }, 180);
             }
@@ -13767,7 +13778,7 @@ Orb Control Panel Instrument Reference
             }
 
             resetIntroCompletionFlag() {
-                // v326: only clear tutorial completion. The click handler already plays the
+                // v327: only clear tutorial completion. The click handler already plays the
                 // standard menu beep; the user can reload manually when ready to replay it.
                 try { localStorage.removeItem(this.introCompletionStorageKey); } catch (_) {}
                 this.introCompleted = false;
@@ -13996,7 +14007,7 @@ Orb Control Panel Instrument Reference
                     this.cosmicZapsLeft = 0;
                     this.tutorialRelicReady = false;
 
-                    // v326: announce the objective before revealing the Relic. Once visible,
+                    // v327: announce the objective before revealing the Relic. Once visible,
                     // the Relic is immediately collectible, including during a very fast pass.
                     const spawnTutorialRelic = () => {
                         if (!this.tutorialActive || this.tutorialStep !== 'relic' || this.prismRelic) return;
@@ -16891,8 +16902,15 @@ Orb Control Panel Instrument Reference
             beginTutorialNativeTouch(touch, point, recoverFromMove = false) {
                 if (!touch || !point) return false;
 
-                // A pointer event for the same finger may already have opened an incomplete
-                // session. Replace it with one native touch owner instead of racing both paths.
+                // Pointer Events and Touch Events can both report the same iPhone finger. If the
+                // normal pointer path already owns it, keep that valid numeric pointer ID instead
+                // of replacing it with the fallback's synthetic ID. The fallback takes ownership
+                // only when the pointer path was missed or has already been canceled.
+                const nativePointerOwnsTouch = this.isTouchActive &&
+                    this.activePointerId !== null &&
+                    this.activePointerType === 'touch';
+                if (nativePointerOwnsTouch) return true;
+
                 if (this.activePointerId !== null || this.isTouchActive) {
                     this.cancelPointerDrag(null, recoverFromMove
                         ? 'tutorial-touchmove-recovery'
@@ -16930,8 +16948,13 @@ Orb Control Panel Instrument Reference
             handleTutorialTouchMove(e) {
                 if (!e || !this.game.tutorialActive || !this.game.flow.allowsOrbDragInput()) return;
 
-                // If Safari omitted or redirected touchstart, claim the first move that is still
-                // on or near the Orb. This is tutorial-only and cannot create tap-anywhere movement.
+                // When the normal pointer stream is alive, it remains the sole owner. This avoids
+                // changing activePointerId between pointerdown and the first pointermove.
+                if (this.isTouchActive && this.activePointerId !== null && this.activePointerType === 'touch') return;
+
+                // If Safari omitted, redirected, or canceled the pointer start, claim the first
+                // touch move that is still on or near the Orb. This remains tutorial-only and
+                // cannot create tap-anywhere movement.
                 if (this.activePointerType !== 'touch-fallback' || this.activeTouchIdentifier === null) {
                     const recovery = this.findTutorialTouchNearPlayer(e.touches);
                     if (!recovery) return;
