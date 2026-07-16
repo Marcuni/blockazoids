@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v340: Adds a read-only Developer Mode state snapshot tool that copies current lifecycle, gameplay, scheduler, input, audio, and telemetry state as formatted JSON.
+Build v342: Centralizes gameplay tuning, campaign data, sector maps, difficulty profiles, tutorial text, storage keys, and major timing values without changing behavior.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -21,7 +21,7 @@ Orb Control Panel Instrument Reference
 - Velocity Glyph Engine — Temporarily displays the Orb’s finger-driven movement speed.
 - Orb Command Socket — Controls the Orb’s pause, resume, and primary interface functions.
 -->
-<html data-build-version="v340">
+<html data-build-version="v342">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -8839,7 +8839,7 @@ Orb Control Panel Instrument Reference
     </div>
 
     <script>
-        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'v340'}`;
+        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'v342'}`;
 
         // Central diagnostic feature flags. Change values here before loading the page to isolate systems.
         const GAME_FEATURE_FLAGS = window.BLOCKAZOIDS_FEATURE_FLAGS = {
@@ -8856,6 +8856,365 @@ Orb Control Panel Instrument Reference
             sweptOrbCollision: true,
             cornerMenus: true
         };
+
+
+
+        // Build 342 configuration boundary. Game rules and static campaign data live here so
+        // balancing and content edits do not require changes inside lifecycle or gameplay logic.
+        const GAME_CONFIG = window.BLOCKAZOIDS_CONFIG = Object.freeze({
+            colors: Object.freeze({
+                red: '#F00',
+                green: '#0F0',
+                blue: '#00F'
+            }),
+            playfield: Object.freeze({
+                designSize: 600,
+                playerSize: 20,
+                crystalSize: 10,
+                prismRelicSize: 30,
+                minSpawnDistance: 325,
+                gridCellsPerSide: 10,
+                minBoardSize: 300,
+                maxBoardSize: 600,
+                viewportHorizontalInset: 8,
+                viewportVerticalReserve: 178,
+                playfieldOuterBorderSize: 4,
+                minRenderedPlayerSize: 18,
+                minRenderedCrystalSize: 8,
+                minRenderedRelicSize: 24
+            }),
+            gameplay: Object.freeze({
+                playfieldSize: 600,
+                playerSize: 20,
+                minSpawnDistance: 325,
+                baseSpawnDelay: 5,
+                minimumSpawnDelay: 2,
+                spawnDelayLevelReduction: 0.25,
+                normalSwarmSize: 8,
+                overtimeEnemyIntervalMs: 60000,
+                baseSpeeds: Object.freeze({ small: 3, medium: 2, large: 1.5 }),
+                baseCosmicZaps: 3,
+                unusedCosmicZapBonus: 50,
+                perfectSectorBonus: 100,
+                gridlockBonus: 200,
+                gridlockRelicDelayMs: 2500,
+                gameCycleBonus: 500,
+                colorCompleteBonus: 100,
+                levelSpeedBoost: 0.03,
+                cycleSpeedBoost: 0.07
+            }),
+            enemySpawning: Object.freeze({
+                proportions: Object.freeze({ small: 0.125, medium: 0.75, large: 0.125 }),
+                spawnWarningDurationMs: 850
+            }),
+            campaign: Object.freeze({
+                maxLevels: 15,
+                maxCycles: 3,
+                baseBlinkingCrystalCount: 5,
+                cycleThreeZapReduction: 2,
+                laterCycleZapReduction: 1
+            }),
+            difficulty: Object.freeze({
+                options: Object.freeze(['Easy', 'Normal', 'Hard']),
+                profiles: Object.freeze({
+                    Easy: Object.freeze({ speedMultiplier: 0.92, spawnDelayOffset: 0.6, cosmicZapOffset: 1 }),
+                    Normal: Object.freeze({ speedMultiplier: 1, spawnDelayOffset: 0, cosmicZapOffset: 0 }),
+                    Hard: Object.freeze({ speedMultiplier: 1.12, spawnDelayOffset: -0.45, cosmicZapOffset: -1 })
+                })
+            }),
+            tutorial: Object.freeze({
+                movementRequired: 150,
+                movementAdvanceDelayMs: 2000,
+                crystalAdvanceDelayMs: 1000,
+                enemySpawnDelayMs: 1000,
+                enemyAvoidRequiredMs: 4000,
+                enemySpeedMultiplier: 1.12,
+                gridlockSpeedMultiplier: 1.12,
+                retryMessageMs: 900,
+                greatMessageMs: 1000,
+                relicPromptDelayMs: 250,
+                gridlockStartDelayMs: 1000,
+                gridlockSpawnIntervalMs: 5000,
+                hudGapMs: 300
+            }),
+            input: Object.freeze({
+                cosmicZapCooldownMs: 450,
+                cosmicZapProtectionMs: 520,
+                doubleTapWindowMs: 360,
+                tapMaxDurationMs: 300,
+                tapMaxMoveMinimum: 24,
+                tapMaxMovePlayerMultiplier: 1.35,
+                shakeCooldownMs: 1200,
+                shakeThreshold: 32
+            }),
+            gridlock: Object.freeze({
+                activationCueDelayMs: 1000,
+                initialRelicCueDelayMs: 1000
+            }),
+            transitions: Object.freeze({
+                countdownStepMs: 1000,
+                countdownGoMs: 300,
+                countdownFadeMs: 150,
+                resumeStepMs: 1000,
+                resumeFadeMs: 150,
+                sectorGridFadeMs: 1000,
+                sectorCrystalDropMs: 2000,
+                cycleContinueFadeMs: 500,
+                completionPreludeMs: 300,
+                completionCelebrationMs: 6200,
+                finalGridlockHandoffMs: 350,
+                gameOverRevealMs: 1450,
+                gameOverTitleHoldMs: 2000,
+                gameOverTitleFadeMs: 500
+            }),
+            audioTiming: Object.freeze({
+                oneShotCleanupMinimumMs: 1200,
+                oneShotCleanupMaximumMs: 20000,
+                oneShotCleanupDefaultMs: 12000,
+                backgroundDisconnectMinimumMs: 160,
+                backgroundDisconnectTailMs: 240,
+                signalCleanupMs: 1300,
+                cycleCompleteFallbackMs: 5900,
+                cycleCompleteStateTailMs: 260,
+                attractComputerBaseDelayMs: 520,
+                attractComputerDelayRangeMs: 1550,
+                attractEchoChance: 0.22,
+                attractEchoBaseDelayMs: 82,
+                attractEchoDelayRangeMs: 90,
+                prismRelicHumPulseMs: 540
+            }),
+            visualTiming: Object.freeze({
+                marqueeGlitchCleanupMs: 760,
+                marqueeImageSwapMs: 220,
+                gameOverShakeCleanupMs: 500,
+                crtEventsMs: Object.freeze({ gridlock: 540, zap: 440, death: 1320, restore: 580 })
+            }),
+            storage: Object.freeze({
+                highestSector: 'blockazoidsHighestSectorUnlockedV1',
+                highestCycle: 'blockazoidsHighestCycleUnlockedV1',
+                difficulty: 'blockazoidsDifficulty',
+                introCompletion: 'blockazoidsIntroCompletedV1',
+                telemetry: 'blockazoidsBalanceTelemetry'
+            })
+        });
+
+        const GAME_DATA = window.BLOCKAZOIDS_DATA = Object.freeze({
+            colorOrder: Object.freeze(['red', 'green', 'blue']),
+            tutorialMessages: Object.freeze({
+                movement: 'DRAG THE ORB AROUND',
+                crystal: 'COLLECT CRYSTALS',
+                enemy: 'AVOID BLOCK-A-ZOIDS',
+                zap: 'SHAKE TO COSMIC ZAP',
+                gridlock: 'GRIDLOCK — SURVIVE',
+                relic: 'COLLECT THE RELIC',
+                retry: 'TRY AGAIN',
+                great: 'GREAT!',
+                starting: 'STARTING GAME'
+            }),
+            sectorNames: Object.freeze(
+            [
+                'Ordines',
+                'Strata',
+                'Lineae',
+                'Tesserae',
+                'Obliqua',
+                'Reflexa',
+                'Crux',
+                'Declives',
+                'Quadrata',
+                'Rhombi',
+                'Fluctus',
+                'Octangulum',
+                'Inaequalia',
+                'Dispersa',
+                'Fragmenta'
+            ]
+            ),
+            sectorPatterns: Object.freeze(
+            [
+                // Grid Sector 1 — Columns / Ordines: clean vertical color zones.
+                [
+                    'RRRGGGBBB',
+                    'RRRGGGBBB',
+                    'RRRGGGBBB',
+                    'RRRGGGBBB',
+                    'RRRGGGBBB',
+                    'RRRGGGBBB',
+                    'RRRGGGBBB',
+                    'RRRGGGBBB',
+                    'RRRGGGBBB'
+                ],
+                // Grid Sector 2 — Horizontal Rows / Strata: long side-to-side sweeps.
+                [
+                    'RRRRRRRRR',
+                    'GGGGGGGGG',
+                    'BBBBBBBBB',
+                    'RRRRRRRRR',
+                    'GGGGGGGGG',
+                    'BBBBBBBBB',
+                    'RRRRRRRRR',
+                    'GGGGGGGGG',
+                    'BBBBBBBBB'
+                ],
+                // Grid Sector 3 — Vertical Rows / Lineae: narrow repeating lanes.
+                [
+                    'RGBRGBRGB',
+                    'RGBRGBRGB',
+                    'RGBRGBRGB',
+                    'RGBRGBRGB',
+                    'RGBRGBRGB',
+                    'RGBRGBRGB',
+                    'RGBRGBRGB',
+                    'RGBRGBRGB',
+                    'RGBRGBRGB'
+                ],
+                // Grid Sector 4 — 3x3 Blocks / Tesseris: separated color zones.
+                [
+                    'RRRGGGBBB',
+                    'RRRGGGBBB',
+                    'RRRGGGBBB',
+                    'GGGBBBRRR',
+                    'GGGBBBRRR',
+                    'GGGBBBRRR',
+                    'BBBRRRGGG',
+                    'BBBRRRGGG',
+                    'BBBRRRGGG'
+                ],
+                // Grid Sector 5 — Diagonals / Obliquon: diagonal bands across the grid.
+                [
+                    'RGBRGBRGB',
+                    'GBRGBRGBR',
+                    'BRGBRGBRG',
+                    'RGBRGBRGB',
+                    'GBRGBRGBR',
+                    'BRGBRGBRG',
+                    'RGBRGBRGB',
+                    'GBRGBRGBR',
+                    'BRGBRGBRG'
+                ],
+                // Grid Sector 6 — Reverse Diagonals / Mirror Obliquon: diagonal bands in the opposite direction.
+                [
+                    'RGBRGBRGB',
+                    'BRGBRGBRG',
+                    'GBRGBRGBR',
+                    'RGBRGBRGB',
+                    'BRGBRGBRG',
+                    'GBRGBRGBR',
+                    'RGBRGBRGB',
+                    'BRGBRGBRG',
+                    'GBRGBRGBR'
+                ],
+                // Grid Sector 7 — Cross Quadrants / Cruxael: repeated center crossings.
+                [
+                    'RRRRGBBBB',
+                    'RGGRGBGGB',
+                    'RGGRGBGGB',
+                    'RRRRGBBBB',
+                    'GGGGGGGGG',
+                    'BBBBGRRRR',
+                    'BGGBGRGGR',
+                    'BGGBGRGGR',
+                    'BBBBGRRRR'
+                ],
+                // Grid Sector 8 — Tilted Quadrants / Slantia: rotated quadrant movement.
+                [
+                    'GRRBBBRRG',
+                    'BGRRBRRGB',
+                    'BBGRRRGBB',
+                    'RBBGRGBBR',
+                    'RRBBGBBRR',
+                    'RBBGRGBBR',
+                    'BBGRRRGBB',
+                    'BGRRBRRGB',
+                    'GRRBBBRRG'
+                ],
+                // Grid Sector 9 — Concentric Squares / Tetrax: boxy ring movement.
+                [
+                    'RRRRRRRRR',
+                    'RGGGGGGGR',
+                    'RGBBBBBGR',
+                    'RGBRRRBGR',
+                    'RGBRGRBGR',
+                    'RGBRRRBGR',
+                    'RGBBBBBGR',
+                    'RGGGGGGGR',
+                    'RRRRRRRRR'
+                ],
+                // Grid Sector 10 — Diamond Rings / Rhombora: angular ring movement.
+                [
+                    'BGRBGBRGB',
+                    'GRBGRGBRG',
+                    'RBGRBRGBR',
+                    'BGRBGBRGB',
+                    'GRBGRGBRG',
+                    'BGRBGBRGB',
+                    'RBGRBRGBR',
+                    'GRBGRGBRG',
+                    'BGRBGBRGB'
+                ],
+                // Grid Sector 11 — The Wave / Undulari: bending lanes that pull back and forth.
+                [
+                    'RRRGGBBBG',
+                    'RRGGBBBGG',
+                    'RGGBBBGGR',
+                    'GGBBBGGRR',
+                    'GBBBGGRRR',
+                    'GGBBBGGRR',
+                    'RGGBBBGGR',
+                    'RRGGBBBGG',
+                    'RRRGGBBBG'
+                ],
+                // Grid Sector 12 — The Octagon / Octron: loop movement around the center.
+                [
+                    'RRGGGGGRR',
+                    'RGGBBBGGR',
+                    'GGBBBBBGG',
+                    'GBBRRRBBG',
+                    'GBBRRRBBG',
+                    'GBBRRRBBG',
+                    'GGBBBBBGG',
+                    'RGGBBBGGR',
+                    'RRGGGGGRR'
+                ],
+                // Grid Sector 13 — Imbalance / Fluxoth: uneven color placement.
+                [
+                    'RRRRRRRRG',
+                    'RGRRRRRGG',
+                    'RRRGRRGGG',
+                    'RRBRRGGGB',
+                    'RRRRGGGBB',
+                    'RRRGGGRRB',
+                    'RRGGGBRRB',
+                    'RGGGBBBBB',
+                    'GBBBBBBBB'
+                ],
+                // Grid Sector 14 — Mathematical Dispersion / Scatterix: scattered but patterned.
+                [
+                    'RGBGRGBRB',
+                    'GBRBGBRGR',
+                    'BRGRBRGBG',
+                    'GBRBGBRGR',
+                    'BRGRBRGBG',
+                    'RGBGRGBRB',
+                    'BRGRBRGBG',
+                    'RGBGRGBRB',
+                    'GBRBGBRGR'
+                ],
+                // Grid Sector 15 — Confetti / Confettia: final mixed board.
+                [
+                    'RBGGRRGBR',
+                    'BRRBGGBRG',
+                    'GBRBGRRGB',
+                    'RRGBBGGBR',
+                    'GBRBRGRRG',
+                    'BGGRBRRBG',
+                    'RGBBRRGBG',
+                    'BRGBGGRRB',
+                    'RRGBGRBGR'
+                ]
+            ].map(rows => Object.freeze(rows.slice()))
+            )
+        });
 
         const CONTROL_PANEL_DIAGNOSTIC_DISABLED = !GAME_FEATURE_FLAGS.controlPanel;
         if (CONTROL_PANEL_DIAGNOSTIC_DISABLED) document.body.classList.add('control-panel-diagnostic-disabled');
@@ -9294,6 +9653,308 @@ Orb Control Panel Instrument Reference
             }
         }
 
+
+        // Build 341 system-responsibility boundary. Lifecycle methods own permission and flow;
+        // this coordinator owns the ordered calls into UI, input, audio, telemetry, tutorial,
+        // scheduling, and presentation systems. Methods intentionally preserve the validated call order.
+        class GameSystemCoordinator {
+            constructor(game) {
+                this.game = game;
+            }
+
+            prepareSectorEntry(options = {}) {
+                const game = this.game;
+                if (game.tutorialActive) {
+                    game.setTutorialState({ tutorialActive: false });
+                    game.tutorialToken++;
+                    game.cancelTutorialScheduling();
+                    game.clearTutorialObjects();
+                    game.setTutorialHud('');
+                    document.body.classList.remove('tutorial-active');
+                }
+                game.stopRunRecordActionClock();
+                game.resetTemporaryInteractionState();
+                game.resetMarqueeEasterEgg();
+                game.setCrtPaused(false);
+                game.setCrtUiSuspended(false);
+                game.container.classList.remove('crt-shutdown-blackout');
+                game.clearCrtEventEffects();
+                game.cancelGameplayScheduling();
+                game.releaseWakeLock();
+                game.resetTerminalState();
+                game.instructionsWindow.style.display = 'none';
+                if (game.activationHowToOverlay) {
+                    game.activationHowToOverlay.classList.remove('visible');
+                    game.activationHowToOverlay.setAttribute('aria-hidden', 'true');
+                }
+                game.setGameOverlayVisible(false);
+                if (game.resumeButton) game.resumeButton.textContent = 'Resume';
+                game.pauseWindow.style.display = 'none';
+                game.refreshGameOverlay();
+                if (game.menuButtons && game.scoringPanel && game.storyPanel && game.settingsPanel) game.showMainMenuButtons();
+                game.levelSelectWindow.style.display = 'none';
+                game.hideCycleContinueButton();
+                game.gameOverElement.style.opacity = '0';
+                game.gameOverElement.classList.remove('finalCycleText', 'finalGameCompleteText', 'finalGridlockGameOverText');
+                game.bonusTextElement.classList.remove('countdownText', 'restoreText', 'resumeCountdownText', 'finalCycleSubtext', 'finalGameSummary', 'finalGridlockSummary');
+                game.gameOverElement.textContent = '';
+                game.bonusTextElement.textContent = '';
+                game.bonusTextElement.style.opacity = '0';
+                if (!options.keepScreenFade) game.screenFadeElement.classList.remove('visible');
+                game.container.classList.remove('gridRestoreSequence', 'cycleCelebrationSequence', 'cycleRestoredIdle');
+                game.removeCycleRebootCells();
+                game.player.element.classList.remove('orbRestoreGlow');
+                game.stopAttractMode();
+                game.cancelTutorialScheduling();
+                game.clearGameplayObjects();
+                game.player.reset();
+            }
+
+            pauseGameplay(showOverlay) {
+                const game = this.game;
+                game.syncMotionListenerState();
+                game.setCrtPaused(true);
+                game.setCrtUiSuspended(true);
+                game.ui.updateAll();
+                game.cancelGameplayScheduling({ requeueSpawnWarnings: true });
+                game.audio.stopBackgroundMusic();
+                game.audio.stopPrismRelicHum();
+                game.startPauseMenuReactorHum();
+                game.releaseWakeLock();
+
+                if (showOverlay) {
+                    game.menuOpenedAt = performance.now();
+                    game.showMainMenuButtons();
+                    game.pauseWindow.style.display = 'flex';
+                    game.updatePauseGridMenu();
+                    game.setGameOverlayVisible(true);
+                    requestAnimationFrame(() => game.clearMenuButtonFocus());
+                } else {
+                    game.closeBottomPanelOverlay();
+                }
+            }
+
+            prepareResumeCountdown() {
+                const game = this.game;
+                game.menuOpenedAt = 0;
+                game.clearMenuButtonFocus();
+                game.pauseWindow.style.display = 'none';
+                game.setCrtUiSuspended(false);
+                if (game.menuButtons && game.scoringPanel && game.storyPanel && game.settingsPanel) game.showMainMenuButtons();
+                game.levelSelectWindow.style.display = 'none';
+                game.hideCycleContinueButton();
+                game.stopPauseMenuReactorHum();
+                game.setGameOverlayVisible(false);
+                if (game.audio) game.audio.startBackgroundMusic(game.level);
+            }
+
+            resumeLiveAction() {
+                const game = this.game;
+                game.syncMotionListenerState();
+                game.setCrtPaused(false);
+                game.setCrtUiSuspended(false);
+                game.ui.updateAll();
+                game.setGameOverlayVisible(false);
+                game.lastFrameTime = performance.now();
+                game.clearUpdateGameTimer();
+                game.clearGameOverlayForGameplay();
+                game.audio.startBackgroundMusic(game.level);
+                if (game.overtimeActive) {
+                    game.audio.setMaxSwarmBeatIntensity(game.overtimeEnemiesAdded);
+                    game.audio.startMaxSwarmBeat(0);
+                    game.scheduleOvertimeEnemy();
+                }
+                if (game.prismRelic) game.audio.startPrismRelicHum();
+                game.requestWakeLock();
+                game.checkPrismRelicSpawnProgress();
+                game.checkMaxSwarmProgress();
+                game.startGameplayLoop();
+                game.updateGame();
+            }
+
+            hideRunStartSurface() {
+                const game = this.game;
+                game.hideActivationHowToOverlay();
+            }
+
+            activateRunStartAudio() {
+                const game = this.game;
+                game.audio.resume(); // Unlock audio after the player's start tap
+                game.audio.stopBackgroundMusic(); // Stop any background music
+            }
+
+            stopSectorForCompletion() {
+                const game = this.game;
+                game.updatePauseGridMenu();
+                game.ui.updateAll();
+                game.cancelGameplayScheduling();
+                game.releaseWakeLock();
+                if (!game.prismRelicRecoveredThisSector && (game.prismRelic || game.prismRelicCueTimer || game.prismRelicSpawnedThisSector)) {
+                    game.noteTelemetryPrismRelicCanceled('sector-complete');
+                }
+                game.removePrismRelic();
+                game.audio.stopBackgroundMusic();
+            }
+
+            prepareAttractMode() {
+                const game = this.game;
+                game.stopAttractMode(); // Clear any existing attract mode
+                game.container.classList.remove('crt-shutdown-blackout');
+                game.setCrtPaused(false);
+                game.setCrtUiSuspended(false);
+                game.attractModeStartedAt = performance.now();
+                game.lastMarqueeEasterEggShakeTime = 0;
+                if (game.player && game.player.element) game.player.element.classList.add('attract-orb-pulse');
+                game.ui.updateAll();
+            }
+
+            prepareNextCycleTransition() {
+                const game = this.game;
+                game.hideCycleContinueButton();
+                game.audio.stopCycleCompleteMusic();
+                game.container.classList.remove('cycleCelebrationSequence', 'cycleRestoredIdle');
+                game.removeCycleRebootCells();
+                game.gameOverElement.style.opacity = '0';
+                game.bonusTextElement.style.opacity = '0';
+            }
+
+            prepareFinalGridlock() {
+                const game = this.game;
+                game.setTerminalState({ finalCompletionActive: false });
+                game.setTerminalState({ finalGridlockActive: true });
+                game.setTerminalState({ finalGridlockResultActive: false });
+                game.setTerminalState({ finalGridlockElapsedMs: 0 });
+                game.setTerminalState({ isGameOver: false });
+                game.setTerminalState({ restartReady: false });
+                game.setTransitionState({ cycleTransitionActive: false });
+                game.setGameplayState({ active: false });
+                game.setGameplayState({ levelActionStarted: false });
+                game.setGameplayState({ isPaused: false });
+                game.setGameplayState({ resumeCountdownActive: false });
+                game.setTransitionState({ startInputLocked: true });
+                game.cancelGameplayScheduling();
+                game.removePrismRelic();
+                game.container.classList.remove('cycleCelebrationSequence', 'cycleRestoredIdle');
+                game.removeCycleRebootCells();
+                game.clearGameplayObjects();
+                game.level = game.MAX_LEVEL;
+                game.currentColorIndex = 0;
+                game.activeBlinkingCrystals = [];
+                game.collectedPositions = [];
+                game.lines = [];
+                game.sectorElapsedMs = 0;
+                game.survivalScoreAccumulator = 0;
+                game.spawnCounter = 0;
+                game.spawnedCount = { small: 0, medium: 0, large: 0 };
+                game.setGridlockState({ maxSwarmActive: false });
+                game.survivalistEarnedThisSector = false;
+                game.resetOvertimeState();
+                game.applyLevelParameters();
+                game.setPrismRelicState({ prismRelicSpawnedThisSector: false });
+                game.setPrismRelicState({ prismRelicRecoveredThisSector: true });
+                game.gridlockRelicAttemptNumber = 0;
+                game.cosmicZapsLeft = 0;
+                game.playfieldCosmicZapTapStart = null;
+                game.lastPlayfieldCosmicZapTapTime = 0;
+                game.cockpitSectorDisplayName = 'SURVIVE';
+                game.cockpitSectorDisplayLevel = null;
+                game.gameOverElement.classList.remove('finalCycleText', 'finalGameCompleteText', 'finalGridlockGameOverText');
+                game.bonusTextElement.classList.remove('finalCycleSubtext', 'finalGameSummary', 'finalGridlockSummary');
+                game.gameOverElement.textContent = '';
+                game.bonusTextElement.textContent = '';
+                game.gameOverElement.style.opacity = '0';
+                game.bonusTextElement.style.opacity = '0';
+                game.setGameOverlayVisible(false);
+                if (game.ui) {
+                    game.scheduler.cancelTask('ui-effects', 'score-alert');
+                    game.ui.scoreAlertTimer = null;
+                    game.ui.scoreAlertActive = false;
+                    if (game.ui.scoreHud) game.ui.scoreHud.classList.remove('gridlock-announcement-active');
+                    if (game.ui.scoreElement) game.ui.scoreElement.classList.remove('gridlockAlert', 'superGridlockAlert');
+                }
+                game.audio.resume();
+                game.player.reset();
+                game.player.element.style.display = 'block';
+                game.buildFinalGridlockGrid();
+                game.ui.updateAll();
+            }
+
+            prepareRunEnd(deathDetails = {}) {
+                const game = this.game;
+                game.markStabilityEvent('game-over-start', { sector: game.level, cycle: game.cycle, enemies: game.enemies.length }); // Exit if already over
+                const endedInFinalGridlock = !!game.finalGridlockActive;
+                game.setTerminalState({ finalCompletionActive: false });
+                game.setTerminalState({ finalGridlockResultActive: false });
+                game.stopRunRecordActionClock();
+                game.setGameplayState({ active: false }); // Pause game
+                game.setTerminalState({ isGameOver: true });
+                game.flow.enter(GAME_FLOW_STATES.GAME_OVER, endedInFinalGridlock ? 'final-gridlock-game-over' : 'game-over');
+                game.markStabilityEvent('game-over-state', { sector: game.level, cycle: game.cycle, score: game.score });
+                game.setTerminalState({ restartReady: false });
+                game.ui.updateAll();
+                game.setGameplayState({ isPaused: false });
+                game.setGameplayState({ resumeCountdownActive: false });
+                game.cancelGameplayScheduling();
+                game.releaseWakeLock();
+                game.pauseWindow.style.display = 'none';
+                if (game.menuButtons && game.scoringPanel && game.storyPanel && game.settingsPanel) game.showMainMenuButtons();
+                game.levelSelectWindow.style.display = 'none';
+                game.setGameOverlayVisible(false);
+                game.audio.stopBackgroundMusic(); // Stop music
+                game.audio.stopCycleCompleteMusic();
+                if (!game.prismRelicRecoveredThisSector && (game.prismRelic || game.prismRelicCueTimer || game.prismRelicSpawnedThisSector)) {
+                    game.noteTelemetryPrismRelicCanceled('death');
+                }
+                game.finishTelemetrySector('death', {
+                    death: {
+                        x: Math.round(game.player.x + game.player.size / 2),
+                        y: Math.round(game.player.y + game.player.size / 2),
+                        sectorTimeMs: game.telemetrySectorElapsedMs() || game.sectorElapsedMs,
+                        activeBlockAZoids: game.enemies.length,
+                        remainingCrystals: game.crystals.length,
+                        remainingCrystalsByColor: game.getRemainingCrystalsByColor(),
+                        currentColor: game.colorOrder[game.currentColorIndex] || null,
+                        enemySize: deathDetails.deathEnemySize || null,
+                        inGridlock: !!game.maxSwarmActive,
+                        secondsSinceGridlockStarted: game.currentTelemetrySector && game.currentTelemetrySector.gridlockReached ? Math.round((game.telemetrySectorElapsedMs() - game.currentTelemetrySector.gridlockTimeMs) / 1000) : null,
+                        lastCrystalPickup: game.getLastCrystalPickupTelemetry(),
+                        timeSinceLastCrystalPickupMs: game.currentTelemetrySector && game.currentTelemetrySector.lastCrystalPickupMs !== null ? Math.max(0, game.telemetrySectorElapsedMs() - game.currentTelemetrySector.lastCrystalPickupMs) : null,
+                        nextBlinkingCrystals: game.getTelemetryBlinkingCrystalOptions(),
+                        nearestEnemyDistanceFromPlayerPx: game.getNearestEnemyDistanceFromPlayer(),
+                        prismRelicVisible: !!game.prismRelic,
+                        prismRelicCuePending: !!game.prismRelicCueTimer,
+                        gridlockRelicAttemptNumber: game.gridlockRelicAttemptNumber
+                    }
+                });
+                game.finishTelemetryRun('death');
+                game.saveRunRecordIfCurrentHighScore();
+                game.container.classList.remove('cycleCelebrationSequence', 'cycleRestoredIdle');
+                game.removeCycleRebootCells();
+                game.removePrismRelic();
+                // Keep input listeners attached. The handlers already ignore input while inactive or game over.
+
+                game.setCrtPaused(false);
+                game.setCrtUiSuspended(false);
+                game.container.classList.remove('crt-shutdown-blackout');
+                game.triggerCrtEvent('death');
+                // Let the death reaction finish, then reveal the selected CRT preset behind Game Over.
+                game.explosions.push(new Explosion(game, game.player.x + game.player.size / 2, game.player.y + game.player.size / 2, true)); // Player explosion
+                game.container.classList.add('shake'); // Screen shake
+                game.audio.playExplosion(true); // Explosion sound
+                game.enemies.forEach(enemy => enemy.element.remove()); // Clear enemies
+                game.enemies = [];
+                game.crystals.forEach(crys => crys.element.remove()); // Clear crystals
+                game.crystals = [];
+                game.lines.forEach(line => line.element.remove()); // Clear lines
+                game.lines = [];
+                const filledSquares = game.container.getElementsByClassName('filled-square');
+                while (filledSquares.length > 0) filledSquares[0].remove(); // Clear filled squares
+
+                game.scheduler.scheduleTimeout('visual-effects', 'game-over-shake', () => game.container.classList.remove('shake'), GAME_CONFIG.visualTiming.gameOverShakeCleanupMs); // Remove shake after the configured delay
+                return endedInFinalGridlock;
+            }
+        }
+
         class Game {
             constructor() {
                 this.scheduler = new SchedulingManager();
@@ -9301,36 +9962,16 @@ Orb Control Panel Instrument Reference
                 this.gameplayTaskSequence = 0;
                 this.flow = new GameFlowController(this);
 
-                // Define RGB color constants for consistency across the game
-                this.RED_COLOR = '#F00';    // Red color constant
-                this.GREEN_COLOR = '#0F0';  // Green color constant
-                this.BLUE_COLOR = '#00F';   // Blue color constant
+                // Static rules are owned by GAME_CONFIG; instance aliases preserve existing call sites.
+                this.RED_COLOR = GAME_CONFIG.colors.red;
+                this.GREEN_COLOR = GAME_CONFIG.colors.green;
+                this.BLUE_COLOR = GAME_CONFIG.colors.blue;
+                this.parameters = GAME_CONFIG.gameplay;
 
-                // Game parameters configuration
-                this.parameters = {
-                    playfieldSize: 600,         // Size of the playfield (600x600px)
-                    playerSize: 20,            // Player square size
-                    minSpawnDistance: 325,     // Minimum spawn distance from player
-                    baseSpawnDelay: 5,          // Base enemy spawn delay (seconds)
-                    spawnDelayLevelReduction: 0.25, // Spawn delay reduction per level; smaller = slower difficulty ramp
-                    normalSwarmSize: 8,        // Normal Block-A-Zoid swarm size before overtime escalation
-                    overtimeEnemyIntervalMs: 60000, // During Overtime, add one extra Block-A-Zoid every minute
-                    baseSpeeds: { small: 3, medium: 2, large: 1.5 }, // Base speeds for enemy sizes
-                    baseCosmicZaps: 3,              // Starting number of Cosmic Zaps
-                    unusedCosmicZapBonus: 50,       // End-of-level bonus for each unused Cosmic Zap
-                    perfectSectorBonus: 100,   // Extra bonus for clearing a sector with no Cosmic Zaps used
-                    gridlockBonus: 200,       // Bonus for collecting the Prism Relic after surviving Gridlock
-                    gridlockRelicDelayMs: 2500, // Time the player must survive Gridlock before the Relic appears
-                    gameCycleBonus: 500,       // Bonus when the campaign loops into a harder cycle
-                    colorCompleteBonus: 100,   // Bonus for clearing all crystals in one color
-                    levelSpeedBoost: 0.03,     // Enemy speed increase per level; each Cosmic Zap adds one temporary level-speed notch
-                    cycleSpeedBoost: 0.07      // Enemy speed increase per completed full campaign cycle
-                };
-
-                // Enemy spawn proportions
-                this.SMALL_SPAWN_PROPORTION = 0.125;  // 1 of 8 enemies
-                this.MEDIUM_SPAWN_PROPORTION = 0.75;   // 6 of 8 enemies
-                this.LARGE_SPAWN_PROPORTION = 0.125;  // 1 of 8 enemies
+                const spawnProportions = GAME_CONFIG.enemySpawning.proportions;
+                this.SMALL_SPAWN_PROPORTION = spawnProportions.small;
+                this.MEDIUM_SPAWN_PROPORTION = spawnProportions.medium;
+                this.LARGE_SPAWN_PROPORTION = spawnProportions.large;
 
                 // DOM element references
                 this.container = document.getElementById('gameContainer');
@@ -9527,9 +10168,9 @@ Orb Control Panel Instrument Reference
                 this.configureResponsivePlayfield();
                 this.spawnDelay = this.parameters.baseSpawnDelay;
                 this.normalSwarmSize = this.parameters.normalSwarmSize;
-                this.MAX_LEVEL = 15; // Sector Maps campaign length
-                this.MAX_CYCLES = 3; // Completing Cycle 3 restores the Prism Grid and ends the run
-                this.BASE_BLINKING_CRYSTAL_COUNT = 5; // Each level starts with five blinking crystal choices
+                this.MAX_LEVEL = GAME_CONFIG.campaign.maxLevels; // Sector Maps campaign length
+                this.MAX_CYCLES = GAME_CONFIG.campaign.maxCycles; // Completing the final cycle restores the Prism Grid and ends the run
+                this.BASE_BLINKING_CRYSTAL_COUNT = GAME_CONFIG.campaign.baseBlinkingCrystalCount; // Each level starts with five blinking crystal choices
                 this.currentBlinkingCrystalCount = this.BASE_BLINKING_CRYSTAL_COUNT; // Cosmic Zap use lowers this for the current level only
 
                 // Game objects and state
@@ -9552,12 +10193,12 @@ Orb Control Panel Instrument Reference
                 this.level = 1;                       // Current level
                 this.selectedStartSector = 1;          // Settings selector for the next fresh run
                 this.selectedStartCycle = 1;           // Settings selector for the next fresh run
-                this.progressSectorStorageKey = 'blockazoidsHighestSectorUnlockedV1';
-                this.progressCycleStorageKey = 'blockazoidsHighestCycleUnlockedV1';
+                this.progressSectorStorageKey = GAME_CONFIG.storage.highestSector;
+                this.progressCycleStorageKey = GAME_CONFIG.storage.highestCycle;
                 this.highestUnlockedSector = this.loadProgressUnlockValue(this.progressSectorStorageKey, this.MAX_LEVEL);
                 this.highestUnlockedCycle = this.loadProgressUnlockValue(this.progressCycleStorageKey, this.MAX_CYCLES);
-                this.difficultyOptions = ['Easy', 'Normal', 'Hard'];
-                this.difficultyStorageKey = 'blockazoidsDifficulty';
+                this.difficultyOptions = GAME_CONFIG.difficulty.options.slice();
+                this.difficultyStorageKey = GAME_CONFIG.storage.difficulty;
                 this.difficultyMode = this.loadDifficultyMode();
                 this.cycle = 1;                      // Arcade loop/cycle. Cycle 2 starts after clearing the campaign.
                 this.score = 0;                       // Player score
@@ -9586,7 +10227,7 @@ Orb Control Panel Instrument Reference
                 this.startInputLocked = false;        // Blocks stray menu/start taps while a sector is starting
                 this.isPaused = false;                // Temporary pause-screen state
                 this.hasStartedRun = false;           // Distinguishes first Start Game attract mode from Play Again.
-                this.introCompletionStorageKey = 'blockazoidsIntroCompletedV1';
+                this.introCompletionStorageKey = GAME_CONFIG.storage.introCompletion;
                 this.introCompleted = this.loadIntroCompletionFlag();
                 this.tutorialActive = false;
                 this.tutorialStep = '';
@@ -9596,21 +10237,21 @@ Orb Control Panel Instrument Reference
                 this.tutorialStepStartedAt = 0;
                 this.tutorialLastFrameTime = 0;
                 this.tutorialMovementDistance = 0;
-                this.tutorialMovementRequired = 150;
+                this.tutorialMovementRequired = GAME_CONFIG.tutorial.movementRequired;
                 this.tutorialMovementQualified = false;
-                this.tutorialMovementAdvanceDelayMs = 2000;
-                this.tutorialCrystalAdvanceDelayMs = 1000;
-                this.tutorialEnemySpawnDelayMs = 1000;
+                this.tutorialMovementAdvanceDelayMs = GAME_CONFIG.tutorial.movementAdvanceDelayMs;
+                this.tutorialCrystalAdvanceDelayMs = GAME_CONFIG.tutorial.crystalAdvanceDelayMs;
+                this.tutorialEnemySpawnDelayMs = GAME_CONFIG.tutorial.enemySpawnDelayMs;
                 this.tutorialEnemyAvoidMs = 0;
-                this.tutorialEnemyAvoidRequiredMs = 4000;
-                this.tutorialEnemySpeedMultiplier = 1.12;
-                this.tutorialGridlockSpeedMultiplier = 1.12;
-                this.tutorialRetryMessageMs = 900;
-                this.tutorialGreatMessageMs = 1000;
-                this.tutorialRelicPromptDelayMs = 250;
-                this.tutorialGridlockStartDelayMs = 1000;
-                this.tutorialGridlockSpawnIntervalMs = 5000;
-                this.tutorialHudGapMs = 300;
+                this.tutorialEnemyAvoidRequiredMs = GAME_CONFIG.tutorial.enemyAvoidRequiredMs;
+                this.tutorialEnemySpeedMultiplier = GAME_CONFIG.tutorial.enemySpeedMultiplier;
+                this.tutorialGridlockSpeedMultiplier = GAME_CONFIG.tutorial.gridlockSpeedMultiplier;
+                this.tutorialRetryMessageMs = GAME_CONFIG.tutorial.retryMessageMs;
+                this.tutorialGreatMessageMs = GAME_CONFIG.tutorial.greatMessageMs;
+                this.tutorialRelicPromptDelayMs = GAME_CONFIG.tutorial.relicPromptDelayMs;
+                this.tutorialGridlockStartDelayMs = GAME_CONFIG.tutorial.gridlockStartDelayMs;
+                this.tutorialGridlockSpawnIntervalMs = GAME_CONFIG.tutorial.gridlockSpawnIntervalMs;
+                this.tutorialHudGapMs = GAME_CONFIG.tutorial.hudGapMs;
                 this.tutorialHudTimer = null;
                 this.tutorialHudMessageToken = 0;
                 this.tutorialStepTimer = null;
@@ -9623,20 +10264,20 @@ Orb Control Panel Instrument Reference
                 this.updateGameTimer = null;          // Enemy spawn timer so pause/resume cannot duplicate spawn loops
                 this.gameplayRunToken = 0;            // Revision for the one scheduler-owned live-gameplay animation loop
                 this.lastCosmicZapTriggerTime = 0;         // Prevents repeated Cosmic Zap triggers from one input
-                this.cosmicZapInputCooldownMs = 450;
+                this.cosmicZapInputCooldownMs = GAME_CONFIG.input.cosmicZapCooldownMs;
                 this.cosmicZapProtectionUntil = 0;         // Protects the Orb immediately while the Zap confirms visually
-                this.cosmicZapProtectionMs = 520;
+                this.cosmicZapProtectionMs = GAME_CONFIG.input.cosmicZapProtectionMs;
                 this.playfieldCosmicZapTapStart = null;   // Tracks quick double-taps on the playfield for Cosmic Zap input
                 this.lastPlayfieldCosmicZapTapTime = 0;
-                this.playfieldCosmicZapDoubleTapWindowMs = 360;
-                this.playfieldCosmicZapTapMaxDurationMs = 300;
-                this.playfieldCosmicZapTapMaxMove = Math.max(24, this.PLAYER_SIZE * 1.35);
+                this.playfieldCosmicZapDoubleTapWindowMs = GAME_CONFIG.input.doubleTapWindowMs;
+                this.playfieldCosmicZapTapMaxDurationMs = GAME_CONFIG.input.tapMaxDurationMs;
+                this.playfieldCosmicZapTapMaxMove = Math.max(GAME_CONFIG.input.tapMaxMoveMinimum, this.PLAYER_SIZE * GAME_CONFIG.input.tapMaxMovePlayerMultiplier);
                 this.motionCosmicZapEnabled = false;       // Compatibility flag: motion permission has been granted
                 this.motionPermissionGranted = false;       // Permission survives listener suspension during pause/no-Zap states
                 this.motionListenerAttached = false;        // True only while motion input can currently do useful work
                 this.lastShakeCosmicZapTime = 0;           // Prevents one shake from firing multiple Cosmic Zaps
-                this.shakeCosmicZapCooldownMs = 1200;
-                this.shakeThreshold = 32;             // Higher = harder to trigger accidentally
+                this.shakeCosmicZapCooldownMs = GAME_CONFIG.input.shakeCooldownMs;
+                this.shakeThreshold = GAME_CONFIG.input.shakeThreshold; // Higher = harder to trigger accidentally
                 this.lastMotionSample = null;
                 this.wakeLock = null;                 // Optional screen wake lock during active play
                 this.isGameOver = false;              // Game over state
@@ -9654,7 +10295,7 @@ Orb Control Panel Instrument Reference
                 this.survivalistEarnedThisSector = false; // Legacy flag: Gridlock reached this sector; scoring now uses the Gridlock Relic
                 this.maxSwarmActive = false; // Gameplay/audio flag: resets after Cosmic Zaps so Gridlock can trigger again
                 this.maxSwarmCueTimer = null;      // Delays the actual gridlock bonus trigger so it does not overlap the final spawn sound
-                this.maxSwarmCueDelayMs = 1000;    // One-second gap after the final enemy materializes
+                this.maxSwarmCueDelayMs = GAME_CONFIG.gridlock.activationCueDelayMs; // Gap after the final enemy materializes
                 this.overtimeActive = false;       // Overtime starts after Gridlock and lasts until sector end/death/restart
                 this.overtimeEnemyTimer = null;    // Adds extra Block-A-Zoids during Overtime
                 this.overtimeEnemiesAdded = 0;     // Raises the Gridlock beat tempo/pitch as Overtime escalates
@@ -9662,9 +10303,9 @@ Orb Control Panel Instrument Reference
                 this.superGridlockBonusPointsThisSector = 0;
                 this.prismRelicCueTimer = null;       // Delays the actual Prism Relic trigger so it does not overlap an enemy spawn sound
                 this.prismRelicSpawnEnemyThreshold = 0; // Hidden per-sector Block-A-Zoid count that triggers the Prism Relic
-                this.prismRelicCueDelayMs = 1000;     // Randomized per sector after the hidden threshold is reached
+                this.prismRelicCueDelayMs = GAME_CONFIG.gridlock.initialRelicCueDelayMs; // Replaced by the configured Gridlock delay at sector reset
                 this.lastCollectedPos = null;         // Last collected crystal position
-                this.colorOrder = ['red', 'green', 'blue']; // Order of crystal colors
+                this.colorOrder = GAME_DATA.colorOrder.slice(); // Order of crystal colors
                 this.colorMap = { 
                     red: this.RED_COLOR, 
                     green: this.GREEN_COLOR, 
@@ -9675,14 +10316,14 @@ Orb Control Panel Instrument Reference
                 this.spawnQueue = [];                 // Queue of normal-swarm enemies to spawn
                 this.spawnedCount = { small: 0, medium: 0, large: 0 }; // Count of spawned enemies by size
                 this.pendingSpawnWarnings = [];      // Telegraphs queued before enemies materialize
-                this.spawnWarningDurationMs = 850;    // How long the warning flashes before spawn
+                this.spawnWarningDurationMs = GAME_CONFIG.enemySpawning.spawnWarningDurationMs; // How long the warning flashes before spawn
 
                 // Local developer-only balance telemetry. It never leaves the browser unless exported by the user.
                 this.developerModeEnabled = false;
                 this.invincibilityEnabled = false;
                 this.invincibilityCollisionCooldownUntil = 0;
                 this.telemetryEnabled = false;
-                this.telemetryStorageKey = 'blockazoidsBalanceTelemetry';
+                this.telemetryStorageKey = GAME_CONFIG.storage.telemetry;
                 this.telemetry = this.loadTelemetryData();
                 this.currentTelemetryRun = null;
                 this.currentTelemetrySector = null;
@@ -9694,6 +10335,7 @@ Orb Control Panel Instrument Reference
                 // Audio and UI managers
                 this.audio = new AudioManager(this.scheduler); // Audio manager instance with Phase 3H timer ownership
                 this.ui = new UI(this);               // UI manager instance
+                this.systems = new GameSystemCoordinator(this); // Build 341 cross-system lifecycle coordinator
 
                 // Event handlers for player input
                 this.handlePointerDown = (e) => this.player.handlePointerDown(e);
@@ -10350,7 +10992,7 @@ Orb Control Panel Instrument Reference
                 this.splashScreen.classList.add('splash-shake-egg', 'splash-crt-glitch');
                 this.scheduler.scheduleTimeout('splash', 'glitch-cleanup', () => {
                     if (this.splashScreen) this.splashScreen.classList.remove('splash-shake-egg', 'splash-crt-glitch');
-                }, 760);
+                }, GAME_CONFIG.visualTiming.marqueeGlitchCleanupMs);
             }
 
             swapSplashMarqueeImageWithGlitch(nextSrc, vintageActive, afterSwap) {
@@ -10365,7 +11007,7 @@ Orb Control Panel Instrument Reference
                     this.splashScreen.classList.toggle('splash-vintage-active', !!vintageActive);
                     this.splashMarqueeImage.classList.remove('splash-marquee-fade-swap');
                     if (afterSwap) afterSwap();
-                }, 220);
+                }, GAME_CONFIG.visualTiming.marqueeImageSwapMs);
             }
 
             // Hidden developer unlock target. In compact mobile layouts, any tap outside the playfield can count.
@@ -10541,7 +11183,7 @@ Orb Control Panel Instrument Reference
                 const controlPanel = this.ui && this.ui.getControlPanelDiagnosticState ? this.ui.getControlPanelDiagnosticState() : null;
                 return {
                     schema: 'blockazoids-stability-v1',
-                    build: 'v340',
+                    build: 'v342',
                     sessionId: this.stabilitySessionId,
                     savedAt: Date.now(),
                     cleanExit: !!cleanExit,
@@ -12485,7 +13127,7 @@ Orb Control Panel Instrument Reference
                 this.marqueeReturnTimer = this.scheduler.scheduleTimeout('marquee', 'glitch-cleanup', () => {
                     this.marqueeReturnTimer = null;
                     if (this.marqueeElement) this.marqueeElement.classList.remove('vintageCrtGlitch');
-                }, 760);
+                }, GAME_CONFIG.visualTiming.marqueeGlitchCleanupMs);
             }
 
             swapMarqueeImageWithGlitch(nextSrc, vintageActive, afterSwap) {
@@ -12500,22 +13142,22 @@ Orb Control Panel Instrument Reference
                     this.marqueeElement.classList.toggle('vintageCrtActive', !!vintageActive);
                     this.marqueeImageElement.classList.remove('marqueeFadeSwap');
                     if (afterSwap) afterSwap();
-                }, 220);
+                }, GAME_CONFIG.visualTiming.marqueeImageSwapMs);
             }
 
             // Size the board directly for iPhone instead of clipping or transform-scaling a 600px board.
             configureResponsivePlayfield() {
-                const availableWidth = Math.max(300, Math.min(600, window.innerWidth - 8));
-                const availableHeight = Math.max(300, Math.min(600, window.innerHeight - 178));
-                const boardSize = Math.max(300, Math.floor(Math.min(availableWidth, availableHeight) / 10) * 10);
+                const availableWidth = Math.max(GAME_CONFIG.playfield.minBoardSize, Math.min(GAME_CONFIG.playfield.maxBoardSize, window.innerWidth - GAME_CONFIG.playfield.viewportHorizontalInset));
+                const availableHeight = Math.max(GAME_CONFIG.playfield.minBoardSize, Math.min(GAME_CONFIG.playfield.maxBoardSize, window.innerHeight - GAME_CONFIG.playfield.viewportVerticalReserve));
+                const boardSize = Math.max(GAME_CONFIG.playfield.minBoardSize, Math.floor(Math.min(availableWidth, availableHeight) / GAME_CONFIG.playfield.gridCellsPerSide) * GAME_CONFIG.playfield.gridCellsPerSide);
                 const scale = boardSize / this.parameters.playfieldSize;
 
                 this.PLAYFIELD_SIZE = boardSize;
-                this.GRID_SIZE = boardSize / 10;
+                this.GRID_SIZE = boardSize / GAME_CONFIG.playfield.gridCellsPerSide;
                 this.SIZE_SCALE = scale;
-                this.PLAYER_SIZE = Math.max(18, Math.round(this.parameters.playerSize * scale));
-                this.CRYSTAL_SIZE = Math.max(8, Math.round(10 * scale));
-                this.PRISM_RELIC_SIZE = Math.max(24, Math.round(30 * scale));
+                this.PLAYER_SIZE = Math.max(GAME_CONFIG.playfield.minRenderedPlayerSize, Math.round(this.parameters.playerSize * scale));
+                this.CRYSTAL_SIZE = Math.max(GAME_CONFIG.playfield.minRenderedCrystalSize, Math.round(GAME_CONFIG.playfield.crystalSize * scale));
+                this.PRISM_RELIC_SIZE = Math.max(GAME_CONFIG.playfield.minRenderedRelicSize, Math.round(GAME_CONFIG.playfield.prismRelicSize * scale));
                 this.CRYSTAL_OFFSET = this.CRYSTAL_SIZE / 2;
                 this.MIN_SPAWN_DISTANCE = Math.round(this.parameters.minSpawnDistance * scale);
                 this.BASE_SPEEDS = {
@@ -12527,7 +13169,7 @@ Orb Control Panel Instrument Reference
                 this.container.style.width = `${boardSize}px`;
                 this.container.style.height = `${boardSize}px`;
                 document.documentElement.style.setProperty('--grid-size', `${this.GRID_SIZE}px`);
-                document.documentElement.style.setProperty('--playfield-outer-size', `${boardSize + 4}px`);
+                document.documentElement.style.setProperty('--playfield-outer-size', `${boardSize + GAME_CONFIG.playfield.playfieldOuterBorderSize}px`);
                 document.documentElement.style.setProperty('--player-size', `${this.PLAYER_SIZE}px`);
                 document.documentElement.style.setProperty('--crystal-size', `${this.CRYSTAL_SIZE}px`);
                 document.documentElement.style.setProperty('--prism-relic-size', `${this.PRISM_RELIC_SIZE}px`);
@@ -12536,7 +13178,7 @@ Orb Control Panel Instrument Reference
             // Adjust spawn delay by level; enemy count stays capped at a constant value. Cosmic Zap pressure only affects speed.
             applyLevelParameters() {
                 const difficultyConfig = this.getDifficultyConfig();
-                this.spawnDelay = Math.max(2, this.parameters.baseSpawnDelay - (this.level - 1) * this.parameters.spawnDelayLevelReduction + difficultyConfig.spawnDelayOffset);
+                this.spawnDelay = Math.max(this.parameters.minimumSpawnDelay, this.parameters.baseSpawnDelay - (this.level - 1) * this.parameters.spawnDelayLevelReduction + difficultyConfig.spawnDelayOffset);
                 this.normalSwarmSize = this.parameters.normalSwarmSize;
 
                 const totalEnemies = this.normalSwarmSize;
@@ -12580,8 +13222,8 @@ Orb Control Panel Instrument Reference
                 const difficultyConfig = this.getDifficultyConfig();
                 const baseZaps = Math.max(1, this.parameters.baseCosmicZaps + difficultyConfig.cosmicZapOffset);
                 if (this.cycle <= 1) return baseZaps;
-                if (this.difficultyMode === 'Normal' && this.cycle >= 3) return Math.max(1, baseZaps - 2);
-                return Math.max(1, baseZaps - 1);
+                if (this.difficultyMode === 'Normal' && this.cycle >= 3) return Math.max(1, baseZaps - GAME_CONFIG.campaign.cycleThreeZapReduction);
+                return Math.max(1, baseZaps - GAME_CONFIG.campaign.laterCycleZapReduction);
             }
 
             // Enemy speed uses named tuning constants for sector, cycle, and Cosmic Zap pressure.
@@ -12856,50 +13498,7 @@ Orb Control Panel Instrument Reference
 
                 this.beginTransitionGroup('sector-intro', this.levelLoadToken);
                 this.flow.enter(GAME_FLOW_STATES.SECTOR_INTRO, 'prepare-level-start');
-                if (this.tutorialActive) {
-                    this.setTutorialState({ tutorialActive: false });
-                    this.tutorialToken++;
-                    this.cancelTutorialScheduling();
-                    this.clearTutorialObjects();
-                    this.setTutorialHud('');
-                    document.body.classList.remove('tutorial-active');
-                }
-                this.stopRunRecordActionClock();
-                this.resetTemporaryInteractionState();
-                this.resetMarqueeEasterEgg();
-                this.setCrtPaused(false);
-                this.setCrtUiSuspended(false);
-                this.container.classList.remove('crt-shutdown-blackout');
-                this.clearCrtEventEffects();
-                this.cancelGameplayScheduling();
-                this.releaseWakeLock();
-                this.resetTerminalState();
-                this.instructionsWindow.style.display = 'none';
-                if (this.activationHowToOverlay) {
-                    this.activationHowToOverlay.classList.remove('visible');
-                    this.activationHowToOverlay.setAttribute('aria-hidden', 'true');
-                }
-                this.setGameOverlayVisible(false);
-                if (this.resumeButton) this.resumeButton.textContent = 'Resume';
-                this.pauseWindow.style.display = 'none';
-                this.refreshGameOverlay();
-                if (this.menuButtons && this.scoringPanel && this.storyPanel && this.settingsPanel) this.showMainMenuButtons();
-                this.levelSelectWindow.style.display = 'none';
-                this.hideCycleContinueButton();
-                this.gameOverElement.style.opacity = '0';
-                this.gameOverElement.classList.remove('finalCycleText', 'finalGameCompleteText', 'finalGridlockGameOverText');
-                this.bonusTextElement.classList.remove('countdownText', 'restoreText', 'resumeCountdownText', 'finalCycleSubtext', 'finalGameSummary', 'finalGridlockSummary');
-                this.gameOverElement.textContent = '';
-                this.bonusTextElement.textContent = '';
-                this.bonusTextElement.style.opacity = '0';
-                if (!options.keepScreenFade) this.screenFadeElement.classList.remove('visible');
-                this.container.classList.remove('gridRestoreSequence', 'cycleCelebrationSequence', 'cycleRestoredIdle');
-                this.removeCycleRebootCells();
-                this.player.element.classList.remove('orbRestoreGlow');
-                this.stopAttractMode();
-                this.cancelTutorialScheduling();
-                this.clearGameplayObjects();
-                this.player.reset();
+                this.systems.prepareSectorEntry(options);
 
                 this.level = targetLevel;
                 this.markStabilityEvent('prepare-sector', { sector: this.level, cycle: this.cycle, resetScore: !!resetScore });
@@ -12990,14 +13589,14 @@ Orb Control Panel Instrument Reference
                 for (const step of steps) {
                     if (loadToken !== this.levelLoadToken) return cancelCountdown();
                     this.audio.playCountdownBeep(false);
-                    if (!await this.wait(1000, loadToken, `sector-countdown-${step}`)) return cancelCountdown();
+                    if (!await this.wait(GAME_CONFIG.transitions.countdownStepMs, loadToken, `sector-countdown-${step}`)) return cancelCountdown();
                 }
 
                 if (loadToken !== this.levelLoadToken) return cancelCountdown();
                 this.audio.playCountdownBeep(true);
-                if (!await this.wait(300, loadToken, 'sector-countdown-go')) return cancelCountdown();
+                if (!await this.wait(GAME_CONFIG.transitions.countdownGoMs, loadToken, 'sector-countdown-go')) return cancelCountdown();
                 this.bonusTextElement.style.opacity = '0';
-                if (!await this.wait(150, loadToken, 'sector-countdown-fade')) return cancelCountdown();
+                if (!await this.wait(GAME_CONFIG.transitions.countdownFadeMs, loadToken, 'sector-countdown-fade')) return cancelCountdown();
                 this.bonusTextElement.classList.remove('countdownText');
                 this.bonusTextElement.textContent = '';
                 this.cockpitSectorDisplayName = levelName;
@@ -13491,7 +14090,7 @@ Orb Control Panel Instrument Reference
                     restore: !!this.crtFeatures.restore
                 };
                 if (!eventEnabled[type]) return;
-                const durations = { gridlock: 540, zap: 440, death: 1320, restore: 580 };
+                const durations = GAME_CONFIG.visualTiming.crtEventsMs;
                 if (!durations[type]) return;
                 const className = `crt-${type}-event`;
                 this.scheduler.cancelTask('visual-effects', `crt-${type}`);
@@ -13557,7 +14156,7 @@ Orb Control Panel Instrument Reference
             }
 
             getEndSectorOptionValue() {
-                return (this.MAX_LEVEL || 15) + 1;
+                return (this.MAX_LEVEL || GAME_CONFIG.campaign.maxLevels) + 1;
             }
 
             adjustSelectedStartSector(direction) {
@@ -13681,9 +14280,7 @@ Orb Control Panel Instrument Reference
             }
 
             getDifficultyConfig() {
-                if (this.difficultyMode === 'Easy') return { speedMultiplier: 0.92, spawnDelayOffset: 0.6, cosmicZapOffset: 1 };
-                if (this.difficultyMode === 'Hard') return { speedMultiplier: 1.12, spawnDelayOffset: -0.45, cosmicZapOffset: -1 };
-                return { speedMultiplier: 1, spawnDelayOffset: 0, cosmicZapOffset: 0 };
+                return GAME_CONFIG.difficulty.profiles[this.difficultyMode] || GAME_CONFIG.difficulty.profiles.Normal;
             }
 
             getDifficultyStorageSuffix(mode = this.difficultyMode) {
@@ -14284,26 +14881,7 @@ Orb Control Panel Instrument Reference
                 this.setGameplayState({ isPaused: true });
                 this.setGameplayState({ active: false });
                 this.flow.enter(GAME_FLOW_STATES.PAUSED, 'pause-game');
-                this.syncMotionListenerState();
-                this.setCrtPaused(true);
-                this.setCrtUiSuspended(true);
-                this.ui.updateAll();
-                this.cancelGameplayScheduling({ requeueSpawnWarnings: true });
-                this.audio.stopBackgroundMusic();
-                this.audio.stopPrismRelicHum();
-                this.startPauseMenuReactorHum();
-                this.releaseWakeLock();
-
-                if (showOverlay) {
-                    this.menuOpenedAt = performance.now();
-                    this.showMainMenuButtons();
-                    this.pauseWindow.style.display = 'flex';
-                    this.updatePauseGridMenu();
-                    this.setGameOverlayVisible(true);
-                    requestAnimationFrame(() => this.clearMenuButtonFocus());
-                } else {
-                    this.closeBottomPanelOverlay();
-                }
+                this.systems.pauseGameplay(showOverlay);
                 this.validateStateInvariants('pauseGameplay');
                 return true;
             }
@@ -14318,16 +14896,7 @@ Orb Control Panel Instrument Reference
 
                 this.setGameplayState({ resumeCountdownActive: true });
                 this.flow.enter(GAME_FLOW_STATES.RESUME_COUNTDOWN, 'resume-countdown');
-                this.menuOpenedAt = 0;
-                this.clearMenuButtonFocus();
-                this.pauseWindow.style.display = 'none';
-                this.setCrtUiSuspended(false);
-                if (this.menuButtons && this.scoringPanel && this.storyPanel && this.settingsPanel) this.showMainMenuButtons();
-                this.levelSelectWindow.style.display = 'none';
-                this.hideCycleContinueButton();
-                this.stopPauseMenuReactorHum();
-                this.setGameOverlayVisible(false);
-                if (this.audio) this.audio.startBackgroundMusic(this.level);
+                this.systems.prepareResumeCountdown();
 
                 const loadToken = ++this.levelLoadToken;
                 this.beginTransitionGroup('resume-countdown', loadToken);
@@ -14354,11 +14923,11 @@ Orb Control Panel Instrument Reference
                     if (loadToken !== this.levelLoadToken || this.flow.isTerminal()) break;
                     this.bonusTextElement.textContent = step;
                     if (this.audio) this.audio.playCountdownBeep(false);
-                    if (!await this.wait(1000, loadToken, `resume-countdown-${step}`)) break;
+                    if (!await this.wait(GAME_CONFIG.transitions.resumeStepMs, loadToken, `resume-countdown-${step}`)) break;
                 }
 
                 this.bonusTextElement.style.opacity = '0';
-                const fadeCompleted = await this.wait(150, loadToken, 'resume-countdown-fade');
+                const fadeCompleted = await this.wait(GAME_CONFIG.transitions.resumeFadeMs, loadToken, 'resume-countdown-fade');
                 this.bonusTextElement.classList.remove('resumeCountdownText');
                 this.bonusTextElement.textContent = '';
                 this.refreshGameOverlay();
@@ -14375,26 +14944,7 @@ Orb Control Panel Instrument Reference
                 this.setGameplayState({ active: true });
                 this.flow.enter(this.finalGridlockActive ? GAME_FLOW_STATES.FINAL_GRIDLOCK : GAME_FLOW_STATES.PLAYING, 'resume-live-action');
                 this.completeTransitionGroup('resume-live-action');
-                this.syncMotionListenerState();
-                this.setCrtPaused(false);
-                this.setCrtUiSuspended(false);
-                this.ui.updateAll();
-                this.setGameOverlayVisible(false);
-                this.lastFrameTime = performance.now();
-                this.clearUpdateGameTimer();
-                this.clearGameOverlayForGameplay();
-                this.audio.startBackgroundMusic(this.level);
-                if (this.overtimeActive) {
-                    this.audio.setMaxSwarmBeatIntensity(this.overtimeEnemiesAdded);
-                    this.audio.startMaxSwarmBeat(0);
-                    this.scheduleOvertimeEnemy();
-                }
-                if (this.prismRelic) this.audio.startPrismRelicHum();
-                this.requestWakeLock();
-                this.checkPrismRelicSpawnProgress();
-                this.checkMaxSwarmProgress();
-                this.startGameplayLoop();
-                this.updateGame();
+                this.systems.resumeLiveAction();
                 this.validateStateInvariants('resumeGameplay');
                 return true;
             }
@@ -14637,7 +15187,7 @@ Orb Control Panel Instrument Reference
                     this.tutorialMovementDistance = 0;
                     this.tutorialMovementQualified = false;
                     this.cosmicZapsLeft = 0;
-                    this.showTutorialHudMessage('DRAG THE ORB AROUND', 0, { gap: false, expectedStep: 'movement' });
+                    this.showTutorialHudMessage(GAME_DATA.tutorialMessages.movement, 0, { gap: false, expectedStep: 'movement' });
                 } else if (step === 'crystal') {
                     this.clearTutorialObjects();
                     this.cosmicZapsLeft = 0;
@@ -14657,13 +15207,13 @@ Orb Control Panel Instrument Reference
                         return crystal;
                     });
                     this.tutorialCrystal = this.crystals[0] || null;
-                    this.showTutorialHudMessage('COLLECT CRYSTALS', 1, { expectedStep: 'crystal' });
+                    this.showTutorialHudMessage(GAME_DATA.tutorialMessages.crystal, 1, { expectedStep: 'crystal' });
                 } else if (step === 'enemy') {
                     this.clearTutorialObjects();
                     this.cosmicZapsLeft = 0;
                     this.tutorialEnemyAvoidMs = 0;
                     this.tutorialEnemySpawned = false;
-                    this.showTutorialHudMessage('AVOID BLOCK-A-ZOIDS', 2, {
+                    this.showTutorialHudMessage(GAME_DATA.tutorialMessages.enemy, 2, {
                         expectedStep: 'enemy',
                         onShown: () => {
                             this.scheduleTutorialStepTimer(() => {
@@ -14677,7 +15227,7 @@ Orb Control Panel Instrument Reference
                     this.cosmicZapsLeft = 1;
                     this.playfieldCosmicZapTapStart = null;
                     this.lastPlayfieldCosmicZapTapTime = 0;
-                    this.showTutorialHudMessage('SHAKE TO COSMIC ZAP', 3, { expectedStep: 'zap' });
+                    this.showTutorialHudMessage(GAME_DATA.tutorialMessages.zap, 3, { expectedStep: 'zap' });
                     this.syncMotionListenerState();
                     this.ui.updateCosmicZapIndicators();
                 } else if (step === 'gridlock') {
@@ -14685,7 +15235,7 @@ Orb Control Panel Instrument Reference
                     this.cosmicZapsLeft = 0;
                     this.setGridlockState({ maxSwarmActive: true });
                     this.triggerCrtEvent('gridlock');
-                    this.showTutorialHudMessage('GRIDLOCK — SURVIVE', 4, {
+                    this.showTutorialHudMessage(GAME_DATA.tutorialMessages.gridlock, 4, {
                         expectedStep: 'gridlock',
                         onShown: () => {
                             this.scheduleTutorialStepTimer(() => {
@@ -14712,7 +15262,7 @@ Orb Control Panel Instrument Reference
                     };
 
                     if (!options.preserveHud) {
-                        this.showTutorialHudMessage('COLLECT THE RELIC', 5, {
+                        this.showTutorialHudMessage(GAME_DATA.tutorialMessages.relic, 5, {
                             expectedStep: 'relic',
                             onShown: () => {
                                 this.scheduleTutorialStepTimer(() => {
@@ -14868,7 +15418,7 @@ Orb Control Panel Instrument Reference
                 this.tutorialEnemySpawned = false;
                 this.player.reset();
                 this.setTutorialState({ tutorialStep: 'retry' });
-                this.showTutorialHudMessage('TRY AGAIN', 7, { gap: false, expectedStep: 'retry' });
+                this.showTutorialHudMessage(GAME_DATA.tutorialMessages.retry, 7, { gap: false, expectedStep: 'retry' });
                 this.scheduleTutorialStepTimer(() => {
                     if (!this.tutorialActive || this.tutorialStep !== 'retry') return;
                     this.setTutorialStep('movement');
@@ -14977,7 +15527,7 @@ Orb Control Panel Instrument Reference
                     this.setPrismRelicState({ prismRelic: null });
                 }
                 this.setTutorialState({ tutorialStep: 'relic-collected' });
-                this.showTutorialHudMessage('GREAT!', 6, {
+                this.showTutorialHudMessage(GAME_DATA.tutorialMessages.great, 6, {
                     gap: false,
                     flash: true,
                     expectedStep: 'relic-collected'
@@ -15002,7 +15552,7 @@ Orb Control Panel Instrument Reference
                 this.syncMotionListenerState();
                 this.ui.updateAll();
 
-                this.showTutorialHudMessage('STARTING GAME', 7, {
+                this.showTutorialHudMessage(GAME_DATA.tutorialMessages.starting, 7, {
                     expectedStep: 'complete',
                     flash: false,
                     onShown: () => {
@@ -15100,7 +15650,7 @@ Orb Control Panel Instrument Reference
                 const selectedOption = Math.max(1, Math.min(this.getSectorSelectOptionCount(), this.selectedStartSector || 1));
                 const endOption = this.getEndSectorOptionValue();
 
-                this.hideActivationHowToOverlay();
+                this.systems.hideRunStartSurface();
                 this.resetTerminalState({ clearGameOver: false, clearRestartReady: true });
                 this.hasStartedRun = true;
                 this.activationHowToPending = false;
@@ -15108,8 +15658,7 @@ Orb Control Panel Instrument Reference
                 this.cockpitSectorDisplayName = '';
                 this.cockpitSectorDisplayLevel = null;
                 this.cycle = Math.max(1, Math.min(this.getMaximumSelectableCycle(), this.selectedStartCycle || 1));
-                this.audio.resume(); // Unlock audio after the player's start tap
-                this.audio.stopBackgroundMusic(); // Stop any background music
+                this.systems.activateRunStartAudio();
 
                 if (this.developerModeEnabled && selectedOption === endOption) {
                     this.selectedStartSector = 1; // Return future fresh runs to Sector 1 after the END test.
@@ -15141,14 +15690,14 @@ Orb Control Panel Instrument Reference
                 this.player.reset(); // Center player
                 if (!options.skipGridFade) {
                     this.container.style.animation = 'gridFadeIn 1s ease-in forwards';
-                    const gridFadeCompleted = await this.wait(1000, loadToken, 'sector-grid-fade');
+                    const gridFadeCompleted = await this.wait(GAME_CONFIG.transitions.sectorGridFadeMs, loadToken, 'sector-grid-fade');
                     this.container.style.animation = '';
                     if (!gridFadeCompleted) return false;
                 }
 
                 this.audio.playIntro(); // Retro arpeggio plays with the crystal drop
                 this.spawnCrystals(true); // Crystals fall into place before the countdown
-                return await this.wait(2000, loadToken, 'sector-crystal-drop');
+                return await this.wait(GAME_CONFIG.transitions.sectorCrystalDropMs, loadToken, 'sector-crystal-drop');
             }
 
             // Simple seeded random generator so each level has a stable-but-different layout.
@@ -15163,214 +15712,14 @@ Orb Control Panel Instrument Reference
 
             // Human-readable names for testing feedback.
             getLevelPatternName(levelNumber = this.level) {
-                const names = [
-                    'Ordines',
-                    'Strata',
-                    'Lineae',
-                    'Tesserae',
-                    'Obliqua',
-                    'Reflexa',
-                    'Crux',
-                    'Declives',
-                    'Quadrata',
-                    'Rhombi',
-                    'Fluctus',
-                    'Octangulum',
-                    'Inaequalia',
-                    'Dispersa',
-                    'Fragmenta'
-                ];
-                return names[Math.max(0, Math.min(this.MAX_LEVEL - 1, levelNumber - 1))];
+                return GAME_DATA.sectorNames[Math.max(0, Math.min(this.MAX_LEVEL - 1, levelNumber - 1))];
             }
 
             // Every level uses the same red -> green -> blue collection rule.
             // Sector Maps are ordered easiest-to-hardest by movement difficulty.
             // Difficulty can later be adjusted with enemy count, enemy speed, spawn timing, and Cosmic Zap pressure.
             getLevelPatternRows(levelNumber = this.level) {
-                const patterns = [
-                    // Grid Sector 1 — Columns / Ordines: clean vertical color zones.
-                    [
-                        'RRRGGGBBB',
-                        'RRRGGGBBB',
-                        'RRRGGGBBB',
-                        'RRRGGGBBB',
-                        'RRRGGGBBB',
-                        'RRRGGGBBB',
-                        'RRRGGGBBB',
-                        'RRRGGGBBB',
-                        'RRRGGGBBB'
-                    ],
-                    // Grid Sector 2 — Horizontal Rows / Strata: long side-to-side sweeps.
-                    [
-                        'RRRRRRRRR',
-                        'GGGGGGGGG',
-                        'BBBBBBBBB',
-                        'RRRRRRRRR',
-                        'GGGGGGGGG',
-                        'BBBBBBBBB',
-                        'RRRRRRRRR',
-                        'GGGGGGGGG',
-                        'BBBBBBBBB'
-                    ],
-                    // Grid Sector 3 — Vertical Rows / Lineae: narrow repeating lanes.
-                    [
-                        'RGBRGBRGB',
-                        'RGBRGBRGB',
-                        'RGBRGBRGB',
-                        'RGBRGBRGB',
-                        'RGBRGBRGB',
-                        'RGBRGBRGB',
-                        'RGBRGBRGB',
-                        'RGBRGBRGB',
-                        'RGBRGBRGB'
-                    ],
-                    // Grid Sector 4 — 3x3 Blocks / Tesseris: separated color zones.
-                    [
-                        'RRRGGGBBB',
-                        'RRRGGGBBB',
-                        'RRRGGGBBB',
-                        'GGGBBBRRR',
-                        'GGGBBBRRR',
-                        'GGGBBBRRR',
-                        'BBBRRRGGG',
-                        'BBBRRRGGG',
-                        'BBBRRRGGG'
-                    ],
-                    // Grid Sector 5 — Diagonals / Obliquon: diagonal bands across the grid.
-                    [
-                        'RGBRGBRGB',
-                        'GBRGBRGBR',
-                        'BRGBRGBRG',
-                        'RGBRGBRGB',
-                        'GBRGBRGBR',
-                        'BRGBRGBRG',
-                        'RGBRGBRGB',
-                        'GBRGBRGBR',
-                        'BRGBRGBRG'
-                    ],
-                    // Grid Sector 6 — Reverse Diagonals / Mirror Obliquon: diagonal bands in the opposite direction.
-                    [
-                        'RGBRGBRGB',
-                        'BRGBRGBRG',
-                        'GBRGBRGBR',
-                        'RGBRGBRGB',
-                        'BRGBRGBRG',
-                        'GBRGBRGBR',
-                        'RGBRGBRGB',
-                        'BRGBRGBRG',
-                        'GBRGBRGBR'
-                    ],
-                    // Grid Sector 7 — Cross Quadrants / Cruxael: repeated center crossings.
-                    [
-                        'RRRRGBBBB',
-                        'RGGRGBGGB',
-                        'RGGRGBGGB',
-                        'RRRRGBBBB',
-                        'GGGGGGGGG',
-                        'BBBBGRRRR',
-                        'BGGBGRGGR',
-                        'BGGBGRGGR',
-                        'BBBBGRRRR'
-                    ],
-                    // Grid Sector 8 — Tilted Quadrants / Slantia: rotated quadrant movement.
-                    [
-                        'GRRBBBRRG',
-                        'BGRRBRRGB',
-                        'BBGRRRGBB',
-                        'RBBGRGBBR',
-                        'RRBBGBBRR',
-                        'RBBGRGBBR',
-                        'BBGRRRGBB',
-                        'BGRRBRRGB',
-                        'GRRBBBRRG'
-                    ],
-                    // Grid Sector 9 — Concentric Squares / Tetrax: boxy ring movement.
-                    [
-                        'RRRRRRRRR',
-                        'RGGGGGGGR',
-                        'RGBBBBBGR',
-                        'RGBRRRBGR',
-                        'RGBRGRBGR',
-                        'RGBRRRBGR',
-                        'RGBBBBBGR',
-                        'RGGGGGGGR',
-                        'RRRRRRRRR'
-                    ],
-                    // Grid Sector 10 — Diamond Rings / Rhombora: angular ring movement.
-                    [
-                        'BGRBGBRGB',
-                        'GRBGRGBRG',
-                        'RBGRBRGBR',
-                        'BGRBGBRGB',
-                        'GRBGRGBRG',
-                        'BGRBGBRGB',
-                        'RBGRBRGBR',
-                        'GRBGRGBRG',
-                        'BGRBGBRGB'
-                    ],
-                    // Grid Sector 11 — The Wave / Undulari: bending lanes that pull back and forth.
-                    [
-                        'RRRGGBBBG',
-                        'RRGGBBBGG',
-                        'RGGBBBGGR',
-                        'GGBBBGGRR',
-                        'GBBBGGRRR',
-                        'GGBBBGGRR',
-                        'RGGBBBGGR',
-                        'RRGGBBBGG',
-                        'RRRGGBBBG'
-                    ],
-                    // Grid Sector 12 — The Octagon / Octron: loop movement around the center.
-                    [
-                        'RRGGGGGRR',
-                        'RGGBBBGGR',
-                        'GGBBBBBGG',
-                        'GBBRRRBBG',
-                        'GBBRRRBBG',
-                        'GBBRRRBBG',
-                        'GGBBBBBGG',
-                        'RGGBBBGGR',
-                        'RRGGGGGRR'
-                    ],
-                    // Grid Sector 13 — Imbalance / Fluxoth: uneven color placement.
-                    [
-                        'RRRRRRRRG',
-                        'RGRRRRRGG',
-                        'RRRGRRGGG',
-                        'RRBRRGGGB',
-                        'RRRRGGGBB',
-                        'RRRGGGRRB',
-                        'RRGGGBRRB',
-                        'RGGGBBBBB',
-                        'GBBBBBBBB'
-                    ],
-                    // Grid Sector 14 — Mathematical Dispersion / Scatterix: scattered but patterned.
-                    [
-                        'RGBGRGBRB',
-                        'GBRBGBRGR',
-                        'BRGRBRGBG',
-                        'GBRBGBRGR',
-                        'BRGRBRGBG',
-                        'RGBGRGBRB',
-                        'BRGRBRGBG',
-                        'RGBGRGBRB',
-                        'GBRBGBRGR'
-                    ],
-                    // Grid Sector 15 — Confetti / Confettia: final mixed board.
-                    [
-                        'RBGGRRGBR',
-                        'BRRBGGBRG',
-                        'GBRBGRRGB',
-                        'RRGBBGGBR',
-                        'GBRBRGRRG',
-                        'BGGRBRRBG',
-                        'RGBBRRGBG',
-                        'BRGBGGRRB',
-                        'RRGBGRBGR'
-                    ]
-                ];
-
-                return patterns[Math.max(0, Math.min(patterns.length - 1, levelNumber - 1))];
+                return GAME_DATA.sectorPatterns[Math.max(0, Math.min(GAME_DATA.sectorPatterns.length - 1, levelNumber - 1))];
             }
 
             // Return a crystal color for a grid cell.
@@ -15551,7 +15900,7 @@ Orb Control Panel Instrument Reference
                             crys.element.style.animationDelay = '';
                         });
                         this.updateCrystalHighlight(); // Highlight first crystal
-                    }, 2000); // Wait for intro to complete
+                    }, GAME_CONFIG.transitions.sectorCrystalDropMs); // Wait for intro to complete
                 } else {
                     this.updateCrystalHighlight(); // Immediate highlight
                 }
@@ -16062,15 +16411,7 @@ Orb Control Panel Instrument Reference
                 this.setGameplayState({ active: false }); // Prevent repeated completion triggers before the next level starts
                 this.setGameplayState({ levelActionStarted: false });
                 this.setTransitionState({ sectorTransitionActive: true });
-                this.updatePauseGridMenu();
-                this.ui.updateAll();
-                this.cancelGameplayScheduling();
-                this.releaseWakeLock();
-                if (!this.prismRelicRecoveredThisSector && (this.prismRelic || this.prismRelicCueTimer || this.prismRelicSpawnedThisSector)) {
-                    this.noteTelemetryPrismRelicCanceled('sector-complete');
-                }
-                this.removePrismRelic();
-                this.audio.stopBackgroundMusic();
+                this.systems.stopSectorForCompletion();
 
                 const unusedCosmicZapBonus = this.cosmicZapsLeft * this.parameters.unusedCosmicZapBonus;
                 const gridlockBonus = this.prismRelicRecoveredThisSector ? this.parameters.gridlockBonus : 0;
@@ -16836,14 +17177,7 @@ Orb Control Panel Instrument Reference
                 )) return false;
 
                 this.flow.enter(GAME_FLOW_STATES.ATTRACT, 'start-attract-mode');
-                this.stopAttractMode(); // Clear any existing attract mode
-                this.container.classList.remove('crt-shutdown-blackout');
-                this.setCrtPaused(false);
-                this.setCrtUiSuspended(false);
-                this.attractModeStartedAt = performance.now();
-                this.lastMarqueeEasterEggShakeTime = 0;
-                if (this.player && this.player.element) this.player.element.classList.add('attract-orb-pulse');
-                this.ui.updateAll();
+                this.systems.prepareAttractMode();
                 const gridSize = this.GRID_SIZE; // Grid cell size
                 const gridWidth = this.PLAYFIELD_SIZE / gridSize; // 10
                 const gridHeight = this.PLAYFIELD_SIZE / gridSize; // 10
@@ -17008,14 +17342,9 @@ Orb Control Panel Instrument Reference
                 )) return false;
                 this.ensureTransitionGroup('cycle-continue', transitionToken);
 
-                this.hideCycleContinueButton();
-                this.audio.stopCycleCompleteMusic();
-                this.container.classList.remove('cycleCelebrationSequence', 'cycleRestoredIdle');
-                this.removeCycleRebootCells();
-                this.gameOverElement.style.opacity = '0';
-                this.bonusTextElement.style.opacity = '0';
+                this.systems.prepareNextCycleTransition();
 
-                if (!await this.wait(500, transitionToken, 'cycle-continue-fade')) return;
+                if (!await this.wait(GAME_CONFIG.transitions.cycleContinueFadeMs, transitionToken, 'cycle-continue-fade')) return;
                 if (transitionToken !== this.levelLoadToken || this.isGameOver) return;
 
                 this.gameOverElement.classList.remove('finalCycleText');
@@ -17078,7 +17407,7 @@ Orb Control Panel Instrument Reference
                 this.removeCycleRebootCells();
                 this.ui.updateAll();
 
-                const preludeCompleted = await this.wait(300, transitionToken, 'final-complete-prelude');
+                const preludeCompleted = await this.wait(GAME_CONFIG.transitions.completionPreludeMs, transitionToken, 'final-complete-prelude');
                 if (!preludeCompleted || transitionToken !== this.levelLoadToken) {
                     this.setTransitionState({ cycleTransitionActive: false });
                     return;
@@ -17090,7 +17419,7 @@ Orb Control Panel Instrument Reference
                 this.container.classList.add('cycleCelebrationSequence');
                 this.gameOverElement.style.opacity = '1';
 
-                const celebrationCompleted = await this.wait(6200, transitionToken, 'final-complete-celebration');
+                const celebrationCompleted = await this.wait(GAME_CONFIG.transitions.completionCelebrationMs, transitionToken, 'final-complete-celebration');
                 if (!celebrationCompleted || transitionToken !== this.levelLoadToken) {
                     this.audio.stopCycleCompleteMusic();
                     this.container.classList.remove('cycleCelebrationSequence');
@@ -17112,7 +17441,7 @@ Orb Control Panel Instrument Reference
                 this.updateDifficultyLabel();
                 this.ui.updateAll();
 
-                if (!await this.wait(350, transitionToken, 'final-gridlock-handoff')) return;
+                if (!await this.wait(GAME_CONFIG.transitions.finalGridlockHandoffMs, transitionToken, 'final-gridlock-handoff')) return;
                 if (transitionToken !== this.levelLoadToken || !this.finalCompletionActive) return;
                 await this.beginFinalGridlock();
             }
@@ -17156,13 +17485,13 @@ Orb Control Panel Instrument Reference
                 for (const step of ['3', '2', '1']) {
                     if (!isCurrent()) return cancelCountdown();
                     this.audio.playCountdownBeep(false);
-                    if (!await this.wait(1000, loadToken, `final-gridlock-countdown-${step}`)) return cancelCountdown();
+                    if (!await this.wait(GAME_CONFIG.transitions.countdownStepMs, loadToken, `final-gridlock-countdown-${step}`)) return cancelCountdown();
                 }
                 if (!isCurrent()) return cancelCountdown();
                 this.audio.playCountdownBeep(true);
-                if (!await this.wait(300, loadToken, 'final-gridlock-go')) return cancelCountdown();
+                if (!await this.wait(GAME_CONFIG.transitions.countdownGoMs, loadToken, 'final-gridlock-go')) return cancelCountdown();
                 this.bonusTextElement.style.opacity = '0';
-                if (!await this.wait(150, loadToken, 'final-gridlock-fade')) return cancelCountdown();
+                if (!await this.wait(GAME_CONFIG.transitions.countdownFadeMs, loadToken, 'final-gridlock-fade')) return cancelCountdown();
                 this.bonusTextElement.classList.remove('countdownText', 'final-gridlock-intro-flash');
                 this.bonusTextElement.textContent = '';
                 this.setTransitionState({ showHudDuringSectorIntro: false });
@@ -17185,63 +17514,7 @@ Orb Control Panel Instrument Reference
                 this.flow.enter(GAME_FLOW_STATES.FINAL_GRIDLOCK, 'start-final-gridlock');
                 const loadToken = ++this.levelLoadToken;
                 this.beginTransitionGroup('final-gridlock-start', loadToken);
-                this.setTerminalState({ finalCompletionActive: false });
-                this.setTerminalState({ finalGridlockActive: true });
-                this.setTerminalState({ finalGridlockResultActive: false });
-                this.setTerminalState({ finalGridlockElapsedMs: 0 });
-                this.setTerminalState({ isGameOver: false });
-                this.setTerminalState({ restartReady: false });
-                this.setTransitionState({ cycleTransitionActive: false });
-                this.setGameplayState({ active: false });
-                this.setGameplayState({ levelActionStarted: false });
-                this.setGameplayState({ isPaused: false });
-                this.setGameplayState({ resumeCountdownActive: false });
-                this.setTransitionState({ startInputLocked: true });
-                this.cancelGameplayScheduling();
-                this.removePrismRelic();
-                this.container.classList.remove('cycleCelebrationSequence', 'cycleRestoredIdle');
-                this.removeCycleRebootCells();
-                this.clearGameplayObjects();
-                this.level = this.MAX_LEVEL;
-                this.currentColorIndex = 0;
-                this.activeBlinkingCrystals = [];
-                this.collectedPositions = [];
-                this.lines = [];
-                this.sectorElapsedMs = 0;
-                this.survivalScoreAccumulator = 0;
-                this.spawnCounter = 0;
-                this.spawnedCount = { small: 0, medium: 0, large: 0 };
-                this.setGridlockState({ maxSwarmActive: false });
-                this.survivalistEarnedThisSector = false;
-                this.resetOvertimeState();
-                this.applyLevelParameters();
-                this.setPrismRelicState({ prismRelicSpawnedThisSector: false });
-                this.setPrismRelicState({ prismRelicRecoveredThisSector: true });
-                this.gridlockRelicAttemptNumber = 0;
-                this.cosmicZapsLeft = 0;
-                this.playfieldCosmicZapTapStart = null;
-                this.lastPlayfieldCosmicZapTapTime = 0;
-                this.cockpitSectorDisplayName = 'SURVIVE';
-                this.cockpitSectorDisplayLevel = null;
-                this.gameOverElement.classList.remove('finalCycleText', 'finalGameCompleteText', 'finalGridlockGameOverText');
-                this.bonusTextElement.classList.remove('finalCycleSubtext', 'finalGameSummary', 'finalGridlockSummary');
-                this.gameOverElement.textContent = '';
-                this.bonusTextElement.textContent = '';
-                this.gameOverElement.style.opacity = '0';
-                this.bonusTextElement.style.opacity = '0';
-                this.setGameOverlayVisible(false);
-                if (this.ui) {
-                    this.scheduler.cancelTask('ui-effects', 'score-alert');
-                    this.ui.scoreAlertTimer = null;
-                    this.ui.scoreAlertActive = false;
-                    if (this.ui.scoreHud) this.ui.scoreHud.classList.remove('gridlock-announcement-active');
-                    if (this.ui.scoreElement) this.ui.scoreElement.classList.remove('gridlockAlert', 'superGridlockAlert');
-                }
-                this.audio.resume();
-                this.player.reset();
-                this.player.element.style.display = 'block';
-                this.buildFinalGridlockGrid();
-                this.ui.updateAll();
+                this.systems.prepareFinalGridlock();
                 const countdownCompleted = await this.runFinalGridlockCountdown(loadToken);
                 if (!countdownCompleted || loadToken !== this.levelLoadToken || !this.finalGridlockActive) return;
                 this.setGameplayState({ active: true });
@@ -17306,7 +17579,7 @@ Orb Control Panel Instrument Reference
                 this.container.classList.remove('cycleCelebrationSequence', 'cycleRestoredIdle');
                 this.removeCycleRebootCells();
 
-                const preludeCompleted = await this.wait(300, transitionToken, 'cycle-complete-prelude');
+                const preludeCompleted = await this.wait(GAME_CONFIG.transitions.completionPreludeMs, transitionToken, 'cycle-complete-prelude');
                 if (!preludeCompleted || transitionToken !== this.levelLoadToken || this.isGameOver) {
                     this.setTransitionState({ cycleTransitionActive: false });
                     return;
@@ -17318,7 +17591,7 @@ Orb Control Panel Instrument Reference
                 this.container.classList.add('cycleCelebrationSequence');
                 this.gameOverElement.style.opacity = '1';
 
-                const celebrationCompleted = await this.wait(6200, transitionToken, 'cycle-complete-celebration');
+                const celebrationCompleted = await this.wait(GAME_CONFIG.transitions.completionCelebrationMs, transitionToken, 'cycle-complete-celebration');
                 if (!celebrationCompleted || transitionToken !== this.levelLoadToken || this.isGameOver) {
                     this.audio.stopCycleCompleteMusic();
                     this.container.classList.remove('cycleCelebrationSequence');
@@ -17345,79 +17618,10 @@ Orb Control Panel Instrument Reference
                 )) return false;
                 const transitionToken = ++this.levelLoadToken;
                 this.beginTransitionGroup('game-over', transitionToken);
-                this.markStabilityEvent('game-over-start', { sector: this.level, cycle: this.cycle, enemies: this.enemies.length }); // Exit if already over
-                const endedInFinalGridlock = !!this.finalGridlockActive;
-                this.setTerminalState({ finalCompletionActive: false });
-                this.setTerminalState({ finalGridlockResultActive: false });
-                this.stopRunRecordActionClock();
-                this.setGameplayState({ active: false }); // Pause game
-                this.setTerminalState({ isGameOver: true });
-                this.flow.enter(GAME_FLOW_STATES.GAME_OVER, endedInFinalGridlock ? 'final-gridlock-game-over' : 'game-over');
-                this.markStabilityEvent('game-over-state', { sector: this.level, cycle: this.cycle, score: this.score });
-                this.setTerminalState({ restartReady: false });
-                this.ui.updateAll();
-                this.setGameplayState({ isPaused: false });
-                this.setGameplayState({ resumeCountdownActive: false });
-                this.cancelGameplayScheduling();
-                this.releaseWakeLock();
-                this.pauseWindow.style.display = 'none';
-                if (this.menuButtons && this.scoringPanel && this.storyPanel && this.settingsPanel) this.showMainMenuButtons();
-                this.levelSelectWindow.style.display = 'none';
-                this.setGameOverlayVisible(false);
-                this.audio.stopBackgroundMusic(); // Stop music
-                this.audio.stopCycleCompleteMusic();
-                if (!this.prismRelicRecoveredThisSector && (this.prismRelic || this.prismRelicCueTimer || this.prismRelicSpawnedThisSector)) {
-                    this.noteTelemetryPrismRelicCanceled('death');
-                }
-                this.finishTelemetrySector('death', {
-                    death: {
-                        x: Math.round(this.player.x + this.player.size / 2),
-                        y: Math.round(this.player.y + this.player.size / 2),
-                        sectorTimeMs: this.telemetrySectorElapsedMs() || this.sectorElapsedMs,
-                        activeBlockAZoids: this.enemies.length,
-                        remainingCrystals: this.crystals.length,
-                        remainingCrystalsByColor: this.getRemainingCrystalsByColor(),
-                        currentColor: this.colorOrder[this.currentColorIndex] || null,
-                        enemySize: deathDetails.deathEnemySize || null,
-                        inGridlock: !!this.maxSwarmActive,
-                        secondsSinceGridlockStarted: this.currentTelemetrySector && this.currentTelemetrySector.gridlockReached ? Math.round((this.telemetrySectorElapsedMs() - this.currentTelemetrySector.gridlockTimeMs) / 1000) : null,
-                        lastCrystalPickup: this.getLastCrystalPickupTelemetry(),
-                        timeSinceLastCrystalPickupMs: this.currentTelemetrySector && this.currentTelemetrySector.lastCrystalPickupMs !== null ? Math.max(0, this.telemetrySectorElapsedMs() - this.currentTelemetrySector.lastCrystalPickupMs) : null,
-                        nextBlinkingCrystals: this.getTelemetryBlinkingCrystalOptions(),
-                        nearestEnemyDistanceFromPlayerPx: this.getNearestEnemyDistanceFromPlayer(),
-                        prismRelicVisible: !!this.prismRelic,
-                        prismRelicCuePending: !!this.prismRelicCueTimer,
-                        gridlockRelicAttemptNumber: this.gridlockRelicAttemptNumber
-                    }
-                });
-                this.finishTelemetryRun('death');
-                this.saveRunRecordIfCurrentHighScore();
-                this.container.classList.remove('cycleCelebrationSequence', 'cycleRestoredIdle');
-                this.removeCycleRebootCells();
-                this.removePrismRelic();
-                // Keep input listeners attached. The handlers already ignore input while inactive or game over.
-
-                this.setCrtPaused(false);
-                this.setCrtUiSuspended(false);
-                this.container.classList.remove('crt-shutdown-blackout');
-                this.triggerCrtEvent('death');
-                // Let the death reaction finish, then reveal the selected CRT preset behind Game Over.
-                this.explosions.push(new Explosion(this, this.player.x + this.player.size / 2, this.player.y + this.player.size / 2, true)); // Player explosion
-                this.container.classList.add('shake'); // Screen shake
-                this.audio.playExplosion(true); // Explosion sound
-                this.enemies.forEach(enemy => enemy.element.remove()); // Clear enemies
-                this.enemies = [];
-                this.crystals.forEach(crys => crys.element.remove()); // Clear crystals
-                this.crystals = [];
-                this.lines.forEach(line => line.element.remove()); // Clear lines
-                this.lines = [];
-                const filledSquares = this.container.getElementsByClassName('filled-square');
-                while (filledSquares.length > 0) filledSquares[0].remove(); // Clear filled squares
-
-                this.scheduler.scheduleTimeout('visual-effects', 'game-over-shake', () => this.container.classList.remove('shake'), 500); // Remove shake after 500ms
+                const endedInFinalGridlock = this.systems.prepareRunEnd(deathDetails);
                 this.validateStateInvariants('endRun');
 
-                if (!await this.wait(1450, transitionToken, 'game-over-reveal')) return;
+                if (!await this.wait(GAME_CONFIG.transitions.gameOverRevealMs, transitionToken, 'game-over-reveal')) return;
                 this.bonusTextElement.classList.remove('countdownText');
                 this.audio.playEnd();
                 this.audio.resume();
@@ -17454,9 +17658,9 @@ Orb Control Panel Instrument Reference
                 this.bonusTextElement.textContent = '';
                 this.gameOverElement.textContent = 'GAME OVER';
                 this.gameOverElement.style.opacity = '1'; // Show game over text
-                if (!await this.wait(2000, transitionToken, 'game-over-title-hold')) return;
+                if (!await this.wait(GAME_CONFIG.transitions.gameOverTitleHoldMs, transitionToken, 'game-over-title-hold')) return;
                 this.gameOverElement.style.opacity = '0'; // Fade out text
-                if (!await this.wait(500, transitionToken, 'game-over-title-fade')) return;
+                if (!await this.wait(GAME_CONFIG.transitions.gameOverTitleFadeMs, transitionToken, 'game-over-title-fade')) return;
                 this.instructionsWindow.style.display = 'none';
                 this.highScore = this.loadHighScore();
                 this.highScoreDetails = this.loadHighScoreDetails();
@@ -18283,7 +18487,7 @@ Orb Control Panel Instrument Reference
                 scope.cleanupTimer = this.scheduleAudioTimer(() => {
                     this.audioCleanupTimers.delete(scope.cleanupTimer);
                     this.cleanupAudioScope(scope, true);
-                }, Math.max(1200, Math.min(20000, Number(cleanupDelayMs) || 12000)), 'one-shot-cleanup');
+                }, Math.max(GAME_CONFIG.audioTiming.oneShotCleanupMinimumMs, Math.min(GAME_CONFIG.audioTiming.oneShotCleanupMaximumMs, Number(cleanupDelayMs) || GAME_CONFIG.audioTiming.oneShotCleanupDefaultMs)), 'one-shot-cleanup');
                 this.audioCleanupTimers.add(scope.cleanupTimer);
             }
 
@@ -18573,7 +18777,7 @@ startMaxSwarmBeat(delaySeconds = 0) {
                     } catch (_) {}
                     this.scheduleAudioTimer(() => {
                         try { oldMix.disconnect(); } catch (_) {}
-                    }, Math.max(160, (loopStart - now) * 1000 + 240), 'background-disconnect');
+                    }, Math.max(GAME_CONFIG.audioTiming.backgroundDisconnectMinimumMs, (loopStart - now) * 1000 + GAME_CONFIG.audioTiming.backgroundDisconnectTailMs), 'background-disconnect');
                 }
 
                 // Keep gameplay music entirely outside transient node tracking and source limits.
@@ -19080,7 +19284,7 @@ startMaxSwarmBeat(delaySeconds = 0) {
                     try { echoDelay.disconnect(); } catch (_) {}
                     try { echoFeedback.disconnect(); } catch (_) {}
                     try { outputGain.disconnect(); } catch (_) {}
-                }, 1300, 'signal-cleanup');
+                }, GAME_CONFIG.audioTiming.signalCleanupMs, 'signal-cleanup');
 
                 return 1.04;
             }
@@ -19136,11 +19340,11 @@ startMaxSwarmBeat(delaySeconds = 0) {
 
                 this.cycleCompleteMusicPlaying = true;
                 if (!this.ctx || this.ctx.state === 'closed') return;
-                const durationMs = this.playCycleComplete() || 5900;
+                const durationMs = this.playCycleComplete() || GAME_CONFIG.audioTiming.cycleCompleteFallbackMs;
                 const timer = this.scheduleAudioTimer(() => {
                     this.cycleCompleteMusicTimers = this.cycleCompleteMusicTimers.filter(id => id !== timer);
                     this.cycleCompleteMusicPlaying = false;
-                }, durationMs + 260, 'cycle-complete-state');
+                }, durationMs + GAME_CONFIG.audioTiming.cycleCompleteStateTailMs, 'cycle-complete-state');
                 this.cycleCompleteMusicTimers.push(timer);
             }
 
@@ -19575,12 +19779,12 @@ startMaxSwarmBeat(delaySeconds = 0) {
 
                 const scheduleNext = () => {
                     if (!this.attractComputerAmbiencePlaying || this.musicMuted) return;
-                    const delay = 520 + Math.random() * 1550;
+                    const delay = GAME_CONFIG.audioTiming.attractComputerBaseDelayMs + Math.random() * GAME_CONFIG.audioTiming.attractComputerDelayRangeMs;
                     const timer = this.scheduleAudioTimer(() => {
                         this.attractComputerAmbienceTimers = this.attractComputerAmbienceTimers.filter(id => id !== timer);
                         if (!this.attractComputerAmbiencePlaying || this.musicMuted) return;
                         this.playAttractComputerTick();
-                        if (Math.random() < 0.22) this.scheduleAudioTimer(() => this.playAttractComputerTick(true), 82 + Math.random() * 90, 'attract-echo');
+                        if (Math.random() < GAME_CONFIG.audioTiming.attractEchoChance) this.scheduleAudioTimer(() => this.playAttractComputerTick(true), GAME_CONFIG.audioTiming.attractEchoBaseDelayMs + Math.random() * GAME_CONFIG.audioTiming.attractEchoDelayRangeMs, 'attract-echo');
                         scheduleNext();
                     }, delay, 'attract-computer');
                     this.attractComputerAmbienceTimers.push(timer);
@@ -19691,7 +19895,7 @@ startMaxSwarmBeat(delaySeconds = 0) {
                         gain2.gain.exponentialRampToValueAtTime(0.002, now + 0.36);
                     } catch (_) {}
 
-                    const timer = this.scheduleAudioTimer(pulse, 540, 'prism-relic-hum');
+                    const timer = this.scheduleAudioTimer(pulse, GAME_CONFIG.audioTiming.prismRelicHumPulseMs, 'prism-relic-hum');
                     this.prismRelicHumTimers.push(timer);
                 };
 
