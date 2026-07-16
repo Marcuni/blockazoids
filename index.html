@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Trackpad Prototype p010: Adds restrained pooled phosphor motion trails to the Vector monitor preset while preserving the separate legacy CRT preset and its p008 calibration values.
+Trackpad Prototype p011: Adds one architecture-safe global playfield presentation scale, reducing the actual gameplay square and all derived gameplay measurements while preserving HUD and control-panel sizing.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="trackpad-p010">
+<html data-build-version="trackpad-p011">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -6169,7 +6169,7 @@ Font License Notices
         }
 
 
-        /* Trackpad Prototype p010 — pooled Vector phosphor motion trails.
+        /* Trackpad Prototype p010 — pooled Vector phosphor motion trails (retained in p011).
            These are true positional afterimages, not a box-shadow transition:
            - Orb: 48ms lifetime, 11% starting opacity, sampled no faster than every 24ms
            - Block-A-Zoids: 42ms lifetime, 5.5% starting opacity, sampled no faster than every 38ms
@@ -6208,6 +6208,31 @@ Font License Notices
         #gameContainer.crt-ui-suspended .vector-phosphor-trail,
         #gameContainer.crt-paused .vector-phosphor-trail {
             opacity: 0 !important;
+        }
+
+
+
+        /* Trackpad Prototype p011 — architecture-safe global playfield reduction.
+           The gameplay square is physically resized; no transform, zoom, or visual-only scaling is used.
+           --grid-size remains the pre-reduction UI/HUD grid unit so the marquee, score HUD,
+           sector panel, control panel, and menu/control button sizes do not change.
+           --playfield-grid-size is the actual reduced gameplay-cell size used only by the grid,
+           completed cells, and monitor grid layers. All overlays continue to use inset: 0 and
+           therefore remain centered on the true resized playfield. */
+        #gameContainer {
+            --playfield-grid-size: 60px;
+            background-size: var(--playfield-grid-size) var(--playfield-grid-size) !important;
+        }
+
+        #gameContainer.cycleRestoredIdle,
+        #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.crt-ui-suspended),
+        body.crt-phosphor-calibration #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.crt-ui-suspended) {
+            background-size: var(--playfield-grid-size) var(--playfield-grid-size) !important;
+        }
+
+        #gameContainer .filled-square {
+            width: var(--playfield-grid-size) !important;
+            height: var(--playfield-grid-size) !important;
         }
 
 
@@ -6476,7 +6501,7 @@ Font License Notices
     <button id="startButton" type="button" hidden aria-label="Start game"></button>
 
     <script>
-        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'trackpad-p010'}`;
+        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'trackpad-p011'}`;
 
         // Central diagnostic feature flags. Change values here before loading the page to isolate systems.
         const GAME_FEATURE_FLAGS = window.BLOCKAZOIDS_FEATURE_FLAGS = {
@@ -6557,6 +6582,10 @@ Font License Notices
                 blue: '#00F'
             }),
             playfield: Object.freeze({
+                // Single master presentation scale for the actual gameplay square.
+                // Change only this value for future 92%, 95%, tablet, or other framing revisions.
+                // Layout is recalculated only at initialization and viewport resize; no CSS transform is used.
+                presentationScale: 0.90,
                 designSize: 600,
                 playerSize: 20,
                 crystalSize: 10,
@@ -9180,10 +9209,11 @@ Font License Notices
             applyResponsiveViewportUpdate(reason = 'resize') {
                 const oldSize = Number(this.PLAYFIELD_SIZE) || 0;
                 const oldPlayerSize = Number(this.PLAYER_SIZE) || 20;
-                const desiredWidth = Math.max(300, Math.min(600, window.innerWidth - 8));
-                const desiredHeight = Math.max(300, Math.min(600, window.innerHeight - 178));
-                const desiredSize = Math.max(300, Math.floor(Math.min(desiredWidth, desiredHeight) / 10) * 10);
-                if (oldSize && this.active && Math.abs(desiredSize - oldSize) < 20) {
+                const desiredLayout = this.resolveResponsivePlayfieldLayout();
+                const desiredSize = desiredLayout.playfieldSize;
+                const activeResizeThreshold = Math.max(10,
+                    Math.round(20 * desiredLayout.effectivePresentationScale));
+                if (oldSize && this.active && Math.abs(desiredSize - oldSize) < activeResizeThreshold) {
                     this.markStabilityEvent(`${reason}-minor-viewport-change`, { board: oldSize, desired: desiredSize });
                     return;
                 }
@@ -9195,23 +9225,26 @@ Font License Notices
                 }
 
                 const ratio = newSize / oldSize;
-                const scalePoint = (item) => {
+                const scaleEntityAroundCenter = (item, nextSize) => {
                     if (!item) return;
-                    item.x = Math.max(0, Math.min(newSize - (item.size || 0), (Number(item.x) || 0) * ratio));
-                    item.y = Math.max(0, Math.min(newSize - (item.size || 0), (Number(item.y) || 0) * ratio));
+                    const oldItemSize = Number(item.size) || 0;
+                    const centerX = ((Number(item.x) || 0) + oldItemSize / 2) * ratio;
+                    const centerY = ((Number(item.y) || 0) + oldItemSize / 2) * ratio;
+                    item.size = nextSize;
+                    item.x = Math.max(0, Math.min(newSize - nextSize, centerX - nextSize / 2));
+                    item.y = Math.max(0, Math.min(newSize - nextSize, centerY - nextSize / 2));
                 };
 
                 if (this.player) {
-                    this.player.size = this.PLAYER_SIZE;
-                    this.player.x = Math.max(0, Math.min(newSize - this.player.size, (Number(this.player.x) || 0) * ratio));
-                    this.player.y = Math.max(0, Math.min(newSize - this.player.size, (Number(this.player.y) || 0) * ratio));
+                    scaleEntityAroundCenter(this.player, this.PLAYER_SIZE);
                     this.player.touchActivationPadding = Math.max(18, this.player.size * 1.5);
                     this.player.updatePosition();
                 }
 
                 (this.enemies || []).forEach(enemy => {
-                    enemy.size = enemy.type === 'small' ? this.PLAYER_SIZE : (enemy.type === 'medium' ? this.PLAYER_SIZE * 2 : this.PLAYER_SIZE * 3);
-                    scalePoint(enemy);
+                    const nextSize = enemy.type === 'small' ? this.PLAYER_SIZE :
+                        (enemy.type === 'medium' ? this.PLAYER_SIZE * 2 : this.PLAYER_SIZE * 3);
+                    scaleEntityAroundCenter(enemy, nextSize);
                     const speed = this.getEnemySpeed(enemy.type);
                     enemy.dx = (enemy.dx < 0 ? -1 : 1) * speed;
                     enemy.dy = (enemy.dy < 0 ? -1 : 1) * speed;
@@ -9221,8 +9254,7 @@ Font License Notices
                 });
 
                 (this.crystals || []).forEach(crystal => {
-                    crystal.size = this.CRYSTAL_SIZE;
-                    scalePoint(crystal);
+                    scaleEntityAroundCenter(crystal, this.CRYSTAL_SIZE);
                     crystal.updatePosition();
                 });
 
@@ -9237,8 +9269,8 @@ Font License Notices
                     const horizontal = Math.abs(line.start.y - line.end.y) < 0.5;
                     line.element.style.left = `${Math.min(line.start.x, line.end.x)}px`;
                     line.element.style.top = `${Math.min(line.start.y, line.end.y)}px`;
-                    line.element.style.width = horizontal ? `${Math.abs(line.end.x - line.start.x)}px` : '2px';
-                    line.element.style.height = horizontal ? '2px' : `${Math.abs(line.end.y - line.start.y)}px`;
+                    line.element.style.width = horizontal ? `${Math.abs(line.end.x - line.start.x)}px` : `${this.LINE_THICKNESS}px`;
+                    line.element.style.height = horizontal ? `${this.LINE_THICKNESS}px` : `${Math.abs(line.end.y - line.start.y)}px`;
                 });
 
                 if (this.container) {
@@ -10763,33 +10795,97 @@ Font License Notices
                 }, GAME_CONFIG.visualTiming.marqueeImageSwapMs);
             }
 
-            // Size the board directly for iPhone instead of clipping or transform-scaling a 600px board.
-            configureResponsivePlayfield() {
-                const availableWidth = Math.max(GAME_CONFIG.playfield.minBoardSize, Math.min(GAME_CONFIG.playfield.maxBoardSize, window.innerWidth - GAME_CONFIG.playfield.viewportHorizontalInset));
-                const availableHeight = Math.max(GAME_CONFIG.playfield.minBoardSize, Math.min(GAME_CONFIG.playfield.maxBoardSize, window.innerHeight - GAME_CONFIG.playfield.viewportVerticalReserve));
-                const boardSize = Math.max(GAME_CONFIG.playfield.minBoardSize, Math.floor(Math.min(availableWidth, availableHeight) / GAME_CONFIG.playfield.gridCellsPerSide) * GAME_CONFIG.playfield.gridCellsPerSide);
-                const scale = boardSize / this.parameters.playfieldSize;
+            // Resolve all presentation geometry in one place. The frame size is the p010
+            // playfield size that still drives HUD/control spacing; playfieldSize is the true,
+            // reduced gameplay square. Keeping both values prevents gameplay scaling from leaking
+            // into the marquee, sector circles, control panel, or menu/control button dimensions.
+            resolveResponsivePlayfieldLayout() {
+                const config = GAME_CONFIG.playfield;
+                const cells = config.gridCellsPerSide;
+                const availableWidth = Math.max(config.minBoardSize,
+                    Math.min(config.maxBoardSize, window.innerWidth - config.viewportHorizontalInset));
+                const availableHeight = Math.max(config.minBoardSize,
+                    Math.min(config.maxBoardSize, window.innerHeight - config.viewportVerticalReserve));
+                const frameSize = Math.max(config.minBoardSize,
+                    Math.floor(Math.min(availableWidth, availableHeight) / cells) * cells);
 
-                this.PLAYFIELD_SIZE = boardSize;
-                this.GRID_SIZE = boardSize / GAME_CONFIG.playfield.gridCellsPerSide;
-                this.PLAYER_SIZE = Math.max(GAME_CONFIG.playfield.minRenderedPlayerSize, Math.round(this.parameters.playerSize * scale));
-                this.CRYSTAL_SIZE = Math.max(GAME_CONFIG.playfield.minRenderedCrystalSize, Math.round(GAME_CONFIG.playfield.crystalSize * scale));
-                this.PRISM_RELIC_SIZE = Math.max(GAME_CONFIG.playfield.minRenderedRelicSize, Math.round(GAME_CONFIG.playfield.prismRelicSize * scale));
+                // Keep an integer grid-cell size. This preserves exact intersection equality and
+                // avoids floating-point drift in crystal connections and completed-square checks.
+                const scaledSize = frameSize * config.presentationScale;
+                const playfieldSize = Math.max(cells, Math.round(scaledSize / cells) * cells);
+                const effectivePresentationScale = playfieldSize / frameSize;
+
+                return Object.freeze({
+                    frameSize,
+                    playfieldSize,
+                    uiGridSize: frameSize / cells,
+                    gridSize: playfieldSize / cells,
+                    gameplayScale: playfieldSize / config.designSize,
+                    effectivePresentationScale
+                });
+            }
+
+            snapPlayfieldPixel(value) {
+                const dpr = Math.max(1, Number(window.devicePixelRatio) || 1);
+                return Math.round((Number(value) || 0) * dpr) / dpr;
+            }
+
+            scalePresentationPixels(value) {
+                return this.snapPlayfieldPixel((Number(value) || 0) *
+                    (Number(this.PLAYFIELD_PRESENTATION_SCALE) || 1));
+            }
+
+            // Size the board directly instead of clipping or transform-scaling a 600px board.
+            // Every gameplay measurement is derived once from the actual resized playfield.
+            configureResponsivePlayfield() {
+                const config = GAME_CONFIG.playfield;
+                const layout = this.resolveResponsivePlayfieldLayout();
+                const baseGameplayScale = layout.frameSize / config.designSize;
+
+                // Preserve p010's minimum touch-readable object sizing first, then apply the single
+                // global presentation scale equally to those resolved gameplay sizes.
+                const basePlayerSize = Math.max(config.minRenderedPlayerSize,
+                    Math.round(config.playerSize * baseGameplayScale));
+                const baseCrystalSize = Math.max(config.minRenderedCrystalSize,
+                    Math.round(config.crystalSize * baseGameplayScale));
+                const baseRelicSize = Math.max(config.minRenderedRelicSize,
+                    Math.round(config.prismRelicSize * baseGameplayScale));
+
+                this.PLAYFIELD_FRAME_SIZE = layout.frameSize;
+                this.PLAYFIELD_SIZE = layout.playfieldSize;
+                this.PLAYFIELD_PRESENTATION_SCALE = layout.effectivePresentationScale;
+                this.HUD_GRID_SIZE = layout.uiGridSize;
+                this.GRID_SIZE = layout.gridSize;
+                this.PLAYER_SIZE = this.snapPlayfieldPixel(basePlayerSize * layout.effectivePresentationScale);
+                this.CRYSTAL_SIZE = this.snapPlayfieldPixel(baseCrystalSize * layout.effectivePresentationScale);
+                this.PRISM_RELIC_SIZE = this.snapPlayfieldPixel(baseRelicSize * layout.effectivePresentationScale);
+                this.LINE_THICKNESS = Math.max(1, this.scalePresentationPixels(2));
                 this.CRYSTAL_OFFSET = this.CRYSTAL_SIZE / 2;
-                this.MIN_SPAWN_DISTANCE = Math.round(this.parameters.minSpawnDistance * scale);
+                this.MIN_SPAWN_DISTANCE = this.snapPlayfieldPixel(
+                    Math.round(this.parameters.minSpawnDistance * baseGameplayScale) *
+                    layout.effectivePresentationScale);
                 this.BASE_SPEEDS = {
-                    small: this.parameters.baseSpeeds.small * scale,
-                    medium: this.parameters.baseSpeeds.medium * scale,
-                    large: this.parameters.baseSpeeds.large * scale
+                    small: this.parameters.baseSpeeds.small * layout.gameplayScale,
+                    medium: this.parameters.baseSpeeds.medium * layout.gameplayScale,
+                    large: this.parameters.baseSpeeds.large * layout.gameplayScale
                 };
 
-                this.container.style.width = `${boardSize}px`;
-                this.container.style.height = `${boardSize}px`;
-                document.documentElement.style.setProperty('--grid-size', `${this.GRID_SIZE}px`);
-                document.documentElement.style.setProperty('--playfield-outer-size', `${boardSize + GAME_CONFIG.playfield.playfieldOuterBorderSize}px`);
+                this.container.style.width = `${this.PLAYFIELD_SIZE}px`;
+                this.container.style.height = `${this.PLAYFIELD_SIZE}px`;
+                if (this.playfieldShell) {
+                    this.playfieldShell.style.width = `${this.PLAYFIELD_SIZE}px`;
+                    this.playfieldShell.style.height = `${this.PLAYFIELD_SIZE}px`;
+                }
+
+                // UI metrics stay at the p010 frame size; gameplay metrics use the reduced square.
+                document.documentElement.style.setProperty('--grid-size', `${this.HUD_GRID_SIZE}px`);
+                document.documentElement.style.setProperty('--playfield-grid-size', `${this.GRID_SIZE}px`);
+                document.documentElement.style.setProperty('--playfield-presentation-scale', `${this.PLAYFIELD_PRESENTATION_SCALE}`);
+                document.documentElement.style.setProperty('--playfield-outer-size', `${this.PLAYFIELD_FRAME_SIZE + config.playfieldOuterBorderSize}px`);
                 document.documentElement.style.setProperty('--player-size', `${this.PLAYER_SIZE}px`);
                 document.documentElement.style.setProperty('--crystal-size', `${this.CRYSTAL_SIZE}px`);
                 document.documentElement.style.setProperty('--prism-relic-size', `${this.PRISM_RELIC_SIZE}px`);
+                document.documentElement.style.setProperty('--connection-line-thickness', `${this.LINE_THICKNESS}px`);
             }
 
             // Adjust spawn delay by level; enemy count stays capped at a constant value. Cosmic Zap pressure only affects speed.
@@ -14411,9 +14507,9 @@ Font License Notices
                 line.style.top = `${Math.min(startPos.y, endPos.y)}px`;
                 if (horizontal) {
                     line.style.width = `${this.GRID_SIZE}px`; // Horizontal line
-                    line.style.height = '2px';
+                    line.style.height = `${this.LINE_THICKNESS}px`;
                 } else {
-                    line.style.width = '2px'; // Vertical line
+                    line.style.width = `${this.LINE_THICKNESS}px`; // Vertical line
                     line.style.height = `${this.GRID_SIZE}px`;
                 }
                 this.container.appendChild(line);
@@ -14615,7 +14711,7 @@ Font License Notices
                 targets.slice(0, 10).forEach((target, index) => {
                     const dx = target.x - centerX;
                     const dy = target.y - centerY;
-                    const distance = Math.max(24, Math.hypot(dx, dy));
+                    const distance = Math.max(this.scalePresentationPixels(24), Math.hypot(dx, dy));
                     const angle = Math.atan2(dy, dx) * 180 / Math.PI;
                     const line = this.createCosmicZapElement('cosmic-zap-line', centerX, centerY);
                     line.style.width = `${distance}px`;
@@ -15621,8 +15717,11 @@ Font License Notices
                 const sensitivity = Number.isFinite(this.game.trackingSpeed)
                     ? this.game.trackingSpeed
                     : GAME_CONFIG.input.relativeSwipeSensitivity;
-                const centerX = this.x + this.size / 2 + (deltaX * sensitivity);
-                const centerY = this.y + this.size / 2 + (deltaY * sensitivity);
+                // The named tracking preset retains the same normalized board gain after the
+                // presentation-only reduction. Direct drag still maps through getBoardPoint 1:1.
+                const layoutScale = Number(this.game.PLAYFIELD_PRESENTATION_SCALE) || 1;
+                const centerX = this.x + this.size / 2 + (deltaX * sensitivity * layoutScale);
+                const centerY = this.y + this.size / 2 + (deltaY * sensitivity * layoutScale);
                 this.moveToPoint({ x: centerX, y: centerY }, false);
             }
 
@@ -15969,20 +16068,25 @@ Font License Notices
                 this.y = y; // Center Y of explosion
                 this.isPlayer = isPlayer; // Flag for player explosion
 
+                const initialSize = this.game.scalePresentationPixels(4);
+                const expandedSize = this.game.scalePresentationPixels(160);
+                const initialRadius = initialSize / 2;
+                const expandedRadius = expandedSize / 2;
+
                 this.element = document.createElement('div');
                 this.element.className = 'explosion';
-                this.element.style.left = `${this.x - 2}px`; // Initial small size
-                this.element.style.top = `${this.y - 2}px`;
-                this.element.style.width = '4px';
-                this.element.style.height = '4px';
+                this.element.style.left = `${this.x - initialRadius}px`; // Initial small size
+                this.element.style.top = `${this.y - initialRadius}px`;
+                this.element.style.width = `${initialSize}px`;
+                this.element.style.height = `${initialSize}px`;
                 this.element.style.opacity = '1'; // Fully visible
                 this.game.container.appendChild(this.element); // Add to DOM
                 
                 this.game.scheduler.scheduleTimeout('visual-effects', `${this.visualEffectKey}-expand`, () => { // Expand explosion
-                    this.element.style.width = '160px';
-                    this.element.style.height = '160px';
-                    this.element.style.left = `${this.x - 80}px`; // Center expansion
-                    this.element.style.top = `${this.y - 80}px`;
+                    this.element.style.width = `${expandedSize}px`;
+                    this.element.style.height = `${expandedSize}px`;
+                    this.element.style.left = `${this.x - expandedRadius}px`; // Center expansion
+                    this.element.style.top = `${this.y - expandedRadius}px`;
                     if (this.isPlayer) this.game.player.element.style.display = 'none'; // Hide player
                 }, 0);
                 
