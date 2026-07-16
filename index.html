@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Trackpad Prototype p006: Removes the bottom gesture guide, restores full-size sector progress circles, disables CRT object RGB separation and object bloom, and replaces the outer monitor glow with a static pre-rendered halo.
+Trackpad Prototype p007: Adds adjustable tracking speed with true 1.0x movement, matches the lower sector-row spacing to the top HUD, and restores only low-cost selective CRT bloom and RGB separation.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="trackpad-p006">
+<html data-build-version="trackpad-p007">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -6023,7 +6023,7 @@ Font License Notices
         #playfieldShell.crt-enabled.crt-fx-glow.crt-glow-medium:not(.crt-ui-suspended) .playfield-crt-outer-glow { opacity: 0.82 !important; }
         #playfieldShell.crt-enabled.crt-fx-glow.crt-glow-high:not(.crt-ui-suspended) .playfield-crt-outer-glow { opacity: 1 !important; }
 
-        /* CRT object RGB separation and CRT object bloom are disabled in p006. */
+        /* Bulk CRT object RGB separation and bloom stay disabled; p007 restores only selective low-cost accents. */
         #gameContainer.crt-enabled:not(.crt-ui-suspended) {
             --crt-player-rgb: 0 0 0 transparent !important;
             --crt-enemy-rgb: 0 0 0 transparent !important;
@@ -6034,6 +6034,54 @@ Font License Notices
             --crt-crystal-bloom: 0 0 0 transparent !important;
             --crt-line-bloom: 0 0 0 transparent !important;
         }
+
+
+        /* Trackpad Prototype p007: mirror the top HUD's playfield clearance and horizontal inset. */
+        #sectorProgressPanel {
+            margin-top: calc(var(--grid-size, 60px) * 0.42) !important;
+            padding-left: clamp(14px, 4vw, 30px) !important;
+            padding-right: clamp(14px, 4vw, 30px) !important;
+        }
+
+        .tracking-speed-control {
+            margin-top: 8px;
+            margin-bottom: 4px;
+        }
+
+        .tracking-speed-control .settings-stepper-value {
+            font-variant-numeric: tabular-nums;
+            letter-spacing: 1px;
+        }
+
+        /* Low-cost selective CRT character: only the Orb, active crystal, and rare Relic receive it. */
+        #gameContainer.crt-enabled:not(.crt-ui-suspended) #player::before {
+            box-shadow:
+                -1px 0 2px rgba(255, 0, 0, 0.18),
+                1px 0 2px rgba(0, 120, 255, 0.20),
+                0 0 calc(var(--default-glow) * 0.8px) #fff,
+                0 0 4px rgba(255, 255, 255, 0.10);
+        }
+
+        #gameContainer.crt-enabled:not(.crt-ui-suspended) .crystal.next {
+            box-shadow:
+                -1px 0 2px rgba(255, 0, 0, 0.16),
+                1px 0 2px rgba(0, 120, 255, 0.18),
+                0 0 3px rgba(255, 255, 255, 0.10),
+                0 0 25px #fff,
+                0 0 40px #fff,
+                0 0 60px #fff;
+        }
+
+        #gameContainer.crt-enabled:not(.crt-ui-suspended) .prism-relic {
+            box-shadow:
+                -1px 0 2px rgba(255, 0, 0, 0.14),
+                1px 0 2px rgba(0, 120, 255, 0.16),
+                0 0 3px rgba(255, 255, 255, 0.10),
+                0 0 18px #fff,
+                0 0 38px rgba(255,255,255,0.82),
+                0 0 72px rgba(255,255,255,0.58);
+        }
+
 </style>
 </head>
 <body class="crt-phosphor-calibration">
@@ -6222,6 +6270,14 @@ Font License Notices
                 <button id="soundToggleButton" class="menu-button settings-toggle">Disable Sound</button>
                 <button id="musicToggleButton" class="menu-button settings-toggle">Disable Music</button>
                 <button id="crtToggleButton" class="menu-button settings-toggle">Disable CRT</button>
+                <div id="trackingSpeedControl" class="settings-stepper tracking-speed-control" role="group" aria-label="Tracking Speed">
+                    <div class="settings-stepper-title">Tracking Speed</div>
+                    <div class="settings-stepper-row">
+                        <button id="trackingSpeedDecreaseButton" class="settings-stepper-arrow" type="button" aria-label="Decrease tracking speed">◀</button>
+                        <div id="settingsTrackingSpeedValue" class="settings-stepper-value">1.0×</div>
+                        <button id="trackingSpeedIncreaseButton" class="settings-stepper-arrow" type="button" aria-label="Increase tracking speed">▶</button>
+                    </div>
+                </div>
                 <button id="resetHighScoreButton" class="menu-button settings-toggle">Reset High Score</button>
                 <div id="telemetryPanel" class="developer-settings-section" aria-hidden="true">
                     <div class="crt-dev-heading">DEVELOPER</div>
@@ -6291,7 +6347,7 @@ Font License Notices
     <button id="startButton" type="button" hidden aria-label="Start game"></button>
 
     <script>
-        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'trackpad-p006'}`;
+        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'trackpad-p007'}`;
 
         // Central diagnostic feature flags. Change values here before loading the page to isolate systems.
         const GAME_FEATURE_FLAGS = window.BLOCKAZOIDS_FEATURE_FLAGS = {
@@ -6397,7 +6453,7 @@ Font License Notices
                 tapMaxDurationMs: 300,
                 tapMaxMoveMinimum: 24,
                 tapMaxMovePlayerMultiplier: 1.35,
-                relativeSwipeSensitivity: 1.35,
+                relativeSwipeSensitivity: 1.0,
                 gestureTapMaxMove: 12,
                 gestureTapMaxDurationMs: 280,
                 gestureDoubleTapWindowMs: 330,
@@ -7621,6 +7677,12 @@ Font License Notices
                 this.soundToggleButton = document.getElementById('soundToggleButton');
                 this.musicToggleButton = document.getElementById('musicToggleButton');
                 this.crtToggleButton = document.getElementById('crtToggleButton');
+                this.trackingSpeedControl = document.getElementById('trackingSpeedControl');
+                this.trackingSpeedDecreaseButton = document.getElementById('trackingSpeedDecreaseButton');
+                this.trackingSpeedIncreaseButton = document.getElementById('trackingSpeedIncreaseButton');
+                this.settingsTrackingSpeedValue = document.getElementById('settingsTrackingSpeedValue');
+                this.trackingSpeedStorageKey = 'blockazoidsTrackingSpeedV1';
+                this.trackingSpeed = this.loadTrackingSpeed();
                 this.tutorialHud = document.getElementById('tutorialHud');
                 this.invincibilityToggleButton = document.getElementById('invincibilityToggleButton');
                 this.resetIntroCompletionButton = document.getElementById('resetIntroCompletionButton');
@@ -8114,6 +8176,22 @@ Font License Notices
                         this.toggleCrtSetting();
                     });
                 }
+                if (this.trackingSpeedDecreaseButton) {
+                    this.trackingSpeedDecreaseButton.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        this.playUiClick();
+                        this.adjustTrackingSpeed(-1);
+                    });
+                }
+                if (this.trackingSpeedIncreaseButton) {
+                    this.trackingSpeedIncreaseButton.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        this.playUiClick();
+                        this.adjustTrackingSpeed(1);
+                    });
+                }
                 if (this.crtEffectLevelButtons && this.crtEffectLevelButtons.length) {
                     this.crtEffectLevelButtons.forEach(button => {
                         button.addEventListener('click', (e) => {
@@ -8273,6 +8351,7 @@ Font License Notices
                 this.updateMusicToggleLabel();
                 this.updateInvincibilityToggleLabel();
                 this.applyCrtPreference();
+                this.updateTrackingSpeedLabel();
                 this.updateSettingsSectorLabel();
                 this.updateDifficultyLabel();
                 this.updateHighScoreDisplay();
@@ -8568,7 +8647,7 @@ Font License Notices
                 const audio = this.audio || {};
                 return {
                     schema: 'blockazoids-stability-v1',
-                    build: 'trackpad-p005',
+                    build: 'trackpad-p007',
                     sessionId: this.stabilitySessionId,
                     savedAt: Date.now(),
                     cleanExit: !!cleanExit,
@@ -10996,6 +11075,8 @@ Font License Notices
                     this.settingsBackButton,
                     this.soundToggleButton,
                     this.musicToggleButton,
+                    this.trackingSpeedDecreaseButton,
+                    this.trackingSpeedIncreaseButton,
                     this.difficultyButton,
                     this.sectorDecreaseButton,
                     this.sectorIncreaseButton,
@@ -11066,6 +11147,7 @@ Font License Notices
                     this.updateSoundToggleLabel();
                     this.updateMusicToggleLabel();
                     this.updateCrtToggleLabel();
+                    this.updateTrackingSpeedLabel();
                     this.updateSettingsSectorLabel();
                     this.updateDifficultyLabel();
                     this.updateHighScoreDisplay();
@@ -11482,6 +11564,50 @@ Font License Notices
                     button.disabled = !canChange;
                     button.setAttribute('aria-disabled', canChange ? 'false' : 'true');
                 });
+            }
+
+            normalizeTrackingSpeed(value) {
+                const numeric = Number(value);
+                if (!Number.isFinite(numeric)) return 1.0;
+                return Math.round(Math.max(0.5, Math.min(2.0, numeric)) * 10) / 10;
+            }
+
+            loadTrackingSpeed() {
+                try {
+                    const stored = localStorage.getItem(this.trackingSpeedStorageKey);
+                    if (stored === null || stored === '') return 1.0;
+                    return this.normalizeTrackingSpeed(stored);
+                } catch (_) {
+                    return 1.0;
+                }
+            }
+
+            saveTrackingSpeed() {
+                try { localStorage.setItem(this.trackingSpeedStorageKey, this.trackingSpeed.toFixed(1)); } catch (_) {}
+            }
+
+            adjustTrackingSpeed(direction) {
+                const step = direction < 0 ? -0.1 : 0.1;
+                this.trackingSpeed = this.normalizeTrackingSpeed(this.trackingSpeed + step);
+                this.saveTrackingSpeed();
+                this.updateTrackingSpeedLabel();
+            }
+
+            updateTrackingSpeedLabel() {
+                this.trackingSpeed = this.normalizeTrackingSpeed(this.trackingSpeed);
+                if (this.settingsTrackingSpeedValue) {
+                    this.settingsTrackingSpeedValue.textContent = `${this.trackingSpeed.toFixed(1)}×`;
+                }
+                const atMinimum = this.trackingSpeed <= 0.5;
+                const atMaximum = this.trackingSpeed >= 2.0;
+                if (this.trackingSpeedDecreaseButton) {
+                    this.trackingSpeedDecreaseButton.disabled = atMinimum;
+                    this.trackingSpeedDecreaseButton.setAttribute('aria-disabled', atMinimum ? 'true' : 'false');
+                }
+                if (this.trackingSpeedIncreaseButton) {
+                    this.trackingSpeedIncreaseButton.disabled = atMaximum;
+                    this.trackingSpeedIncreaseButton.setAttribute('aria-disabled', atMaximum ? 'true' : 'false');
+                }
             }
 
             loadDifficultyMode() {
@@ -15090,7 +15216,9 @@ Font License Notices
 
             moveByRelativeDelta(deltaX, deltaY) {
                 if (!Number.isFinite(deltaX) || !Number.isFinite(deltaY)) return;
-                const sensitivity = GAME_CONFIG.input.relativeSwipeSensitivity;
+                const sensitivity = Number.isFinite(this.game.trackingSpeed)
+                    ? this.game.trackingSpeed
+                    : GAME_CONFIG.input.relativeSwipeSensitivity;
                 const centerX = this.x + this.size / 2 + (deltaX * sensitivity);
                 const centerY = this.y + this.size / 2 + (deltaY * sensitivity);
                 this.moveToPoint({ x: centerX, y: centerY }, false);
