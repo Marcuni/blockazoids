@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Build v332: Phase 3G gives tutorial progression and attract mode separate managed scheduling ownership while preserving all prior gameplay, timing, input, audio, scoring, and presentation.
+Build v333: Phase 3H gives audio delays and repeating cues managed scheduling ownership, completes the timer audit, and preserves all prior gameplay, timing, input, sound design, scoring, and presentation.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -21,7 +21,7 @@ Orb Control Panel Instrument Reference
 - Velocity Glyph Engine — Temporarily displays the Orb’s finger-driven movement speed.
 - Orb Command Socket — Controls the Orb’s pause, resume, and primary interface functions.
 -->
-<html data-build-version="v332">
+<html data-build-version="v333">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -8836,7 +8836,7 @@ Orb Control Panel Instrument Reference
     </div>
 
     <script>
-        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'v332'}`;
+        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'v333'}`;
 
         // Central diagnostic feature flags. Change values here before loading the page to isolate systems.
         const GAME_FEATURE_FLAGS = window.BLOCKAZOIDS_FEATURE_FLAGS = {
@@ -8968,9 +8968,10 @@ Orb Control Panel Instrument Reference
                 GAME_OVER: 'game-over'
         });
 
-        // Phase 3 scheduling foundation. Phase 3G now owns transient UI, splash, marquee,
+        // Phase 3 scheduling foundation. Phase 3H owns transient UI, splash, marquee,
         // non-gameplay visual effects, major transitions, live-gameplay delays and loop ownership,
-        // plus separate tutorial and attract-mode scheduling. Audio engines remain native.
+        // tutorial and attract-mode scheduling, plus audio delay and repeating-cue ownership.
+        // Web Audio's own sample-accurate node timelines remain browser-owned by design.
         class SchedulingManager {
             constructor() {
                 this.tasksByKey = new Map();
@@ -9687,7 +9688,7 @@ Orb Control Panel Instrument Reference
                 this.developerAttractMenuOpen = false;
 
                 // Audio and UI managers
-                this.audio = new AudioManager();      // Audio manager instance
+                this.audio = new AudioManager(this.scheduler); // Audio manager instance with Phase 3H timer ownership
                 this.ui = new UI(this);               // UI manager instance
 
                 // Event handlers for player input
@@ -10381,6 +10382,7 @@ Orb Control Panel Instrument Reference
                 }
             }
 
+            // Browser-owned diagnostic sampling loop; intentionally independent of game-state scheduling.
             startPerformanceTelemetry() {
                 if (!this.developerModeEnabled || this.performanceTelemetryRafId !== null) return;
                 const sampleWindow = 180;
@@ -10495,6 +10497,7 @@ Orb Control Panel Instrument Reference
                 window.addEventListener('resize', () => this.handleViewportChange('resize'), { passive: true });
                 window.addEventListener('orientationchange', () => this.handleViewportChange('orientationchange'), { passive: true });
 
+                // Browser-lifecycle heartbeat intentionally survives game-state transitions.
                 this.stabilityHeartbeatTimer = window.setInterval(() => {
                     if (this.hasStartedRun && !this.isGameOver) this.writeStabilityHeartbeat(false);
                 }, 1000);
@@ -10526,7 +10529,7 @@ Orb Control Panel Instrument Reference
                 const controlPanel = this.ui && this.ui.getControlPanelDiagnosticState ? this.ui.getControlPanelDiagnosticState() : null;
                 return {
                     schema: 'blockazoids-stability-v1',
-                    build: 'v332',
+                    build: 'v333',
                     sessionId: this.stabilitySessionId,
                     savedAt: Date.now(),
                     cleanExit: !!cleanExit,
@@ -10663,6 +10666,7 @@ Orb Control Panel Instrument Reference
                     height: window.innerHeight,
                     preservedTutorialDrag: !!preserveTutorialDrag
                 });
+                // Viewport debounce remains browser-owned because resize/orientation events exist outside game flow.
                 if (this.stabilityViewportTimer) clearTimeout(this.stabilityViewportTimer);
                 this.stabilityViewportTimer = window.setTimeout(() => {
                     this.stabilityViewportTimer = null;
@@ -11961,7 +11965,7 @@ Orb Control Panel Instrument Reference
                 document.body.appendChild(link);
                 link.click();
                 link.remove();
-                setTimeout(() => URL.revokeObjectURL(url), 1000);
+                this.scheduler.scheduleTimeout('ui-effects', 'telemetry-export-url-cleanup', () => URL.revokeObjectURL(url), 1000);
                 this.setTelemetryStatus('Balance data export created.');
             }
 
@@ -15019,7 +15023,7 @@ Orb Control Panel Instrument Reference
                 this.prismRelicInitialCrystalCount = this.crystals.length;
                 
                 if (withIntro) {
-                    setTimeout(() => {
+                    this.scheduler.scheduleTimeout('transitions', 'crystal-intro-cleanup', () => {
                         this.crystals.forEach(crys => {
                             crys.element.style.animation = ''; // Clear animation
                             crys.element.style.animationDelay = '';
@@ -17509,7 +17513,9 @@ Orb Control Panel Instrument Reference
 
         // Audio manager class for sound effects and music
         class AudioManager {
-            constructor() {
+            constructor(scheduler) {
+                this.scheduler = scheduler || new SchedulingManager();
+                this.audioTimerSequence = 0;
                 this.backgroundOscillators = []; // Background music oscillators
                 this.backgroundGains = []; // Background music gain nodes
                 this.backgroundTimers = []; // Timers used by the background rhythm loop
@@ -17612,13 +17618,28 @@ Orb Control Panel Instrument Reference
                 return node;
             }
 
-            scheduleAudioTimer(callback, delayMs = 0) {
-                const timer = window.setTimeout(() => {
-                    this.audioManagedTimers.delete(timer);
+            scheduleAudioTimer(callback, delayMs = 0, channel = 'managed') {
+                const timerName = `${String(channel || 'managed')}-${++this.audioTimerSequence}`;
+                let token = null;
+                token = this.scheduler.scheduleTimeout('audio', timerName, () => {
+                    this.audioManagedTimers.delete(token);
+                    this.audioCleanupTimers.delete(token);
                     try { callback(); } catch (_) {}
                 }, Math.max(0, Number(delayMs) || 0));
-                this.audioManagedTimers.add(timer);
-                return timer;
+                this.audioManagedTimers.add(token);
+                return token;
+            }
+
+            cancelAudioTimer(token) {
+                if (!token) return false;
+                this.audioManagedTimers.delete(token);
+                this.audioCleanupTimers.delete(token);
+                return this.scheduler.cancelTask(token);
+            }
+
+            cancelAudioTimers(tokens) {
+                if (!tokens) return;
+                Array.from(tokens).forEach(token => this.cancelAudioTimer(token));
             }
 
             beginAudioScope(label) {
@@ -17637,9 +17658,7 @@ Orb Control Panel Instrument Reference
                 if (!scope || scope.cleaned) return;
                 scope.cleaned = true;
                 if (scope.cleanupTimer) {
-                    clearTimeout(scope.cleanupTimer);
-                    this.audioManagedTimers.delete(scope.cleanupTimer);
-                    this.audioCleanupTimers.delete(scope.cleanupTimer);
+                    this.cancelAudioTimer(scope.cleanupTimer);
                     scope.cleanupTimer = null;
                 }
 
@@ -17695,7 +17714,7 @@ Orb Control Panel Instrument Reference
                 scope.cleanupTimer = this.scheduleAudioTimer(() => {
                     this.audioCleanupTimers.delete(scope.cleanupTimer);
                     this.cleanupAudioScope(scope, true);
-                }, Math.max(1200, Math.min(20000, Number(cleanupDelayMs) || 12000)));
+                }, Math.max(1200, Math.min(20000, Number(cleanupDelayMs) || 12000)), 'one-shot-cleanup');
                 this.audioCleanupTimers.add(scope.cleanupTimer);
             }
 
@@ -17744,12 +17763,7 @@ Orb Control Panel Instrument Reference
                 // before transient cleanup so sector transitions cannot orphan or stack loops.
                 this.stopBackgroundMusic();
 
-                this.backgroundTimers.forEach(timer => clearTimeout(timer));
-                this.maxSwarmBeatTimers.forEach(timer => clearTimeout(timer));
-                this.cycleCompleteMusicTimers.forEach(timer => clearTimeout(timer));
-                this.prismRelicHumTimers.forEach(timer => clearTimeout(timer));
-                this.attractComputerAmbienceTimers.forEach(timer => clearTimeout(timer));
-                this.audioManagedTimers.forEach(timer => clearTimeout(timer));
+                this.scheduler.cancelScope('audio');
                 this.audioManagedTimers.clear();
                 this.audioCleanupTimers.clear();
 
@@ -17919,7 +17933,7 @@ Orb Control Panel Instrument Reference
             }
 stopMaxSwarmBeat() {
                 this.maxSwarmBeatPlaying = false;
-                this.maxSwarmBeatTimers.forEach(timer => clearTimeout(timer));
+                this.cancelAudioTimers(this.maxSwarmBeatTimers);
                 this.maxSwarmBeatTimers = [];
 
                 this.maxSwarmBeatOscillators.forEach(osc => {
@@ -17976,7 +17990,7 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 this.backgroundMusicPlaying = true;
 
                 // Stop the normal background loop cleanly before the Gridlock/overtime variation starts.
-                this.backgroundTimers.forEach(timer => clearTimeout(timer));
+                this.cancelAudioTimers(this.backgroundTimers);
                 this.backgroundTimers = [];
 
                 const oldMix = this.backgroundMixGain;
@@ -17988,9 +18002,9 @@ startMaxSwarmBeat(delaySeconds = 0) {
                         oldMix.gain.setValueAtTime(currentLevel, Math.max(now, loopStart - 0.012));
                         oldMix.gain.linearRampToValueAtTime(0.001, loopStart + 0.030);
                     } catch (_) {}
-                    window.setTimeout(() => {
+                    this.scheduleAudioTimer(() => {
                         try { oldMix.disconnect(); } catch (_) {}
-                    }, Math.max(160, (loopStart - now) * 1000 + 240));
+                    }, Math.max(160, (loopStart - now) * 1000 + 240), 'background-disconnect');
                 }
 
                 // Keep gameplay music entirely outside transient node tracking and source limits.
@@ -18497,7 +18511,7 @@ startMaxSwarmBeat(delaySeconds = 0) {
                     try { echoDelay.disconnect(); } catch (_) {}
                     try { echoFeedback.disconnect(); } catch (_) {}
                     try { outputGain.disconnect(); } catch (_) {}
-                }, 1300);
+                }, 1300, 'signal-cleanup');
 
                 return 1.04;
             }
@@ -18557,13 +18571,13 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 const timer = this.scheduleAudioTimer(() => {
                     this.cycleCompleteMusicTimers = this.cycleCompleteMusicTimers.filter(id => id !== timer);
                     this.cycleCompleteMusicPlaying = false;
-                }, durationMs + 260);
+                }, durationMs + 260, 'cycle-complete-state');
                 this.cycleCompleteMusicTimers.push(timer);
             }
 
             stopCycleCompleteMusic() {
                 this.cycleCompleteMusicPlaying = false;
-                this.cycleCompleteMusicTimers.forEach(timer => clearTimeout(timer));
+                this.cancelAudioTimers(this.cycleCompleteMusicTimers);
                 this.cycleCompleteMusicTimers = [];
 
                 const now = this.ctx ? this.ctx.currentTime : 0;
@@ -18997,9 +19011,9 @@ startMaxSwarmBeat(delaySeconds = 0) {
                         this.attractComputerAmbienceTimers = this.attractComputerAmbienceTimers.filter(id => id !== timer);
                         if (!this.attractComputerAmbiencePlaying || this.musicMuted) return;
                         this.playAttractComputerTick();
-                        if (Math.random() < 0.22) this.scheduleAudioTimer(() => this.playAttractComputerTick(true), 82 + Math.random() * 90);
+                        if (Math.random() < 0.22) this.scheduleAudioTimer(() => this.playAttractComputerTick(true), 82 + Math.random() * 90, 'attract-echo');
                         scheduleNext();
-                    }, delay);
+                    }, delay, 'attract-computer');
                     this.attractComputerAmbienceTimers.push(timer);
                 };
 
@@ -19008,7 +19022,7 @@ startMaxSwarmBeat(delaySeconds = 0) {
 
             stopAttractComputerAmbience() {
                 this.attractComputerAmbiencePlaying = false;
-                this.attractComputerAmbienceTimers.forEach(timer => clearTimeout(timer));
+                this.cancelAudioTimers(this.attractComputerAmbienceTimers);
                 this.attractComputerAmbienceTimers = [];
             }
 
@@ -19108,7 +19122,7 @@ startMaxSwarmBeat(delaySeconds = 0) {
                         gain2.gain.exponentialRampToValueAtTime(0.002, now + 0.36);
                     } catch (_) {}
 
-                    const timer = this.scheduleAudioTimer(pulse, 540);
+                    const timer = this.scheduleAudioTimer(pulse, 540, 'prism-relic-hum');
                     this.prismRelicHumTimers.push(timer);
                 };
 
@@ -19117,7 +19131,7 @@ startMaxSwarmBeat(delaySeconds = 0) {
 
             stopPrismRelicHum() {
                 this.prismRelicHumPlaying = false;
-                this.prismRelicHumTimers.forEach(timer => clearTimeout(timer));
+                this.cancelAudioTimers(this.prismRelicHumTimers);
                 this.prismRelicHumTimers = [];
 
                 this.prismRelicHumOscillators.forEach(osc => {
@@ -19524,7 +19538,7 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 this.stopMaxSwarmBeat();
                 this.setMaxSwarmBeatIntensity(0);
                 this.backgroundMusicPlaying = false;
-                this.backgroundTimers.forEach(timer => clearTimeout(timer));
+                this.cancelAudioTimers(this.backgroundTimers);
                 this.backgroundTimers = [];
 
                 const now = this.ctx ? this.ctx.currentTime : 0;
