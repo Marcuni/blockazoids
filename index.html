@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Trackpad Prototype p012: Fixes the visual gameplay grid so its cell spacing derives from the reduced playfield grid unit while preserving the architecture-safe global playfield scale and unchanged HUD sizing.
+Trackpad Prototype p013: Replaces the Orb's positional afterimages with a compact arcade-vector trail: a bright attached dash followed by progressively smaller, dimmer phosphor marks that align instantly with movement direction and fade rapidly at rest. Retains the p012 architecture-safe reduced playfield and corrected grid scale.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="trackpad-p012">
+<html data-build-version="trackpad-p013">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -6169,29 +6169,34 @@ Font License Notices
         }
 
 
-        /* Trackpad Prototype p010 — pooled Vector phosphor motion trails (retained in p011).
-           These are true positional afterimages, not a box-shadow transition:
-           - Orb: 48ms lifetime, 11% starting opacity, sampled no faster than every 24ms
-           - Block-A-Zoids: 42ms lifetime, 5.5% starting opacity, sampled no faster than every 38ms
-           - Fixed pools: 4 Orb ghosts + 20 enemy ghosts; no per-frame DOM creation
-           - Vector preset only; CRT and Off keep trails fully disabled
-           - No trails on the grid, crystals, connection lines, or other static objects. */
+        /* Trackpad Prototype p013 — pooled arcade-vector motion trails.
+           Orb trail design:
+           - One bright phosphor dash visually touches the Orb's rear edge.
+           - Seven following marks taper from short dashes into tiny separated dots.
+           - Direction follows the newest movement vector immediately.
+           - Trail spacing grows modestly with speed but remains compact.
+           - The complete trail fades rapidly when movement stops.
+           Enemy afterimages retain the restrained p010 behavior.
+           Fixed pools prevent live-game DOM creation or removal. */
         .vector-phosphor-trail {
             position: absolute;
             pointer-events: none;
             opacity: 0;
             background: currentColor;
             contain: layout style paint;
-            will-change: opacity;
+            transform-origin: center;
         }
 
         .vector-phosphor-trail.is-player {
             z-index: 2;
             color: #fff;
-            border-radius: 50%;
+            background: #fff;
+            border-radius: 999px;
             box-shadow:
-                0 0 2px rgba(255,255,255,0.82),
-                0 0 6px rgba(255,255,255,0.30);
+                0 0 2px rgba(255,255,255,0.96),
+                0 0 5px rgba(255,255,255,0.54),
+                0 0 10px rgba(255,255,255,0.16);
+            will-change: left, top, width, height, transform, opacity;
         }
 
         .vector-phosphor-trail.is-enemy {
@@ -6201,6 +6206,7 @@ Font License Notices
             box-shadow:
                 0 0 2px currentColor,
                 0 0 5px color-mix(in srgb, currentColor 22%, transparent);
+            will-change: opacity;
         }
 
         #gameContainer:not(.crt-enabled) .vector-phosphor-trail,
@@ -6501,7 +6507,7 @@ Font License Notices
     <button id="startButton" type="button" hidden aria-label="Start game"></button>
 
     <script>
-        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'trackpad-p012'}`;
+        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'trackpad-p013'}`;
 
         // Central diagnostic feature flags. Change values here before loading the page to isolate systems.
         const GAME_FEATURE_FLAGS = window.BLOCKAZOIDS_FEATURE_FLAGS = {
@@ -6714,13 +6720,16 @@ Font License Notices
                 crtEventsMs: Object.freeze({ gridlock: 540, zap: 440, death: 1320, restore: 580 })
             }),
             vectorMonitor: Object.freeze({
-                // Restrained Asteroids-style phosphor persistence. Fixed pools prevent gameplay DOM churn.
-                playerTrailPoolSize: 4,
+                // Compact arcade-vector trail for the Orb plus restrained enemy afterimages.
+                // All objects come from fixed pools so live gameplay creates no trail DOM nodes.
+                playerTrailPoolSize: 8,
+                playerTrailMinDistancePx: 0.35,
+                playerTrailReferenceSpeedRatio: 0.0045,
+                playerTrailHoldMs: 18,
+                playerTrailFadeMs: 108,
+                playerTrailMinGapPx: 1.15,
+                playerTrailMaxGapPx: 2.85,
                 enemyTrailPoolSize: 20,
-                playerTrailDurationMs: 48,
-                playerTrailOpacity: 0.11,
-                playerTrailMinIntervalMs: 24,
-                playerTrailMinDistancePx: 2.5,
                 enemyTrailDurationMs: 42,
                 enemyTrailOpacity: 0.055,
                 enemyTrailMinIntervalMs: 38,
@@ -8020,7 +8029,7 @@ Font License Notices
 
                 // Game objects and state
                 this.gestures = null;                  // Full-surface gesture owner (attached after DOM listeners are prepared)
-                this.vectorTrail = new VectorPhosphorTrailRenderer(this); // Fixed-pool Vector phosphor afterimages
+                this.vectorTrail = new VectorPhosphorTrailRenderer(this); // Fixed-pool Orb vector wake + enemy phosphor afterimages
                 this.player = new Player(this);       // Player instance
                 this.enemies = [];                    // Array of active enemies
                 this.explosions = [];                 // Array of active explosions
@@ -15342,15 +15351,29 @@ Font License Notices
         }
 
 
-        // Fixed-pool positional afterimages for the Vector monitor preset.
-        // The pool avoids creating or removing DOM nodes during live gameplay.
+        // Fixed-pool arcade-vector trail for the Orb and positional afterimages for enemies.
+        // The Orb pool is continuously reshaped into a short tapered dash-and-dot wake.
         class VectorPhosphorTrailRenderer {
             constructor(game) {
                 this.game = game;
                 this.config = GAME_CONFIG.vectorMonitor;
-                this.playerLastSampleAt = 0;
                 this.playerPool = this.createPool('player', this.config.playerTrailPoolSize);
                 this.enemyPool = this.createPool('enemy', this.config.enemyTrailPoolSize);
+                this.playerState = this.createEmptyPlayerState();
+            }
+
+            createEmptyPlayerState() {
+                return {
+                    visible: false,
+                    centerX: 0,
+                    centerY: 0,
+                    size: 0,
+                    directionX: 0,
+                    directionY: 0,
+                    speedLevel: 0,
+                    lastRecordAt: 0,
+                    lastMotionAt: 0
+                };
             }
 
             createPool(kind, count) {
@@ -15396,25 +15419,42 @@ Font License Notices
                 element.style.width = `${size}px`;
                 element.style.height = `${size}px`;
                 element.style.color = color;
+                element.style.transform = 'none';
                 element.style.opacity = `${startOpacity}`;
                 if (kind === 'enemy') element.style.borderRadius = '0';
             }
 
             recordPlayerMotion(previousX, previousY, nextX, nextY, size, movedDistance, timestamp = performance.now()) {
                 if (!this.isEnabled() || movedDistance < this.config.playerTrailMinDistancePx) return;
-                if (timestamp - this.playerLastSampleAt < this.config.playerTrailMinIntervalMs) return;
-                this.playerLastSampleAt = timestamp;
-                this.activateGhost(
-                    this.playerPool,
-                    'player',
-                    previousX,
-                    previousY,
-                    size,
-                    '#fff',
-                    timestamp,
-                    this.config.playerTrailDurationMs,
-                    this.config.playerTrailOpacity
+
+                const deltaX = nextX - previousX;
+                const deltaY = nextY - previousY;
+                const safeDistance = Math.max(0.0001, movedDistance);
+                const priorRecordAt = this.playerState.lastRecordAt;
+                const sampleMs = priorRecordAt > 0
+                    ? Math.max(4, Math.min(80, timestamp - priorRecordAt))
+                    : 16.67;
+                const speedPxPerMs = movedDistance / sampleMs;
+                const referenceSpeed = Math.max(
+                    0.001,
+                    this.game.PLAYFIELD_SIZE * this.config.playerTrailReferenceSpeedRatio
                 );
+                const measuredSpeedLevel = Math.max(0, Math.min(1, speedPxPerMs / referenceSpeed));
+                const restarting = !this.playerState.lastMotionAt ||
+                    timestamp - this.playerState.lastMotionAt > this.config.playerTrailFadeMs;
+
+                this.playerState.visible = true;
+                this.playerState.centerX = nextX + size / 2;
+                this.playerState.centerY = nextY + size / 2;
+                this.playerState.size = size;
+                // Deliberately unsmoothed: the trail must pivot with the newest Orb vector immediately.
+                this.playerState.directionX = deltaX / safeDistance;
+                this.playerState.directionY = deltaY / safeDistance;
+                this.playerState.speedLevel = restarting
+                    ? measuredSpeedLevel
+                    : Math.max(measuredSpeedLevel, this.playerState.speedLevel * 0.54 + measuredSpeedLevel * 0.46);
+                this.playerState.lastRecordAt = timestamp;
+                this.playerState.lastMotionAt = timestamp;
             }
 
             recordEnemyMotion(enemy, previousX, previousY, movedDistance, timestamp = performance.now()) {
@@ -15440,8 +15480,70 @@ Font License Notices
                     this.clear();
                     return;
                 }
-                this.updatePool(this.playerPool, timestamp);
+                this.renderPlayerTrail(timestamp);
                 this.updatePool(this.enemyPool, timestamp);
+            }
+
+            renderPlayerTrail(timestamp) {
+                const state = this.playerState;
+                if (!state.visible || !state.lastMotionAt || state.size <= 0) {
+                    this.hidePlayerTrail();
+                    return;
+                }
+
+                const idleAge = Math.max(0, timestamp - state.lastMotionAt);
+                const fadeStart = this.config.playerTrailHoldMs;
+                const fadeEnd = fadeStart + this.config.playerTrailFadeMs;
+                if (idleAge >= fadeEnd) {
+                    state.visible = false;
+                    this.hidePlayerTrail();
+                    return;
+                }
+
+                const fadeLevel = idleAge <= fadeStart
+                    ? 1
+                    : Math.max(0, 1 - (idleAge - fadeStart) / this.config.playerTrailFadeMs);
+                const speedLevel = Math.max(0, Math.min(1, state.speedLevel));
+                const scale = Math.max(0.68, state.size / 20);
+                const angle = Math.atan2(state.directionY, state.directionX) * 180 / Math.PI;
+                const segmentWidths = [7.8, 5.5, 4.0, 3.0, 2.25, 1.75, 1.35, 1.05];
+                const segmentHeights = [3.7, 2.8, 2.25, 1.85, 1.55, 1.30, 1.10, 0.95];
+                const segmentOpacities = [0.98, 0.76, 0.56, 0.39, 0.26, 0.17, 0.105, 0.06];
+                const gapBase = this.config.playerTrailMinGapPx +
+                    (this.config.playerTrailMaxGapPx - this.config.playerTrailMinGapPx) * speedLevel;
+                const speedWidthBoost = 0.92 + speedLevel * 0.18;
+                let cursor = Math.max(0, state.size / 2 - 0.35);
+
+                this.playerPool.forEach((segment, index) => {
+                    const element = segment.element;
+                    const width = Math.max(0.85, segmentWidths[index] * scale * speedWidthBoost);
+                    const height = Math.max(0.75, segmentHeights[index] * scale);
+                    const centerDistance = cursor + width / 2;
+                    const centerX = state.centerX - state.directionX * centerDistance;
+                    const centerY = state.centerY - state.directionY * centerDistance;
+                    const tailAttenuation = 1 - index / Math.max(1, this.playerPool.length - 1) * 0.12;
+                    const opacity = segmentOpacities[index] * fadeLevel * tailAttenuation;
+
+                    segment.active = opacity > 0.002;
+                    element.style.left = `${centerX}px`;
+                    element.style.top = `${centerY}px`;
+                    element.style.width = `${width}px`;
+                    element.style.height = `${height}px`;
+                    element.style.color = '#fff';
+                    element.style.borderRadius = `${Math.max(0.5, height / 2)}px`;
+                    element.style.transform = `translate(-50%, -50%) rotate(${angle}deg)`;
+                    element.style.opacity = `${opacity}`;
+
+                    const wideningGap = gapBase + index * (0.24 + speedLevel * 0.16);
+                    cursor += width + wideningGap;
+                });
+            }
+
+            hidePlayerTrail() {
+                this.playerPool.forEach(segment => {
+                    segment.active = false;
+                    segment.element.style.opacity = '0';
+                });
             }
 
             updatePool(pool, timestamp) {
@@ -15459,7 +15561,7 @@ Font License Notices
             }
 
             clear() {
-                this.playerLastSampleAt = 0;
+                this.playerState = this.createEmptyPlayerState();
                 [...this.playerPool, ...this.enemyPool].forEach(ghost => {
                     ghost.active = false;
                     ghost.bornAt = 0;
