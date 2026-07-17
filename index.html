@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Trackpad Prototype p022: Unifies all four lower menu controls to the Star control footprint, reduces and bolds menu titles, and enlarges the three Cosmic Zap indicators while preserving the p021 input and game-state architecture.
+Trackpad Prototype p023: Fixes completed-grid detection on responsive fractional grid sizes by storing crystal topology as integer grid coordinates, while preserving the p022 unified menu/HUD layout and game-state architecture.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="trackpad-p022">
+<html data-build-version="trackpad-p023">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -7131,7 +7131,7 @@ Font License Notices
     </div>
 
     <script>
-        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'trackpad-p021'}`;
+        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'trackpad-p023'}`;
 
         // Central diagnostic feature flags. Change values here before loading the page to isolate systems.
         const GAME_FEATURE_FLAGS = window.BLOCKAZOIDS_FEATURE_FLAGS = {
@@ -9905,6 +9905,7 @@ Font License Notices
 
             applyResponsiveViewportUpdate(reason = 'resize') {
                 const oldSize = Number(this.PLAYFIELD_SIZE) || 0;
+                const oldGridSize = Number(this.GRID_SIZE) || (oldSize ? oldSize / GAME_CONFIG.playfield.cells : 0);
                 const oldPlayerSize = Number(this.PLAYER_SIZE) || 20;
                 const desiredLayout = this.resolveResponsivePlayfieldLayout();
                 const desiredSize = desiredLayout.playfieldSize;
@@ -9951,29 +9952,59 @@ Font License Notices
                 });
 
                 (this.crystals || []).forEach(crystal => {
-                    scaleEntityAroundCenter(crystal, this.CRYSTAL_SIZE);
+                    const oldCrystalSize = Number(crystal.size) || oldPlayerSize / 2;
+                    const oldCenterX = (Number(crystal.x) || 0) + oldCrystalSize / 2;
+                    const oldCenterY = (Number(crystal.y) || 0) + oldCrystalSize / 2;
+                    const col = oldGridSize ? Math.round(oldCenterX / oldGridSize) : 0;
+                    const row = oldGridSize ? Math.round(oldCenterY / oldGridSize) : 0;
+                    crystal.size = this.CRYSTAL_SIZE;
+                    crystal.x = col * this.GRID_SIZE - this.CRYSTAL_SIZE / 2;
+                    crystal.y = row * this.GRID_SIZE - this.CRYSTAL_SIZE / 2;
                     crystal.updatePosition();
                 });
 
-                this.collectedPositions = (this.collectedPositions || []).map(position => ({
-                    x: (Number(position.x) || 0) * ratio,
-                    y: (Number(position.y) || 0) * ratio
-                }));
+                // Crystal connections are grid topology, not arbitrary pixels. Preserve their
+                // integer row/column identity across responsive resizes and derive pixels from it.
+                this.collectedPositions = (this.collectedPositions || []).map(position => {
+                    const col = Number.isInteger(position.col)
+                        ? position.col
+                        : (oldGridSize ? Math.round((Number(position.x) || 0) / oldGridSize) : 0);
+                    const row = Number.isInteger(position.row)
+                        ? position.row
+                        : (oldGridSize ? Math.round((Number(position.y) || 0) / oldGridSize) : 0);
+                    return this.createGridPoint(col, row);
+                });
 
                 (this.lines || []).forEach(line => {
-                    line.start = { x: line.start.x * ratio, y: line.start.y * ratio };
-                    line.end = { x: line.end.x * ratio, y: line.end.y * ratio };
-                    const horizontal = Math.abs(line.start.y - line.end.y) < 0.5;
+                    const normalizeEndpoint = endpoint => {
+                        const col = Number.isInteger(endpoint.col)
+                            ? endpoint.col
+                            : (oldGridSize ? Math.round((Number(endpoint.x) || 0) / oldGridSize) : 0);
+                        const row = Number.isInteger(endpoint.row)
+                            ? endpoint.row
+                            : (oldGridSize ? Math.round((Number(endpoint.y) || 0) / oldGridSize) : 0);
+                        return this.createGridPoint(col, row);
+                    };
+                    line.start = normalizeEndpoint(line.start);
+                    line.end = normalizeEndpoint(line.end);
+                    const horizontal = line.start.row === line.end.row;
                     line.element.style.left = `${Math.min(line.start.x, line.end.x)}px`;
                     line.element.style.top = `${Math.min(line.start.y, line.end.y)}px`;
-                    line.element.style.width = horizontal ? `${Math.abs(line.end.x - line.start.x)}px` : `${this.LINE_THICKNESS}px`;
-                    line.element.style.height = horizontal ? `${this.LINE_THICKNESS}px` : `${Math.abs(line.end.y - line.start.y)}px`;
+                    line.element.style.width = horizontal ? `${this.GRID_SIZE}px` : `${this.LINE_THICKNESS}px`;
+                    line.element.style.height = horizontal ? `${this.LINE_THICKNESS}px` : `${this.GRID_SIZE}px`;
                 });
 
                 if (this.container) {
                     this.container.querySelectorAll('.filled-square').forEach(square => {
-                        square.style.left = `${(parseFloat(square.style.left) || 0) * ratio}px`;
-                        square.style.top = `${(parseFloat(square.style.top) || 0) * ratio}px`;
+                        const col = Number.parseInt(square.dataset.gridCol, 10);
+                        const row = Number.parseInt(square.dataset.gridRow, 10);
+                        if (Number.isInteger(col) && Number.isInteger(row)) {
+                            square.style.left = `${col * this.GRID_SIZE}px`;
+                            square.style.top = `${row * this.GRID_SIZE}px`;
+                        } else {
+                            square.style.left = `${(parseFloat(square.style.left) || 0) * ratio}px`;
+                            square.style.top = `${(parseFloat(square.style.top) || 0) * ratio}px`;
+                        }
                         square.style.width = `${this.GRID_SIZE}px`;
                         square.style.height = `${this.GRID_SIZE}px`;
                     });
@@ -15084,7 +15115,10 @@ Font License Notices
             }
 
             collectCrystalAtIndex(index, crystal) {
-                const pos = { x: crystal.x + crystal.size / 2, y: crystal.y + crystal.size / 2 };
+                const pos = this.createGridPointFromPixels(
+                    crystal.x + crystal.size / 2,
+                    crystal.y + crystal.size / 2
+                );
                 this.collectedPositions.push(pos);
                 this.connectToNearestIntersection(pos);
                 crystal.element.remove();
@@ -15172,94 +15206,153 @@ Font License Notices
                 }
             }
 
-            // Connect collected crystal to nearest grid intersection
+            // Grid topology is stored as integer columns and rows. Pixel coordinates are always
+            // derived from that topology so responsive fractional grid sizes cannot break adjacency.
+            createGridPoint(col, row) {
+                const gridCol = Math.round(Number(col) || 0);
+                const gridRow = Math.round(Number(row) || 0);
+                return {
+                    col: gridCol,
+                    row: gridRow,
+                    x: gridCol * this.GRID_SIZE,
+                    y: gridRow * this.GRID_SIZE
+                };
+            }
+
+            createGridPointFromPixels(x, y) {
+                return this.createGridPoint(
+                    Math.round((Number(x) || 0) / this.GRID_SIZE),
+                    Math.round((Number(y) || 0) / this.GRID_SIZE)
+                );
+            }
+
+            normalizeGridPoint(point) {
+                if (point && Number.isInteger(point.col) && Number.isInteger(point.row)) {
+                    return this.createGridPoint(point.col, point.row);
+                }
+                return this.createGridPointFromPixels(point?.x, point?.y);
+            }
+
+            hasCollectedGridPoint(point) {
+                const target = this.normalizeGridPoint(point);
+                return this.collectedPositions.some(position => {
+                    const collected = this.normalizeGridPoint(position);
+                    return collected.col === target.col && collected.row === target.row;
+                });
+            }
+
+            hasGridLine(startPoint, endPoint) {
+                const start = this.normalizeGridPoint(startPoint);
+                const end = this.normalizeGridPoint(endPoint);
+                return this.lines.some(line => {
+                    const lineStart = this.normalizeGridPoint(line.start);
+                    const lineEnd = this.normalizeGridPoint(line.end);
+                    return (
+                        lineStart.col === start.col && lineStart.row === start.row &&
+                        lineEnd.col === end.col && lineEnd.row === end.row
+                    ) || (
+                        lineStart.col === end.col && lineStart.row === end.row &&
+                        lineEnd.col === start.col && lineEnd.row === start.row
+                    );
+                });
+            }
+
+            // Connect a collected crystal to neighboring collected grid intersections.
             connectToNearestIntersection(currentPos) {
-                const gridSize = this.GRID_SIZE; // Grid cell size
-                const directions = [ // Possible connection directions
-                    { dx: 0, dy: -gridSize, horizontal: false }, // Up
-                    { dx: 0, dy: gridSize, horizontal: false },  // Down
-                    { dx: -gridSize, dy: 0, horizontal: true },  // Left
-                    { dx: gridSize, dy: 0, horizontal: true }    // Right
+                const current = this.normalizeGridPoint(currentPos);
+                const directions = [
+                    { dc: 0, dr: -1, horizontal: false }, // Up
+                    { dc: 0, dr: 1, horizontal: false },  // Down
+                    { dc: -1, dr: 0, horizontal: true },  // Left
+                    { dc: 1, dr: 0, horizontal: true }    // Right
                 ];
 
-                directions.forEach(dir => {
-                    const targetPos = { x: currentPos.x + dir.dx, y: currentPos.y + dir.dy };
-                    if (this.collectedPositions.some(pos => pos.x === targetPos.x && pos.y === targetPos.y)) {
-                        this.drawLine(currentPos, targetPos, dir.horizontal); // Draw connection line
-                        this.checkForCompletedSquare(currentPos, targetPos); // Check for square
+                directions.forEach(direction => {
+                    const target = this.createGridPoint(
+                        current.col + direction.dc,
+                        current.row + direction.dr
+                    );
+                    if (this.hasCollectedGridPoint(target)) {
+                        this.drawLine(current, target, direction.horizontal);
+                        this.checkForCompletedSquare(current, target);
                     }
                 });
             }
 
-            // Draw a connection line between two points
+            // Draw a connection line between two canonical grid points.
             drawLine(startPos, endPos, horizontal) {
+                const start = this.normalizeGridPoint(startPos);
+                const end = this.normalizeGridPoint(endPos);
+                if (this.hasGridLine(start, end)) return;
+
                 const line = document.createElement('div');
                 line.className = 'connection-line';
-                line.style.left = `${Math.min(startPos.x, endPos.x)}px`;
-                line.style.top = `${Math.min(startPos.y, endPos.y)}px`;
+                line.style.left = `${Math.min(start.x, end.x)}px`;
+                line.style.top = `${Math.min(start.y, end.y)}px`;
                 if (horizontal) {
-                    line.style.width = `${this.GRID_SIZE}px`; // Horizontal line
+                    line.style.width = `${this.GRID_SIZE}px`;
                     line.style.height = `${this.LINE_THICKNESS}px`;
                 } else {
-                    line.style.width = `${this.LINE_THICKNESS}px`; // Vertical line
+                    line.style.width = `${this.LINE_THICKNESS}px`;
                     line.style.height = `${this.GRID_SIZE}px`;
                 }
                 this.container.appendChild(line);
-                this.lines.push({ start: startPos, end: endPos, element: line }); // Store line
+                this.lines.push({ start, end, element: line });
             }
 
-            // Check if a completed square is formed
+            // Check whether the new line closes either adjacent one-cell square.
             checkForCompletedSquare(startPos, endPos) {
-                const gridSize = this.GRID_SIZE;
-                const minX = Math.min(startPos.x, endPos.x);
-                const minY = Math.min(startPos.y, endPos.y);
-                const maxX = Math.max(startPos.x, endPos.x);
-                const maxY = Math.max(startPos.y, endPos.y);
+                const start = this.normalizeGridPoint(startPos);
+                const end = this.normalizeGridPoint(endPos);
+                const minCol = Math.min(start.col, end.col);
+                const minRow = Math.min(start.row, end.row);
 
-                const potentialSquares = []; // Possible square starting points
-                if (startPos.x === endPos.x) { // Vertical line
-                    potentialSquares.push({ x: minX - gridSize, y: minY });
-                    potentialSquares.push({ x: minX, y: minY });
-                } else { // Horizontal line
-                    potentialSquares.push({ x: minX, y: minY - gridSize });
-                    potentialSquares.push({ x: minX, y: minY });
+                const potentialSquares = [];
+                if (start.col === end.col) {
+                    potentialSquares.push({ col: minCol - 1, row: minRow });
+                    potentialSquares.push({ col: minCol, row: minRow });
+                } else {
+                    potentialSquares.push({ col: minCol, row: minRow - 1 });
+                    potentialSquares.push({ col: minCol, row: minRow });
                 }
 
                 potentialSquares.forEach(square => {
-                    const corners = [ // Corners of potential square
-                        { x: square.x, y: square.y },
-                        { x: square.x + gridSize, y: square.y },
-                        { x: square.x, y: square.y + gridSize },
-                        { x: square.x + gridSize, y: square.y + gridSize }
+                    const corners = [
+                        this.createGridPoint(square.col, square.row),
+                        this.createGridPoint(square.col + 1, square.row),
+                        this.createGridPoint(square.col, square.row + 1),
+                        this.createGridPoint(square.col + 1, square.row + 1)
                     ];
-                    if (corners.every(corner => this.collectedPositions.some(pos => pos.x === corner.x && pos.y === corner.y))) { // All corners collected
-                        const sides = [ // Sides of the square
-                            { start: corners[0], end: corners[1] },
-                            { start: corners[1], end: corners[3] },
-                            { start: corners[2], end: corners[3] },
-                            { start: corners[0], end: corners[2] }
-                        ];
-                        if (sides.every(side => this.lines.some(line => // All sides connected
-                            (line.start.x === side.start.x && line.start.y === side.start.y && line.end.x === side.end.x && line.end.y === side.end.y) ||
-                            (line.start.x === side.end.x && line.start.y === side.end.y && line.end.x === side.start.x && line.end.y === side.start.y)
-                        ))) {
-                            this.fillSquare(square.x, square.y); // Fill completed square
-                        }
+                    if (!corners.every(corner => this.hasCollectedGridPoint(corner))) return;
+
+                    const sides = [
+                        { start: corners[0], end: corners[1] },
+                        { start: corners[1], end: corners[3] },
+                        { start: corners[2], end: corners[3] },
+                        { start: corners[0], end: corners[2] }
+                    ];
+                    if (sides.every(side => this.hasGridLine(side.start, side.end))) {
+                        this.fillSquare(square.col, square.row);
                     }
                 });
             }
 
             // Fill a completed square visually only; no square score bonus.
-            fillSquare(x, y) {
+            fillSquare(col, row) {
                 const existingSquares = Array.from(this.container.getElementsByClassName('filled-square'));
-                if (!existingSquares.some(square => // Check if square already filled
-                    parseInt(square.style.left) === x && parseInt(square.style.top) === y)) {
-                    const square = document.createElement('div');
-                    square.className = 'filled-square';
-                    square.style.left = `${x}px`;
-                    square.style.top = `${y}px`;
-                    this.container.appendChild(square);
-                }
+                const alreadyFilled = existingSquares.some(square =>
+                    Number.parseInt(square.dataset.gridCol, 10) === col &&
+                    Number.parseInt(square.dataset.gridRow, 10) === row
+                );
+                if (alreadyFilled) return;
+
+                const square = document.createElement('div');
+                square.className = 'filled-square';
+                square.dataset.gridCol = `${col}`;
+                square.dataset.gridRow = `${row}`;
+                square.style.left = `${col * this.GRID_SIZE}px`;
+                square.style.top = `${row * this.GRID_SIZE}px`;
+                this.container.appendChild(square);
             }
 
             // Update enemy colors to match current crystal color
