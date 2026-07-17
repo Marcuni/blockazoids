@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Trackpad Prototype p013: Removes gameplay pausing, limits menu access to Game Over, ends live runs when the app is backgrounded, and updates Prism Relic timing and reward.
+Trackpad Prototype p014: Centers the four Game Over menu shortcuts on grid squares 4/7, banks Super Gridlock rewards until sector completion, and bolds the High Score label and value.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="trackpad-p013">
+<html data-build-version="trackpad-p014">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -6236,7 +6236,45 @@ Font License Notices
         }
 
 
-</style>
+
+        /* p014: Center the unchanged menu-button size on 1-based gameplay grid cells (4,4), (7,4), (4,7), and (7,7). */
+        #pauseSettingsButton {
+            left: calc(var(--playfield-grid-size, 60px) * 3.5 - var(--grid-size, 60px) * 0.5);
+            top: calc(var(--playfield-grid-size, 60px) * 3.5 - var(--grid-size, 60px) * 0.5);
+            right: auto;
+            bottom: auto;
+        }
+
+        #pauseHowToButton {
+            left: calc(var(--playfield-grid-size, 60px) * 6.5 - var(--grid-size, 60px) * 0.5);
+            top: calc(var(--playfield-grid-size, 60px) * 3.5 - var(--grid-size, 60px) * 0.5);
+            right: auto;
+            bottom: auto;
+        }
+
+        #pauseScoresButton {
+            left: calc(var(--playfield-grid-size, 60px) * 3.5 - var(--grid-size, 60px) * 0.5);
+            top: calc(var(--playfield-grid-size, 60px) * 6.5 - var(--grid-size, 60px) * 0.5);
+            right: auto;
+            bottom: auto;
+        }
+
+        #pauseLaunchSetupButton {
+            left: calc(var(--playfield-grid-size, 60px) * 6.5 - var(--grid-size, 60px) * 0.5);
+            top: calc(var(--playfield-grid-size, 60px) * 6.5 - var(--grid-size, 60px) * 0.5);
+            right: auto;
+            bottom: auto;
+        }
+
+        /* p014: Make the High Score title and record value visibly bold. */
+        #scoringPanel #scoringHighScoreLabel,
+        #scoringPanel #scoringHighScoreValue,
+        #highScorePanel > .menu-panel-title,
+        #highScorePanelValue {
+            font-weight: 700 !important;
+        }
+
+    </style>
 </head>
 <body class="crt-phosphor-calibration">
     <div id="splashScreen" aria-label="Block-A-Zoids intro">
@@ -6347,7 +6385,8 @@ Font License Notices
                         <div class="scoring-row"><span>Color Complete</span><span>100/ea</span></div>
                         <div class="scoring-row"><span>Time Alive</span><span>1/sec</span></div>
                         <div class="scoring-section-title">EXTRA</div>
-                        <div class="scoring-row"><span>Gridlock Bonus <span class="scoring-label-note">(Relic)</span></span><span>300</span></div>
+                        <div class="scoring-row"><span>Gridlock Bonus <span class="scoring-label-note">(Relic, banked)</span></span><span>300</span></div>
+                        <div class="scoring-row"><span>Super Gridlock <span class="scoring-label-note">(banked)</span></span><span>500/750/1000</span></div>
                         <div class="scoring-row"><span>Cosmic Zaps <span class="scoring-label-note">(unused)</span></span><span>50/ea</span></div>
                         <div class="scoring-row"><span>Perfect Sector <span class="scoring-label-note">(no Zap)</span></span><span>100</span></div>
                     </section>
@@ -10998,12 +11037,15 @@ Font License Notices
                 }
             }
 
-            resetOvertimeState() {
+            resetOvertimeState(options = {}) {
+                const preserveBankedBonuses = options.preserveBankedBonuses === true;
                 this.clearOvertimeEnemyTimer();
                 this.setGridlockState({ overtimeActive: false });
                 this.overtimeEnemiesAdded = 0;
-                this.superGridlockBonusesThisSector = 0;
-                this.superGridlockBonusPointsThisSector = 0;
+                if (!preserveBankedBonuses) {
+                    this.superGridlockBonusesThisSector = 0;
+                    this.superGridlockBonusPointsThisSector = 0;
+                }
                 if (this.audio && this.audio.setMaxSwarmBeatIntensity) {
                     this.audio.setMaxSwarmBeatIntensity(0);
                 }
@@ -13694,7 +13736,6 @@ Font License Notices
                             ? 500
                             : (this.superGridlockBonusesThisSector === 2 ? 750 : 1000);
                         this.superGridlockBonusPointsThisSector += superGridlockPoints;
-                        this.addScore(superGridlockPoints);
                         if (this.ui && this.ui.flashSuperGridlockBonus) {
                             this.ui.flashSuperGridlockBonus(superGridlockPoints);
                         }
@@ -13859,10 +13900,11 @@ Font License Notices
             }
 
 
-            buildSectorBonusLines(unusedCosmicZapBonus, gridlockBonus, perfectSectorBonus, cycleBonus) {
+            buildSectorBonusLines(unusedCosmicZapBonus, gridlockBonus, superGridlockBonus, perfectSectorBonus, cycleBonus) {
                 const lines = [];
                 if (unusedCosmicZapBonus > 0) lines.push({ label: 'COSMIC ZAPS', value: unusedCosmicZapBonus });
                 if (gridlockBonus > 0) lines.push({ label: 'GRIDLOCK BONUS', value: gridlockBonus });
+                if (superGridlockBonus > 0) lines.push({ label: 'SUPER GRIDLOCK', value: superGridlockBonus });
                 if (perfectSectorBonus > 0) lines.push({ label: 'PERFECT SECTOR', value: perfectSectorBonus, highlight: true });
                 if (cycleBonus > 0) lines.push({ label: 'GAME CYCLE', value: cycleBonus });
                 return lines;
@@ -14067,15 +14109,17 @@ Font License Notices
 
                 const unusedCosmicZapBonus = this.cosmicZapsLeft * this.parameters.unusedCosmicZapBonus;
                 const gridlockBonus = this.prismRelicRecoveredThisSector ? this.parameters.gridlockBonus : 0;
+                const superGridlockBonus = this.superGridlockBonusPointsThisSector;
                 const perfectSectorBonus = this.cosmicZapPressure === 0 ? this.parameters.perfectSectorBonus : 0;
                 const cycleBonus = completedLevel >= this.MAX_LEVEL ? this.parameters.gameCycleBonus : 0;
-                const totalBonus = unusedCosmicZapBonus + gridlockBonus + perfectSectorBonus + cycleBonus;
-                const bonusLines = this.buildSectorBonusLines(unusedCosmicZapBonus, gridlockBonus, perfectSectorBonus, cycleBonus);
+                const totalBonus = unusedCosmicZapBonus + gridlockBonus + superGridlockBonus + perfectSectorBonus + cycleBonus;
+                const bonusLines = this.buildSectorBonusLines(unusedCosmicZapBonus, gridlockBonus, superGridlockBonus, perfectSectorBonus, cycleBonus);
                 this.finishTelemetrySector('completed', {
                     totalBonus,
                     unusedCosmicZapBonus,
                     survivalistBonus: 0,
                     gridlockBonus,
+                    superGridlockBonus,
                     perfectSectorBonus,
                     prismRelicBonus: gridlockBonus,
                     cycleBonus
@@ -14719,7 +14763,7 @@ Font License Notices
                     // Cosmic Zaps clear Overtime and cancel any uncollected Gridlock Relic attempt.
                     this.clearMaxSwarmCueTimer();
                     this.setGridlockState({ maxSwarmActive: false });
-                    this.resetOvertimeState();
+                    this.resetOvertimeState({ preserveBankedBonuses: true });
                     if (this.audio) {
                         this.audio.stopBackgroundMusic();
                         this.audio.startBackgroundMusic(this.level);
