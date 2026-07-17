@@ -6582,7 +6582,7 @@ Font License Notices
             display: none !important;
         }
 
-        /* Pause/Game Over shortcuts occupy the four corner panels of the lower HUD. */
+        /* Start/Pause/Game Over shortcuts occupy the four corner panels of the lower HUD. */
         #skinShell > #pauseGridMenu {
             inset: 0;
             width: 100%;
@@ -7202,7 +7202,7 @@ Font License Notices
         <div id="cycleNumberHud" class="skin-status-box" aria-label="Cycle">01</div>
     </div>
 
-    <div id="pauseGridMenu" aria-label="Pause and Game Over menu shortcuts">
+    <div id="pauseGridMenu" aria-label="Game menu shortcuts">
         <button id="pauseSettingsButton" class="pause-grid-button pause-grid-top-left" type="button" aria-label="Settings">
             <span class="pause-grid-icon gear-icon" aria-hidden="true"><svg viewBox="0 0 100 100" focusable="false"><g transform="translate(50 50)"><rect x="-8" y="-45" width="16" height="24" rx="2"/><rect x="-8" y="-45" width="16" height="24" rx="2" transform="rotate(45)"/><rect x="-8" y="-45" width="16" height="24" rx="2" transform="rotate(90)"/><rect x="-8" y="-45" width="16" height="24" rx="2" transform="rotate(135)"/><rect x="-8" y="-45" width="16" height="24" rx="2" transform="rotate(180)"/><rect x="-8" y="-45" width="16" height="24" rx="2" transform="rotate(225)"/><rect x="-8" y="-45" width="16" height="24" rx="2" transform="rotate(270)"/><rect x="-8" y="-45" width="16" height="24" rx="2" transform="rotate(315)"/><circle r="31"/><circle r="13" fill="#000"/></g></svg></span>
         </button>
@@ -11005,15 +11005,19 @@ Font License Notices
                 this.stopAttractComputerAmbience();
             }
 
+            isMenuContextAllowed() {
+                const pausedMenu = this.flow.is(GAME_FLOW_STATES.PAUSED) && this.isPaused;
+                const gameOverMenu = this.isGameOver && this.restartReady;
+                const startMenu = this.flow.is(GAME_FLOW_STATES.ATTRACT) && this.isStartScreenVisible();
+                return !!(startMenu || pausedMenu || gameOverMenu);
+            }
+
             isCornerMenuAvailable() {
                 if (!GAME_FEATURE_FLAGS.cornerMenus) return false;
                 const showingLevelSelect = !!(this.levelSelectWindow && this.levelSelectWindow.style.display === 'flex');
                 const blocked = this.splashIntroActive || showingLevelSelect || this.cycleTransitionActive || this.sectorTransitionActive ||
                                 this.showHudDuringSectorIntro || this.resumeCountdownActive || this.startInputLocked;
-                if (blocked) return false;
-                const pausedMenu = this.flow.is(GAME_FLOW_STATES.PAUSED) && this.isPaused;
-                const gameOverMenu = this.isGameOver && this.restartReady;
-                return !!(pausedMenu || gameOverMenu);
+                return !blocked && this.isMenuContextAllowed();
             }
 
             updatePauseGridMenu() {
@@ -11042,7 +11046,7 @@ Font License Notices
             }
 
             openPauseGridPanel(panelName) {
-                const menuContextAllowed = (this.flow.is(GAME_FLOW_STATES.PAUSED) && this.isPaused) || (this.isGameOver && this.restartReady);
+                const menuContextAllowed = this.isMenuContextAllowed();
                 if (!menuContextAllowed) return;
                 if (!this.pauseWindow || this.pauseWindow.style.display !== 'flex') return;
                 this.playUiClick();
@@ -11084,7 +11088,7 @@ Font License Notices
 
             handleContextButtonClick(action) {
                 if (!action) return;
-                const menuContextAllowed = (this.flow.is(GAME_FLOW_STATES.PAUSED) && this.isPaused) || (this.isGameOver && this.restartReady);
+                const menuContextAllowed = this.isMenuContextAllowed();
                 if (!menuContextAllowed) return;
                 if (this.cycleTransitionActive || this.showHudDuringSectorIntro || this.resumeCountdownActive || this.startInputLocked) return;
                 this.playUiClick();
@@ -11153,7 +11157,7 @@ Font License Notices
             }
 
             openMenuPanel(panelName) {
-                const menuContextAllowed = (this.flow.is(GAME_FLOW_STATES.PAUSED) && this.isPaused) || (this.isGameOver && this.restartReady);
+                const menuContextAllowed = this.isMenuContextAllowed();
                 if (!menuContextAllowed) return;
                 if (this.cycleTransitionActive || this.showHudDuringSectorIntro || this.resumeCountdownActive || this.startInputLocked) return;
                 this.enableShakeCosmicZap();
@@ -11517,9 +11521,9 @@ Font License Notices
 
 
             isAttractModeActive() {
-                const showingPause = this.pauseWindow && this.pauseWindow.style.display === 'flex';
+                const showingMenuPanel = !!this.getCurrentMenuContext();
                 const showingLevelSelect = this.levelSelectWindow && this.levelSelectWindow.style.display === 'flex';
-                return !!this.attractInterval && !this.active && !this.isPaused && !showingPause && !showingLevelSelect;
+                return !!this.attractInterval && !this.active && !this.isPaused && !showingMenuPanel && !showingLevelSelect;
             }
 
             isMarqueeEasterEggUnlocked() {
