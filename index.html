@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Trackpad Prototype p015: Adds the Style 3 vector-frame skin overlay, restores play/pause control, places score/zaps/play-pause across the top, and shows sector/cycle numbers below the playfield.
+Trackpad Prototype p016: Rebuilds the Style 3 skin as one responsive cabinet shell, aligns every live HUD element to the skin coordinate map, and moves pause/game-over menu shortcuts into the bottom HUD corners.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="trackpad-p014">
+<html data-build-version="trackpad-p016">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -6453,6 +6453,284 @@ Font License Notices
             top: auto !important;
         }
 
+
+        /* p016: one responsive cabinet coordinate system for skin, HUD, playfield, and menu controls. */
+        html, body {
+            width: 100%;
+            height: 100%;
+            min-height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background: #000;
+        }
+
+        body::before,
+        body::after {
+            display: none !important;
+            content: none !important;
+        }
+
+        #skinShell {
+            position: fixed;
+            left: 50%;
+            top: 50%;
+            width: var(--skin-width, min(100vw, 46.283vw));
+            height: var(--skin-height, min(100dvh, 216.061vw));
+            transform: translate(-50%, -50%);
+            overflow: visible;
+            isolation: isolate;
+            z-index: 1;
+            touch-action: none;
+        }
+
+        #skinFrameImage {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: fill;
+            display: block;
+            pointer-events: none;
+            user-select: none;
+            z-index: 0;
+        }
+
+        #skinShell > #scoreHud,
+        #skinShell > #cosmicZapHud,
+        #skinShell > #playfieldShell,
+        #skinShell > #bottomStatusHud,
+        #skinShell > #pauseGridMenu,
+        #skinShell > #startButton {
+            position: absolute;
+            margin: 0;
+        }
+
+        /* Main square: x=97, y=365, size=655 in the 853x1843 master art. */
+        #skinShell > #playfieldShell {
+            left: 11.371629%;
+            top: 19.804666%;
+            width: var(--playfield-render-size, 300px) !important;
+            height: var(--playfield-render-size, 300px) !important;
+            z-index: 2;
+        }
+
+        #playfieldShell > #gameContainer {
+            width: 100% !important;
+            height: 100% !important;
+        }
+
+        /* Top center score window. */
+        #skinShell > #scoreHud {
+            left: 25.087925%;
+            top: 5.805752%;
+            width: 49.824150%;
+            height: 10.037982%;
+            min-height: 0;
+            padding: 0 4%;
+            box-sizing: border-box;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 4;
+            pointer-events: none;
+            font-size: clamp(18px, calc(var(--skin-width, 360px) * 0.075), 42px);
+            letter-spacing: 2px;
+        }
+
+        #scoreHud > :not(#score):not(#tutorialHud) {
+            display: none !important;
+        }
+
+        #score {
+            margin: 0;
+            padding: 0;
+            min-width: 0;
+            max-width: 100%;
+            box-shadow: none !important;
+            border: 0;
+            text-align: center;
+            font-weight: 700;
+            line-height: 1;
+        }
+
+        /* Top right Zap window. */
+        #skinShell > #cosmicZapHud {
+            left: 76.318875%;
+            top: 7.813348%;
+            width: 20.046893%;
+            height: 8.735757%;
+            min-width: 0;
+            transform: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 4;
+            pointer-events: none;
+        }
+
+        #cosmicZapIndicators {
+            width: 100%;
+            height: 100%;
+            justify-content: center;
+            gap: 7%;
+        }
+
+        .cosmic-zap-icon {
+            width: 14%;
+            height: 34%;
+            min-width: 8px;
+            min-height: 16px;
+        }
+
+        /* Top left play/pause window. */
+        #skinShell > #startButton {
+            left: 5.744431%;
+            top: 8.301682%;
+            width: 14.888628%;
+            aspect-ratio: 1;
+            height: auto;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            background: transparent;
+            border: 0;
+            box-shadow: none;
+            font-family: "Orbitron", "Courier New", monospace;
+            font-size: clamp(22px, calc(var(--skin-width, 360px) * 0.085), 44px);
+            line-height: 1;
+            z-index: 5;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        #startButton.pause-visible {
+            font-size: clamp(18px, calc(var(--skin-width, 360px) * 0.069), 36px);
+        }
+
+        #startButton:focus,
+        #startButton:focus-visible {
+            outline: none;
+            color: #fff;
+            background: transparent;
+            box-shadow: none;
+        }
+
+        /* Bottom HUD live readouts share the shell map. */
+        #skinShell > #bottomStatusHud {
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 4;
+            pointer-events: none;
+            opacity: 1;
+            visibility: visible;
+            transition: opacity 0.12s linear, visibility 0.12s linear;
+        }
+
+        .skin-status-box {
+            position: absolute;
+            width: 16.647128%;
+            aspect-ratio: 1;
+            height: auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            font-family: "Orbitron", "Courier New", monospace;
+            font-size: clamp(18px, calc(var(--skin-width, 360px) * 0.070), 38px);
+            font-weight: 700;
+            line-height: 1;
+            letter-spacing: 1px;
+            text-shadow: 0 0 calc(var(--default-glow) * 0.8px) #fff;
+        }
+
+        #sectorNumberHud {
+            left: 6.447831%;
+            top: 61.801411%;
+        }
+
+        #cycleNumberHud {
+            right: 6.447831%;
+            top: 61.801411%;
+        }
+
+        #skinShell.skin-menu-open > #bottomStatusHud {
+            opacity: 0;
+            visibility: hidden;
+        }
+
+        #sectorProgressPanel {
+            display: none !important;
+        }
+
+        /* The same four shell slots are used during pause and ready Game Over. */
+        #skinShell > #pauseGridMenu {
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            display: none;
+            pointer-events: none;
+            z-index: 1200;
+        }
+
+        #skinShell > #pauseGridMenu.visible {
+            display: block;
+        }
+
+        #skinShell .pause-grid-button {
+            width: 12.309496%;
+            aspect-ratio: 1;
+            height: auto;
+            min-width: 0;
+            min-height: 0;
+            padding: 2.1%;
+            border: 1px solid #fff;
+            background: #fff;
+            color: #000;
+            pointer-events: auto;
+            z-index: 1201;
+        }
+
+        #pauseSettingsButton {
+            left: 8.089097% !important;
+            top: 62.235486% !important;
+            right: auto !important;
+            bottom: auto !important;
+        }
+
+        #pauseHowToButton {
+            left: 79.601407% !important;
+            top: 62.235486% !important;
+            right: auto !important;
+            bottom: auto !important;
+        }
+
+        #pauseScoresButton {
+            left: 9.964830% !important;
+            top: 81.172002% !important;
+            right: auto !important;
+            bottom: auto !important;
+        }
+
+        #pauseLaunchSetupButton {
+            left: 77.725674% !important;
+            top: 81.172002% !important;
+            right: auto !important;
+            bottom: auto !important;
+        }
+
+        /* Menu panels remain over the playfield; hardware shortcuts remain in the bottom HUD. */
+        #pauseWindow {
+            inset: 0;
+        }
+
+        #pauseWindow > #pauseGridMenu {
+            display: none !important;
+        }
+
     </style>
 </head>
 <body class="crt-phosphor-calibration">
@@ -6471,18 +6749,21 @@ Font License Notices
         <div id="stabilityReportBody"></div>
         <button id="stabilityReportDismiss" type="button">DISMISS REPORT</button>
     </div>
+    <div id="skinShell" aria-label="Block-A-Zoids vector cabinet">
+        <img id="skinFrameImage" src="blockazoids-skin-vector-frame.png" alt="" draggable="false" aria-hidden="true">
+
     <!-- Score display -->
     <div id="scoreHud">
         <div id="tutorialHud" role="status" aria-live="polite" aria-atomic="true"></div>
         <div class="hud-group" id="cycleHud" aria-live="polite"></div>
         <div id="score">0</div>
         <div id="highScoreHud">0</div>
-        <div class="hud-group" id="cosmicZapHud">
-            <div id="cosmicZapIndicators">
-                <div class="cosmic-zap-icon" id="cosmicZap1"></div>
-                <div class="cosmic-zap-icon" id="cosmicZap2"></div>
-                <div class="cosmic-zap-icon" id="cosmicZap3"></div>
-            </div>
+    </div>
+    <div class="hud-group" id="cosmicZapHud">
+        <div id="cosmicZapIndicators">
+            <div class="cosmic-zap-icon" id="cosmicZap1"></div>
+            <div class="cosmic-zap-icon" id="cosmicZap2"></div>
+            <div class="cosmic-zap-icon" id="cosmicZap3"></div>
         </div>
     </div>
     <!-- Main game container -->
@@ -6692,16 +6973,6 @@ Font License Notices
                 </div>
                 <button id="launchSetupBackButton" class="menu-back-button">Back</button>
             </div>
-            <div id="pauseGridMenu" aria-label="Game Over menu shortcuts">
-                <button id="pauseSettingsButton" class="pause-grid-button pause-grid-top-left" type="button" aria-label="Settings">
-                    <span class="pause-grid-icon gear-icon" aria-hidden="true"><svg viewBox="0 0 100 100" focusable="false"><g transform="translate(50 50)"><rect x="-8" y="-45" width="16" height="24" rx="2"/><rect x="-8" y="-45" width="16" height="24" rx="2" transform="rotate(45)"/><rect x="-8" y="-45" width="16" height="24" rx="2" transform="rotate(90)"/><rect x="-8" y="-45" width="16" height="24" rx="2" transform="rotate(135)"/><rect x="-8" y="-45" width="16" height="24" rx="2" transform="rotate(180)"/><rect x="-8" y="-45" width="16" height="24" rx="2" transform="rotate(225)"/><rect x="-8" y="-45" width="16" height="24" rx="2" transform="rotate(270)"/><rect x="-8" y="-45" width="16" height="24" rx="2" transform="rotate(315)"/><circle r="31"/><circle r="13" fill="#fff"/></g></svg></span>
-                </button>
-                <button id="pauseHowToButton" class="pause-grid-button pause-grid-top-right" type="button" aria-label="How to Play"><span class="pause-grid-symbol" aria-hidden="true">?</span></button>
-                <button id="pauseScoresButton" class="pause-grid-button pause-grid-bottom-left" type="button" aria-label="Scores"><span class="pause-grid-symbol pause-grid-star" aria-hidden="true">★</span></button>
-                <button id="pauseLaunchSetupButton" class="pause-grid-button pause-grid-bottom-right" type="button" aria-label="Launch Setup">
-                    <span class="launch-cycle-grid-icon" aria-hidden="true"></span>
-                </button>
-            </div>
         </div>
         <div id="levelSelectWindow">
             <div id="levelSelectTitle">SECTOR SELECT</div>
@@ -6719,11 +6990,23 @@ Font License Notices
         <div id="cycleNumberHud" class="skin-status-box" aria-label="Cycle">01</div>
     </div>
 
-    <!-- Hidden compatibility control. Full-surface gestures route through the canonical lifecycle methods. -->
+    <div id="pauseGridMenu" aria-label="Pause and Game Over menu shortcuts">
+        <button id="pauseSettingsButton" class="pause-grid-button pause-grid-top-left" type="button" aria-label="Settings">
+            <span class="pause-grid-icon gear-icon" aria-hidden="true"><svg viewBox="0 0 100 100" focusable="false"><g transform="translate(50 50)"><rect x="-8" y="-45" width="16" height="24" rx="2"/><rect x="-8" y="-45" width="16" height="24" rx="2" transform="rotate(45)"/><rect x="-8" y="-45" width="16" height="24" rx="2" transform="rotate(90)"/><rect x="-8" y="-45" width="16" height="24" rx="2" transform="rotate(135)"/><rect x="-8" y="-45" width="16" height="24" rx="2" transform="rotate(180)"/><rect x="-8" y="-45" width="16" height="24" rx="2" transform="rotate(225)"/><rect x="-8" y="-45" width="16" height="24" rx="2" transform="rotate(270)"/><rect x="-8" y="-45" width="16" height="24" rx="2" transform="rotate(315)"/><circle r="31"/><circle r="13" fill="#fff"/></g></svg></span>
+        </button>
+        <button id="pauseHowToButton" class="pause-grid-button pause-grid-top-right" type="button" aria-label="How to Play"><span class="pause-grid-symbol" aria-hidden="true">?</span></button>
+        <button id="pauseScoresButton" class="pause-grid-button pause-grid-bottom-left" type="button" aria-label="Scores"><span class="pause-grid-symbol pause-grid-star" aria-hidden="true">★</span></button>
+        <button id="pauseLaunchSetupButton" class="pause-grid-button pause-grid-bottom-right" type="button" aria-label="Launch Setup">
+            <span class="launch-cycle-grid-icon" aria-hidden="true"></span>
+        </button>
+    </div>
+
+    <!-- Full-surface gestures and the cabinet play/pause control share this canonical lifecycle command. -->
     <button id="startButton" type="button" aria-label="Start game">▶</button>
+    </div>
 
     <script>
-        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'trackpad-p015'}`;
+        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'trackpad-p016'}`;
 
         // Central diagnostic feature flags. Change values here before loading the page to isolate systems.
         const GAME_FEATURE_FLAGS = window.BLOCKAZOIDS_FEATURE_FLAGS = {
@@ -8061,6 +8344,7 @@ Font License Notices
 
                 // DOM element references
                 this.container = document.getElementById('gameContainer');
+                this.skinShell = document.getElementById('skinShell');
                 this.playfieldShell = document.getElementById('playfieldShell');
                 this.splashScreen = document.getElementById('splashScreen');
                 this.splashMarqueeImage = document.getElementById('splashMarqueeImage');
@@ -10419,13 +10703,16 @@ Font License Notices
                 const blocked = this.splashIntroActive || showingLevelSelect || this.cycleTransitionActive || this.sectorTransitionActive ||
                                 this.showHudDuringSectorIntro || this.resumeCountdownActive || this.startInputLocked;
                 if (blocked) return false;
-                return !!(this.isGameOver && this.restartReady);
+                const pausedMenu = this.flow.is(GAME_FLOW_STATES.PAUSED) && this.isPaused;
+                const gameOverMenu = this.isGameOver && this.restartReady;
+                return !!(pausedMenu || gameOverMenu);
             }
 
             updatePauseGridMenu() {
                 const menuAvailable = this.isCornerMenuAvailable();
                 if (this.pauseWindow) this.pauseWindow.style.display = menuAvailable ? 'flex' : 'none';
                 if (this.pauseGridMenu) this.pauseGridMenu.classList.toggle('visible', menuAvailable);
+                if (this.skinShell) this.skinShell.classList.toggle('skin-menu-open', menuAvailable);
 
                 if (this.pauseLaunchSetupButton) {
                     this.pauseLaunchSetupButton.setAttribute('aria-hidden', menuAvailable ? 'false' : 'true');
@@ -10447,7 +10734,8 @@ Font License Notices
             }
 
             openPauseGridPanel(panelName) {
-                if (!this.isGameOver || !this.restartReady) return;
+                const menuContextAllowed = (this.flow.is(GAME_FLOW_STATES.PAUSED) && this.isPaused) || (this.isGameOver && this.restartReady);
+                if (!menuContextAllowed) return;
                 if (!this.pauseWindow || this.pauseWindow.style.display !== 'flex') return;
                 this.playUiClick();
 
@@ -10488,7 +10776,8 @@ Font License Notices
 
             handleContextButtonClick(action) {
                 if (!action) return;
-                if (!this.isGameOver || !this.restartReady) return;
+                const menuContextAllowed = (this.flow.is(GAME_FLOW_STATES.PAUSED) && this.isPaused) || (this.isGameOver && this.restartReady);
+                if (!menuContextAllowed) return;
                 if (this.cycleTransitionActive || this.showHudDuringSectorIntro || this.resumeCountdownActive || this.startInputLocked) return;
                 this.playUiClick();
 
@@ -10556,7 +10845,8 @@ Font License Notices
             }
 
             openMenuPanel(panelName) {
-                if (!this.isGameOver || !this.restartReady) return;
+                const menuContextAllowed = (this.flow.is(GAME_FLOW_STATES.PAUSED) && this.isPaused) || (this.isGameOver && this.restartReady);
+                if (!menuContextAllowed) return;
                 if (this.cycleTransitionActive || this.showHudDuringSectorIntro || this.resumeCountdownActive || this.startInputLocked) return;
                 this.enableShakeCosmicZap();
 
@@ -11003,22 +11293,15 @@ Font License Notices
             resolveResponsivePlayfieldLayout() {
                 const config = GAME_CONFIG.playfield;
                 const cells = config.gridCellsPerSide;
-                const skinWidthToPlayfieldRatio = 853 / 662;
-                const skinHeightToPlayfieldRatio = 1843 / 662;
-                const availablePlayfieldFromSkinWidth = Math.max(cells, (window.innerWidth - 12) / skinWidthToPlayfieldRatio);
-                const availablePlayfieldFromSkinHeight = Math.max(cells, (window.innerHeight - 12) / skinHeightToPlayfieldRatio);
-                const targetPlayableSize = Math.max(cells, Math.min(config.maxBoardSize * config.presentationScale, availablePlayfieldFromSkinWidth, availablePlayfieldFromSkinHeight));
-                const maxFrameSizeFromSkin = Math.max(config.minBoardSize, Math.floor((targetPlayableSize / config.presentationScale) / cells) * cells);
-
-                const availableWidth = Math.max(config.minBoardSize,
-                    Math.min(config.maxBoardSize, window.innerWidth - config.viewportHorizontalInset, maxFrameSizeFromSkin));
-                const availableHeight = Math.max(config.minBoardSize,
-                    Math.min(config.maxBoardSize, window.innerHeight - config.viewportVerticalReserve, maxFrameSizeFromSkin));
-                const frameSize = Math.max(config.minBoardSize,
-                    Math.floor(Math.min(availableWidth, availableHeight) / cells) * cells);
-
-                const scaledSize = frameSize * config.presentationScale;
-                const playfieldSize = Math.max(cells, Math.round(scaledSize / cells) * cells);
+                const skinWidth = 853;
+                const skinHeight = 1843;
+                const skinPlayfieldSize = 655;
+                const viewportWidth = Math.max(1, window.innerWidth);
+                const viewportHeight = Math.max(1, window.innerHeight);
+                const skinScale = Math.min(viewportWidth / skinWidth, viewportHeight / skinHeight);
+                const targetPlayfieldSize = Math.max(cells, skinPlayfieldSize * skinScale);
+                const frameSize = Math.max(cells, Math.round((targetPlayfieldSize / config.presentationScale) / cells) * cells);
+                const playfieldSize = Math.max(cells, Math.round((frameSize * config.presentationScale) / cells) * cells);
                 const effectivePresentationScale = playfieldSize / frameSize;
 
                 return Object.freeze({
@@ -11027,7 +11310,9 @@ Font License Notices
                     uiGridSize: frameSize / cells,
                     gridSize: playfieldSize / cells,
                     gameplayScale: playfieldSize / config.designSize,
-                    effectivePresentationScale
+                    effectivePresentationScale,
+                    skinWidth: (playfieldSize * skinWidth) / skinPlayfieldSize,
+                    skinHeight: (playfieldSize * skinHeight) / skinPlayfieldSize
                 });
             }
 
@@ -11089,8 +11374,8 @@ Font License Notices
                 document.documentElement.style.setProperty('--playfield-presentation-scale', `${this.PLAYFIELD_PRESENTATION_SCALE}`);
                 document.documentElement.style.setProperty('--playfield-outer-size', `${this.PLAYFIELD_FRAME_SIZE + config.playfieldOuterBorderSize}px`);
                 document.documentElement.style.setProperty('--playfield-render-size', `${this.PLAYFIELD_SIZE}px`);
-                document.documentElement.style.setProperty('--skin-width', `${(this.PLAYFIELD_SIZE * 853) / 662}px`);
-                document.documentElement.style.setProperty('--skin-height', `${(this.PLAYFIELD_SIZE * 1843) / 662}px`);
+                document.documentElement.style.setProperty('--skin-width', `${layout.skinWidth}px`);
+                document.documentElement.style.setProperty('--skin-height', `${layout.skinHeight}px`);
                 document.documentElement.style.setProperty('--player-size', `${this.PLAYER_SIZE}px`);
                 document.documentElement.style.setProperty('--crystal-size', `${this.CRYSTAL_SIZE}px`);
                 document.documentElement.style.setProperty('--prism-relic-size', `${this.PRISM_RELIC_SIZE}px`);
