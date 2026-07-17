@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Trackpad Prototype p012: Fixes the visual gameplay grid so its cell spacing derives from the reduced playfield grid unit while preserving the architecture-safe global playfield scale and unchanged HUD sizing.
+Trackpad Prototype p013: Removes gameplay pausing, limits menu access to Game Over, ends live runs when the app is backgrounded, and updates Prism Relic timing and reward.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="trackpad-p012">
+<html data-build-version="trackpad-p013">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -6347,7 +6347,7 @@ Font License Notices
                         <div class="scoring-row"><span>Color Complete</span><span>100/ea</span></div>
                         <div class="scoring-row"><span>Time Alive</span><span>1/sec</span></div>
                         <div class="scoring-section-title">EXTRA</div>
-                        <div class="scoring-row"><span>Gridlock Bonus <span class="scoring-label-note">(Relic)</span></span><span>200</span></div>
+                        <div class="scoring-row"><span>Gridlock Bonus <span class="scoring-label-note">(Relic)</span></span><span>300</span></div>
                         <div class="scoring-row"><span>Cosmic Zaps <span class="scoring-label-note">(unused)</span></span><span>50/ea</span></div>
                         <div class="scoring-row"><span>Perfect Sector <span class="scoring-label-note">(no Zap)</span></span><span>100</span></div>
                     </section>
@@ -6359,7 +6359,7 @@ Font License Notices
                             <div><dt>Start</dt><dd>Single-tap the open game surface from the start screen.</dd></div>
                             <div><dt>Move</dt><dd>Swipe anywhere with one finger. Lift and continue from any new touch point.</dd></div>
                             <div><dt>Cosmic Zap</dt><dd>Double-tap with one finger, or shake the phone.</dd></div>
-                            <div><dt>Pause / Resume</dt><dd>Tap with two fingers at the same time.</dd></div>
+                            <div><dt>Menu</dt><dd>Available only after Game Over.</dd></div>
                         </dl>
                     </section>
 
@@ -6475,7 +6475,7 @@ Font License Notices
                 </div>
                 <button id="launchSetupBackButton" class="menu-back-button">Back</button>
             </div>
-            <div id="pauseGridMenu" aria-label="Pause menu shortcuts">
+            <div id="pauseGridMenu" aria-label="Game Over menu shortcuts">
                 <button id="pauseSettingsButton" class="pause-grid-button pause-grid-top-left" type="button" aria-label="Settings">
                     <span class="pause-grid-icon gear-icon" aria-hidden="true"><svg viewBox="0 0 100 100" focusable="false"><g transform="translate(50 50)"><rect x="-8" y="-45" width="16" height="24" rx="2"/><rect x="-8" y="-45" width="16" height="24" rx="2" transform="rotate(45)"/><rect x="-8" y="-45" width="16" height="24" rx="2" transform="rotate(90)"/><rect x="-8" y="-45" width="16" height="24" rx="2" transform="rotate(135)"/><rect x="-8" y="-45" width="16" height="24" rx="2" transform="rotate(180)"/><rect x="-8" y="-45" width="16" height="24" rx="2" transform="rotate(225)"/><rect x="-8" y="-45" width="16" height="24" rx="2" transform="rotate(270)"/><rect x="-8" y="-45" width="16" height="24" rx="2" transform="rotate(315)"/><circle r="31"/><circle r="13" fill="#fff"/></g></svg></span>
                 </button>
@@ -6501,7 +6501,7 @@ Font License Notices
     <button id="startButton" type="button" hidden aria-label="Start game"></button>
 
     <script>
-        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'trackpad-p012'}`;
+        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'trackpad-p013'}`;
 
         // Central diagnostic feature flags. Change values here before loading the page to isolate systems.
         const GAME_FEATURE_FLAGS = window.BLOCKAZOIDS_FEATURE_FLAGS = {
@@ -6614,8 +6614,8 @@ Font License Notices
                 baseCosmicZaps: 3,
                 unusedCosmicZapBonus: 50,
                 perfectSectorBonus: 100,
-                gridlockBonus: 200,
-                gridlockRelicDelayMs: 2500,
+                gridlockBonus: 300,
+                gridlockRelicDelayMs: 30000,
                 gameCycleBonus: 500,
                 colorCompleteBonus: 100,
                 levelSpeedBoost: 0.03,
@@ -6975,7 +6975,7 @@ Font License Notices
 
         // Main game class managing state and logic
         // Phase 2B flow controller: the flow state is now the authoritative gate for
-        // gameplay input, pause/resume, transitions, menus, and terminal screens.
+        // gameplay input, transitions, Game Over menus, and terminal screens.
         // Legacy fields remain synchronized only where older rendering code still reads them.
         const GAME_FLOW_STATES = Object.freeze({
                 SPLASH: 'splash',
@@ -7279,11 +7279,11 @@ Font License Notices
             }
 
             allowsPause() {
-                return this.isLiveAction();
+                return false;
             }
 
             allowsResume() {
-                return this.is(GAME_FLOW_STATES.PAUSED);
+                return false;
             }
 
             snapshot() {
@@ -7656,7 +7656,8 @@ Font License Notices
                 const game = this.game;
                 const visible = (element) => !!(element && element.getClientRects && element.getClientRects().length &&
                     getComputedStyle(element).display !== 'none' && getComputedStyle(element).visibility !== 'hidden');
-                return !!(game.isPaused || game.developerAttractMenuOpen || visible(game.levelSelectWindow));
+                const menuPanelOpen = typeof game.getCurrentMenuContext === 'function' && !!game.getCurrentMenuContext();
+                return !!(menuPanelOpen || visible(game.levelSelectWindow));
             }
 
             createPointerState(event) {
@@ -10196,10 +10197,7 @@ Font License Notices
                 const blocked = this.splashIntroActive || showingLevelSelect || this.cycleTransitionActive || this.sectorTransitionActive ||
                                 this.showHudDuringSectorIntro || this.resumeCountdownActive || this.startInputLocked;
                 if (blocked) return false;
-                if (this.isPaused && !this.isGameOver) return true;
-                if (this.flow.isLiveAction()) return false;
-                if (this.isGameOver) return !!this.restartReady;
-                return !this.active;
+                return !!(this.isGameOver && this.restartReady);
             }
 
             updatePauseGridMenu() {
@@ -10227,6 +10225,7 @@ Font License Notices
             }
 
             openPauseGridPanel(panelName) {
+                if (!this.isGameOver || !this.restartReady) return;
                 if (!this.pauseWindow || this.pauseWindow.style.display !== 'flex') return;
                 this.playUiClick();
 
@@ -10267,8 +10266,8 @@ Font License Notices
 
             handleContextButtonClick(action) {
                 if (!action) return;
+                if (!this.isGameOver || !this.restartReady) return;
                 if (this.cycleTransitionActive || this.showHudDuringSectorIntro || this.resumeCountdownActive || this.startInputLocked) return;
-                if (this.isGameOver && !this.restartReady) return;
                 this.playUiClick();
 
                 if (action === 'howTo') {
@@ -10335,9 +10334,8 @@ Font License Notices
             }
 
             openMenuPanel(panelName) {
+                if (!this.isGameOver || !this.restartReady) return;
                 if (this.cycleTransitionActive || this.showHudDuringSectorIntro || this.resumeCountdownActive || this.startInputLocked) return;
-                if (this.isGameOver && !this.restartReady) return;
-                if (this.flow.isLiveAction()) return; // p005: Pause/Menu access is intentionally disabled during play.
                 this.enableShakeCosmicZap();
 
                 const panelMap = {
@@ -10349,10 +10347,6 @@ Font License Notices
                 const panelAlreadyOpen = this.pauseWindow && this.pauseWindow.style.display === 'flex' && targetPanel && targetPanel.classList.contains('open');
                 if (panelAlreadyOpen) {
                     return;
-                }
-
-                if (this.flow.isLiveAction()) {
-                    this.pauseGameplay({ showOverlay: false });
                 }
 
                 this.menuOpenedAt = performance.now();
@@ -10367,15 +10361,10 @@ Font License Notices
             }
 
             openDeveloperLevelSelectShortcut() {
+                if (!this.isGameOver || !this.restartReady) return;
                 if (this.cycleTransitionActive || this.showHudDuringSectorIntro || this.resumeCountdownActive || this.startInputLocked) return;
-                if (this.isGameOver && !this.restartReady) return;
-                if (this.flow.isLiveAction()) return; // p005: no live-game menu or level-select entry.
 
                 this.enableShakeCosmicZap();
-
-                if (this.flow.isLiveAction()) {
-                    this.pauseGameplay({ showOverlay: false });
-                }
 
                 this.menuOpenedAt = performance.now();
                 this.stopAttractComputerAmbience();
@@ -10689,17 +10678,7 @@ Font License Notices
             }
 
             openDeveloperMenuFromStartScreen() {
-                if (!this.isStartScreenVisible()) return;
-                this.setCrtUiSuspended(true);
-                this.developerAttractMenuOpen = true;
-                this.menuOpenedAt = performance.now();
-                this.showMainMenuButtons();
-                this.startPauseMenuReactorHum();
-                if (this.resumeButton) this.resumeButton.textContent = 'Close';
-                this.pauseWindow.style.display = 'flex';
-                this.updatePauseGridMenu();
-                this.setGameOverlayVisible(true);
-                requestAnimationFrame(() => this.clearMenuButtonFocus());
+                return;
             }
 
             closeDeveloperMenuToStartScreen() {
@@ -12438,10 +12417,11 @@ Font License Notices
                 this.markStabilityEvent(`visibility-${document.visibilityState}`);
                 if (document.visibilityState === 'hidden') {
                     this.player.invalidateDragSession('page-hidden');
-                    this.beginTelemetryPause('page-hidden');
+                    if (this.flow.isLiveAction() && this.active && this.levelActionStarted && !this.isGameOver) {
+                        void this.endRun({ deathCause: 'app-backgrounded' });
+                    }
                     return;
                 }
-                this.endTelemetryPause('page-visible');
                 if (this.flow.isLiveAction()) {
                     this.lastFrameTime = performance.now();
                     this.requestWakeLock();
@@ -12603,49 +12583,14 @@ Font License Notices
                 this.beginNewRun();
             }
 
-            // Canonical lifecycle entry for leaving live action without ending the run.
-            pauseGameplay(options = {}) {
-                if (!this.requireLifecycleAction(
-                    'pauseGameplay',
-                    this.flow.allowsPause() && !this.isPaused && !this.resumeCountdownActive && !this.isGameOver,
-                    'gameplay-not-pausable'
-                )) return false;
-                this.cancelTransitionGroup('pause-menu');
-                const showOverlay = !!options.showOverlay;
-
-                this.beginTelemetryPause('manual-pause');
-                this.beginRunRecordPause();
-                this.setGameplayState({ isPaused: true });
-                this.setGameplayState({ active: false });
-                this.flow.enter(GAME_FLOW_STATES.PAUSED, 'pause-game');
-                this.systems.pauseGameplay(showOverlay);
-                this.validateStateInvariants('pauseGameplay');
-                return true;
+            // Gameplay pausing is intentionally unavailable.
+            pauseGameplay() {
+                return false;
             }
 
-            // Canonical lifecycle entry for returning from pause to live action.
+            // Gameplay resume is unavailable because runs cannot be paused.
             async resumeGameplay() {
-                if (!this.requireLifecycleAction(
-                    'resumeGameplay',
-                    this.flow.allowsResume() && this.isPaused && this.levelActionStarted && !this.resumeCountdownActive && !this.isGameOver,
-                    'gameplay-not-resumable'
-                )) return false;
-
-                this.setGameplayState({ resumeCountdownActive: true });
-                this.flow.enter(GAME_FLOW_STATES.RESUME_COUNTDOWN, 'resume-countdown');
-                this.systems.prepareResumeCountdown();
-
-                const loadToken = ++this.levelLoadToken;
-                this.beginTransitionGroup('resume-countdown', loadToken);
-                const countdownCompleted = await this.runResumeCountdown(loadToken);
-                if (!countdownCompleted || loadToken !== this.levelLoadToken || this.flow.isTerminal()) {
-                    if (this.audio) this.audio.stopBackgroundMusic();
-                    this.setGameplayState({ resumeCountdownActive: false });
-                    return;
-                }
-
-                this.setGameplayState({ resumeCountdownActive: false });
-                this.resumeLiveAction();
+                return false;
             }
 
             async runResumeCountdown(loadToken) {
@@ -13343,13 +13288,6 @@ Font License Notices
 
                 if (this.flow.isLiveAction()) {
                     return; // p005: active gameplay has no Pause/Menu command.
-                }
-
-                if (this.isPaused && this.levelActionStarted && !this.isGameOver) {
-                    this.closeBottomPanelOverlay();
-                    this.resumeGameplay();
-                    this.ui.updateAll();
-                    return;
                 }
 
                 if (!this.active) {
