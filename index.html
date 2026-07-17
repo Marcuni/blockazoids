@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Trackpad Prototype p019: Uses the approved final square-playfield cabinet, uniform cover scaling, and recalibrated live HUD/control placement for the new 941 x 1672 master artwork.
+Trackpad Prototype p020: Preserves the approved p019 square-playfield cabinet and fixes fractional responsive grid coordinates that could freeze sector startup on iPhone.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="trackpad-p019">
+<html data-build-version="trackpad-p020">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -13999,10 +13999,14 @@ Font License Notices
                 return GAME_DATA.sectorPatterns[Math.max(0, Math.min(GAME_DATA.sectorPatterns.length - 1, levelNumber - 1))];
             }
 
-            // Return a crystal color for a grid cell.
+            // Return a crystal color for a grid cell. Responsive playfield sizing can
+            // produce fractional pixel coordinates, so normalize cell coordinates before lookup.
             getCrystalColorForLevelPattern(col, row) {
                 const rows = this.getLevelPatternRows(this.level);
-                const letter = rows[row - 1][col - 1];
+                const normalizedRow = Math.max(1, Math.min(rows.length, Math.round(row)));
+                const rowPattern = rows[normalizedRow - 1];
+                const normalizedCol = Math.max(1, Math.min(rowPattern.length, Math.round(col)));
+                const letter = rowPattern[normalizedCol - 1];
                 if (letter === 'R') return 'red';
                 if (letter === 'G') return 'green';
                 return 'blue';
@@ -14145,11 +14149,16 @@ Font License Notices
                 let colorIndex = 0; // Used only for intro animation timing
                 const cells = [];
                 
-                for (let x = gridSize; x <= this.PLAYFIELD_SIZE - gridSize; x += gridSize) {
-                    for (let y = gridSize; y <= this.PLAYFIELD_SIZE - gridSize; y += gridSize) {
-                        if (x !== centerX || y !== centerY) { // Skip player spawn point
-                            const col = x / gridSize;
-                            const row = y / gridSize;
+                const gridCount = Math.round(this.PLAYFIELD_SIZE / gridSize);
+                const centerCell = Math.round(gridCount / 2);
+
+                // Iterate by integer grid coordinates rather than repeatedly adding fractional
+                // pixel sizes. This keeps the 9x9 crystal map exact on every responsive viewport.
+                for (let col = 1; col < gridCount; col++) {
+                    for (let row = 1; row < gridCount; row++) {
+                        if (col !== centerCell || row !== centerCell) { // Skip player spawn point
+                            const x = col * gridSize;
+                            const y = row * gridSize;
                             const color = this.getCrystalColorForLevelPattern(col, row);
                             cells.push({ x, y, col, row, color, order: 0 });
                         }
