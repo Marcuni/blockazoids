@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Trackpad Prototype p020: Preserves the approved p019 square-playfield cabinet and fixes fractional responsive grid coordinates that could freeze sector startup on iPhone.
+Trackpad Prototype p021: Centralizes screen-to-board input mapping, makes Play the only run-start control, restores reliable in-run pause/resume, and refines the lower HUD sizing.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="trackpad-p020">
+<html data-build-version="trackpad-p021">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -6803,6 +6803,36 @@ Font License Notices
             box-shadow: none;
         }
 
+
+        /* p021 HUD refinement. One shared size owns all four lower menu controls. */
+        :root {
+            --pause-menu-button-master-size: 127px;
+        }
+
+        html body #skinShell .pause-grid-button {
+            width: calc(var(--skin-scale, 1) * var(--pause-menu-button-master-size)) !important;
+            height: calc(var(--skin-scale, 1) * var(--pause-menu-button-master-size)) !important;
+            aspect-ratio: auto !important;
+            min-width: 0 !important;
+            min-height: 0 !important;
+            padding: calc(var(--skin-scale, 1) * 11px) !important;
+        }
+
+        /* Slightly larger Cosmic Zap glyphs within the existing right HUD aperture. */
+        html body #cosmicZapIndicators {
+            gap: 5%;
+        }
+
+        html body .cosmic-zap-icon {
+            width: 17%;
+            height: 40%;
+        }
+
+        /* Larger live Sector and Cycle numerals, still centered by the shared slot rule. */
+        html body .skin-status-box {
+            font-size: calc(var(--skin-scale, 1) * 42px);
+        }
+
     </style>
 </head>
 <body class="crt-phosphor-calibration">
@@ -7078,7 +7108,7 @@ Font License Notices
     </div>
 
     <script>
-        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'trackpad-p019'}`;
+        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'trackpad-p021'}`;
 
         // Central diagnostic feature flags. Change values here before loading the page to isolate systems.
         const GAME_FEATURE_FLAGS = window.BLOCKAZOIDS_FEATURE_FLAGS = {
@@ -7866,6 +7896,72 @@ Font License Notices
         }
 
 
+        // p021 input geometry boundary. Browser pointer coordinates and gameplay coordinates
+        // are converted in one place from the board's live rendered rectangle. Normal tracking uses
+        // a 1.0 gain, so the Orb moves the same visible distance as the finger on every screen size.
+        class BoardCoordinateMapper {
+            constructor(game) {
+                this.game = game;
+                this.revision = 0;
+                this.reason = 'constructor';
+                this.geometry = Object.freeze({
+                    left: 0,
+                    top: 0,
+                    width: 1,
+                    height: 1,
+                    scaleX: 1,
+                    scaleY: 1,
+                    logicalSize: 1
+                });
+            }
+
+            invalidate(reason = 'layout-change') {
+                this.reason = reason;
+                this.revision++;
+            }
+
+            refresh() {
+                const logicalSize = Math.max(1, Number(this.game.PLAYFIELD_SIZE) || 1);
+                const rect = this.game.container && this.game.container.getBoundingClientRect
+                    ? this.game.container.getBoundingClientRect()
+                    : { left: 0, top: 0, width: logicalSize, height: logicalSize };
+                const width = Math.max(0.001, Number(rect.width) || logicalSize);
+                const height = Math.max(0.001, Number(rect.height) || logicalSize);
+                this.geometry = Object.freeze({
+                    left: Number(rect.left) || 0,
+                    top: Number(rect.top) || 0,
+                    width,
+                    height,
+                    scaleX: logicalSize / width,
+                    scaleY: logicalSize / height,
+                    logicalSize
+                });
+                return this.geometry;
+            }
+
+            clientPointToBoard(clientX, clientY) {
+                const geometry = this.refresh();
+                return {
+                    x: Math.max(0, Math.min(geometry.logicalSize,
+                        ((Number(clientX) || 0) - geometry.left) * geometry.scaleX)),
+                    y: Math.max(0, Math.min(geometry.logicalSize,
+                        ((Number(clientY) || 0) - geometry.top) * geometry.scaleY))
+                };
+            }
+
+            screenDeltaToBoard(deltaX, deltaY) {
+                const geometry = this.refresh();
+                return {
+                    x: (Number(deltaX) || 0) * geometry.scaleX,
+                    y: (Number(deltaY) || 0) * geometry.scaleY
+                };
+            }
+
+            snapshot() {
+                return { ...this.geometry, revision: this.revision, reason: this.reason };
+            }
+        }
+
         // Build 341 system-responsibility boundary. Lifecycle methods own permission and flow;
         // this coordinator owns the ordered calls into UI, input, audio, telemetry, tutorial,
         // scheduling, and presentation systems. Methods intentionally preserve the validated call order.
@@ -8354,8 +8450,15 @@ Font License Notices
                 const game = this.game;
                 const now = this.now();
 
+                // Hardware/menu controls keep their native click path. In particular, the top-left
+                // control must remain available to pause and resume during live gameplay.
+                if (this.isInteractiveTarget(pointer.target)) {
+                    this.lastGameplayTap = null;
+                    return;
+                }
+
                 if (game.flow.isLiveAction()) {
-                    // A live single tap has no command, so suppress any underlying button click.
+                    // A live single tap has no command, so suppress any noninteractive click.
                     this.suppressClicksUntil = now + 120;
                     const previous = this.lastGameplayTap;
                     const closeEnough = previous &&
@@ -8373,10 +8476,10 @@ Font License Notices
                     return;
                 }
 
+                // Outside live play, empty cabinet/playfield taps intentionally do nothing.
+                // Starting a run is owned exclusively by the top-left Play button click handler.
                 this.lastGameplayTap = null;
-                if (this.isMenuMode()) return; // Let the native click activate menu controls.
-                if (this.isInteractiveTarget(pointer.target)) return;
-                if (!game.active && !game.tutorialActive) game.handlePlayPauseControlClick();
+                if (this.isMenuMode()) return;
             }
 
             handleClickCapture(event) {
@@ -8580,6 +8683,7 @@ Font License Notices
                 this.pendingCycleContinueToken = null;
 
                 // Game constants derived from the actual iPhone-sized board.
+                this.boardCoordinates = new BoardCoordinateMapper(this);
                 this.configureResponsivePlayfield();
                 this.spawnDelay = this.parameters.baseSpawnDelay;
                 this.normalSwarmSize = this.parameters.normalSwarmSize;
@@ -11442,6 +11546,7 @@ Font License Notices
                 document.documentElement.style.setProperty('--crystal-size', `${this.CRYSTAL_SIZE}px`);
                 document.documentElement.style.setProperty('--prism-relic-size', `${this.PRISM_RELIC_SIZE}px`);
                 document.documentElement.style.setProperty('--connection-line-thickness', `${this.LINE_THICKNESS}px`);
+                if (this.boardCoordinates) this.boardCoordinates.invalidate('responsive-playfield-configured');
             }
 
             // Adjust spawn delay by level; enemy count stays capped at a constant value. Cosmic Zap pressure only affects speed.
@@ -16073,12 +16178,17 @@ Font License Notices
                 this.updatePosition(); // Update DOM position
             }
 
-            // Convert browser coordinates into the actual board coordinate system.
+            // Convert browser coordinates through the shared screen-to-board transform.
             getBoardPoint(clientX, clientY) {
+                if (this.game.boardCoordinates) {
+                    return this.game.boardCoordinates.clientPointToBoard(clientX, clientY);
+                }
                 const rect = this.game.container.getBoundingClientRect();
+                const scaleX = this.game.PLAYFIELD_SIZE / Math.max(0.001, rect.width || this.game.PLAYFIELD_SIZE);
+                const scaleY = this.game.PLAYFIELD_SIZE / Math.max(0.001, rect.height || this.game.PLAYFIELD_SIZE);
                 return {
-                    x: Math.max(0, Math.min(this.game.PLAYFIELD_SIZE, clientX - rect.left)),
-                    y: Math.max(0, Math.min(this.game.PLAYFIELD_SIZE, clientY - rect.top))
+                    x: Math.max(0, Math.min(this.game.PLAYFIELD_SIZE, (clientX - rect.left) * scaleX)),
+                    y: Math.max(0, Math.min(this.game.PLAYFIELD_SIZE, (clientY - rect.top) * scaleY))
                 };
             }
 
@@ -16281,11 +16391,11 @@ Font License Notices
                 const sensitivity = Number.isFinite(this.game.trackingSpeed)
                     ? this.game.trackingSpeed
                     : GAME_CONFIG.input.relativeSwipeSensitivity;
-                // The named tracking preset retains the same normalized board gain after the
-                // presentation-only reduction. Direct drag still maps through getBoardPoint 1:1.
-                const layoutScale = Number(this.game.PLAYFIELD_PRESENTATION_SCALE) || 1;
-                const centerX = this.x + this.size / 2 + (deltaX * sensitivity * layoutScale);
-                const centerY = this.y + this.size / 2 + (deltaY * sensitivity * layoutScale);
+                const boardDelta = this.game.boardCoordinates
+                    ? this.game.boardCoordinates.screenDeltaToBoard(deltaX, deltaY)
+                    : { x: deltaX, y: deltaY };
+                const centerX = this.x + this.size / 2 + (boardDelta.x * sensitivity);
+                const centerY = this.y + this.size / 2 + (boardDelta.y * sensitivity);
                 this.moveToPoint({ x: centerX, y: centerY }, false);
             }
 
