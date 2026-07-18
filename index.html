@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Trackpad Prototype p024: Integrates and validates the compact square audio controls, balanced High Score spacing, reduced sector-restoration typography, and lowered Cosmic Zap HUD placement while preserving the p023 grid-coordinate completion architecture and game-state boundaries.
+Trackpad Prototype p025: Unifies Sound, Music, and Monitor as one three-button icon row, limits the player-facing monitor choice to Vector ON or OFF, and preserves the p024 responsive layout and game-state architecture.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="trackpad-p024">
+<html data-build-version="trackpad-p025">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -1383,8 +1383,8 @@ Font License Notices
             padding: 8px 12px;
         }
 
-        /* Compact audio controls share one horizontal row and keep their state visual. */
-        .settings-audio-controls {
+        /* Primary settings toggles share one horizontal row and one state language. */
+        .settings-icon-controls {
             width: min(240px, 88%);
             margin: 4px auto 0;
             display: flex;
@@ -1409,7 +1409,7 @@ Font License Notices
             cursor: pointer;
         }
 
-        .settings-icon-toggle .settings-audio-icon {
+        .settings-icon-toggle .settings-control-icon {
             width: 58%;
             height: 58%;
             display: inline-flex;
@@ -7116,9 +7116,9 @@ Font License Notices
             </div>
             <div id="settingsPanel" class="menu-panel">
                 <div id="settingsPanelTitle" class="menu-panel-title">SETTINGS</div>
-                <div id="settingsAudioControls" class="settings-audio-controls" role="group" aria-label="Audio settings">
+                <div id="settingsIconControls" class="settings-icon-controls" role="group" aria-label="Sound, music, and monitor settings">
                     <button id="soundToggleButton" class="settings-icon-toggle" type="button" aria-label="Disable sound" aria-pressed="true">
-                        <span class="settings-audio-icon" aria-hidden="true">
+                        <span class="settings-control-icon" aria-hidden="true">
                             <svg viewBox="0 0 24 24" focusable="false">
                                 <path d="M3.5 9h4l5-4v14l-5-4h-4z" fill="currentColor"></path>
                                 <path d="M15 8.2c1.25 1.05 2 2.3 2 3.8s-.75 2.75-2 3.8M17.6 5.8c2.15 1.72 3.4 3.78 3.4 6.2s-1.25 4.48-3.4 6.2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>
@@ -7126,14 +7126,21 @@ Font License Notices
                         </span>
                     </button>
                     <button id="musicToggleButton" class="settings-icon-toggle" type="button" aria-label="Disable music" aria-pressed="true">
-                        <span class="settings-audio-icon" aria-hidden="true">
+                        <span class="settings-control-icon" aria-hidden="true">
                             <svg viewBox="0 0 24 24" focusable="false">
                                 <path d="M9 5.2v10.1a3.2 3.2 0 1 1-2-2.96V7l10-2v8.3a3.2 3.2 0 1 1-2-2.96V3.1z" fill="currentColor"></path>
                             </svg>
                         </span>
                     </button>
+                    <button id="crtToggleButton" class="settings-icon-toggle" type="button" aria-label="Disable Vector monitor" aria-pressed="true">
+                        <span class="settings-control-icon" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" focusable="false">
+                                <rect x="3" y="4.5" width="18" height="12.5" rx="1.4" fill="none" stroke="currentColor" stroke-width="1.8"></rect>
+                                <path d="M9 20h6M12 17v3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>
+                            </svg>
+                        </span>
+                    </button>
                 </div>
-                <button id="crtToggleButton" class="menu-button settings-toggle" aria-label="Monitor preset: Vector">Monitor: Vector</button>
                 <div id="trackingSpeedControl" class="settings-stepper tracking-speed-control" role="group" aria-label="Tracking Speed">
                     <div class="settings-stepper-title">Tracking Speed</div>
                     <div class="settings-stepper-row">
@@ -7218,7 +7225,7 @@ Font License Notices
     </div>
 
     <script>
-        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'trackpad-p024'}`;
+        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'trackpad-p025'}`;
 
         // Central diagnostic feature flags. Change values here before loading the page to isolate systems.
         const GAME_FEATURE_FLAGS = window.BLOCKAZOIDS_FEATURE_FLAGS = {
@@ -7241,7 +7248,7 @@ Font License Notices
 
         // Player-facing monitor modes are separate from the granular CRT rendering engine.
         // This keeps visual policy centralized while preserving the proven event/lifecycle architecture.
-        const MONITOR_MODE_ORDER = Object.freeze(['vector', 'crt', 'off']);
+        const MONITOR_MODE_ORDER = Object.freeze(['vector', 'off']);
         const MONITOR_PRESETS = Object.freeze({
             vector: Object.freeze({
                 label: 'Vector',
@@ -12173,6 +12180,7 @@ Font License Notices
                     this.settingsBackButton,
                     this.soundToggleButton,
                     this.musicToggleButton,
+                    this.crtToggleButton,
                     this.trackingSpeedDecreaseButton,
                     this.trackingSpeedIncreaseButton,
                     this.difficultyButton,
@@ -12320,8 +12328,8 @@ Font License Notices
                     const storedMode = localStorage.getItem(this.monitorPresetStorageKey);
                     if (MONITOR_MODE_ORDER.includes(storedMode)) return storedMode;
 
-                    // Migrate the old ON/OFF CRT preference. Existing ON users start with the new
-                    // Vector preset; the exact former look remains one tap away as the CRT preset.
+                    // Migrate older monitor preferences into the current player-facing policy:
+                    // enabled means the Vector model; disabled means no monitor effect.
                     const storedLegacyPreset = localStorage.getItem(this.crtPresetStorageKey);
                     if (storedLegacyPreset === 'off' || !this.loadCrtPreference()) return 'off';
                     return 'vector';
@@ -12382,11 +12390,19 @@ Font License Notices
             }
 
             updateCrtToggleLabel() {
-                const mode = (GAME_FEATURE_FLAGS.crt && MONITOR_PRESETS[this.monitorMode]) ? this.monitorMode : 'off';
+                const vectorEnabled = GAME_FEATURE_FLAGS.crt && this.monitorMode !== 'off';
+                const mode = vectorEnabled ? 'vector' : 'off';
                 const label = MONITOR_PRESETS[mode].label;
                 if (this.crtToggleButton) {
-                    this.crtToggleButton.textContent = `Monitor: ${label}`;
-                    this.crtToggleButton.setAttribute('aria-label', `Monitor preset: ${label}. Tap to change.`);
+                    this.crtToggleButton.disabled = !GAME_FEATURE_FLAGS.crt;
+                    this.crtToggleButton.classList.toggle('is-muted', !vectorEnabled);
+                    this.crtToggleButton.setAttribute('aria-pressed', vectorEnabled ? 'true' : 'false');
+                    this.crtToggleButton.setAttribute('aria-label', !GAME_FEATURE_FLAGS.crt
+                        ? 'Vector monitor unavailable'
+                        : (vectorEnabled ? 'Disable Vector monitor' : 'Enable Vector monitor'));
+                    this.crtToggleButton.title = !GAME_FEATURE_FLAGS.crt
+                        ? 'Vector monitor unavailable'
+                        : (vectorEnabled ? 'Disable Vector monitor' : 'Enable Vector monitor');
                 }
                 if (this.crtDeveloperMasterState) {
                     this.crtDeveloperMasterState.textContent = `MONITOR: ${label.toUpperCase()}`;
@@ -12492,9 +12508,8 @@ Font License Notices
             }
 
             toggleCrtSetting() {
-                const currentIndex = Math.max(0, MONITOR_MODE_ORDER.indexOf(this.monitorMode));
-                const nextMode = MONITOR_MODE_ORDER[(currentIndex + 1) % MONITOR_MODE_ORDER.length];
-                this.applyMonitorMode(nextMode);
+                if (!GAME_FEATURE_FLAGS.crt) return;
+                this.applyMonitorMode(this.monitorMode === 'off' ? 'vector' : 'off');
             }
 
 
