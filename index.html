@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Trackpad Prototype p039: Lowers the Settings/Help shortcuts slightly, enlarges the lower-corner Sector/Cycle readouts, and replaces the prior audio resume path with a gesture-owned AudioContext unlock and priming sequence for Safari/iPhone.
+Trackpad Prototype p040: Restores immediate Play-button startup by moving Safari/iPhone audio unlocking off the gameplay-critical path; audio now unlocks asynchronously and never blocks a new run.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="trackpad-p039">
+<html data-build-version="trackpad-p040">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -7384,7 +7384,7 @@ Font License Notices
     </div>
 
     <script>
-        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'trackpad-p039'}`;
+        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'trackpad-p040'}`;
 
         // Central diagnostic feature flags. Change values here before loading the page to isolate systems.
         const GAME_FEATURE_FLAGS = window.BLOCKAZOIDS_FEATURE_FLAGS = {
@@ -8364,7 +8364,7 @@ Font License Notices
 
             activateRunStartAudio() {
                 const game = this.game;
-                // The canonical Play handler has already awaited gesture unlock.
+                // The canonical Play handler starts audio unlocking in parallel; gameplay never waits for it.
                 game.audio.stopBackgroundMusic();
             }
 
@@ -14343,13 +14343,23 @@ Font License Notices
 
             // Phase 4B lifecycle commands route player-facing state changes through explicit entry points.
 
-            async handlePlayPauseControlClick(e) {
+            handlePlayPauseControlClick(e) {
                 if (e) {
                     e.preventDefault();
                     e.stopPropagation();
                 }
-                if (this.audio && !this.audio.isSoundMuted()) {
-                    await this.audio.unlockFromGesture();
+
+                // p040: Audio recovery must never hold the Play button hostage. Start/resume
+                // gameplay synchronously, while Safari/iPhone audio unlocking completes in parallel.
+                if (this.audio && !this.audio.isSoundMuted() && this.audio.unlockFromGesture) {
+                    void this.audio.unlockFromGesture().then(unlocked => {
+                        if (!unlocked || this.audio.isSoundMuted()) return;
+                        // A successful late unlock should restore ongoing gameplay music without
+                        // replaying lifecycle actions or delaying the run-start transition.
+                        if (!this.audio.isMusicMuted() && this.flow.isLiveAction()) {
+                            this.audio.startBackgroundMusic(this.level);
+                        }
+                    }).catch(() => {});
                 }
                 if (this.tutorialActive) return;
                 if (this.showHudDuringSectorIntro || this.resumeCountdownActive || this.startInputLocked) return;
