@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Trackpad Prototype p043: Removes the temporary audio diagnostic tools after confirming iPhone Silent Mode was the cause, while retaining the enlarged lower-corner Sector/Cycle display and current gameplay architecture.
+Trackpad Prototype p044: Enlarges and repositions lower-corner Sector/Cycle information, improves Settings and High Score spacing, updates How to Play wording, enlarges the SUPER Gridlock prefix, and adds a compact merged crystal-collection pulse.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="trackpad-p043">
+<html data-build-version="trackpad-p044">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -7080,6 +7080,141 @@ Font License Notices
             text-shadow: 0 0 calc(var(--default-glow) * 0.8px) #fff;
         }
 
+
+
+        /* p044 HUD/menu polish and compact crystal collection feedback. */
+        html body .skin-status-box {
+            display: block;
+        }
+
+        /* Keep the value center where it was while moving the label upward into unused corner space. */
+        html body .skin-status-label {
+            position: absolute;
+            left: 50%;
+            top: 15%;
+            transform: translate(-50%, -50%);
+            width: 100%;
+            font-size: calc(var(--skin-scale, 1) * 16px);
+            line-height: 1;
+            text-align: center;
+        }
+
+        html body .skin-status-value {
+            position: absolute;
+            left: 50%;
+            top: 58%;
+            transform: translate(-50%, -50%);
+            width: 100%;
+            font-size: calc(var(--skin-scale, 1) * 52px);
+            line-height: 0.92;
+            text-align: center;
+        }
+
+        /* Use the available Settings-panel height to separate the primary three-button row from the controls below. */
+        #settingsPanel #settingsIconControls {
+            margin-bottom: clamp(16px, 4.5vw, 26px);
+        }
+
+        #settingsPanel #trackingSpeedControl {
+            margin-top: 0;
+        }
+
+        /* Give the main record number more visual breathing room before its detail rows. */
+        #highScorePanel .high-score-panel-value {
+            margin-bottom: clamp(20px, 5.5vw, 32px) !important;
+        }
+
+        /* One size larger while retaining the centered two-line Super Gridlock lockup. */
+        #score.superGridlockAlert .super-gridlock-prefix {
+            font-size: clamp(8px, 2.45vw, 13px);
+        }
+
+        /* A collected crystal makes one short inward snap. Multiple pickups may create individual snaps,
+           but the Orb pulse and ring below remain single reusable effects. */
+        .crystal-collect-fly {
+            position: absolute;
+            left: var(--collect-start-x);
+            top: var(--collect-start-y);
+            width: var(--collect-size, 10px);
+            height: var(--collect-size, 10px);
+            background: var(--collect-color, #fff);
+            box-shadow: 0 0 8px var(--collect-color, #fff), 0 0 16px rgba(255,255,255,0.56);
+            opacity: 1;
+            pointer-events: none;
+            z-index: 10;
+            transform: translate(-50%, -50%) rotate(45deg) scale(1);
+            animation: crystalCollectFly 96ms cubic-bezier(0.22, 0.82, 0.28, 1) forwards;
+        }
+
+        @keyframes crystalCollectFly {
+            100% {
+                left: var(--collect-end-x);
+                top: var(--collect-end-y);
+                opacity: 0.12;
+                filter: brightness(2.1);
+                transform: translate(-50%, -50%) rotate(45deg) scale(0.16);
+            }
+        }
+
+        /* One ring is reused and refreshed for rapid pickups rather than stacking multiple rings. */
+        .orb-crystal-collect-ring {
+            position: absolute;
+            width: var(--collect-orb-size, 20px);
+            height: var(--collect-orb-size, 20px);
+            left: var(--collect-orb-x, 50%);
+            top: var(--collect-orb-y, 50%);
+            box-sizing: border-box;
+            border: 1px solid currentColor;
+            border-radius: 50%;
+            color: var(--collect-color, #fff);
+            box-shadow: 0 0 7px currentColor, 0 0 15px currentColor;
+            opacity: 0;
+            pointer-events: none;
+            z-index: 9;
+            transform: translate(-50%, -50%) scale(0.72);
+        }
+
+        .orb-crystal-collect-ring.active {
+            animation: orbCrystalCollectRing 185ms ease-out forwards;
+        }
+
+        @keyframes orbCrystalCollectRing {
+            0% {
+                opacity: 0.86;
+                transform: translate(-50%, -50%) scale(0.72);
+            }
+            100% {
+                opacity: 0;
+                transform: translate(-50%, -50%) scale(var(--collect-ring-scale, 1.58));
+            }
+        }
+
+        #player.crystal-collect-pulse::before {
+            animation: orbCrystalCollectPulse 185ms ease-out 1;
+        }
+
+        @keyframes orbCrystalCollectPulse {
+            0%, 100% {
+                transform: scale(1);
+            }
+            38% {
+                transform: scale(var(--orb-collect-scale, 1.07));
+                box-shadow:
+                    0 0 calc(var(--default-glow) * 1.1px) #fff,
+                    0 0 calc(var(--default-glow) * 2.0px) rgba(255,255,255,0.62);
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .crystal-collect-fly {
+                animation-duration: 1ms;
+            }
+            .orb-crystal-collect-ring.active,
+            #player.crystal-collect-pulse::before {
+                animation-duration: 80ms;
+            }
+        }
+
     </style>
 </head>
 <body class="crt-phosphor-calibration">
@@ -7180,8 +7315,8 @@ Font License Notices
                 <div class="how-to-panel-body">
                     <section class="how-to-basic-section">
                         <ul class="how-to-crystal-list">
-                            <li>Swipe below the Grid to move the white Orb.</li>
-                            <li>No outline, one thin outline, or two thin outlines means 10, 15, or 20 points.</li>
+                            <li>Swipe anywhere to move the Orb.</li>
+                            <li>Collect blinking crystals.</li>
                             <li>Avoid Block-A-Zoids.</li>
                             <li><span>Shake to Cosmic Zap.</span><span class="how-to-inline-note">(OR DOUBLE TAP THE GRID)</span></li>
                         </ul>
@@ -7384,7 +7519,7 @@ Font License Notices
     </div>
 
     <script>
-        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'trackpad-p043'}`;
+        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'trackpad-p044'}`;
 
         // Central diagnostic feature flags. Change values here before loading the page to isolate systems.
         const GAME_FEATURE_FLAGS = window.BLOCKAZOIDS_FEATURE_FLAGS = {
@@ -8772,6 +8907,7 @@ Font License Notices
             constructor() {
                 this.scheduler = new SchedulingManager();
                 this.visualEffectSequence = 0;
+                this.crystalCollectionFx = { lastPickupAt: -Infinity, chain: 0, ring: null };
                 this.gameplayTaskSequence = 0;
                 this.flow = new GameFlowController(this);
 
@@ -15431,6 +15567,67 @@ Font License Notices
                 return overlapsNow ? movementSegments.length + 1 : null;
             }
 
+            playCrystalCollectionEffect(crystal) {
+                if (!crystal || !this.player || !this.player.element || !this.container) return;
+
+                const now = performance.now();
+                const fx = this.crystalCollectionFx || (this.crystalCollectionFx = {
+                    lastPickupAt: -Infinity,
+                    chain: 0,
+                    ring: null
+                });
+                fx.chain = now - fx.lastPickupAt <= 170 ? Math.min(3, fx.chain + 1) : 1;
+                fx.lastPickupAt = now;
+
+                const color = (this.colorMap && this.colorMap[crystal.color]) || '#fff';
+                const orbCenterX = this.player.x + this.player.size / 2;
+                const orbCenterY = this.player.y + this.player.size / 2;
+                const crystalCenterX = crystal.x + crystal.size / 2;
+                const crystalCenterY = crystal.y + crystal.size / 2;
+                const effectId = ++this.visualEffectSequence;
+
+                // Each pickup keeps its own tiny inward snap so crossed crystals remain legible.
+                const fly = document.createElement('div');
+                fly.className = 'crystal-collect-fly';
+                fly.style.setProperty('--collect-start-x', `${crystalCenterX}px`);
+                fly.style.setProperty('--collect-start-y', `${crystalCenterY}px`);
+                fly.style.setProperty('--collect-end-x', `${orbCenterX}px`);
+                fly.style.setProperty('--collect-end-y', `${orbCenterY}px`);
+                fly.style.setProperty('--collect-size', `${crystal.size}px`);
+                fly.style.setProperty('--collect-color', color);
+                this.container.appendChild(fly);
+                this.scheduler.scheduleTimeout('visual-effects', `crystal-collect-fly-${effectId}`, () => fly.remove(), 150);
+
+                // Reuse one ring; rapid pickups refresh it and raise its capped intensity instead of stacking rings.
+                if (!fx.ring || !fx.ring.isConnected) {
+                    fx.ring = document.createElement('div');
+                    fx.ring.className = 'orb-crystal-collect-ring';
+                    this.container.appendChild(fx.ring);
+                }
+                const ringScale = Math.min(1.82, 1.54 + ((fx.chain - 1) * 0.14));
+                fx.ring.style.setProperty('--collect-orb-x', `${orbCenterX}px`);
+                fx.ring.style.setProperty('--collect-orb-y', `${orbCenterY}px`);
+                fx.ring.style.setProperty('--collect-orb-size', `${this.player.size}px`);
+                fx.ring.style.setProperty('--collect-ring-scale', ringScale.toFixed(2));
+                fx.ring.style.setProperty('--collect-color', color);
+                fx.ring.classList.remove('active');
+                void fx.ring.offsetWidth;
+                fx.ring.classList.add('active');
+                this.scheduler.scheduleTimeout('visual-effects', 'crystal-collect-ring', () => {
+                    if (fx.ring) fx.ring.classList.remove('active');
+                }, 205);
+
+                // Keep a single Orb pulse and increase it slightly for a rapid pickup chain, capped at 12%.
+                const orbScale = Math.min(1.12, 1.065 + ((fx.chain - 1) * 0.0275));
+                this.player.element.style.setProperty('--orb-collect-scale', orbScale.toFixed(3));
+                this.player.element.classList.remove('crystal-collect-pulse');
+                void this.player.element.offsetWidth;
+                this.player.element.classList.add('crystal-collect-pulse');
+                this.scheduler.scheduleTimeout('visual-effects', 'crystal-collect-orb-pulse', () => {
+                    if (this.player && this.player.element) this.player.element.classList.remove('crystal-collect-pulse');
+                }, 205);
+            }
+
             collectCrystalAtIndex(index, crystal) {
                 const pos = this.createGridPointFromPixels(
                     crystal.x + crystal.size / 2,
@@ -15438,6 +15635,7 @@ Font License Notices
                 );
                 this.collectedPositions.push(pos);
                 this.connectToNearestIntersection(pos);
+                this.playCrystalCollectionEffect(crystal);
                 crystal.element.remove();
                 this.crystals.splice(index, 1);
 
