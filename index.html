@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Trackpad Prototype p041: Restores the known-working p025 audio architecture and removes the p038-p040 audio-unlock patches while preserving current gameplay, crystal, Help, and HUD changes.
+Trackpad Prototype p042: Adds a temporary direct-output audio diagnostic panel and slightly enlarges the lower-corner Sector/Cycle display while preserving the p041 gameplay and HUD architecture.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="trackpad-p041">
+<html data-build-version="trackpad-p042">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -7062,7 +7062,7 @@ Font License Notices
             display: block;
             color: rgba(255, 255, 255, 0.82);
             font-family: "Orbitron", "Courier New", monospace;
-            font-size: calc(var(--skin-scale, 1) * 12px);
+            font-size: calc(var(--skin-scale, 1) * 14px);
             font-weight: 700;
             line-height: 1;
             letter-spacing: calc(var(--skin-scale, 1) * 1.1px);
@@ -7073,16 +7073,131 @@ Font License Notices
             display: block;
             color: #fff;
             font-family: "Orbitron", "Courier New", monospace;
-            font-size: calc(var(--skin-scale, 1) * 41px);
+            font-size: calc(var(--skin-scale, 1) * 46px);
             font-weight: 700;
             line-height: 0.95;
             letter-spacing: calc(var(--skin-scale, 1) * 1px);
             text-shadow: 0 0 calc(var(--default-glow) * 0.8px) #fff;
         }
 
+        /* p042 temporary audio diagnostic dock. Remove after the audio fault is identified. */
+        #audioDiagnosticDock {
+            position: fixed;
+            top: max(62px, env(safe-area-inset-top));
+            right: max(8px, env(safe-area-inset-right));
+            z-index: 21000;
+            width: min(286px, calc(100vw - 16px));
+            box-sizing: border-box;
+            border: 1px solid rgba(255, 255, 255, 0.82);
+            background: rgba(0, 0, 0, 0.94);
+            color: #fff;
+            font-family: "Courier New", monospace;
+            font-size: 11px;
+            line-height: 1.28;
+            box-shadow: 0 0 12px rgba(255, 255, 255, 0.18);
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        #audioDiagnosticDock.collapsed .audio-diagnostic-body {
+            display: none;
+        }
+
+        .audio-diagnostic-header {
+            min-height: 30px;
+            padding: 6px 8px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            box-sizing: border-box;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.42);
+            letter-spacing: 0.6px;
+            font-weight: 700;
+        }
+
+        #audioDiagnosticDock.collapsed .audio-diagnostic-header {
+            border-bottom: 0;
+        }
+
+        #audioDiagnosticToggle {
+            appearance: none;
+            -webkit-appearance: none;
+            border: 0;
+            background: transparent;
+            color: #fff;
+            font: inherit;
+            font-size: 16px;
+            line-height: 1;
+            padding: 0 2px;
+            cursor: pointer;
+        }
+
+        .audio-diagnostic-body {
+            padding: 8px;
+        }
+
+        #audioDiagnosticStatus {
+            margin: 0 0 8px;
+            padding: 6px;
+            min-height: 96px;
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+            border: 1px solid rgba(255, 255, 255, 0.28);
+            background: rgba(255, 255, 255, 0.035);
+        }
+
+        .audio-diagnostic-actions {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 6px;
+        }
+
+        .audio-diagnostic-button {
+            appearance: none;
+            -webkit-appearance: none;
+            min-height: 34px;
+            padding: 6px;
+            border: 1px solid rgba(255, 255, 255, 0.78);
+            background: #000;
+            color: #fff;
+            font-family: "Courier New", monospace;
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.35px;
+            cursor: pointer;
+            touch-action: manipulation;
+        }
+
+        .audio-diagnostic-button:active {
+            background: #fff;
+            color: #000;
+        }
+
+        #audioDiagnosticMessage {
+            margin-top: 7px;
+            min-height: 28px;
+            color: rgba(255, 255, 255, 0.84);
+        }
+
     </style>
 </head>
 <body class="crt-phosphor-calibration">
+
+    <aside id="audioDiagnosticDock" aria-label="Temporary audio diagnostic">
+        <div class="audio-diagnostic-header">
+            <span>AUDIO DIAGNOSTIC</span>
+            <button id="audioDiagnosticToggle" type="button" aria-label="Collapse audio diagnostic" aria-expanded="true">−</button>
+        </div>
+        <div class="audio-diagnostic-body">
+            <pre id="audioDiagnosticStatus">Reading audio state…</pre>
+            <div class="audio-diagnostic-actions">
+                <button id="audioDiagnosticTestButton" class="audio-diagnostic-button" type="button">TEST BEEP</button>
+                <button id="audioDiagnosticResetButton" class="audio-diagnostic-button" type="button">RESET AUDIO</button>
+            </div>
+            <div id="audioDiagnosticMessage">Test beep bypasses the game mix and connects directly to browser output.</div>
+        </div>
+    </aside>
 
     <div id="splashScreen" aria-label="Block-A-Zoids intro">
         <img id="splashMarqueeImage" src="splash.png" alt="" draggable="false">
@@ -7384,7 +7499,7 @@ Font License Notices
     </div>
 
     <script>
-        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'trackpad-p041'}`;
+        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'trackpad-p042'}`;
 
         // Central diagnostic feature flags. Change values here before loading the page to isolate systems.
         const GAME_FEATURE_FLAGS = window.BLOCKAZOIDS_FEATURE_FLAGS = {
@@ -19538,8 +19653,183 @@ startMaxSwarmBeat(delaySeconds = 0) {
             }
         }
 
+        // p042 temporary browser-output audio diagnostic. It deliberately bypasses the game mix.
+        class AudioDiagnosticController {
+            constructor(gameInstance) {
+                this.game = gameInstance;
+                this.audio = gameInstance ? gameInstance.audio : null;
+                this.dock = document.getElementById('audioDiagnosticDock');
+                this.toggleButton = document.getElementById('audioDiagnosticToggle');
+                this.statusElement = document.getElementById('audioDiagnosticStatus');
+                this.messageElement = document.getElementById('audioDiagnosticMessage');
+                this.testButton = document.getElementById('audioDiagnosticTestButton');
+                this.resetButton = document.getElementById('audioDiagnosticResetButton');
+                this.directContext = null;
+                this.lastResult = 'No test run yet.';
+                this.refreshTimer = null;
+                this.bind();
+                this.refresh();
+                this.refreshTimer = window.setInterval(() => this.refresh(), 500);
+                window.addEventListener('pagehide', () => {
+                    if (this.refreshTimer) window.clearInterval(this.refreshTimer);
+                    this.refreshTimer = null;
+                }, { once: true });
+            }
+
+            bind() {
+                if (this.toggleButton) {
+                    this.toggleButton.addEventListener('click', event => {
+                        event.stopPropagation();
+                        const collapsed = this.dock.classList.toggle('collapsed');
+                        this.toggleButton.textContent = collapsed ? '+' : '−';
+                        this.toggleButton.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+                        this.toggleButton.setAttribute('aria-label', collapsed ? 'Expand audio diagnostic' : 'Collapse audio diagnostic');
+                    });
+                }
+
+                if (this.testButton) {
+                    this.testButton.addEventListener('click', event => {
+                        event.stopPropagation();
+                        this.playDirectTestBeep();
+                    });
+                }
+
+                if (this.resetButton) {
+                    this.resetButton.addEventListener('click', event => {
+                        event.stopPropagation();
+                        this.resetGameAudioSettings();
+                    });
+                }
+
+                ['pointerdown', 'touchstart', 'mousedown'].forEach(type => {
+                    if (!this.dock) return;
+                    this.dock.addEventListener(type, event => event.stopPropagation(), { passive: true });
+                });
+            }
+
+            storageValue(key) {
+                try {
+                    const value = localStorage.getItem(key);
+                    return value === null ? 'unset' : value;
+                } catch (_) {
+                    return 'blocked';
+                }
+            }
+
+            formatGain(node) {
+                if (!node || !node.gain) return 'none';
+                const value = Number(node.gain.value);
+                return Number.isFinite(value) ? value.toFixed(3) : 'invalid';
+            }
+
+            refresh() {
+                if (!this.statusElement) return;
+                this.audio = this.game ? this.game.audio : this.audio;
+                const audio = this.audio;
+                const gameContextState = audio && audio.ctx ? audio.ctx.state : 'none';
+                const directContextState = this.directContext ? this.directContext.state : 'none';
+                const apiName = window.AudioContext ? 'AudioContext' : (window.webkitAudioContext ? 'webkitAudioContext' : 'unsupported');
+                const soundSetting = audio ? (audio.isSoundMuted() ? 'OFF' : 'ON') : 'unknown';
+                const musicSetting = audio ? (audio.isMusicMuted() ? 'OFF' : 'ON') : 'unknown';
+                const lines = [
+                    `API: ${apiName}`,
+                    `Game context: ${gameContextState}`,
+                    `Direct context: ${directContextState}`,
+                    `Sound / Music: ${soundSetting} / ${musicSetting}`,
+                    `Master / Music gain: ${this.formatGain(audio && audio.masterGain)} / ${this.formatGain(audio && audio.musicGain)}`,
+                    `Saved sound / music: ${this.storageValue('blockazoidsSoundMuted')} / ${this.storageValue('blockazoidsMusicMuted')}`,
+                    `Visibility: ${document.visibilityState}`,
+                    `Last result: ${this.lastResult}`
+                ];
+                this.statusElement.textContent = lines.join('\n');
+            }
+
+            async getRunningDirectContext() {
+                const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+                if (!AudioContextClass) throw new Error('Web Audio API is unavailable');
+                if (!this.directContext || this.directContext.state === 'closed') {
+                    this.directContext = new AudioContextClass();
+                }
+                if (this.directContext.state !== 'running' && typeof this.directContext.resume === 'function') {
+                    await this.directContext.resume();
+                }
+                return this.directContext;
+            }
+
+            async playDirectTestBeep() {
+                this.lastResult = 'Starting direct test…';
+                if (this.messageElement) this.messageElement.textContent = 'Starting a direct browser-output beep…';
+                this.refresh();
+
+                try {
+                    const context = await this.getRunningDirectContext();
+                    if (!context || context.state !== 'running') {
+                        throw new Error(`Direct context is ${context ? context.state : 'missing'}`);
+                    }
+
+                    const oscillator = context.createOscillator();
+                    const gain = context.createGain();
+                    const now = context.currentTime;
+                    oscillator.type = 'sine';
+                    oscillator.frequency.setValueAtTime(660, now);
+                    oscillator.frequency.linearRampToValueAtTime(880, now + 0.18);
+                    gain.gain.setValueAtTime(0.0001, now);
+                    gain.gain.linearRampToValueAtTime(0.20, now + 0.015);
+                    gain.gain.setValueAtTime(0.20, now + 0.13);
+                    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.24);
+                    oscillator.connect(gain);
+                    gain.connect(context.destination);
+                    oscillator.addEventListener('ended', () => {
+                        try { oscillator.disconnect(); } catch (_) {}
+                        try { gain.disconnect(); } catch (_) {}
+                        this.lastResult = `Direct beep completed; context ${context.state}.`;
+                        if (this.messageElement) this.messageElement.textContent = 'Direct test completed. Report whether you heard it.';
+                        this.refresh();
+                    }, { once: true });
+                    oscillator.start(now);
+                    oscillator.stop(now + 0.26);
+                    this.lastResult = `Direct beep scheduled; context ${context.state}.`;
+                    if (this.messageElement) this.messageElement.textContent = 'Listen for a short rising beep.';
+                    this.refresh();
+                } catch (error) {
+                    this.lastResult = `Direct test failed: ${error && error.message ? error.message : String(error)}`;
+                    if (this.messageElement) this.messageElement.textContent = this.lastResult;
+                    this.refresh();
+                }
+            }
+
+            resetGameAudioSettings() {
+                try {
+                    localStorage.removeItem('blockazoidsSoundMuted');
+                    localStorage.removeItem('blockazoidsMusicMuted');
+                } catch (_) {}
+
+                const audio = this.game ? this.game.audio : null;
+                if (audio) {
+                    try {
+                        if (audio.isSoundMuted()) audio.setMuted(false);
+                        else {
+                            audio.createAudioContext();
+                            audio.ensureAudio();
+                        }
+                        audio.setMusicMuted(false);
+                    } catch (error) {
+                        this.lastResult = `Reset error: ${error && error.message ? error.message : String(error)}`;
+                        if (this.messageElement) this.messageElement.textContent = this.lastResult;
+                        this.refresh();
+                        return;
+                    }
+                }
+
+                this.lastResult = 'Stored mute settings cleared; game sound and music set ON.';
+                if (this.messageElement) this.messageElement.textContent = 'Audio settings reset. Press TEST BEEP, then press Play.';
+                this.refresh();
+            }
+        }
+
         // Initialize and start the game
         const game = new Game();
+        const audioDiagnostic = new AudioDiagnosticController(game);
     </script>
 </body>
 </html>
