@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Trackpad Prototype p054: Removes the rejected fourth-color preview, integrates the Red Drifter, Green Charger, and Blue Ghost Pulse into the 15-sector campaign with provisional authored mixtures, and replaces Orb scaling on crystal pickup with compact outward RGB rays and a thin halo.
+Trackpad Prototype p055: Adds a Developer Mode skin-frame selector that switches live between the embedded Vector Frame and an external Orb Frame asset stored beside the HTML, with safe fallback when the external asset is unavailable.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="trackpad-p054">
+<html data-build-version="trackpad-p055">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -5891,6 +5891,16 @@ Font License Notices
         .developer-settings-section .settings-toggle {
             width: min(300px, 94%);
         }
+        .developer-settings-section .developer-skin-control {
+            width: min(300px, 94%);
+            margin: 8px auto 10px;
+        }
+        .developer-settings-section .developer-skin-control .settings-stepper-title {
+            font-size: clamp(12px, 3.2vw, 15px);
+        }
+        .developer-settings-section .developer-skin-control .settings-stepper-value {
+            min-width: 112px;
+        }
         #settingsPanel.developer-expanded {
             overflow-y: auto;
             justify-content: flex-start;
@@ -7597,6 +7607,14 @@ Font License Notices
                 <div id="telemetryPanel" class="developer-settings-section" aria-hidden="true">
                     <div class="crt-dev-heading">DEVELOPER</div>
                     <button id="developerSectorSelectButton" class="menu-button settings-toggle" type="button">Sector Select</button>
+                    <div id="skinFrameControl" class="settings-stepper developer-skin-control" role="group" aria-label="Skin Frame">
+                        <div class="settings-stepper-title">Skin Frame</div>
+                        <div class="settings-stepper-row">
+                            <button id="skinFrameDecreaseButton" class="settings-stepper-arrow" type="button" aria-label="Previous skin frame">◀</button>
+                            <div id="settingsSkinFrameValue" class="settings-stepper-value">Vector</div>
+                            <button id="skinFrameIncreaseButton" class="settings-stepper-arrow" type="button" aria-label="Next skin frame">▶</button>
+                        </div>
+                    </div>
                     <div class="crt-dev-heading developer-subheading">TELEMETRY</div>
                     <div id="telemetrySummary" class="telemetry-summary">Developer Mode required.</div>
                     <button id="exportTelemetryButton" class="menu-button settings-toggle">Export Balance Data</button>
@@ -7677,7 +7695,7 @@ Font License Notices
     </div>
 
     <script>
-        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'trackpad-p054'}`;
+        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'trackpad-p055'}`;
 
         // Central diagnostic feature flags. Change values here before loading the page to isolate systems.
         const GAME_FEATURE_FLAGS = window.BLOCKAZOIDS_FEATURE_FLAGS = {
@@ -9134,6 +9152,8 @@ Font License Notices
                 // DOM element references
                 this.container = document.getElementById('gameContainer');
                 this.skinShell = document.getElementById('skinShell');
+                this.skinFrameImage = document.getElementById('skinFrameImage');
+                this.defaultSkinFrameSrc = this.skinFrameImage ? this.skinFrameImage.getAttribute('src') : '';
                 this.playfieldShell = document.getElementById('playfieldShell');
                 this.splashScreen = document.getElementById('splashScreen');
                 this.splashMarqueeImage = document.getElementById('splashMarqueeImage');
@@ -9204,6 +9224,28 @@ Font License Notices
                 this.trackingSpeed = this.loadTrackingSpeed();
                 this.tutorialHud = document.getElementById('tutorialHud');
                 this.invincibilityToggleButton = document.getElementById('invincibilityToggleButton');
+                this.skinFrameControl = document.getElementById('skinFrameControl');
+                this.skinFrameDecreaseButton = document.getElementById('skinFrameDecreaseButton');
+                this.skinFrameIncreaseButton = document.getElementById('skinFrameIncreaseButton');
+                this.settingsSkinFrameValue = document.getElementById('settingsSkinFrameValue');
+                this.skinFrameStorageKey = 'blockazoidsDeveloperSkinFrameV1';
+                this.skinFrameOptions = [
+                    { id: 'vector', label: 'Vector', candidates: [] },
+                    {
+                        id: 'orb',
+                        label: 'Orb',
+                        candidates: [
+                            'blockazoids-skin-orb-frame.png',
+                            'blockazoids-skin-orb-frame.webp',
+                            'blockazoids-skin-orb-frame.jpg',
+                            'blockazoids-skin-orb-frame.jpeg',
+                            'blockazoids-skin-orb-frame'
+                        ]
+                    }
+                ];
+                this.selectedSkinFrameId = this.loadSkinFrameSelection();
+                this.skinFrameLoadToken = 0;
+                this.applySelectedSkinFrame({ silent: true });
                 this.resetIntroCompletionButton = document.getElementById('resetIntroCompletionButton');
                 this.crtStorageKey = 'blockazoidsCrtEnabled';
                 this.crtPresetStorageKey = 'blockazoidsCrtPresetLevelV1';
@@ -9856,6 +9898,24 @@ Font License Notices
                         e.stopPropagation();
                         this.playUiClick();
                         this.toggleInvincibility();
+                    });
+                }
+                if (this.skinFrameDecreaseButton) {
+                    this.skinFrameDecreaseButton.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (!this.developerModeEnabled) return;
+                        this.playUiClick();
+                        this.adjustSkinFrameSelection(-1);
+                    });
+                }
+                if (this.skinFrameIncreaseButton) {
+                    this.skinFrameIncreaseButton.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (!this.developerModeEnabled) return;
+                        this.playUiClick();
+                        this.adjustSkinFrameSelection(1);
                     });
                 }
                 if (this.resetIntroCompletionButton) {
@@ -10731,8 +10791,81 @@ Font License Notices
                 if (visible) {
                     this.updateTelemetrySummary();
                     this.updateInvincibilityToggleLabel();
+                    this.updateSkinFrameLabel();
                     this.setTelemetryStatus('Local balance data only.');
                 }
+            }
+
+            loadSkinFrameSelection() {
+                try {
+                    const saved = localStorage.getItem(this.skinFrameStorageKey);
+                    return this.skinFrameOptions.some(option => option.id === saved) ? saved : 'vector';
+                } catch (error) {
+                    return 'vector';
+                }
+            }
+
+            saveSkinFrameSelection() {
+                try {
+                    localStorage.setItem(this.skinFrameStorageKey, this.selectedSkinFrameId);
+                } catch (error) {
+                    // Developer preview remains usable even when storage is unavailable.
+                }
+            }
+
+            updateSkinFrameLabel() {
+                const option = this.skinFrameOptions.find(item => item.id === this.selectedSkinFrameId) || this.skinFrameOptions[0];
+                if (this.settingsSkinFrameValue) this.settingsSkinFrameValue.textContent = option.label;
+                if (this.skinFrameControl) this.skinFrameControl.setAttribute('aria-label', `Skin Frame: ${option.label}`);
+            }
+
+            adjustSkinFrameSelection(direction) {
+                const currentIndex = Math.max(0, this.skinFrameOptions.findIndex(option => option.id === this.selectedSkinFrameId));
+                const nextIndex = (currentIndex + Math.sign(direction) + this.skinFrameOptions.length) % this.skinFrameOptions.length;
+                this.selectedSkinFrameId = this.skinFrameOptions[nextIndex].id;
+                this.saveSkinFrameSelection();
+                this.applySelectedSkinFrame();
+            }
+
+            applySelectedSkinFrame({ silent = false } = {}) {
+                this.skinFrameLoadToken += 1;
+                const loadToken = this.skinFrameLoadToken;
+                const selected = this.skinFrameOptions.find(option => option.id === this.selectedSkinFrameId) || this.skinFrameOptions[0];
+                this.updateSkinFrameLabel();
+
+                if (!this.skinFrameImage) return;
+                if (selected.id === 'vector') {
+                    if (this.defaultSkinFrameSrc) this.skinFrameImage.setAttribute('src', this.defaultSkinFrameSrc);
+                    if (!silent) this.setTelemetryStatus('Skin Frame: Vector.');
+                    return;
+                }
+
+                this.trySkinFrameCandidate(selected, 0, loadToken, silent);
+            }
+
+            trySkinFrameCandidate(option, candidateIndex, loadToken, silent) {
+                if (loadToken !== this.skinFrameLoadToken || !this.skinFrameImage) return;
+                const candidate = option.candidates[candidateIndex];
+                if (!candidate) {
+                    this.selectedSkinFrameId = 'vector';
+                    this.saveSkinFrameSelection();
+                    this.updateSkinFrameLabel();
+                    if (this.defaultSkinFrameSrc) this.skinFrameImage.setAttribute('src', this.defaultSkinFrameSrc);
+                    this.setTelemetryStatus('Orb Frame not found beside the HTML. Restored Vector Frame.');
+                    return;
+                }
+
+                const probe = new Image();
+                probe.onload = () => {
+                    if (loadToken !== this.skinFrameLoadToken || !this.skinFrameImage) return;
+                    this.skinFrameImage.setAttribute('src', candidate);
+                    this.skinFrameImage.dataset.skinFrame = option.id;
+                    if (!silent) this.setTelemetryStatus(`Skin Frame: ${option.label} (${candidate}).`);
+                };
+                probe.onerror = () => {
+                    this.trySkinFrameCandidate(option, candidateIndex + 1, loadToken, silent);
+                };
+                probe.src = candidate;
             }
 
             loadTelemetryData() {
@@ -12839,6 +12972,7 @@ Font License Notices
                     this.updateHighScoreDisplay();
                     this.updateLevelSelectUnlockState();
                     this.updateDeveloperSettingsVisibility();
+                    this.updateSkinFrameLabel();
                 }
                 if (panelName === 'launchSetup') {
                     this.updateSettingsSectorLabel();
