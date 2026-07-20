@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Trackpad Prototype p025: Unifies Sound, Music, and Monitor as one three-button icon row, limits the player-facing monitor choice to Vector ON or OFF, and preserves the p024 responsive layout and game-state architecture.
+Trackpad Prototype p023: Adds a shared Drifter, Sentinel, and Pulse Block behavior architecture with sector-configured mixtures, orbit-safe spawning, pause-safe timing, collision rules, and behavior telemetry while preserving the p022 cabinet, input, HUD, and lifecycle systems.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="trackpad-p025">
+<html data-build-version="trackpad-p023">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -459,6 +459,69 @@ Font License Notices
             --enemy-color: #fff;
         }
         
+
+        /* Enemy behavior vocabulary: readable movement identity without changing the core RGB block language. */
+        .enemy.enemy-sentinel::after {
+            content: "";
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            width: 28%;
+            height: 28%;
+            box-sizing: border-box;
+            border: 1px solid #fff;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 0 calc(var(--default-glow) * 0.34px) #fff;
+            pointer-events: none;
+        }
+
+        .enemy.enemy-pulse::before {
+            content: "";
+            position: absolute;
+            inset: 18%;
+            box-sizing: border-box;
+            border: 1px solid rgba(255,255,255,0.92);
+            pointer-events: none;
+        }
+
+        .enemy.enemy-pulse.pulse-harmless {
+            background-color: transparent !important;
+            opacity: 0.64 !important;
+            box-shadow: 0 0 calc(var(--default-glow) * 0.30px) currentColor !important;
+        }
+
+        .enemy.enemy-pulse.pulse-harmless::before {
+            inset: 10%;
+            border-width: 2px;
+            opacity: 0.82;
+        }
+
+        .enemy.enemy-pulse.pulse-warning {
+            animation: pulseBlockWarning 0.16s steps(1, end) infinite;
+        }
+
+        #gameContainer.crt-paused .enemy.enemy-pulse.pulse-warning,
+        #gameContainer.crt-ui-suspended .enemy.enemy-pulse.pulse-warning {
+            animation-play-state: paused;
+        }
+
+        @keyframes pulseBlockWarning {
+            0%, 44% {
+                filter: brightness(1);
+                outline: 0 solid transparent;
+            }
+            45%, 74% {
+                filter: brightness(2.8);
+                outline: 2px solid #fff;
+                outline-offset: 2px;
+            }
+            75%, 100% {
+                filter: brightness(1.35);
+                outline: 0 solid transparent;
+            }
+        }
+
         /* Explosion effect for player death or Cosmic Zap discharge */
         .explosion {
             position: absolute;
@@ -839,10 +902,10 @@ Font License Notices
         #bonusText.restoreText {
             width: min(92%, 540px);
             box-sizing: border-box;
-            padding: 10px;
-            font-size: clamp(11px, 3.4vw, 20px);
+            padding: 12px 14px;
+            font-size: clamp(18px, 5vw, 30px);
             line-height: 1.2;
-            letter-spacing: 0.5px;
+            letter-spacing: 1px;
             opacity: 1;
             color: #fff;
             background: #000;
@@ -854,25 +917,24 @@ Font License Notices
 
         .restore-title {
             white-space: nowrap;
-            font-size: clamp(16px, 4.8vw, 28px);
+            font-size: clamp(22px, 6.2vw, 36px);
             line-height: 1.08;
-            letter-spacing: 0.5px;
             margin-bottom: 2px;
         }
 
         .bonus-score-spacer {
-            height: 6px;
+            height: 8px;
         }
 
         .bonus-score-row {
             display: flex;
             justify-content: space-between;
-            gap: 8px;
+            gap: 18px;
             width: 100%;
             box-sizing: border-box;
-            padding: 0 2px;
+            padding: 0 4px;
             white-space: nowrap;
-            line-height: 1.28;
+            line-height: 1.32;
         }
 
         .bonus-score-row.perfect-sector-blink {
@@ -1383,69 +1445,6 @@ Font License Notices
             padding: 8px 12px;
         }
 
-        /* Primary settings toggles share one horizontal row and one state language. */
-        .settings-icon-controls {
-            width: min(240px, 88%);
-            margin: 4px auto 0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: clamp(12px, 4vw, 20px);
-        }
-
-        .settings-icon-toggle {
-            position: relative;
-            width: clamp(50px, 14vw, 62px);
-            height: clamp(50px, 14vw, 62px);
-            min-width: clamp(50px, 14vw, 62px);
-            padding: 0;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            color: #fff;
-            background: #000;
-            border: 2px solid #fff;
-            box-shadow: 0 0 calc(var(--default-glow) * 0.85px) #fff;
-            cursor: pointer;
-        }
-
-        .settings-icon-toggle .settings-control-icon {
-            width: 58%;
-            height: 58%;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            pointer-events: none;
-        }
-
-        .settings-icon-toggle svg {
-            display: block;
-            width: 100%;
-            height: 100%;
-            overflow: visible;
-        }
-
-        .settings-icon-toggle.is-muted {
-            opacity: 0.48;
-            box-shadow: 0 0 calc(var(--default-glow) * 0.38px) rgba(255,255,255,0.72);
-        }
-
-        .settings-icon-toggle.is-muted::after {
-            content: "";
-            position: absolute;
-            width: 72%;
-            height: 2px;
-            background: #fff;
-            box-shadow: 0 0 calc(var(--default-glow) * 0.55px) #fff;
-            transform: rotate(-45deg);
-            pointer-events: none;
-        }
-
-        .settings-icon-toggle:disabled {
-            cursor: default;
-            opacity: 0.24;
-        }
-
         .settings-stepper {
             margin: 4px auto 0;
             width: min(240px, 88%);
@@ -1562,7 +1561,6 @@ Font License Notices
         }
 
         .menu-button:focus,
-        .settings-icon-toggle:focus,
         .menu-back-button:focus,
         .level-select-button:focus,
         #levelSelectCloseButton:focus,
@@ -1579,7 +1577,6 @@ Font License Notices
         }
 
         .menu-button:focus-visible,
-        .settings-icon-toggle:focus-visible,
         .menu-back-button:focus-visible,
         .level-select-button:focus-visible,
         #levelSelectCloseButton:focus-visible,
@@ -5911,22 +5908,16 @@ Font License Notices
         }
 
         /* Keep the title style unchanged while adding breathing room before the first Settings item. */
-        #settingsPanelTitle + #settingsAudioControls {
+        #settingsPanelTitle + #soundToggleButton {
             margin-top: clamp(10px, 3vw, 16px);
         }
 
-        /* Keep the record near the top and use the same breathing room above and below the score. */
-        #highScorePanel {
-            --high-score-primary-gap: clamp(9px, 2.5vw, 14px);
-        }
-        #highScorePanel > .menu-panel-title {
-            margin-bottom: var(--high-score-primary-gap) !important;
-        }
+        /* Keep the record near the top and prevent the score value from dominating the page. */
         #highScorePanel .high-score-panel-value,
         #scoringPanel #scoringHighScoreValue {
             flex: 0 0 auto !important;
             min-height: 0 !important;
-            margin: 0 0 var(--high-score-primary-gap, clamp(9px, 2.5vw, 14px)) !important;
+            margin: clamp(3px, 1vw, 6px) 0 clamp(9px, 2.5vw, 14px) !important;
             font-size: clamp(34px, 10.5vw, 58px) !important;
             line-height: 1 !important;
             letter-spacing: clamp(1px, 0.6vw, 3px) !important;
@@ -6582,7 +6573,7 @@ Font License Notices
             display: none !important;
         }
 
-        /* Start/Pause/Game Over shortcuts occupy the four corner panels of the lower HUD. */
+        /* Pause/Game Over shortcuts occupy the four corner panels of the lower HUD. */
         #skinShell > #pauseGridMenu {
             inset: 0;
             width: 100%;
@@ -6752,7 +6743,7 @@ Font License Notices
 
         #skinShell > #cosmicZapHud {
             left: 79.064825%;
-            top: 7.467225%;
+            top: 7.117225%;
             width: 14.133900%;
             height: 6.040670%;
         }
@@ -7116,31 +7107,9 @@ Font License Notices
             </div>
             <div id="settingsPanel" class="menu-panel">
                 <div id="settingsPanelTitle" class="menu-panel-title">SETTINGS</div>
-                <div id="settingsIconControls" class="settings-icon-controls" role="group" aria-label="Sound, music, and monitor settings">
-                    <button id="soundToggleButton" class="settings-icon-toggle" type="button" aria-label="Disable sound" aria-pressed="true">
-                        <span class="settings-control-icon" aria-hidden="true">
-                            <svg viewBox="0 0 24 24" focusable="false">
-                                <path d="M3.5 9h4l5-4v14l-5-4h-4z" fill="currentColor"></path>
-                                <path d="M15 8.2c1.25 1.05 2 2.3 2 3.8s-.75 2.75-2 3.8M17.6 5.8c2.15 1.72 3.4 3.78 3.4 6.2s-1.25 4.48-3.4 6.2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>
-                            </svg>
-                        </span>
-                    </button>
-                    <button id="musicToggleButton" class="settings-icon-toggle" type="button" aria-label="Disable music" aria-pressed="true">
-                        <span class="settings-control-icon" aria-hidden="true">
-                            <svg viewBox="0 0 24 24" focusable="false">
-                                <path d="M9 5.2v10.1a3.2 3.2 0 1 1-2-2.96V7l10-2v8.3a3.2 3.2 0 1 1-2-2.96V3.1z" fill="currentColor"></path>
-                            </svg>
-                        </span>
-                    </button>
-                    <button id="crtToggleButton" class="settings-icon-toggle" type="button" aria-label="Disable Vector monitor" aria-pressed="true">
-                        <span class="settings-control-icon" aria-hidden="true">
-                            <svg viewBox="0 0 24 24" focusable="false">
-                                <rect x="3" y="4.5" width="18" height="12.5" rx="1.4" fill="none" stroke="currentColor" stroke-width="1.8"></rect>
-                                <path d="M9 20h6M12 17v3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>
-                            </svg>
-                        </span>
-                    </button>
-                </div>
+                <button id="soundToggleButton" class="menu-button settings-toggle">Disable Sound</button>
+                <button id="musicToggleButton" class="menu-button settings-toggle">Disable Music</button>
+                <button id="crtToggleButton" class="menu-button settings-toggle" aria-label="Monitor preset: Vector">Monitor: Vector</button>
                 <div id="trackingSpeedControl" class="settings-stepper tracking-speed-control" role="group" aria-label="Tracking Speed">
                     <div class="settings-stepper-title">Tracking Speed</div>
                     <div class="settings-stepper-row">
@@ -7209,7 +7178,7 @@ Font License Notices
         <div id="cycleNumberHud" class="skin-status-box" aria-label="Cycle">01</div>
     </div>
 
-    <div id="pauseGridMenu" aria-label="Game menu shortcuts">
+    <div id="pauseGridMenu" aria-label="Pause and Game Over menu shortcuts">
         <button id="pauseSettingsButton" class="pause-grid-button pause-grid-top-left" type="button" aria-label="Settings">
             <span class="pause-grid-icon gear-icon" aria-hidden="true"><svg viewBox="0 0 100 100" focusable="false"><g transform="translate(50 50)"><rect x="-8" y="-45" width="16" height="24" rx="2"/><rect x="-8" y="-45" width="16" height="24" rx="2" transform="rotate(45)"/><rect x="-8" y="-45" width="16" height="24" rx="2" transform="rotate(90)"/><rect x="-8" y="-45" width="16" height="24" rx="2" transform="rotate(135)"/><rect x="-8" y="-45" width="16" height="24" rx="2" transform="rotate(180)"/><rect x="-8" y="-45" width="16" height="24" rx="2" transform="rotate(225)"/><rect x="-8" y="-45" width="16" height="24" rx="2" transform="rotate(270)"/><rect x="-8" y="-45" width="16" height="24" rx="2" transform="rotate(315)"/><circle r="31"/><circle r="13" fill="#000"/></g></svg></span>
         </button>
@@ -7225,7 +7194,7 @@ Font License Notices
     </div>
 
     <script>
-        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'trackpad-p025'}`;
+        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'trackpad-p023'}`;
 
         // Central diagnostic feature flags. Change values here before loading the page to isolate systems.
         const GAME_FEATURE_FLAGS = window.BLOCKAZOIDS_FEATURE_FLAGS = {
@@ -7248,7 +7217,7 @@ Font License Notices
 
         // Player-facing monitor modes are separate from the granular CRT rendering engine.
         // This keeps visual policy centralized while preserving the proven event/lifecycle architecture.
-        const MONITOR_MODE_ORDER = Object.freeze(['vector', 'off']);
+        const MONITOR_MODE_ORDER = Object.freeze(['vector', 'crt', 'off']);
         const MONITOR_PRESETS = Object.freeze({
             vector: Object.freeze({
                 label: 'Vector',
@@ -7339,6 +7308,31 @@ Font License Notices
             enemySpawning: Object.freeze({
                 proportions: Object.freeze({ small: 0.125, medium: 0.75, large: 0.125 }),
                 spawnWarningDurationMs: 850
+            }),
+            enemyBehaviors: Object.freeze({
+                defaultType: 'drifter',
+                orbitCandidateCount: 20,
+                orbitSpawnDistanceMultiplier: 0.72,
+                sentinel: Object.freeze({
+                    angularSpeedDegPerSecond: 30,
+                    direction: 1
+                }),
+                pulse: Object.freeze({
+                    angularSpeedDegPerSecond: 26,
+                    direction: -1,
+                    dangerousDurationMs: 2600,
+                    harmlessDurationMs: 1600,
+                    warningDurationMs: 480
+                }),
+                orbitPresets: Object.freeze({
+                    centerWide: Object.freeze({ centerX: 0.50, centerY: 0.50, radius: 0.225, startAngleDeg: -90, direction: 1 }),
+                    centerInner: Object.freeze({ centerX: 0.50, centerY: 0.50, radius: 0.145, startAngleDeg: 0, direction: -1 }),
+                    centerOuter: Object.freeze({ centerX: 0.50, centerY: 0.50, radius: 0.285, startAngleDeg: 180, direction: 1 }),
+                    upperLeft: Object.freeze({ centerX: 0.31, centerY: 0.31, radius: 0.145, startAngleDeg: -90, direction: 1 }),
+                    upperRight: Object.freeze({ centerX: 0.69, centerY: 0.31, radius: 0.145, startAngleDeg: 180, direction: -1 }),
+                    lowerLeft: Object.freeze({ centerX: 0.31, centerY: 0.69, radius: 0.145, startAngleDeg: 0, direction: 1 }),
+                    lowerRight: Object.freeze({ centerX: 0.69, centerY: 0.69, radius: 0.145, startAngleDeg: 90, direction: -1 })
+                })
             }),
             campaign: Object.freeze({
                 maxLevels: 15,
@@ -7482,6 +7476,57 @@ Font License Notices
                 'Fragmenta'
             ]
             ),
+            sectorEnemyPlans: Object.freeze([
+                Object.freeze({ specials: Object.freeze([]) }),
+                Object.freeze({ specials: Object.freeze([]) }),
+                Object.freeze({ specials: Object.freeze([]) }),
+                Object.freeze({ specials: Object.freeze([
+                    Object.freeze({ spawnIndex: 2, behaviorType: 'sentinel', orbitPreset: 'centerWide' })
+                ]) }),
+                Object.freeze({ specials: Object.freeze([
+                    Object.freeze({ spawnIndex: 2, behaviorType: 'sentinel', orbitPreset: 'upperLeft' })
+                ]) }),
+                Object.freeze({ specials: Object.freeze([
+                    Object.freeze({ spawnIndex: 1, behaviorType: 'sentinel', orbitPreset: 'upperLeft' }),
+                    Object.freeze({ spawnIndex: 5, behaviorType: 'sentinel', orbitPreset: 'lowerRight' })
+                ]) }),
+                Object.freeze({ specials: Object.freeze([
+                    Object.freeze({ spawnIndex: 3, behaviorType: 'pulse', orbitPreset: 'centerWide' })
+                ]) }),
+                Object.freeze({ specials: Object.freeze([
+                    Object.freeze({ spawnIndex: 2, behaviorType: 'pulse', orbitPreset: 'upperRight' })
+                ]) }),
+                Object.freeze({ specials: Object.freeze([
+                    Object.freeze({ spawnIndex: 1, behaviorType: 'sentinel', orbitPreset: 'centerWide' }),
+                    Object.freeze({ spawnIndex: 5, behaviorType: 'pulse', orbitPreset: 'lowerLeft' })
+                ]) }),
+                Object.freeze({ specials: Object.freeze([
+                    Object.freeze({ spawnIndex: 1, behaviorType: 'sentinel', orbitPreset: 'centerInner' }),
+                    Object.freeze({ spawnIndex: 4, behaviorType: 'sentinel', orbitPreset: 'centerOuter' })
+                ]) }),
+                Object.freeze({ specials: Object.freeze([
+                    Object.freeze({ spawnIndex: 2, behaviorType: 'sentinel', orbitPreset: 'upperLeft' })
+                ]) }),
+                Object.freeze({ specials: Object.freeze([
+                    Object.freeze({ spawnIndex: 1, behaviorType: 'sentinel', orbitPreset: 'centerInner' }),
+                    Object.freeze({ spawnIndex: 5, behaviorType: 'sentinel', orbitPreset: 'centerOuter' })
+                ]) }),
+                Object.freeze({ specials: Object.freeze([
+                    Object.freeze({ spawnIndex: 1, behaviorType: 'sentinel', orbitPreset: 'upperRight' }),
+                    Object.freeze({ spawnIndex: 4, behaviorType: 'pulse', orbitPreset: 'lowerLeft' })
+                ]) }),
+                Object.freeze({ specials: Object.freeze([
+                    Object.freeze({ spawnIndex: 1, behaviorType: 'sentinel', orbitPreset: 'upperLeft' }),
+                    Object.freeze({ spawnIndex: 4, behaviorType: 'sentinel', orbitPreset: 'lowerRight' }),
+                    Object.freeze({ spawnIndex: 6, behaviorType: 'pulse', orbitPreset: 'centerWide' })
+                ]) }),
+                Object.freeze({ specials: Object.freeze([
+                    Object.freeze({ spawnIndex: 1, behaviorType: 'sentinel', orbitPreset: 'centerInner' }),
+                    Object.freeze({ spawnIndex: 3, behaviorType: 'pulse', orbitPreset: 'upperRight' }),
+                    Object.freeze({ spawnIndex: 5, behaviorType: 'sentinel', orbitPreset: 'centerOuter' }),
+                    Object.freeze({ spawnIndex: 7, behaviorType: 'pulse', orbitPreset: 'lowerLeft' })
+                ]) })
+            ]),
             sectorPatterns: Object.freeze(
             [
                 // Grid Sector 1 — Columns / Ordines: clean vertical color zones.
@@ -8335,6 +8380,7 @@ Font License Notices
                         remainingCrystalsByColor: game.getRemainingCrystalsByColor(),
                         currentColor: game.colorOrder[game.currentColorIndex] || null,
                         enemySize: deathDetails.deathEnemySize || null,
+                        enemyBehavior: deathDetails.deathEnemyBehavior || null,
                         inGridlock: !!game.maxSwarmActive,
                         secondsSinceGridlockStarted: game.currentTelemetrySector && game.currentTelemetrySector.gridlockReached ? Math.round((game.telemetrySectorElapsedMs() - game.currentTelemetrySector.gridlockTimeMs) / 1000) : null,
                         lastCrystalPickup: game.getLastCrystalPickupTelemetry(),
@@ -9999,7 +10045,6 @@ Font License Notices
 
             applyResponsiveViewportUpdate(reason = 'resize') {
                 const oldSize = Number(this.PLAYFIELD_SIZE) || 0;
-                const oldGridSize = Number(this.GRID_SIZE) || (oldSize ? oldSize / GAME_CONFIG.playfield.cells : 0);
                 const oldPlayerSize = Number(this.PLAYER_SIZE) || 20;
                 const desiredLayout = this.resolveResponsivePlayfieldLayout();
                 const desiredSize = desiredLayout.playfieldSize;
@@ -10036,69 +10081,44 @@ Font License Notices
                 (this.enemies || []).forEach(enemy => {
                     const nextSize = enemy.type === 'small' ? this.PLAYER_SIZE :
                         (enemy.type === 'medium' ? this.PLAYER_SIZE * 2 : this.PLAYER_SIZE * 3);
-                    scaleEntityAroundCenter(enemy, nextSize);
-                    const speed = this.getEnemySpeed(enemy.type);
-                    enemy.dx = (enemy.dx < 0 ? -1 : 1) * speed;
-                    enemy.dy = (enemy.dy < 0 ? -1 : 1) * speed;
-                    enemy.element.style.width = `${enemy.size}px`;
-                    enemy.element.style.height = `${enemy.size}px`;
-                    enemy.updatePosition();
+                    if (enemy && typeof enemy.handlePlayfieldResize === 'function') {
+                        enemy.handlePlayfieldResize(ratio, newSize, nextSize);
+                    } else {
+                        scaleEntityAroundCenter(enemy, nextSize);
+                        const speed = this.getEnemySpeed(enemy.type);
+                        const magnitude = Math.hypot(enemy.dx, enemy.dy) || 1;
+                        enemy.dx = enemy.dx / magnitude * speed;
+                        enemy.dy = enemy.dy / magnitude * speed;
+                        enemy.element.style.width = `${enemy.size}px`;
+                        enemy.element.style.height = `${enemy.size}px`;
+                        enemy.updatePosition();
+                    }
                 });
 
                 (this.crystals || []).forEach(crystal => {
-                    const oldCrystalSize = Number(crystal.size) || oldPlayerSize / 2;
-                    const oldCenterX = (Number(crystal.x) || 0) + oldCrystalSize / 2;
-                    const oldCenterY = (Number(crystal.y) || 0) + oldCrystalSize / 2;
-                    const col = oldGridSize ? Math.round(oldCenterX / oldGridSize) : 0;
-                    const row = oldGridSize ? Math.round(oldCenterY / oldGridSize) : 0;
-                    crystal.size = this.CRYSTAL_SIZE;
-                    crystal.x = col * this.GRID_SIZE - this.CRYSTAL_SIZE / 2;
-                    crystal.y = row * this.GRID_SIZE - this.CRYSTAL_SIZE / 2;
+                    scaleEntityAroundCenter(crystal, this.CRYSTAL_SIZE);
                     crystal.updatePosition();
                 });
 
-                // Crystal connections are grid topology, not arbitrary pixels. Preserve their
-                // integer row/column identity across responsive resizes and derive pixels from it.
-                this.collectedPositions = (this.collectedPositions || []).map(position => {
-                    const col = Number.isInteger(position.col)
-                        ? position.col
-                        : (oldGridSize ? Math.round((Number(position.x) || 0) / oldGridSize) : 0);
-                    const row = Number.isInteger(position.row)
-                        ? position.row
-                        : (oldGridSize ? Math.round((Number(position.y) || 0) / oldGridSize) : 0);
-                    return this.createGridPoint(col, row);
-                });
+                this.collectedPositions = (this.collectedPositions || []).map(position => ({
+                    x: (Number(position.x) || 0) * ratio,
+                    y: (Number(position.y) || 0) * ratio
+                }));
 
                 (this.lines || []).forEach(line => {
-                    const normalizeEndpoint = endpoint => {
-                        const col = Number.isInteger(endpoint.col)
-                            ? endpoint.col
-                            : (oldGridSize ? Math.round((Number(endpoint.x) || 0) / oldGridSize) : 0);
-                        const row = Number.isInteger(endpoint.row)
-                            ? endpoint.row
-                            : (oldGridSize ? Math.round((Number(endpoint.y) || 0) / oldGridSize) : 0);
-                        return this.createGridPoint(col, row);
-                    };
-                    line.start = normalizeEndpoint(line.start);
-                    line.end = normalizeEndpoint(line.end);
-                    const horizontal = line.start.row === line.end.row;
+                    line.start = { x: line.start.x * ratio, y: line.start.y * ratio };
+                    line.end = { x: line.end.x * ratio, y: line.end.y * ratio };
+                    const horizontal = Math.abs(line.start.y - line.end.y) < 0.5;
                     line.element.style.left = `${Math.min(line.start.x, line.end.x)}px`;
                     line.element.style.top = `${Math.min(line.start.y, line.end.y)}px`;
-                    line.element.style.width = horizontal ? `${this.GRID_SIZE}px` : `${this.LINE_THICKNESS}px`;
-                    line.element.style.height = horizontal ? `${this.LINE_THICKNESS}px` : `${this.GRID_SIZE}px`;
+                    line.element.style.width = horizontal ? `${Math.abs(line.end.x - line.start.x)}px` : `${this.LINE_THICKNESS}px`;
+                    line.element.style.height = horizontal ? `${this.LINE_THICKNESS}px` : `${Math.abs(line.end.y - line.start.y)}px`;
                 });
 
                 if (this.container) {
                     this.container.querySelectorAll('.filled-square').forEach(square => {
-                        const col = Number.parseInt(square.dataset.gridCol, 10);
-                        const row = Number.parseInt(square.dataset.gridRow, 10);
-                        if (Number.isInteger(col) && Number.isInteger(row)) {
-                            square.style.left = `${col * this.GRID_SIZE}px`;
-                            square.style.top = `${row * this.GRID_SIZE}px`;
-                        } else {
-                            square.style.left = `${(parseFloat(square.style.left) || 0) * ratio}px`;
-                            square.style.top = `${(parseFloat(square.style.top) || 0) * ratio}px`;
-                        }
+                        square.style.left = `${(parseFloat(square.style.left) || 0) * ratio}px`;
+                        square.style.top = `${(parseFloat(square.style.top) || 0) * ratio}px`;
                         square.style.width = `${this.GRID_SIZE}px`;
                         square.style.height = `${this.GRID_SIZE}px`;
                     });
@@ -10108,6 +10128,9 @@ Font License Notices
                     pending.size = pending.type === 'small' ? this.PLAYER_SIZE : (pending.type === 'medium' ? this.PLAYER_SIZE * 2 : this.PLAYER_SIZE * 3);
                     pending.spawnX = (Number(pending.spawnX) || 0) * ratio;
                     pending.spawnY = (Number(pending.spawnY) || 0) * ratio;
+                    if (pending.descriptor && pending.descriptor.behaviorConfig) {
+                        pending.descriptor.behaviorConfig = Object.assign({}, pending.descriptor.behaviorConfig);
+                    }
                     if (pending.warning) {
                         pending.warning.x = (Number(pending.warning.x) || 0) * ratio;
                         pending.warning.y = (Number(pending.warning.y) || 0) * ratio;
@@ -10367,7 +10390,8 @@ Font License Notices
                     gridlockRelicDelayMs: this.parameters.gridlockRelicDelayMs,
                     prismRelicCueDelayMs: this.prismRelicCueDelayMs,
                     prismRelicLifetimeMs: null,
-                    minSpawnDistance: this.MIN_SPAWN_DISTANCE
+                    minSpawnDistance: this.MIN_SPAWN_DISTANCE,
+                    enemyBehaviorPlan: this.getSectorEnemyPlanSnapshot()
                 };
             }
 
@@ -10442,6 +10466,13 @@ Font License Notices
                     maxActiveBlockAZoids: this.enemies.length,
                     totalBlockAZoidsSpawned: 0,
                     spawnedBySize: { small: 0, medium: 0, large: 0 },
+                    spawnedByBehavior: { drifter: 0, sentinel: 0, pulse: 0 },
+                    behaviorPlan: this.getSectorEnemyPlanSnapshot(),
+                    containsOrbitBehaviors: (this.getSectorEnemyPlan().specials || []).length > 0,
+                    orbitBehaviorSectorTimeMs: 0,
+                    pulseHarmlessCrossings: 0,
+                    pulseDangerousCollisions: 0,
+                    zapsWhileBehaviorActive: { drifter: 0, sentinel: 0, pulse: 0 },
                     cosmicZapsUsed: 0,
                     cosmicZapEvents: [],
                     crystalsCollected: 0,
@@ -10562,11 +10593,28 @@ Font License Notices
                 this.saveTelemetryData();
             }
 
-            noteTelemetryEnemySpawn(type) {
+            noteTelemetryEnemySpawn(type, behaviorType = 'drifter') {
                 if (!this.currentTelemetrySector || this.currentTelemetrySector.endedAt) return;
                 this.currentTelemetrySector.totalBlockAZoidsSpawned++;
                 if (this.currentTelemetrySector.spawnedBySize[type] !== undefined) this.currentTelemetrySector.spawnedBySize[type]++;
+                if (!this.currentTelemetrySector.spawnedByBehavior) this.currentTelemetrySector.spawnedByBehavior = { drifter: 0, sentinel: 0, pulse: 0 };
+                this.currentTelemetrySector.spawnedByBehavior[behaviorType] = (this.currentTelemetrySector.spawnedByBehavior[behaviorType] || 0) + 1;
                 this.currentTelemetrySector.maxActiveBlockAZoids = Math.max(this.currentTelemetrySector.maxActiveBlockAZoids, this.enemies.length);
+            }
+
+            noteTelemetryPulseHarmlessCrossing(enemy) {
+                if (!enemy || enemy.behaviorType !== 'pulse' || !this.currentTelemetrySector || this.currentTelemetrySector.endedAt) return;
+                const phaseKey = enemy.getInteractionPhaseKey ? enemy.getInteractionPhaseKey() : 'harmless';
+                if (enemy.lastTelemetryHarmlessCrossingPhase === phaseKey) return;
+                enemy.lastTelemetryHarmlessCrossingPhase = phaseKey;
+                this.currentTelemetrySector.pulseHarmlessCrossings = (this.currentTelemetrySector.pulseHarmlessCrossings || 0) + 1;
+            }
+
+            noteTelemetryEnemyCollision(enemy) {
+                if (!enemy || !this.currentTelemetrySector || this.currentTelemetrySector.endedAt) return;
+                if (enemy.behaviorType === 'pulse') {
+                    this.currentTelemetrySector.pulseDangerousCollisions = (this.currentTelemetrySector.pulseDangerousCollisions || 0) + 1;
+                }
             }
 
             noteTelemetryGridlock() {
@@ -10706,6 +10754,10 @@ Font License Notices
                 const firstZapThisSector = (this.currentTelemetrySector.cosmicZapsUsed || 0) === 0;
                 const timeSinceGridlockMs = this.currentTelemetrySector.gridlockReached && this.currentTelemetrySector.gridlockTimeMs !== null ? Math.max(0, elapsed - this.currentTelemetrySector.gridlockTimeMs) : null;
                 this.currentTelemetrySector.cosmicZapsUsed++;
+                if (!this.currentTelemetrySector.zapsWhileBehaviorActive) this.currentTelemetrySector.zapsWhileBehaviorActive = { drifter: 0, sentinel: 0, pulse: 0 };
+                [...new Set(clearedList.map(enemy => enemy && enemy.behaviorType ? enemy.behaviorType : 'drifter'))].forEach(behaviorType => {
+                    this.currentTelemetrySector.zapsWhileBehaviorActive[behaviorType] = (this.currentTelemetrySector.zapsWhileBehaviorActive[behaviorType] || 0) + 1;
+                });
                 this.currentTelemetrySector.maxActiveBlockAZoids = Math.max(this.currentTelemetrySector.maxActiveBlockAZoids, clearedCount);
                 this.currentTelemetrySector.cosmicZapEvents.push({
                     sectorTimeMs: elapsed,
@@ -10716,6 +10768,11 @@ Font License Notices
                         counts[type] = (counts[type] || 0) + 1;
                         return counts;
                     }, { small: 0, medium: 0, large: 0 }),
+                    clearedByBehavior: clearedList.reduce((counts, enemy) => {
+                        const behaviorType = enemy && enemy.behaviorType ? enemy.behaviorType : 'drifter';
+                        counts[behaviorType] = (counts[behaviorType] || 0) + 1;
+                        return counts;
+                    }, { drifter: 0, sentinel: 0, pulse: 0 }),
                     remainingCrystals: this.crystals.length,
                     remainingCrystalsByColor: colorState.remainingCrystalsByColor,
                     currentColor: colorState.currentColor,
@@ -10911,6 +10968,7 @@ Font License Notices
                 sector.remainingCrystalsByColor = this.getRemainingCrystalsByColor();
                 sector.activeBlockAZoidsAtEnd = this.enemies.length;
                 sector.maxActiveBlockAZoids = Math.max(sector.maxActiveBlockAZoids, this.enemies.length);
+                sector.orbitBehaviorSectorTimeMs = sector.containsOrbitBehaviors ? sector.durationMs : 0;
                 if (sector.gridlockReached && sector.gridlockTimeMs !== null) {
                     sector.gridlockDurationMs = Math.max(0, sector.durationMs - sector.gridlockTimeMs);
                     sector.timeInGridlockMs = sector.gridlockDurationMs;
@@ -11012,19 +11070,15 @@ Font License Notices
                 this.stopAttractComputerAmbience();
             }
 
-            isMenuContextAllowed() {
-                const pausedMenu = this.flow.is(GAME_FLOW_STATES.PAUSED) && this.isPaused;
-                const gameOverMenu = this.isGameOver && this.restartReady;
-                const startMenu = this.flow.is(GAME_FLOW_STATES.ATTRACT) && this.isStartScreenVisible();
-                return !!(startMenu || pausedMenu || gameOverMenu);
-            }
-
             isCornerMenuAvailable() {
                 if (!GAME_FEATURE_FLAGS.cornerMenus) return false;
                 const showingLevelSelect = !!(this.levelSelectWindow && this.levelSelectWindow.style.display === 'flex');
                 const blocked = this.splashIntroActive || showingLevelSelect || this.cycleTransitionActive || this.sectorTransitionActive ||
                                 this.showHudDuringSectorIntro || this.resumeCountdownActive || this.startInputLocked;
-                return !blocked && this.isMenuContextAllowed();
+                if (blocked) return false;
+                const pausedMenu = this.flow.is(GAME_FLOW_STATES.PAUSED) && this.isPaused;
+                const gameOverMenu = this.isGameOver && this.restartReady;
+                return !!(pausedMenu || gameOverMenu);
             }
 
             updatePauseGridMenu() {
@@ -11053,7 +11107,7 @@ Font License Notices
             }
 
             openPauseGridPanel(panelName) {
-                const menuContextAllowed = this.isMenuContextAllowed();
+                const menuContextAllowed = (this.flow.is(GAME_FLOW_STATES.PAUSED) && this.isPaused) || (this.isGameOver && this.restartReady);
                 if (!menuContextAllowed) return;
                 if (!this.pauseWindow || this.pauseWindow.style.display !== 'flex') return;
                 this.playUiClick();
@@ -11095,7 +11149,7 @@ Font License Notices
 
             handleContextButtonClick(action) {
                 if (!action) return;
-                const menuContextAllowed = this.isMenuContextAllowed();
+                const menuContextAllowed = (this.flow.is(GAME_FLOW_STATES.PAUSED) && this.isPaused) || (this.isGameOver && this.restartReady);
                 if (!menuContextAllowed) return;
                 if (this.cycleTransitionActive || this.showHudDuringSectorIntro || this.resumeCountdownActive || this.startInputLocked) return;
                 this.playUiClick();
@@ -11164,7 +11218,7 @@ Font License Notices
             }
 
             openMenuPanel(panelName) {
-                const menuContextAllowed = this.isMenuContextAllowed();
+                const menuContextAllowed = (this.flow.is(GAME_FLOW_STATES.PAUSED) && this.isPaused) || (this.isGameOver && this.restartReady);
                 if (!menuContextAllowed) return;
                 if (this.cycleTransitionActive || this.showHudDuringSectorIntro || this.resumeCountdownActive || this.startInputLocked) return;
                 this.enableShakeCosmicZap();
@@ -11528,9 +11582,9 @@ Font License Notices
 
 
             isAttractModeActive() {
-                const showingMenuPanel = !!this.getCurrentMenuContext();
+                const showingPause = this.pauseWindow && this.pauseWindow.style.display === 'flex';
                 const showingLevelSelect = this.levelSelectWindow && this.levelSelectWindow.style.display === 'flex';
-                return !!this.attractInterval && !this.active && !this.isPaused && !showingMenuPanel && !showingLevelSelect;
+                return !!this.attractInterval && !this.active && !this.isPaused && !showingPause && !showingLevelSelect;
             }
 
             isMarqueeEasterEggUnlocked() {
@@ -11731,17 +11785,166 @@ Font License Notices
                     currentTotal = adjustedSmall + adjustedMedium + adjustedLarge;
                 }
 
-                // Populate spawn queue with adjusted counts
-                this.spawnQueue = [];
-                for (let i = 0; i < adjustedSmall; i++) this.spawnQueue.push('small');
-                for (let i = 0; i < adjustedMedium; i++) this.spawnQueue.push('medium');
-                for (let i = 0; i < adjustedLarge; i++) this.spawnQueue.push('large');
+                // Build the size queue first, then layer the sector-authored behavior plan onto it.
+                const sizeQueue = [];
+                for (let i = 0; i < adjustedSmall; i++) sizeQueue.push('small');
+                for (let i = 0; i < adjustedMedium; i++) sizeQueue.push('medium');
+                for (let i = 0; i < adjustedLarge; i++) sizeQueue.push('large');
 
-                // Shuffle spawn queue for randomness
-                for (let i = this.spawnQueue.length - 1; i > 0; i--) {
+                // Shuffle sizes while keeping behavior introduction positions authored and readable.
+                for (let i = sizeQueue.length - 1; i > 0; i--) {
                     const j = Math.floor(Math.random() * (i + 1));
-                    [this.spawnQueue[i], this.spawnQueue[j]] = [this.spawnQueue[j], this.spawnQueue[i]];
+                    [sizeQueue[i], sizeQueue[j]] = [sizeQueue[j], sizeQueue[i]];
                 }
+                this.spawnQueue = this.buildSectorEnemySpawnQueue(sizeQueue);
+            }
+
+            getSectorEnemyPlan(levelNumber = this.level) {
+                const plans = GAME_DATA.sectorEnemyPlans || [];
+                const index = Math.max(0, Math.min(plans.length - 1, (Number(levelNumber) || 1) - 1));
+                return plans[index] || { specials: [] };
+            }
+
+            getSectorEnemyPlanSnapshot(levelNumber = this.level) {
+                const plan = this.getSectorEnemyPlan(levelNumber);
+                const specials = Array.isArray(plan.specials) ? plan.specials : [];
+                const counts = { drifter: Math.max(0, this.normalSwarmSize - specials.length), sentinel: 0, pulse: 0 };
+                specials.forEach(item => {
+                    const key = item && item.behaviorType ? item.behaviorType : 'drifter';
+                    counts[key] = (counts[key] || 0) + 1;
+                });
+                return {
+                    counts,
+                    specials: specials.map(item => ({
+                        spawnIndex: item.spawnIndex,
+                        behaviorType: item.behaviorType,
+                        orbitPreset: item.orbitPreset || null
+                    }))
+                };
+            }
+
+            normalizeEnemySpawnDescriptor(value, fallbackBehavior = GAME_CONFIG.enemyBehaviors.defaultType) {
+                if (typeof value === 'string') {
+                    return { sizeType: value, behaviorType: fallbackBehavior || 'drifter' };
+                }
+                const descriptor = value && typeof value === 'object' ? value : {};
+                return {
+                    sizeType: descriptor.sizeType || descriptor.type || 'medium',
+                    behaviorType: descriptor.behaviorType || fallbackBehavior || 'drifter',
+                    orbitPreset: descriptor.orbitPreset || null,
+                    behaviorConfig: descriptor.behaviorConfig ? Object.assign({}, descriptor.behaviorConfig) : null,
+                    spawnIndex: Number.isFinite(descriptor.spawnIndex) ? descriptor.spawnIndex : null
+                };
+            }
+
+            buildSectorEnemySpawnQueue(sizeQueue) {
+                const queue = sizeQueue.map((sizeType, spawnIndex) => ({
+                    sizeType,
+                    behaviorType: 'drifter',
+                    orbitPreset: null,
+                    spawnIndex
+                }));
+                const plan = this.getSectorEnemyPlan();
+                const specials = Array.isArray(plan.specials) ? plan.specials : [];
+                specials.forEach(special => {
+                    const index = Math.max(0, Math.min(queue.length - 1, Number(special.spawnIndex) || 0));
+                    queue[index] = Object.assign({}, queue[index], {
+                        behaviorType: special.behaviorType || 'drifter',
+                        orbitPreset: special.orbitPreset || null
+                    });
+                });
+                return queue;
+            }
+
+            getEnemySizeForType(type) {
+                if (type === 'small') return this.PLAYER_SIZE;
+                if (type === 'large') return this.PLAYER_SIZE * 3;
+                return this.PLAYER_SIZE * 2;
+            }
+
+            getOrbitPreset(name) {
+                const presets = GAME_CONFIG.enemyBehaviors.orbitPresets || {};
+                return presets[name] || presets.centerWide;
+            }
+
+            chooseOrbitSpawnLocation(descriptor, enemySize) {
+                const preset = this.getOrbitPreset(descriptor.orbitPreset);
+                if (!preset) return null;
+                const playfield = this.PLAYFIELD_SIZE;
+                const half = enemySize / 2;
+                const centerX = preset.centerX * playfield;
+                const centerY = preset.centerY * playfield;
+                const radiusLimit = Math.max(0, Math.min(
+                    centerX - half,
+                    playfield - centerX - half,
+                    centerY - half,
+                    playfield - centerY - half
+                ) - this.scalePresentationPixels(3));
+                const radius = Math.max(this.GRID_SIZE * 0.75, Math.min(preset.radius * playfield, radiusLimit));
+                if (!Number.isFinite(radius) || radius <= 0) return null;
+
+                const candidateCount = Math.max(8, GAME_CONFIG.enemyBehaviors.orbitCandidateCount || 20);
+                const baseAngleDeg = Number.isFinite(preset.startAngleDeg) ? preset.startAngleDeg : 0;
+                const playerCenterX = this.player.x + this.player.size / 2;
+                const playerCenterY = this.player.y + this.player.size / 2;
+                const requiredCrystals = Array.isArray(this.activeBlinkingCrystals) ? this.activeBlinkingCrystals : [];
+                const candidates = [];
+
+                for (let index = 0; index < candidateCount; index++) {
+                    const angleDeg = baseAngleDeg + (360 / candidateCount) * index;
+                    const angleRadians = angleDeg * Math.PI / 180;
+                    const enemyCenterX = centerX + Math.cos(angleRadians) * radius;
+                    const enemyCenterY = centerY + Math.sin(angleRadians) * radius;
+                    const x = Math.max(0, Math.min(playfield - enemySize, enemyCenterX - half));
+                    const y = Math.max(0, Math.min(playfield - enemySize, enemyCenterY - half));
+
+                    const overlapsEnemy = this.enemies.some(enemy =>
+                        x < enemy.x + enemy.size && x + enemySize > enemy.x &&
+                        y < enemy.y + enemy.size && y + enemySize > enemy.y
+                    );
+                    if (overlapsEnemy) continue;
+
+                    const overlapsPending = this.pendingSpawnWarnings.some(item =>
+                        x < item.spawnX + item.size && x + enemySize > item.spawnX &&
+                        y < item.spawnY + item.size && y + enemySize > item.spawnY
+                    );
+                    if (overlapsPending) continue;
+
+                    const overlapsRequiredCrystal = requiredCrystals.some(crystal =>
+                        x < crystal.x + crystal.size && x + enemySize > crystal.x &&
+                        y < crystal.y + crystal.size && y + enemySize > crystal.y
+                    );
+                    if (overlapsRequiredCrystal) continue;
+
+                    const distanceToPlayer = Math.hypot(enemyCenterX - playerCenterX, enemyCenterY - playerCenterY);
+                    candidates.push({
+                        x,
+                        y,
+                        warningX: Math.max(0, Math.min(playfield - this.GRID_SIZE, Math.floor(enemyCenterX / this.GRID_SIZE) * this.GRID_SIZE)),
+                        warningY: Math.max(0, Math.min(playfield - this.GRID_SIZE, Math.floor(enemyCenterY / this.GRID_SIZE) * this.GRID_SIZE)),
+                        distanceToPlayer,
+                        behaviorConfig: {
+                            centerXNorm: preset.centerX,
+                            centerYNorm: preset.centerY,
+                            radiusNorm: radius / playfield,
+                            angleRadians,
+                            direction: Number(preset.direction) || 1
+                        }
+                    });
+                }
+
+                if (!candidates.length) return null;
+                const minimumDistance = this.MIN_SPAWN_DISTANCE * (GAME_CONFIG.enemyBehaviors.orbitSpawnDistanceMultiplier || 0.72);
+                const strict = candidates.filter(candidate => candidate.distanceToPlayer >= minimumDistance);
+                const pool = strict.length ? strict : candidates.sort((a, b) => b.distanceToPlayer - a.distanceToPlayer).slice(0, 4);
+                return pool[Math.floor(Math.random() * pool.length)];
+            }
+
+            chooseEnemySpawnLocation(descriptor, enemySize) {
+                if (descriptor.behaviorType === 'sentinel' || descriptor.behaviorType === 'pulse') {
+                    return this.chooseOrbitSpawnLocation(descriptor, enemySize);
+                }
+                return this.choosePeripheralSpawnLocation(enemySize);
             }
 
             getCosmicZapsForCurrentCycle() {
@@ -12180,7 +12383,6 @@ Font License Notices
                     this.settingsBackButton,
                     this.soundToggleButton,
                     this.musicToggleButton,
-                    this.crtToggleButton,
                     this.trackingSpeedDecreaseButton,
                     this.trackingSpeedIncreaseButton,
                     this.difficultyButton,
@@ -12280,24 +12482,14 @@ Font License Notices
 
             updateSoundToggleLabel() {
                 if (!this.soundToggleButton || !this.audio) return;
-                const unavailable = !GAME_FEATURE_FLAGS.audio;
-                const muted = unavailable || this.audio.isSoundMuted();
-                this.soundToggleButton.disabled = unavailable;
-                this.soundToggleButton.classList.toggle('is-muted', muted);
-                this.soundToggleButton.setAttribute('aria-pressed', muted ? 'false' : 'true');
-                this.soundToggleButton.setAttribute('aria-label', unavailable ? 'Sound unavailable' : (muted ? 'Enable sound' : 'Disable sound'));
-                this.soundToggleButton.title = unavailable ? 'Sound unavailable' : (muted ? 'Enable sound' : 'Disable sound');
+                if (!GAME_FEATURE_FLAGS.audio) { this.soundToggleButton.textContent = 'Sound: OFF'; return; }
+                this.soundToggleButton.textContent = this.audio.isSoundMuted() ? 'Enable Sound' : 'Disable Sound';
             }
 
             updateMusicToggleLabel() {
                 if (!this.musicToggleButton || !this.audio) return;
-                const unavailable = !GAME_FEATURE_FLAGS.music;
-                const muted = unavailable || this.audio.isMusicMuted();
-                this.musicToggleButton.disabled = unavailable;
-                this.musicToggleButton.classList.toggle('is-muted', muted);
-                this.musicToggleButton.setAttribute('aria-pressed', muted ? 'false' : 'true');
-                this.musicToggleButton.setAttribute('aria-label', unavailable ? 'Music unavailable' : (muted ? 'Enable music' : 'Disable music'));
-                this.musicToggleButton.title = unavailable ? 'Music unavailable' : (muted ? 'Enable music' : 'Disable music');
+                if (!GAME_FEATURE_FLAGS.music) { this.musicToggleButton.textContent = 'Music: OFF'; return; }
+                this.musicToggleButton.textContent = this.audio.isMusicMuted() ? 'Enable Music' : 'Disable Music';
             }
 
             toggleSoundSetting() {
@@ -12328,8 +12520,8 @@ Font License Notices
                     const storedMode = localStorage.getItem(this.monitorPresetStorageKey);
                     if (MONITOR_MODE_ORDER.includes(storedMode)) return storedMode;
 
-                    // Migrate older monitor preferences into the current player-facing policy:
-                    // enabled means the Vector model; disabled means no monitor effect.
+                    // Migrate the old ON/OFF CRT preference. Existing ON users start with the new
+                    // Vector preset; the exact former look remains one tap away as the CRT preset.
                     const storedLegacyPreset = localStorage.getItem(this.crtPresetStorageKey);
                     if (storedLegacyPreset === 'off' || !this.loadCrtPreference()) return 'off';
                     return 'vector';
@@ -12390,19 +12582,11 @@ Font License Notices
             }
 
             updateCrtToggleLabel() {
-                const vectorEnabled = GAME_FEATURE_FLAGS.crt && this.monitorMode !== 'off';
-                const mode = vectorEnabled ? 'vector' : 'off';
+                const mode = (GAME_FEATURE_FLAGS.crt && MONITOR_PRESETS[this.monitorMode]) ? this.monitorMode : 'off';
                 const label = MONITOR_PRESETS[mode].label;
                 if (this.crtToggleButton) {
-                    this.crtToggleButton.disabled = !GAME_FEATURE_FLAGS.crt;
-                    this.crtToggleButton.classList.toggle('is-muted', !vectorEnabled);
-                    this.crtToggleButton.setAttribute('aria-pressed', vectorEnabled ? 'true' : 'false');
-                    this.crtToggleButton.setAttribute('aria-label', !GAME_FEATURE_FLAGS.crt
-                        ? 'Vector monitor unavailable'
-                        : (vectorEnabled ? 'Disable Vector monitor' : 'Enable Vector monitor'));
-                    this.crtToggleButton.title = !GAME_FEATURE_FLAGS.crt
-                        ? 'Vector monitor unavailable'
-                        : (vectorEnabled ? 'Disable Vector monitor' : 'Enable Vector monitor');
+                    this.crtToggleButton.textContent = `Monitor: ${label}`;
+                    this.crtToggleButton.setAttribute('aria-label', `Monitor preset: ${label}. Tap to change.`);
                 }
                 if (this.crtDeveloperMasterState) {
                     this.crtDeveloperMasterState.textContent = `MONITOR: ${label.toUpperCase()}`;
@@ -12508,8 +12692,9 @@ Font License Notices
             }
 
             toggleCrtSetting() {
-                if (!GAME_FEATURE_FLAGS.crt) return;
-                this.applyMonitorMode(this.monitorMode === 'off' ? 'vector' : 'off');
+                const currentIndex = Math.max(0, MONITOR_MODE_ORDER.indexOf(this.monitorMode));
+                const nextMode = MONITOR_MODE_ORDER[(currentIndex + 1) % MONITOR_MODE_ORDER.length];
+                this.applyMonitorMode(nextMode);
             }
 
 
@@ -14789,7 +14974,7 @@ Font License Notices
 
                 if (requeue) {
                     for (let i = pending.length - 1; i >= 0; i--) {
-                        if (pending[i].requeueOnCancel !== false) this.spawnQueue.unshift(pending[i].type);
+                        if (pending[i].requeueOnCancel !== false) this.spawnQueue.unshift(pending[i].descriptor || this.normalizeEnemySpawnDescriptor(pending[i].type));
                     }
                 }
 
@@ -14870,27 +15055,38 @@ Font License Notices
 
             // Flash one grid cell first, then materialize the queued enemy in its clamped spawn location.
             // The warning is always the same size so it does not reveal the next Block-A-Zoid size.
-            startEnemySpawnWarning(type, options = {}) {
-                const size = type === 'small' ? this.PLAYER_SIZE : (type === 'medium' ? this.PLAYER_SIZE * 2 : this.PLAYER_SIZE * 3);
-                const location = this.choosePeripheralSpawnLocation(size);
+            startEnemySpawnWarning(spawnValue, options = {}) {
+                const descriptor = this.normalizeEnemySpawnDescriptor(spawnValue);
+                const type = descriptor.sizeType;
+                const size = this.getEnemySizeForType(type);
+                const location = this.chooseEnemySpawnLocation(descriptor, size);
                 if (!location) return false;
+                const resolvedDescriptor = Object.assign({}, descriptor, {
+                    behaviorConfig: Object.assign({}, descriptor.behaviorConfig || {}, location.behaviorConfig || {})
+                });
 
-                if (!GAME_FEATURE_FLAGS.spawnWarnings) {
-                    const enemy = new Enemy(this, type, { x: location.x, y: location.y });
+                const materializeEnemy = () => {
+                    const enemy = new Enemy(this, type, { x: location.x, y: location.y }, resolvedDescriptor);
                     this.enemies.push(enemy);
-                    this.noteTelemetryEnemySpawn(type);
+                    this.noteTelemetryEnemySpawn(type, enemy.behaviorType);
                     this.checkMaxSwarmProgress();
                     this.checkPrismRelicSpawnProgress();
                     if (enemy.size === this.PLAYER_SIZE) this.spawnedCount.small++;
                     else if (enemy.size === this.PLAYER_SIZE * 2) this.spawnedCount.medium++;
                     else this.spawnedCount.large++;
                     if (typeof options.onSpawn === 'function') options.onSpawn(enemy);
+                    return enemy;
+                };
+
+                if (!GAME_FEATURE_FLAGS.spawnWarnings) {
+                    materializeEnemy();
                     return true;
                 }
 
                 const warning = new SpawnWarning(this, location.warningX, location.warningY, this.GRID_SIZE);
                 const pending = {
                     type,
+                    descriptor: resolvedDescriptor,
                     warning,
                     size,
                     spawnX: location.x,
@@ -14904,19 +15100,11 @@ Font License Notices
                     warning.remove();
 
                     if (!this.flow.isLiveAction()) {
-                        if (options.requeueOnCancel !== false) this.spawnQueue.unshift(type);
+                        if (options.requeueOnCancel !== false) this.spawnQueue.unshift(resolvedDescriptor);
                         return;
                     }
 
-                    const enemy = new Enemy(this, type, { x: location.x, y: location.y });
-                    this.enemies.push(enemy);
-                    this.noteTelemetryEnemySpawn(type);
-                    this.checkMaxSwarmProgress();
-                    this.checkPrismRelicSpawnProgress();
-                    if (enemy.size === this.PLAYER_SIZE) this.spawnedCount.small++;
-                    else if (enemy.size === this.PLAYER_SIZE * 2) this.spawnedCount.medium++;
-                    else this.spawnedCount.large++;
-                    if (typeof options.onSpawn === 'function') options.onSpawn(enemy);
+                    materializeEnemy();
                 }, this.spawnWarningDurationMs);
 
                 this.pendingSpawnWarnings.push(pending);
@@ -14931,8 +15119,8 @@ Font License Notices
                 if (this.spawnCounter >= this.spawnDelay && 
                     this.enemies.length + this.pendingSpawnWarnings.length < this.normalSwarmSize &&
                     this.spawnQueue.length > 0) { // Telegraph the next enemy if conditions met
-                    const nextType = this.spawnQueue[0];
-                    if (this.startEnemySpawnWarning(nextType)) {
+                    const nextSpawn = this.spawnQueue[0];
+                    if (this.startEnemySpawnWarning(nextSpawn)) {
                         this.spawnCounter = 0; // Reset counter only when a valid telegraph was created
                         this.spawnQueue.shift();
                     }
@@ -15165,9 +15353,9 @@ Font License Notices
                         const enemyA = this.enemies[i];
                         for (let j = i + 1; j < this.enemies.length; j++) {
                             const enemyB = this.enemies[j];
-                            if (enemyA.collidesWith(enemyB)) {
+                            if (enemyA.collidesWith(enemyB) && enemyA.canResolveCollisionWith(enemyB)) {
                                 collisionOccurred = true;
-                                enemyA.resolveCollisionWith(enemyB); // Adjust positions and velocities
+                                enemyA.resolveCollisionWith(enemyB); // Ricochet enemies retain the existing physical response.
                             }
                         }
                     }
@@ -15231,10 +15419,7 @@ Font License Notices
             }
 
             collectCrystalAtIndex(index, crystal) {
-                const pos = this.createGridPointFromPixels(
-                    crystal.x + crystal.size / 2,
-                    crystal.y + crystal.size / 2
-                );
+                const pos = { x: crystal.x + crystal.size / 2, y: crystal.y + crystal.size / 2 };
                 this.collectedPositions.push(pos);
                 this.connectToNearestIntersection(pos);
                 crystal.element.remove();
@@ -15274,7 +15459,8 @@ Font License Notices
                 this.markStabilityEvent('invincibility-collision', {
                     sector: this.level,
                     cycle: this.cycle,
-                    enemySize: enemyType || (enemy && enemy.type) || null
+                    enemySize: enemyType || (enemy && enemy.type) || null,
+                    enemyBehavior: enemy && enemy.behaviorType ? enemy.behaviorType : null
                 });
                 this.player.reset();
             }
@@ -15288,12 +15474,20 @@ Font License Notices
 
                 for (const enemy of this.enemies) {
                     if (this.getPlayerPathHitScore(enemy, movementSegments) !== null) {
+                        if (enemy && typeof enemy.isDangerous === 'function' && !enemy.isDangerous()) {
+                            this.noteTelemetryPulseHarmlessCrossing(enemy);
+                            continue;
+                        }
                         if (this.isCosmicZapProtectingOrb()) continue;
+                        this.noteTelemetryEnemyCollision(enemy);
                         if (this.invincibilityEnabled) {
                             this.handleInvincibleCollision(enemy, enemy.type || null);
                             return;
                         }
-                        this.endRun({ deathEnemySize: enemy.type || null });
+                        this.endRun({
+                            deathEnemySize: enemy.type || null,
+                            deathEnemyBehavior: enemy.behaviorType || 'drifter'
+                        });
                         return;
                     }
                 }
@@ -15322,153 +15516,94 @@ Font License Notices
                 }
             }
 
-            // Grid topology is stored as integer columns and rows. Pixel coordinates are always
-            // derived from that topology so responsive fractional grid sizes cannot break adjacency.
-            createGridPoint(col, row) {
-                const gridCol = Math.round(Number(col) || 0);
-                const gridRow = Math.round(Number(row) || 0);
-                return {
-                    col: gridCol,
-                    row: gridRow,
-                    x: gridCol * this.GRID_SIZE,
-                    y: gridRow * this.GRID_SIZE
-                };
-            }
-
-            createGridPointFromPixels(x, y) {
-                return this.createGridPoint(
-                    Math.round((Number(x) || 0) / this.GRID_SIZE),
-                    Math.round((Number(y) || 0) / this.GRID_SIZE)
-                );
-            }
-
-            normalizeGridPoint(point) {
-                if (point && Number.isInteger(point.col) && Number.isInteger(point.row)) {
-                    return this.createGridPoint(point.col, point.row);
-                }
-                return this.createGridPointFromPixels(point?.x, point?.y);
-            }
-
-            hasCollectedGridPoint(point) {
-                const target = this.normalizeGridPoint(point);
-                return this.collectedPositions.some(position => {
-                    const collected = this.normalizeGridPoint(position);
-                    return collected.col === target.col && collected.row === target.row;
-                });
-            }
-
-            hasGridLine(startPoint, endPoint) {
-                const start = this.normalizeGridPoint(startPoint);
-                const end = this.normalizeGridPoint(endPoint);
-                return this.lines.some(line => {
-                    const lineStart = this.normalizeGridPoint(line.start);
-                    const lineEnd = this.normalizeGridPoint(line.end);
-                    return (
-                        lineStart.col === start.col && lineStart.row === start.row &&
-                        lineEnd.col === end.col && lineEnd.row === end.row
-                    ) || (
-                        lineStart.col === end.col && lineStart.row === end.row &&
-                        lineEnd.col === start.col && lineEnd.row === start.row
-                    );
-                });
-            }
-
-            // Connect a collected crystal to neighboring collected grid intersections.
+            // Connect collected crystal to nearest grid intersection
             connectToNearestIntersection(currentPos) {
-                const current = this.normalizeGridPoint(currentPos);
-                const directions = [
-                    { dc: 0, dr: -1, horizontal: false }, // Up
-                    { dc: 0, dr: 1, horizontal: false },  // Down
-                    { dc: -1, dr: 0, horizontal: true },  // Left
-                    { dc: 1, dr: 0, horizontal: true }    // Right
+                const gridSize = this.GRID_SIZE; // Grid cell size
+                const directions = [ // Possible connection directions
+                    { dx: 0, dy: -gridSize, horizontal: false }, // Up
+                    { dx: 0, dy: gridSize, horizontal: false },  // Down
+                    { dx: -gridSize, dy: 0, horizontal: true },  // Left
+                    { dx: gridSize, dy: 0, horizontal: true }    // Right
                 ];
 
-                directions.forEach(direction => {
-                    const target = this.createGridPoint(
-                        current.col + direction.dc,
-                        current.row + direction.dr
-                    );
-                    if (this.hasCollectedGridPoint(target)) {
-                        this.drawLine(current, target, direction.horizontal);
-                        this.checkForCompletedSquare(current, target);
+                directions.forEach(dir => {
+                    const targetPos = { x: currentPos.x + dir.dx, y: currentPos.y + dir.dy };
+                    if (this.collectedPositions.some(pos => pos.x === targetPos.x && pos.y === targetPos.y)) {
+                        this.drawLine(currentPos, targetPos, dir.horizontal); // Draw connection line
+                        this.checkForCompletedSquare(currentPos, targetPos); // Check for square
                     }
                 });
             }
 
-            // Draw a connection line between two canonical grid points.
+            // Draw a connection line between two points
             drawLine(startPos, endPos, horizontal) {
-                const start = this.normalizeGridPoint(startPos);
-                const end = this.normalizeGridPoint(endPos);
-                if (this.hasGridLine(start, end)) return;
-
                 const line = document.createElement('div');
                 line.className = 'connection-line';
-                line.style.left = `${Math.min(start.x, end.x)}px`;
-                line.style.top = `${Math.min(start.y, end.y)}px`;
+                line.style.left = `${Math.min(startPos.x, endPos.x)}px`;
+                line.style.top = `${Math.min(startPos.y, endPos.y)}px`;
                 if (horizontal) {
-                    line.style.width = `${this.GRID_SIZE}px`;
+                    line.style.width = `${this.GRID_SIZE}px`; // Horizontal line
                     line.style.height = `${this.LINE_THICKNESS}px`;
                 } else {
-                    line.style.width = `${this.LINE_THICKNESS}px`;
+                    line.style.width = `${this.LINE_THICKNESS}px`; // Vertical line
                     line.style.height = `${this.GRID_SIZE}px`;
                 }
                 this.container.appendChild(line);
-                this.lines.push({ start, end, element: line });
+                this.lines.push({ start: startPos, end: endPos, element: line }); // Store line
             }
 
-            // Check whether the new line closes either adjacent one-cell square.
+            // Check if a completed square is formed
             checkForCompletedSquare(startPos, endPos) {
-                const start = this.normalizeGridPoint(startPos);
-                const end = this.normalizeGridPoint(endPos);
-                const minCol = Math.min(start.col, end.col);
-                const minRow = Math.min(start.row, end.row);
+                const gridSize = this.GRID_SIZE;
+                const minX = Math.min(startPos.x, endPos.x);
+                const minY = Math.min(startPos.y, endPos.y);
+                const maxX = Math.max(startPos.x, endPos.x);
+                const maxY = Math.max(startPos.y, endPos.y);
 
-                const potentialSquares = [];
-                if (start.col === end.col) {
-                    potentialSquares.push({ col: minCol - 1, row: minRow });
-                    potentialSquares.push({ col: minCol, row: minRow });
-                } else {
-                    potentialSquares.push({ col: minCol, row: minRow - 1 });
-                    potentialSquares.push({ col: minCol, row: minRow });
+                const potentialSquares = []; // Possible square starting points
+                if (startPos.x === endPos.x) { // Vertical line
+                    potentialSquares.push({ x: minX - gridSize, y: minY });
+                    potentialSquares.push({ x: minX, y: minY });
+                } else { // Horizontal line
+                    potentialSquares.push({ x: minX, y: minY - gridSize });
+                    potentialSquares.push({ x: minX, y: minY });
                 }
 
                 potentialSquares.forEach(square => {
-                    const corners = [
-                        this.createGridPoint(square.col, square.row),
-                        this.createGridPoint(square.col + 1, square.row),
-                        this.createGridPoint(square.col, square.row + 1),
-                        this.createGridPoint(square.col + 1, square.row + 1)
+                    const corners = [ // Corners of potential square
+                        { x: square.x, y: square.y },
+                        { x: square.x + gridSize, y: square.y },
+                        { x: square.x, y: square.y + gridSize },
+                        { x: square.x + gridSize, y: square.y + gridSize }
                     ];
-                    if (!corners.every(corner => this.hasCollectedGridPoint(corner))) return;
-
-                    const sides = [
-                        { start: corners[0], end: corners[1] },
-                        { start: corners[1], end: corners[3] },
-                        { start: corners[2], end: corners[3] },
-                        { start: corners[0], end: corners[2] }
-                    ];
-                    if (sides.every(side => this.hasGridLine(side.start, side.end))) {
-                        this.fillSquare(square.col, square.row);
+                    if (corners.every(corner => this.collectedPositions.some(pos => pos.x === corner.x && pos.y === corner.y))) { // All corners collected
+                        const sides = [ // Sides of the square
+                            { start: corners[0], end: corners[1] },
+                            { start: corners[1], end: corners[3] },
+                            { start: corners[2], end: corners[3] },
+                            { start: corners[0], end: corners[2] }
+                        ];
+                        if (sides.every(side => this.lines.some(line => // All sides connected
+                            (line.start.x === side.start.x && line.start.y === side.start.y && line.end.x === side.end.x && line.end.y === side.end.y) ||
+                            (line.start.x === side.end.x && line.start.y === side.end.y && line.end.x === side.start.x && line.end.y === side.start.y)
+                        ))) {
+                            this.fillSquare(square.x, square.y); // Fill completed square
+                        }
                     }
                 });
             }
 
             // Fill a completed square visually only; no square score bonus.
-            fillSquare(col, row) {
+            fillSquare(x, y) {
                 const existingSquares = Array.from(this.container.getElementsByClassName('filled-square'));
-                const alreadyFilled = existingSquares.some(square =>
-                    Number.parseInt(square.dataset.gridCol, 10) === col &&
-                    Number.parseInt(square.dataset.gridRow, 10) === row
-                );
-                if (alreadyFilled) return;
-
-                const square = document.createElement('div');
-                square.className = 'filled-square';
-                square.dataset.gridCol = `${col}`;
-                square.dataset.gridRow = `${row}`;
-                square.style.left = `${col * this.GRID_SIZE}px`;
-                square.style.top = `${row * this.GRID_SIZE}px`;
-                this.container.appendChild(square);
+                if (!existingSquares.some(square => // Check if square already filled
+                    parseInt(square.style.left) === x && parseInt(square.style.top) === y)) {
+                    const square = document.createElement('div');
+                    square.className = 'filled-square';
+                    square.style.left = `${x}px`;
+                    square.style.top = `${y}px`;
+                    this.container.appendChild(square);
+                }
             }
 
             // Update enemy colors to match current crystal color
@@ -16748,69 +16883,234 @@ Font License Notices
             }
         }
 
-        // Enemy class for handling movement and behavior
+        class EnemyBehavior {
+            constructor(enemy, config = {}) {
+                this.enemy = enemy;
+                this.game = enemy.game;
+                this.config = Object.assign({}, config);
+                this.family = 'ricochet';
+            }
+
+            update() {}
+            isDangerous() { return true; }
+            canResolveCollisionWith(otherBehavior) { return this.family === 'ricochet' && otherBehavior && otherBehavior.family === 'ricochet'; }
+            handleResize() { return false; }
+            getInteractionPhaseKey() { return this.enemy.behaviorType; }
+        }
+
+        class DrifterBehavior extends EnemyBehavior {
+            constructor(enemy, config = {}) {
+                super(enemy, config);
+                this.family = 'ricochet';
+            }
+
+            update(deltaTime) {
+                const enemy = this.enemy;
+                enemy.x += enemy.dx * (deltaTime / 16.67);
+                enemy.y += enemy.dy * (deltaTime / 16.67);
+
+                if (enemy.x <= 0 || enemy.x >= this.game.PLAYFIELD_SIZE - enemy.size) {
+                    enemy.x = Math.max(0, Math.min(this.game.PLAYFIELD_SIZE - enemy.size, enemy.x));
+                    enemy.dx = -enemy.dx;
+                    enemy.flashBorder();
+                }
+                if (enemy.y <= 0 || enemy.y >= this.game.PLAYFIELD_SIZE - enemy.size) {
+                    enemy.y = Math.max(0, Math.min(this.game.PLAYFIELD_SIZE - enemy.size, enemy.y));
+                    enemy.dy = -enemy.dy;
+                    enemy.flashBorder();
+                }
+            }
+
+            handleResize(ratio, newPlayfieldSize, oldSize) {
+                const enemy = this.enemy;
+                const centerX = (enemy.x + oldSize / 2) * ratio;
+                const centerY = (enemy.y + oldSize / 2) * ratio;
+                enemy.x = Math.max(0, Math.min(newPlayfieldSize - enemy.size, centerX - enemy.size / 2));
+                enemy.y = Math.max(0, Math.min(newPlayfieldSize - enemy.size, centerY - enemy.size / 2));
+                const speed = this.game.getEnemySpeed(enemy.type);
+                const magnitude = Math.hypot(enemy.dx, enemy.dy) || 1;
+                enemy.dx = enemy.dx / magnitude * speed;
+                enemy.dy = enemy.dy / magnitude * speed;
+                return true;
+            }
+        }
+
+        class OrbitBehavior extends EnemyBehavior {
+            constructor(enemy, config = {}) {
+                super(enemy, config);
+                this.family = 'orbit';
+                this.centerXNorm = Number.isFinite(config.centerXNorm) ? config.centerXNorm : 0.5;
+                this.centerYNorm = Number.isFinite(config.centerYNorm) ? config.centerYNorm : 0.5;
+                this.radiusNorm = Number.isFinite(config.radiusNorm) ? config.radiusNorm : 0.2;
+                this.angleRadians = Number.isFinite(config.angleRadians) ? config.angleRadians : 0;
+                this.direction = Number(config.direction) < 0 ? -1 : 1;
+                this.angularSpeedDegPerSecond = Number(config.angularSpeedDegPerSecond) || 28;
+                this.applyOrbitPosition();
+            }
+
+            applyOrbitPosition() {
+                const playfield = this.game.PLAYFIELD_SIZE;
+                const centerX = this.centerXNorm * playfield;
+                const centerY = this.centerYNorm * playfield;
+                const half = this.enemy.size / 2;
+                const radiusLimit = Math.max(0, Math.min(centerX - half, playfield - centerX - half, centerY - half, playfield - centerY - half));
+                const radius = Math.min(this.radiusNorm * playfield, radiusLimit);
+                this.enemy.x = Math.max(0, Math.min(playfield - this.enemy.size, centerX + Math.cos(this.angleRadians) * radius - half));
+                this.enemy.y = Math.max(0, Math.min(playfield - this.enemy.size, centerY + Math.sin(this.angleRadians) * radius - half));
+            }
+
+            update(deltaTime) {
+                const speedMultiplier = this.game.getCurrentSpeedMultiplier ? this.game.getCurrentSpeedMultiplier() : 1;
+                const angularStep = this.angularSpeedDegPerSecond * Math.PI / 180 * speedMultiplier * (deltaTime / 1000);
+                this.angleRadians += angularStep * this.direction;
+                if (this.angleRadians > Math.PI * 2 || this.angleRadians < -Math.PI * 2) this.angleRadians %= Math.PI * 2;
+                this.applyOrbitPosition();
+            }
+
+            handleResize() {
+                this.applyOrbitPosition();
+                return true;
+            }
+        }
+
+        class SentinelBehavior extends OrbitBehavior {
+            constructor(enemy, config = {}) {
+                const defaults = GAME_CONFIG.enemyBehaviors.sentinel;
+                super(enemy, Object.assign({}, defaults, config));
+            }
+        }
+
+        class PulseBehavior extends OrbitBehavior {
+            constructor(enemy, config = {}) {
+                const defaults = GAME_CONFIG.enemyBehaviors.pulse;
+                super(enemy, Object.assign({}, defaults, config));
+                this.dangerousDurationMs = Number(config.dangerousDurationMs) || defaults.dangerousDurationMs;
+                this.harmlessDurationMs = Number(config.harmlessDurationMs) || defaults.harmlessDurationMs;
+                this.warningDurationMs = Number(config.warningDurationMs) || defaults.warningDurationMs;
+                this.phase = 'dangerous';
+                this.phaseElapsedMs = 0;
+                this.phaseSerial = 0;
+                this.syncVisualState();
+            }
+
+            getPhaseDuration() {
+                if (this.phase === 'dangerous') return this.dangerousDurationMs;
+                if (this.phase === 'harmless') return this.harmlessDurationMs;
+                return this.warningDurationMs;
+            }
+
+            advancePhase() {
+                if (this.phase === 'dangerous') this.phase = 'warning-to-harmless';
+                else if (this.phase === 'warning-to-harmless') this.phase = 'harmless';
+                else if (this.phase === 'harmless') this.phase = 'warning-to-dangerous';
+                else this.phase = 'dangerous';
+                this.phaseSerial++;
+                this.syncVisualState();
+            }
+
+            syncVisualState() {
+                const element = this.enemy.element;
+                if (!element) return;
+                const harmless = this.phase === 'harmless' || this.phase === 'warning-to-dangerous';
+                const warning = this.phase === 'warning-to-harmless' || this.phase === 'warning-to-dangerous';
+                element.classList.toggle('pulse-harmless', harmless);
+                element.classList.toggle('pulse-warning', warning);
+                element.setAttribute('data-pulse-state', this.phase);
+            }
+
+            update(deltaTime) {
+                super.update(deltaTime);
+                this.phaseElapsedMs += deltaTime;
+                let guard = 0;
+                while (this.phaseElapsedMs >= this.getPhaseDuration() && guard < 8) {
+                    this.phaseElapsedMs -= this.getPhaseDuration();
+                    this.advancePhase();
+                    guard++;
+                }
+            }
+
+            isDangerous() {
+                return this.phase === 'dangerous' || this.phase === 'warning-to-harmless';
+            }
+
+            getInteractionPhaseKey() {
+                return `${this.phase}:${this.phaseSerial}`;
+            }
+        }
+
+        const ENEMY_BEHAVIOR_FACTORIES = Object.freeze({
+            drifter: (enemy, config) => new DrifterBehavior(enemy, config),
+            sentinel: (enemy, config) => new SentinelBehavior(enemy, config),
+            pulse: (enemy, config) => new PulseBehavior(enemy, config)
+        });
+
+        // Enemy entity owns shared rendering/collision state while a strategy owns movement and lethality.
         class Enemy {
-            constructor(game, type, spawnLocation = null) {
-                this.game = game; // Reference to game instance
+            constructor(game, type, spawnLocation = null, spawnDescriptor = null) {
+                this.game = game;
                 this.visualEffectKey = game.nextVisualEffectTaskName('enemy');
                 this.type = type;
-                if (type === 'small') { // Small enemy
+                this.spawnDescriptor = game.normalizeEnemySpawnDescriptor(spawnDescriptor || type);
+                this.behaviorType = this.spawnDescriptor.behaviorType || 'drifter';
+                this.behaviorConfig = Object.assign({}, this.spawnDescriptor.behaviorConfig || {});
+                if (type === 'small') {
                     this.size = game.PLAYER_SIZE;
                     this.speed = game.getEnemySpeed('small');
-                } else if (type === 'medium') { // Medium enemy
+                } else if (type === 'medium') {
                     this.size = game.PLAYER_SIZE * 2;
                     this.speed = game.getEnemySpeed('medium');
-                } else { // Large enemy
+                } else {
                     this.size = game.PLAYER_SIZE * 3;
                     this.speed = game.getEnemySpeed('large');
                 }
-                
+
                 if (spawnLocation) {
                     this.x = spawnLocation.x;
                     this.y = spawnLocation.y;
                 } else {
                     let attempts = 0;
-                    const maxAttempts = 50; // Max spawn attempts
-                    do { // Fallback random spawn away from player and other enemies
+                    const maxAttempts = 50;
+                    do {
                         this.x = Math.random() * (game.PLAYFIELD_SIZE - this.size);
                         this.y = Math.random() * (game.PLAYFIELD_SIZE - this.size);
                         attempts++;
-                        if (attempts > maxAttempts) break; // Prevent infinite loop
+                        if (attempts > maxAttempts) break;
                     } while (this.distanceToPlayer() < game.MIN_SPAWN_DISTANCE || this.overlapsOtherEnemies());
                 }
-                
-                this.dx = (Math.random() > 0.5 ? 1 : -1) * this.speed; // Random X direction
-                this.dy = (Math.random() > 0.5 ? 1 : -1) * this.speed; // Random Y direction
-                
+
+                this.dx = (Math.random() > 0.5 ? 1 : -1) * this.speed;
+                this.dy = (Math.random() > 0.5 ? 1 : -1) * this.speed;
+
                 this.element = document.createElement('div');
-                this.element.className = 'enemy';
+                this.element.className = `enemy enemy-${this.behaviorType}`;
                 this.element.style.width = `${this.size}px`;
                 this.element.style.height = `${this.size}px`;
                 const enemyBaseColor = this.game.colorMap[this.game.colorOrder[this.game.currentColorIndex]];
                 this.baseColor = enemyBaseColor;
                 this.vectorTrailSampleAt = 0;
-                this.element.style.backgroundColor = enemyBaseColor; // Set color
+                this.element.style.backgroundColor = enemyBaseColor;
                 this.element.style.setProperty('--enemy-base-color', enemyBaseColor);
-                this.element.style.transform = 'scale(0)'; // Start scaled down
-                this.updatePosition(); // Set initial position
-                game.container.appendChild(this.element); // Add to DOM
-                this.game.scheduler.scheduleTimeout('visual-effects', `${this.visualEffectKey}-spawn`, () => { // Fade in animation
+                this.element.style.transform = 'scale(0)';
+                game.container.appendChild(this.element);
+
+                const factory = ENEMY_BEHAVIOR_FACTORIES[this.behaviorType] || ENEMY_BEHAVIOR_FACTORIES.drifter;
+                this.behavior = factory(this, this.behaviorConfig);
+                this.updatePosition();
+
+                this.game.scheduler.scheduleTimeout('visual-effects', `${this.visualEffectKey}-spawn`, () => {
                     this.element.style.opacity = '1';
                     this.element.style.transform = 'scale(1)';
                 }, 50);
-                game.audio.playSpawn(); // Play consistent Block-A-Zoid spawn sound
-
-                this.updateAnimation(); // Set border and glow
+                game.audio.playSpawn();
+                this.updateAnimation();
             }
 
-            // Calculate distance to player
             distanceToPlayer() {
                 return Math.sqrt((this.x - this.game.player.x) ** 2 + (this.y - this.game.player.y) ** 2);
             }
 
-            // Check if this enemy overlaps with others
             overlapsOtherEnemies() {
-                return this.game.enemies.some(other => 
+                return this.game.enemies.some(other =>
                     other !== this &&
                     this.x < other.x + other.size &&
                     this.x + this.size > other.x &&
@@ -16819,61 +17119,76 @@ Font License Notices
                 );
             }
 
-            // Update enemy position based on velocity and time
             update(deltaTime, timestamp = performance.now()) {
                 const previousX = this.x;
                 const previousY = this.y;
-                this.x += this.dx * (deltaTime / 16.67); // Move X (normalized to 60fps)
-                this.y += this.dy * (deltaTime / 16.67); // Move Y
-                
-                if (this.x <= 0 || this.x >= this.game.PLAYFIELD_SIZE - this.size) { // Bounce off X bounds
-                    this.x = Math.max(0, Math.min(this.game.PLAYFIELD_SIZE - this.size, this.x));
-                    this.dx = -this.dx;
-                    this.flashBorder(); // Flash border on bounce
-                }
-                if (this.y <= 0 || this.y >= this.game.PLAYFIELD_SIZE - this.size) { // Bounce off Y bounds
-                    this.y = Math.max(0, Math.min(this.game.PLAYFIELD_SIZE - this.size, this.y));
-                    this.dy = -this.dy;
-                    this.flashBorder();
-                }
-                
+                this.behavior.update(deltaTime, timestamp);
                 if (this.game.vectorTrail) {
                     const movedDistance = Math.hypot(this.x - previousX, this.y - previousY);
                     this.game.vectorTrail.recordEnemyMotion(this, previousX, previousY, movedDistance, timestamp);
                 }
-                this.updatePosition(); // Update DOM position
+                this.updatePosition();
             }
 
-            // Update enemy position in DOM
+            handlePlayfieldResize(ratio, newPlayfieldSize, nextSize) {
+                const oldSize = this.size;
+                this.size = nextSize;
+                this.speed = this.game.getEnemySpeed(this.type);
+                this.element.style.width = `${this.size}px`;
+                this.element.style.height = `${this.size}px`;
+                const handled = this.behavior && this.behavior.handleResize
+                    ? this.behavior.handleResize(ratio, newPlayfieldSize, oldSize)
+                    : false;
+                if (!handled) {
+                    const centerX = (this.x + oldSize / 2) * ratio;
+                    const centerY = (this.y + oldSize / 2) * ratio;
+                    this.x = Math.max(0, Math.min(newPlayfieldSize - this.size, centerX - this.size / 2));
+                    this.y = Math.max(0, Math.min(newPlayfieldSize - this.size, centerY - this.size / 2));
+                }
+                this.updatePosition();
+            }
+
             updatePosition() {
                 this.element.style.left = `${this.x}px`;
                 this.element.style.top = `${this.y}px`;
             }
 
-            // Update enemy border and glow animation
             updateAnimation() {
-                this.element.style.setProperty('--enemy-color', '#fff'); // White border for contrast
-                this.element.style.border = `1px solid #fff`; // Consistent border
+                this.element.style.setProperty('--enemy-color', '#fff');
+                this.element.style.border = '1px solid #fff';
             }
 
-            // Flash border on collision or bounce
             flashBorder() {
-                this.element.classList.add('enemyBorderFlash'); // Enemy flash
-                this.game.container.classList.add('borderFlash'); // Container flash
+                this.element.classList.add('enemyBorderFlash');
+                this.game.container.classList.add('borderFlash');
                 this.game.scheduler.scheduleTimeout('visual-effects', `${this.visualEffectKey}-border-flash`, () => {
                     this.element.classList.remove('enemyBorderFlash');
                     this.game.container.classList.remove('borderFlash');
-                    this.updateAnimation(); // Reset animation
-                }, 300); // Duration matches animation
+                    this.updateAnimation();
+                }, 300);
             }
 
-            // Resolve collision with another enemy
+            isDangerous() {
+                return !this.behavior || this.behavior.isDangerous();
+            }
+
+            getInteractionPhaseKey() {
+                return this.behavior && this.behavior.getInteractionPhaseKey
+                    ? this.behavior.getInteractionPhaseKey()
+                    : this.behaviorType;
+            }
+
+            canResolveCollisionWith(other) {
+                return !!(other && this.behavior && this.behavior.canResolveCollisionWith(other.behavior));
+            }
+
             resolveCollisionWith(other) {
+                if (!this.canResolveCollisionWith(other)) return;
                 const overlapX = Math.min(this.x + this.size, other.x + other.size) - Math.max(this.x, other.x);
                 const overlapY = Math.min(this.y + this.size, other.y + other.size) - Math.max(this.y, other.y);
 
-                if (overlapX > 0 && overlapY > 0) { // Collision detected
-                    if (overlapX < overlapY) { // Resolve along X-axis
+                if (overlapX > 0 && overlapY > 0) {
+                    if (overlapX < overlapY) {
                         if (this.x < other.x) {
                             this.x -= overlapX / 2;
                             other.x += overlapX / 2;
@@ -16881,8 +17196,8 @@ Font License Notices
                             this.x += overlapX / 2;
                             other.x -= overlapX / 2;
                         }
-                        [this.dx, other.dx] = [other.dx, this.dx]; // Swap X velocities
-                    } else { // Resolve along Y-axis
+                        [this.dx, other.dx] = [other.dx, this.dx];
+                    } else {
                         if (this.y < other.y) {
                             this.y -= overlapY / 2;
                             other.y += overlapY / 2;
@@ -16890,25 +17205,22 @@ Font License Notices
                             this.y += overlapY / 2;
                             other.y -= overlapY / 2;
                         }
-                        [this.dy, other.dy] = [other.dy, this.dy]; // Swap Y velocities
+                        [this.dy, other.dy] = [other.dy, this.dy];
                     }
 
-                    this.flashBorder(); // Flash this enemy
-                    other.flashBorder(); // Flash other enemy
-                    this.updatePosition(); // Update positions
+                    this.flashBorder();
+                    other.flashBorder();
+                    this.updatePosition();
                     other.updatePosition();
                 }
             }
 
-            // Check collision with another object
             collidesWith(other) {
                 return (this.x < other.x + other.size &&
                         this.x + this.size > other.x &&
                         this.y < other.y + other.size &&
                         this.y + this.size > other.y);
             }
-
-            // Check collision with player
         }
 
         // Optional temporary pickup that appears when about two-thirds of the maximum Block-A-Zoids are active.
