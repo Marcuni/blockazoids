@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Trackpad Prototype p051: Adds a developer-test Blue Pulse Block with dangerous active, safe wireframe dormant, and telegraphed reactivation states while preserving the Green Charger test and contained collision-speed architecture.
+Trackpad Prototype p052: Replaces the Blue Pulse Block dormant state with a nearly invisible Ghost Pulse state featuring periodic position flashes, a faint directional trail, and fully revealed safe reactivation warning.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="trackpad-p051">
+<html data-build-version="trackpad-p052">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -505,7 +505,7 @@ Font License Notices
             }
         }
 
-        /* p051 developer-only Blue Pulse Block presentation. Active is dangerous; hollow dormant and reactivation-warning states are safe to cross. */
+        /* p052 developer-only Blue Ghost Pulse presentation. Active remains dangerous; dormant is safe, nearly invisible, periodically revealed, and followed by a fully visible safe reactivation warning. */
         .enemy[data-enemy-behavior="pulse"] {
             background-color: #00F !important;
             box-shadow: 0 0 8px rgba(0,90,255,0.86), 0 0 18px rgba(0,90,255,0.34);
@@ -524,15 +524,32 @@ Font License Notices
         }
 
         .enemy[data-enemy-behavior="pulse"].pulse-dormant {
-            background-color: transparent !important;
-            border-color: rgba(70,150,255,0.82) !important;
-            filter: brightness(0.78);
-            box-shadow: 0 0 4px rgba(0,100,255,0.44), inset 0 0 4px rgba(0,100,255,0.18);
+            background-color: rgba(0, 40, 255, 0.015) !important;
+            border-color: rgba(80, 165, 255, 0.08) !important;
+            filter: brightness(0.52);
+            box-shadow: 0 0 2px rgba(0, 100, 255, 0.10);
+            animation: pulseDormantPositionFlash var(--pulse-ghost-flash-period, 350ms) linear infinite;
+        }
+
+        /* A restrained directional trace keeps the hidden movement readable without turning the dormant body back into a visible obstacle. */
+        .enemy[data-enemy-behavior="pulse"].pulse-dormant::after {
+            content: "";
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            width: clamp(7px, calc(var(--player-size, 20px) * 0.70), 15px);
+            height: 1px;
+            transform-origin: 0 50%;
+            transform: translate(-1px, -50%) rotate(calc(var(--pulse-motion-angle, 0deg) + 180deg));
+            background: linear-gradient(90deg, rgba(90, 175, 255, 0.38), rgba(40, 110, 255, 0));
+            filter: blur(0.35px);
+            opacity: 0.46;
+            pointer-events: none;
         }
 
         .enemy[data-enemy-behavior="pulse"].pulse-reactivation-warning {
-            background-color: transparent !important;
-            border-color: rgba(150,205,255,0.98) !important;
+            background-color: rgba(0, 55, 255, 0.82) !important;
+            border-color: rgba(195, 225, 255, 1) !important;
             animation: pulseReactivateWarning 0.14s steps(2, end) infinite;
         }
 
@@ -547,12 +564,29 @@ Font License Notices
             }
         }
 
+        @keyframes pulseDormantPositionFlash {
+            0%, 27% {
+                background-color: rgba(0, 55, 255, 0.10);
+                border-color: rgba(105, 185, 255, 0.74);
+                filter: brightness(1.14);
+                box-shadow: 0 0 5px rgba(75, 165, 255, 0.56), 0 0 12px rgba(0, 95, 255, 0.22);
+            }
+            29%, 100% {
+                background-color: rgba(0, 40, 255, 0.015);
+                border-color: rgba(80, 165, 255, 0.08);
+                filter: brightness(0.52);
+                box-shadow: 0 0 2px rgba(0, 100, 255, 0.10);
+            }
+        }
+
         @keyframes pulseReactivateWarning {
             0% {
-                filter: brightness(0.88);
-                box-shadow: 0 0 5px rgba(0,100,255,0.48), inset 0 0 4px rgba(0,100,255,0.18);
+                background-color: rgba(0, 55, 255, 0.72);
+                filter: brightness(1.08);
+                box-shadow: 0 0 8px rgba(0,100,255,0.72), 0 0 18px rgba(0,100,255,0.34);
             }
             100% {
+                background-color: #fff;
                 filter: brightness(1.90);
                 box-shadow: 0 0 12px #fff, 0 0 28px rgba(0,120,255,0.98), 0 0 44px rgba(0,120,255,0.48);
             }
@@ -7633,7 +7667,7 @@ Font License Notices
     </div>
 
     <script>
-        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'trackpad-p051'}`;
+        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'trackpad-p052'}`;
 
         // Central diagnostic feature flags. Change values here before loading the page to isolate systems.
         const GAME_FEATURE_FLAGS = window.BLOCKAZOIDS_FEATURE_FLAGS = {
@@ -7772,7 +7806,8 @@ Font License Notices
                     deactivationWarningMs: 300,
                     dormantMs: 1000,
                     reactivationWarningMs: 300,
-                    overlapRecheckMs: 100
+                    overlapRecheckMs: 100,
+                    positionFlashIntervalMs: 350
                 }),
                 collision: Object.freeze({
                     pairCooldownMs: 125,
@@ -13709,7 +13744,7 @@ Font License Notices
                     const pulseButton = document.createElement('button');
                     pulseButton.className = 'level-select-button';
                     pulseButton.textContent = 'PLS';
-                    pulseButton.setAttribute('aria-label', 'Blue Pulse Block behavior test');
+                    pulseButton.setAttribute('aria-label', 'Blue Ghost Pulse behavior test');
                     pulseButton.addEventListener('click', (e) => {
                         e.preventDefault();
                         e.stopPropagation();
@@ -17659,7 +17694,7 @@ Font License Notices
                 element.classList.remove('pulse-active', 'pulse-deactivation-warning', 'pulse-dormant', 'pulse-reactivation-warning');
                 element.classList.add(`pulse-${nextState}`);
                 element.dataset.pulseState = nextState;
-                element.setAttribute('aria-label', `Blue Pulse Block: ${nextState}`);
+                element.setAttribute('aria-label', `Blue Ghost Pulse: ${nextState}`);
             }
 
             initialize() {
@@ -17670,6 +17705,9 @@ Font License Notices
             }
 
             onElementReady() {
+                if (this.enemy.element) {
+                    this.enemy.element.style.setProperty('--pulse-ghost-flash-period', `${this.tuning.positionFlashIntervalMs}ms`);
+                }
                 this.setVisualState(this.state);
             }
 
@@ -17735,6 +17773,10 @@ Font License Notices
                 }
 
                 const enemy = this.enemy;
+                if (enemy.element) {
+                    const movementAngle = Math.atan2(enemy.dy, enemy.dx) * 180 / Math.PI;
+                    enemy.element.style.setProperty('--pulse-motion-angle', `${movementAngle}deg`);
+                }
                 const frameScale = deltaTime / 16.67;
                 enemy.x += enemy.dx * frameScale;
                 enemy.y += enemy.dy * frameScale;
