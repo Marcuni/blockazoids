@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Trackpad Prototype p049: Makes the developer-only Green Charger test reachable from Settings by exposing Sector Select inside the unlocked developer section while preserving normal campaign behavior.
+Trackpad Prototype p050: Contains behavior-specific enemy speeds during Block-A-Zoid collisions so Charger dash velocity cannot spread through Drifters; adds pair-impact cooldown and charge interruption while preserving the Green Charger developer test.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="trackpad-p049">
+<html data-build-version="trackpad-p050">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -7580,7 +7580,7 @@ Font License Notices
     </div>
 
     <script>
-        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'trackpad-p049'}`;
+        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'trackpad-p050'}`;
 
         // Central diagnostic feature flags. Change values here before loading the page to isolate systems.
         const GAME_FEATURE_FLAGS = window.BLOCKAZOIDS_FEATURE_FLAGS = {
@@ -7712,6 +7712,10 @@ Font License Notices
                     chargeMaxMs: 850,
                     recoverySpeedMultiplier: 0.34,
                     recoveryMs: 650
+                }),
+                collision: Object.freeze({
+                    pairCooldownMs: 125,
+                    separationPaddingPx: 0.08
                 })
             }),
             campaign: Object.freeze({
@@ -17327,6 +17331,7 @@ Font License Notices
             initialize() {}
             onElementReady() {}
             onBoundaryCollision() {}
+            onEnemyCollision() {}
             dispose() {}
             getVisualColor() { return null; }
 
@@ -17351,6 +17356,13 @@ Font License Notices
                 return this.enemy.game.enemyBehaviorTestMode === ENEMY_BEHAVIOR_TYPES.CHARGER
                     ? GAME_CONFIG.enemyBehaviors.colors.drifter
                     : null;
+            }
+
+            onEnemyCollision({ normal = null } = {}) {
+                // Drifters may be redirected by an impact, but always retain their own normal speed.
+                const enemy = this.enemy;
+                const normalDirection = normal || { x: enemy.dx, y: enemy.dy };
+                enemy.normalizeVelocityMagnitude(enemy.speed * Math.SQRT2, normalDirection);
             }
 
             update(deltaTime) {
@@ -17461,6 +17473,30 @@ Font License Notices
                 if (this.state === 'charge') this.beginRecovery(performance.now());
             }
 
+            onEnemyCollision({ normal = null, now = performance.now() } = {}) {
+                const enemy = this.enemy;
+                if (this.state === 'charge') {
+                    // Charge velocity is temporary and never transfers to another Block-A-Zoid.
+                    // Contact ends the dash and immediately returns the Charger to its recovery envelope.
+                    this.beginRecovery(now);
+                    return;
+                }
+
+                if (this.state === 'telegraph') {
+                    enemy.dx = 0;
+                    enemy.dy = 0;
+                    return;
+                }
+
+                const speedMultiplier = this.state === 'recovery'
+                    ? this.tuning.recoverySpeedMultiplier
+                    : this.tuning.cruiseSpeedMultiplier;
+                enemy.normalizeVelocityMagnitude(
+                    enemy.speed * speedMultiplier,
+                    normal || this.chargeDirection
+                );
+            }
+
             update(deltaTime, timestamp = performance.now()) {
                 if (timestamp >= this.stateEndsAt) {
                     if (this.state === 'cruise') this.beginTelegraph(timestamp);
@@ -17560,6 +17596,7 @@ Font License Notices
                 
                 this.dx = 0;
                 this.dy = 0;
+                this.enemyCollisionTimes = new WeakMap();
                 const behaviorResolution = EnemyBehaviorRegistry.create(behaviorType, this);
                 this.behavior = behaviorResolution.behavior;
                 this.requestedBehaviorType = behaviorResolution.requestedType;
@@ -17663,6 +17700,7 @@ Font License Notices
                     resolvedType: this.behaviorType,
                     usedFallback: this.behaviorFallbackUsed,
                     state: this.behavior && this.behavior.state ? this.behavior.state : null,
+                    speed: Number(Math.hypot(this.dx, this.dy).toFixed(3)),
                     valid: Boolean(this.behavior && typeof this.behavior.update === 'function')
                 };
             }
@@ -17690,37 +17728,107 @@ Font License Notices
                 }, 300); // Duration matches animation
             }
 
-            // Resolve collision with another enemy
+            normalizeVelocityMagnitude(targetSpeed, fallbackDirection = { x: 1, y: 0 }) {
+                const safeTargetSpeed = Math.max(0, Number(targetSpeed) || 0);
+                if (safeTargetSpeed === 0) {
+                    this.dx = 0;
+                    this.dy = 0;
+                    return;
+                }
+
+                let directionX = this.dx;
+                let directionY = this.dy;
+                let magnitude = Math.hypot(directionX, directionY);
+                if (magnitude < 0.0001) {
+                    directionX = Number(fallbackDirection && fallbackDirection.x) || 1;
+                    directionY = Number(fallbackDirection && fallbackDirection.y) || 0;
+                    magnitude = Math.hypot(directionX, directionY) || 1;
+                }
+                this.dx = directionX / magnitude * safeTargetSpeed;
+                this.dy = directionY / magnitude * safeTargetSpeed;
+            }
+
+            shouldApplyCollisionImpact(other, now = performance.now()) {
+                const cooldownMs = GAME_CONFIG.enemyBehaviors.collision.pairCooldownMs;
+                const lastImpactAt = this.enemyCollisionTimes.get(other) || -Infinity;
+                if (now - lastImpactAt < cooldownMs) return false;
+                this.enemyCollisionTimes.set(other, now);
+                if (other.enemyCollisionTimes) other.enemyCollisionTimes.set(this, now);
+                return true;
+            }
+
+            applyCollisionDeflection(axis, outwardDirection) {
+                const minimumComponent = 0.001;
+                if (axis === 'x') {
+                    this.dx = outwardDirection * Math.max(Math.abs(this.dx), minimumComponent);
+                } else {
+                    this.dy = outwardDirection * Math.max(Math.abs(this.dy), minimumComponent);
+                }
+            }
+
+            // Resolve collision with another enemy. Impacts redirect each enemy using its own velocity,
+            // then each behavior restores its permitted speed envelope. Behavior-specific dash speed
+            // therefore cannot spread through the rest of the sector.
             resolveCollisionWith(other) {
                 const overlapX = Math.min(this.x + this.size, other.x + other.size) - Math.max(this.x, other.x);
                 const overlapY = Math.min(this.y + this.size, other.y + other.size) - Math.max(this.y, other.y);
+                if (overlapX <= 0 || overlapY <= 0) return false;
 
-                if (overlapX > 0 && overlapY > 0) { // Collision detected
-                    if (overlapX < overlapY) { // Resolve along X-axis
-                        if (this.x < other.x) {
-                            this.x -= overlapX / 2;
-                            other.x += overlapX / 2;
-                        } else {
-                            this.x += overlapX / 2;
-                            other.x -= overlapX / 2;
-                        }
-                        [this.dx, other.dx] = [other.dx, this.dx]; // Swap X velocities
-                    } else { // Resolve along Y-axis
-                        if (this.y < other.y) {
-                            this.y -= overlapY / 2;
-                            other.y += overlapY / 2;
-                        } else {
-                            this.y += overlapY / 2;
-                            other.y -= overlapY / 2;
-                        }
-                        [this.dy, other.dy] = [other.dy, this.dy]; // Swap Y velocities
+                const collisionAxis = overlapX < overlapY ? 'x' : 'y';
+                const separationPadding = GAME_CONFIG.enemyBehaviors.collision.separationPaddingPx;
+                let thisNormal;
+                let otherNormal;
+
+                if (collisionAxis === 'x') {
+                    const thisIsLeft = this.x + this.size / 2 <= other.x + other.size / 2;
+                    const correction = overlapX / 2 + separationPadding / 2;
+                    if (thisIsLeft) {
+                        this.x -= correction;
+                        other.x += correction;
+                        thisNormal = { x: -1, y: 0 };
+                        otherNormal = { x: 1, y: 0 };
+                    } else {
+                        this.x += correction;
+                        other.x -= correction;
+                        thisNormal = { x: 1, y: 0 };
+                        otherNormal = { x: -1, y: 0 };
+                    }
+                } else {
+                    const thisIsAbove = this.y + this.size / 2 <= other.y + other.size / 2;
+                    const correction = overlapY / 2 + separationPadding / 2;
+                    if (thisIsAbove) {
+                        this.y -= correction;
+                        other.y += correction;
+                        thisNormal = { x: 0, y: -1 };
+                        otherNormal = { x: 0, y: 1 };
+                    } else {
+                        this.y += correction;
+                        other.y -= correction;
+                        thisNormal = { x: 0, y: 1 };
+                        otherNormal = { x: 0, y: -1 };
+                    }
+                }
+
+                const now = performance.now();
+                const applyImpact = this.shouldApplyCollisionImpact(other, now);
+                if (applyImpact) {
+                    this.applyCollisionDeflection(collisionAxis, collisionAxis === 'x' ? thisNormal.x : thisNormal.y);
+                    other.applyCollisionDeflection(collisionAxis, collisionAxis === 'x' ? otherNormal.x : otherNormal.y);
+
+                    if (this.behavior && typeof this.behavior.onEnemyCollision === 'function') {
+                        this.behavior.onEnemyCollision({ other, axis: collisionAxis, normal: thisNormal, now });
+                    }
+                    if (other.behavior && typeof other.behavior.onEnemyCollision === 'function') {
+                        other.behavior.onEnemyCollision({ other: this, axis: collisionAxis, normal: otherNormal, now });
                     }
 
-                    this.flashBorder(); // Flash this enemy
-                    other.flashBorder(); // Flash other enemy
-                    this.updatePosition(); // Update positions
-                    other.updatePosition();
+                    this.flashBorder();
+                    other.flashBorder();
                 }
+
+                this.updatePosition();
+                other.updatePosition();
+                return true;
             }
 
             // Check collision with another object
