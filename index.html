@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Trackpad Prototype p053: Adds the reserved vector-yellow tone to the attract-mode color cycle so its visual fit can be evaluated without adding a yellow Block-A-Zoid to gameplay sectors.
+Trackpad Prototype p054: Removes the rejected fourth-color preview, integrates the Red Drifter, Green Charger, and Blue Ghost Pulse into the 15-sector campaign with provisional authored mixtures, and replaces Orb scaling on crystal pickup with compact outward RGB rays and a thin halo.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="trackpad-p053">
+<html data-build-version="trackpad-p054">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -2481,14 +2481,13 @@ Font License Notices
             100% { transform: translateY(0) rotate(45deg); }
         }
 
-        /* Random flashing lights animation for attract mode */
+        /* Random flashing lights animation for attract mode. The game palette remains white plus RGB. */
         @keyframes randomFlash {
             0% { background-color: #000; opacity: 0.2; }
-            16% { background-color: var(--red-color); opacity: 0.6; }
-            32% { background-color: var(--green-color); opacity: 0.6; }
-            48% { background-color: var(--blue-color); opacity: 0.6; }
-            64% { background-color: var(--yellow-color); opacity: 0.62; }
-            82% { background-color: #FFF; opacity: 0.8; }
+            20% { background-color: var(--red-color); opacity: 0.6; }
+            40% { background-color: var(--green-color); opacity: 0.6; }
+            60% { background-color: var(--blue-color); opacity: 0.6; }
+            80% { background-color: #FFF; opacity: 0.8; }
             100% { background-color: #000; opacity: 0.2; }
         }
 
@@ -2776,11 +2775,9 @@ Font License Notices
             --red-color: #F00;
             --green-color: #0F0;
             --blue-color: #00F;
-            --yellow-color: #FFD200;
             --dark-red-color: #3B0000;
             --dark-green-color: #003B00;
             --dark-blue-color: #00004A;
-            --dark-yellow-color: #4A3A00;
             --menu-body-text-size: clamp(14px, 4.5vw, 18px);
             --playfield-outer-size: min(604px, calc(100vw - 8px));
         }
@@ -7276,88 +7273,100 @@ Font License Notices
             font-size: clamp(9px, 2.75vw, 15px);
         }
 
-        /* A collected crystal makes one short inward snap. Multiple pickups may create individual snaps,
-           but the Orb pulse and ring below remain single reusable effects. */
-        .crystal-collect-fly {
+        /* p054: keep the Orb geometrically stable on pickup. The crystal collapses at the
+           contact point while four short color rays and one thin reusable halo remain visible
+           beyond the Orb's edge, even when the Orb completely covers the crystal. */
+        .crystal-collect-collapse {
             position: absolute;
             left: var(--collect-start-x);
             top: var(--collect-start-y);
             width: var(--collect-size, 10px);
             height: var(--collect-size, 10px);
             background: var(--collect-color, #fff);
-            box-shadow: 0 0 8px var(--collect-color, #fff), 0 0 16px rgba(255,255,255,0.56);
+            box-shadow: 0 0 8px var(--collect-color, #fff), 0 0 14px rgba(255,255,255,0.50);
             opacity: 1;
             pointer-events: none;
-            z-index: 10;
+            z-index: 8;
             transform: translate(-50%, -50%) rotate(45deg) scale(1);
-            animation: crystalCollectFly 96ms cubic-bezier(0.22, 0.82, 0.28, 1) forwards;
+            animation: crystalCollectCollapse 125ms cubic-bezier(0.25, 0.8, 0.3, 1) forwards;
         }
 
-        @keyframes crystalCollectFly {
+        @keyframes crystalCollectCollapse {
+            48% {
+                opacity: 0.95;
+                filter: brightness(1.9);
+                transform: translate(-50%, -50%) rotate(45deg) scale(0.55);
+            }
             100% {
-                left: var(--collect-end-x);
-                top: var(--collect-end-y);
-                opacity: 0.12;
-                filter: brightness(2.1);
-                transform: translate(-50%, -50%) rotate(45deg) scale(0.16);
+                opacity: 0;
+                filter: brightness(2.5);
+                transform: translate(-50%, -50%) rotate(45deg) scale(0.05);
             }
         }
 
-        /* One ring is reused and refreshed for rapid pickups rather than stacking multiple rings. */
-        .orb-crystal-collect-ring {
+        .crystal-collect-ray {
             position: absolute;
-            width: var(--collect-orb-size, 20px);
-            height: var(--collect-orb-size, 20px);
+            left: var(--collect-orb-x, 50%);
+            top: var(--collect-orb-y, 50%);
+            width: var(--collect-ray-length, 10px);
+            height: max(1px, calc(var(--playfield-presentation-scale, 1) * 1.5px));
+            background: currentColor;
+            color: var(--collect-color, #fff);
+            box-shadow: 0 0 5px currentColor, 0 0 10px currentColor;
+            opacity: 0;
+            pointer-events: none;
+            z-index: 10;
+            transform-origin: left center;
+            animation: crystalCollectRayBurst 155ms ease-out forwards;
+        }
+
+        @keyframes crystalCollectRayBurst {
+            0% {
+                opacity: 0;
+                transform: translate(-1px, -50%) rotate(var(--collect-ray-angle, 0deg)) translateX(var(--collect-ray-start, 12px)) scaleX(0.14);
+            }
+            24% {
+                opacity: 0.95;
+            }
+            100% {
+                opacity: 0;
+                transform: translate(-1px, -50%) rotate(var(--collect-ray-angle, 0deg)) translateX(var(--collect-ray-start, 12px)) scaleX(1);
+            }
+        }
+
+        /* One thin halo is reused and refreshed for rapid pickups; the Orb itself never scales. */
+        .orb-crystal-collect-halo {
+            position: absolute;
+            width: var(--collect-halo-size, 28px);
+            height: var(--collect-halo-size, 28px);
             left: var(--collect-orb-x, 50%);
             top: var(--collect-orb-y, 50%);
             box-sizing: border-box;
             border: 1px solid currentColor;
             border-radius: 50%;
             color: var(--collect-color, #fff);
-            box-shadow: 0 0 7px currentColor, 0 0 15px currentColor;
+            box-shadow: 0 0 6px currentColor, 0 0 12px currentColor;
             opacity: 0;
             pointer-events: none;
             z-index: 9;
-            transform: translate(-50%, -50%) scale(0.72);
+            transform: translate(-50%, -50%);
         }
 
-        .orb-crystal-collect-ring.active {
-            animation: orbCrystalCollectRing 185ms ease-out forwards;
+        .orb-crystal-collect-halo.active {
+            animation: orbCrystalCollectHalo 155ms ease-out forwards;
         }
 
-        @keyframes orbCrystalCollectRing {
-            0% {
-                opacity: 0.86;
-                transform: translate(-50%, -50%) scale(0.72);
-            }
-            100% {
-                opacity: 0;
-                transform: translate(-50%, -50%) scale(var(--collect-ring-scale, 1.58));
-            }
-        }
-
-        #player.crystal-collect-pulse::before {
-            animation: orbCrystalCollectPulse 185ms ease-out 1;
-        }
-
-        @keyframes orbCrystalCollectPulse {
-            0%, 100% {
-                transform: scale(1);
-            }
-            38% {
-                transform: scale(var(--orb-collect-scale, 1.07));
-                box-shadow:
-                    0 0 calc(var(--default-glow) * 1.1px) #fff,
-                    0 0 calc(var(--default-glow) * 2.0px) rgba(255,255,255,0.62);
-            }
+        @keyframes orbCrystalCollectHalo {
+            0% { opacity: 0.88; }
+            100% { opacity: 0; }
         }
 
         @media (prefers-reduced-motion: reduce) {
-            .crystal-collect-fly {
+            .crystal-collect-collapse,
+            .crystal-collect-ray {
                 animation-duration: 1ms;
             }
-            .orb-crystal-collect-ring.active,
-            #player.crystal-collect-pulse::before {
+            .orb-crystal-collect-halo.active {
                 animation-duration: 80ms;
             }
         }
@@ -7668,7 +7677,7 @@ Font License Notices
     </div>
 
     <script>
-        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'trackpad-p053'}`;
+        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'trackpad-p054'}`;
 
         // Central diagnostic feature flags. Change values here before loading the page to isolate systems.
         const GAME_FEATURE_FLAGS = window.BLOCKAZOIDS_FEATURE_FLAGS = {
@@ -7788,8 +7797,7 @@ Font License Notices
                 colors: Object.freeze({
                     drifter: '#F00',
                     charger: '#0F0',
-                    blue: '#00F',
-                    yellow: '#FF0'
+                    blue: '#00F'
                 }),
                 charger: Object.freeze({
                     cruiseSpeedMultiplier: 0.62,
@@ -7927,6 +7935,27 @@ Font License Notices
 
         const GAME_DATA = window.BLOCKAZOIDS_DATA = Object.freeze({
             colorOrder: Object.freeze(['red', 'green', 'blue']),
+            // Provisional campaign roster. The first two sectors establish the Drifter,
+            // the Charger enters in Sector 3, and the Ghost Pulse enters in Sector 6.
+            // Every plan contains the normal eight-enemy cap; later cycles reuse the same
+            // readable mixtures while the existing cycle pressure raises overall speed.
+            sectorEnemyBehaviorPlans: Object.freeze([
+                ['drifter', 'drifter', 'drifter', 'drifter', 'drifter', 'drifter', 'drifter', 'drifter'],
+                ['drifter', 'drifter', 'drifter', 'drifter', 'drifter', 'drifter', 'drifter', 'drifter'],
+                ['drifter', 'drifter', 'charger', 'drifter', 'drifter', 'drifter', 'drifter', 'drifter'],
+                ['drifter', 'drifter', 'charger', 'drifter', 'drifter', 'charger', 'drifter', 'drifter'],
+                ['drifter', 'charger', 'drifter', 'charger', 'drifter', 'drifter', 'charger', 'drifter'],
+                ['drifter', 'drifter', 'pulse', 'charger', 'drifter', 'drifter', 'drifter', 'drifter'],
+                ['drifter', 'charger', 'drifter', 'pulse', 'drifter', 'charger', 'drifter', 'drifter'],
+                ['drifter', 'pulse', 'drifter', 'charger', 'drifter', 'pulse', 'drifter', 'charger'],
+                ['drifter', 'charger', 'charger', 'drifter', 'pulse', 'drifter', 'charger', 'drifter'],
+                ['drifter', 'charger', 'pulse', 'drifter', 'charger', 'pulse', 'drifter', 'charger'],
+                ['charger', 'drifter', 'pulse', 'charger', 'drifter', 'pulse', 'charger', 'drifter'],
+                ['drifter', 'pulse', 'charger', 'pulse', 'drifter', 'charger', 'pulse', 'drifter'],
+                ['charger', 'pulse', 'drifter', 'charger', 'pulse', 'charger', 'drifter', 'pulse'],
+                ['pulse', 'charger', 'pulse', 'drifter', 'charger', 'pulse', 'charger', 'drifter'],
+                ['charger', 'pulse', 'drifter', 'charger', 'pulse', 'drifter', 'charger', 'pulse']
+            ].map(plan => Object.freeze(plan))),
             tutorialMessages: Object.freeze({
                 movement: 'SWIPE BELOW TO MOVE ORB',
                 crystal: 'COLLECT CRYSTALS',
@@ -9087,7 +9116,7 @@ Font License Notices
             constructor() {
                 this.scheduler = new SchedulingManager();
                 this.visualEffectSequence = 0;
-                this.crystalCollectionFx = { lastPickupAt: -Infinity, chain: 0, ring: null };
+                this.crystalCollectionFx = { lastPickupAt: -Infinity, chain: 0, halo: null };
                 this.gameplayTaskSequence = 0;
                 this.flow = new GameFlowController(this);
 
@@ -12197,6 +12226,16 @@ Font License Notices
                 if (this.boardCoordinates) this.boardCoordinates.invalidate('responsive-playfield-configured');
             }
 
+            getSectorEnemyBehaviorPlan() {
+                const plans = GAME_DATA.sectorEnemyBehaviorPlans || [];
+                const levelIndex = Math.max(0, Math.min(plans.length - 1, (Number(this.level) || 1) - 1));
+                const plan = plans[levelIndex];
+                if (!Array.isArray(plan) || plan.length === 0) {
+                    return Array(this.normalSwarmSize).fill(ENEMY_BEHAVIOR_TYPES.DRIFTER);
+                }
+                return plan;
+            }
+
             // Adjust spawn delay by level; enemy count stays capped at a constant value. Cosmic Zap pressure only affects speed.
             applyLevelParameters() {
                 const difficultyConfig = this.getDifficultyConfig();
@@ -12268,6 +12307,12 @@ Font License Notices
                     this.spawnQueue = this.spawnQueue.map((type, index) => ({
                         type,
                         behaviorType: pulseTeachingPlan[index] || ENEMY_BEHAVIOR_TYPES.DRIFTER
+                    }));
+                } else {
+                    const sectorBehaviorPlan = this.getSectorEnemyBehaviorPlan();
+                    this.spawnQueue = this.spawnQueue.map((type, index) => ({
+                        type,
+                        behaviorType: sectorBehaviorPlan[index] || ENEMY_BEHAVIOR_TYPES.DRIFTER
                     }));
                 }
             }
@@ -12616,7 +12661,7 @@ Font License Notices
                 const steps = ['3', '2', '1'];
                 const behaviorTestNames = {
                     [ENEMY_BEHAVIOR_TYPES.CHARGER]: 'GREEN CHARGER TEST',
-                    [ENEMY_BEHAVIOR_TYPES.PULSE]: 'BLUE PULSE BLOCK TEST'
+                    [ENEMY_BEHAVIOR_TYPES.PULSE]: 'BLUE GHOST PULSE TEST'
                 };
                 const behaviorTestActive = Boolean(behaviorTestNames[this.enemyBehaviorTestMode]);
                 const levelName = behaviorTestNames[this.enemyBehaviorTestMode] || this.getLevelPatternName(this.level).toUpperCase();
@@ -15890,7 +15935,7 @@ Font License Notices
                 const fx = this.crystalCollectionFx || (this.crystalCollectionFx = {
                     lastPickupAt: -Infinity,
                     chain: 0,
-                    ring: null
+                    halo: null
                 });
                 fx.chain = now - fx.lastPickupAt <= 170 ? Math.min(3, fx.chain + 1) : 1;
                 fx.lastPickupAt = now;
@@ -15902,46 +15947,45 @@ Font License Notices
                 const crystalCenterY = crystal.y + crystal.size / 2;
                 const effectId = ++this.visualEffectSequence;
 
-                // Each pickup keeps its own tiny inward snap so crossed crystals remain legible.
-                const fly = document.createElement('div');
-                fly.className = 'crystal-collect-fly';
-                fly.style.setProperty('--collect-start-x', `${crystalCenterX}px`);
-                fly.style.setProperty('--collect-start-y', `${crystalCenterY}px`);
-                fly.style.setProperty('--collect-end-x', `${orbCenterX}px`);
-                fly.style.setProperty('--collect-end-y', `${orbCenterY}px`);
-                fly.style.setProperty('--collect-size', `${crystal.size}px`);
-                fly.style.setProperty('--collect-color', color);
-                this.container.appendChild(fly);
-                this.scheduler.scheduleTimeout('visual-effects', `crystal-collect-fly-${effectId}`, () => fly.remove(), 150);
+                const collapse = document.createElement('div');
+                collapse.className = 'crystal-collect-collapse';
+                collapse.style.setProperty('--collect-start-x', `${crystalCenterX}px`);
+                collapse.style.setProperty('--collect-start-y', `${crystalCenterY}px`);
+                collapse.style.setProperty('--collect-size', `${crystal.size}px`);
+                collapse.style.setProperty('--collect-color', color);
+                this.container.appendChild(collapse);
+                this.scheduler.scheduleTimeout('visual-effects', `crystal-collect-collapse-${effectId}`, () => collapse.remove(), 180);
 
-                // Reuse one ring; rapid pickups refresh it and raise its capped intensity instead of stacking rings.
-                if (!fx.ring || !fx.ring.isConnected) {
-                    fx.ring = document.createElement('div');
-                    fx.ring.className = 'orb-crystal-collect-ring';
-                    this.container.appendChild(fx.ring);
+                const rayStart = this.player.size / 2 + Math.max(1, this.player.size * 0.08);
+                const rayLength = this.player.size * (0.46 + ((fx.chain - 1) * 0.04));
+                [0, 90, 180, 270].forEach((angle, rayIndex) => {
+                    const ray = document.createElement('div');
+                    ray.className = 'crystal-collect-ray';
+                    ray.style.setProperty('--collect-orb-x', `${orbCenterX}px`);
+                    ray.style.setProperty('--collect-orb-y', `${orbCenterY}px`);
+                    ray.style.setProperty('--collect-ray-start', `${rayStart}px`);
+                    ray.style.setProperty('--collect-ray-length', `${rayLength}px`);
+                    ray.style.setProperty('--collect-ray-angle', `${angle}deg`);
+                    ray.style.setProperty('--collect-color', color);
+                    this.container.appendChild(ray);
+                    this.scheduler.scheduleTimeout('visual-effects', `crystal-collect-ray-${effectId}-${rayIndex}`, () => ray.remove(), 190);
+                });
+
+                if (!fx.halo || !fx.halo.isConnected) {
+                    fx.halo = document.createElement('div');
+                    fx.halo.className = 'orb-crystal-collect-halo';
+                    this.container.appendChild(fx.halo);
                 }
-                const ringScale = Math.min(1.82, 1.54 + ((fx.chain - 1) * 0.14));
-                fx.ring.style.setProperty('--collect-orb-x', `${orbCenterX}px`);
-                fx.ring.style.setProperty('--collect-orb-y', `${orbCenterY}px`);
-                fx.ring.style.setProperty('--collect-orb-size', `${this.player.size}px`);
-                fx.ring.style.setProperty('--collect-ring-scale', ringScale.toFixed(2));
-                fx.ring.style.setProperty('--collect-color', color);
-                fx.ring.classList.remove('active');
-                void fx.ring.offsetWidth;
-                fx.ring.classList.add('active');
-                this.scheduler.scheduleTimeout('visual-effects', 'crystal-collect-ring', () => {
-                    if (fx.ring) fx.ring.classList.remove('active');
-                }, 205);
-
-                // Keep a single Orb pulse and increase it slightly for a rapid pickup chain, capped at 12%.
-                const orbScale = Math.min(1.12, 1.065 + ((fx.chain - 1) * 0.0275));
-                this.player.element.style.setProperty('--orb-collect-scale', orbScale.toFixed(3));
-                this.player.element.classList.remove('crystal-collect-pulse');
-                void this.player.element.offsetWidth;
-                this.player.element.classList.add('crystal-collect-pulse');
-                this.scheduler.scheduleTimeout('visual-effects', 'crystal-collect-orb-pulse', () => {
-                    if (this.player && this.player.element) this.player.element.classList.remove('crystal-collect-pulse');
-                }, 205);
+                fx.halo.style.setProperty('--collect-orb-x', `${orbCenterX}px`);
+                fx.halo.style.setProperty('--collect-orb-y', `${orbCenterY}px`);
+                fx.halo.style.setProperty('--collect-halo-size', `${this.player.size * 1.34}px`);
+                fx.halo.style.setProperty('--collect-color', color);
+                fx.halo.classList.remove('active');
+                void fx.halo.offsetWidth;
+                fx.halo.classList.add('active');
+                this.scheduler.scheduleTimeout('visual-effects', 'crystal-collect-halo', () => {
+                    if (fx.halo) fx.halo.classList.remove('active');
+                }, 175);
             }
 
             collectCrystalAtIndex(index, crystal) {
@@ -17504,10 +17548,7 @@ Font License Notices
             }
 
             getVisualColor() {
-                // During the developer behavior test, familiar Drifters stay unmistakably red.
-                return this.enemy.game.enemyBehaviorTestMode
-                    ? GAME_CONFIG.enemyBehaviors.colors.drifter
-                    : null;
+                return GAME_CONFIG.enemyBehaviors.colors.drifter;
             }
 
             onEnemyCollision({ normal = null } = {}) {
