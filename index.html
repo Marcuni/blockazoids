@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Trackpad Prototype p040: Restores immediate Play-button startup by moving Safari/iPhone audio unlocking off the gameplay-critical path; audio now unlocks asynchronously and never blocks a new run.
+Trackpad Prototype p041: Restores the known-working p025 audio architecture and removes the p038-p040 audio-unlock patches while preserving current gameplay, crystal, Help, and HUD changes.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="trackpad-p040">
+<html data-build-version="trackpad-p041">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -7384,7 +7384,7 @@ Font License Notices
     </div>
 
     <script>
-        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'trackpad-p040'}`;
+        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'trackpad-p041'}`;
 
         // Central diagnostic feature flags. Change values here before loading the page to isolate systems.
         const GAME_FEATURE_FLAGS = window.BLOCKAZOIDS_FEATURE_FLAGS = {
@@ -8364,8 +8364,8 @@ Font License Notices
 
             activateRunStartAudio() {
                 const game = this.game;
-                // The canonical Play handler starts audio unlocking in parallel; gameplay never waits for it.
-                game.audio.stopBackgroundMusic();
+                game.audio.resume(); // Unlock audio after the player's start tap
+                game.audio.stopBackgroundMusic(); // Stop any background music
             }
 
             stopSectorForCompletion() {
@@ -9144,12 +9144,7 @@ Font License Notices
                     if (!this.active && !this.isPaused) this.enableShakeCosmicZap();
                 }, { passive: true });
                 document.addEventListener('visibilitychange', () => this.handleVisibilityChange());
-                this.handleAudioUnlockGesture = () => {
-                    if (this.audio && !this.audio.isSoundMuted()) void this.audio.unlockFromGesture();
-                };
-                document.addEventListener('pointerdown', this.handleAudioUnlockGesture, { capture: true, passive: true });
-                document.addEventListener('touchend', this.handleAudioUnlockGesture, { capture: true, passive: true });
-                this.startButton.addEventListener('click', (e) => { void this.handlePlayPauseControlClick(e); });
+                this.startButton.addEventListener('click', (e) => this.handlePlayPauseControlClick(e));
                 if (this.howToButton) {
                     this.howToButton.addEventListener('click', (e) => {
                         e.preventDefault();
@@ -9334,13 +9329,15 @@ Font License Notices
                 this.soundToggleButton.addEventListener('click', (e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    void this.toggleSoundSetting();
+                    this.playUiClick();
+                    this.toggleSoundSetting();
                 });
                 if (this.musicToggleButton) {
                     this.musicToggleButton.addEventListener('click', (e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        void this.toggleMusicSetting();
+                        this.playUiClick();
+                        this.toggleMusicSetting();
                     });
                 }
                 if (this.crtToggleButton) {
@@ -11153,16 +11150,7 @@ Font License Notices
 
 
             playUiClick() {
-                if (!this.audio || typeof this.audio.playUiClick !== 'function' || this.audio.isSoundMuted()) return;
-                if (this.audio.isAudioReady && this.audio.isAudioReady()) {
-                    this.audio.playUiClick();
-                    return;
-                }
-                if (this.audio.unlockFromGesture) {
-                    void this.audio.unlockFromGesture().then(unlocked => {
-                        if (unlocked && !this.audio.isSoundMuted()) this.audio.playUiClick();
-                    });
-                }
+                if (this.audio && typeof this.audio.playUiClick === 'function') this.audio.playUiClick();
             }
 
             startPauseMenuReactorHum() {
@@ -12477,38 +12465,17 @@ Font License Notices
                 this.musicToggleButton.title = unavailable ? 'Music unavailable' : (muted ? 'Enable music' : 'Disable music');
             }
 
-            async toggleSoundSetting() {
+            toggleSoundSetting() {
                 if (!GAME_FEATURE_FLAGS.audio || !this.audio) return;
-                const enablingSound = this.audio.isSoundMuted();
-                this.audio.setMuted(!enablingSound);
+                this.audio.setMuted(!this.audio.isSoundMuted());
                 this.updateSoundToggleLabel();
-
-                if (enablingSound) {
-                    const unlocked = await this.audio.unlockFromGesture({ forceRecreate: true });
-                    if (unlocked) {
-                        this.audio.playUiClick();
-                        if (!this.audio.isMusicMuted() && this.flow.isLiveAction()) {
-                            this.audio.startBackgroundMusic(this.level);
-                        }
-                    }
-                }
             }
 
-            async toggleMusicSetting() {
+            toggleMusicSetting() {
                 if (!GAME_FEATURE_FLAGS.music || !this.audio) return;
-                const enablingMusic = this.audio.isMusicMuted();
-                if (!enablingMusic) this.playUiClick();
-                this.audio.setMusicMuted(!enablingMusic);
+                this.audio.setMusicMuted(!this.audio.isMusicMuted());
                 this.updateMusicToggleLabel();
                 this.stopPauseMenuReactorHum();
-
-                if (enablingMusic && !this.audio.isSoundMuted()) {
-                    const unlocked = await this.audio.unlockFromGesture();
-                    if (unlocked) {
-                        this.audio.playUiClick();
-                        if (this.flow.isLiveAction()) this.audio.startBackgroundMusic(this.level);
-                    }
-                }
             }
 
             loadCrtPreference() {
@@ -13475,10 +13442,6 @@ Font License Notices
                     }
                     return;
                 }
-                if (this.audio && this.audio.ctx && this.audio.ctx.state !== 'running') {
-                    this.audio.audioUnlocked = false;
-                    this.audio.audioLastUnlockState = this.audio.ctx.state || 'visibility-return';
-                }
                 if (this.flow.isLiveAction()) {
                     this.lastFrameTime = performance.now();
                     this.requestWakeLock();
@@ -14347,19 +14310,6 @@ Font License Notices
                 if (e) {
                     e.preventDefault();
                     e.stopPropagation();
-                }
-
-                // p040: Audio recovery must never hold the Play button hostage. Start/resume
-                // gameplay synchronously, while Safari/iPhone audio unlocking completes in parallel.
-                if (this.audio && !this.audio.isSoundMuted() && this.audio.unlockFromGesture) {
-                    void this.audio.unlockFromGesture().then(unlocked => {
-                        if (!unlocked || this.audio.isSoundMuted()) return;
-                        // A successful late unlock should restore ongoing gameplay music without
-                        // replaying lifecycle actions or delaying the run-start transition.
-                        if (!this.audio.isMusicMuted() && this.flow.isLiveAction()) {
-                            this.audio.startBackgroundMusic(this.level);
-                        }
-                    }).catch(() => {});
                 }
                 if (this.tutorialActive) return;
                 if (this.showHudDuringSectorIntro || this.resumeCountdownActive || this.startInputLocked) return;
@@ -17313,9 +17263,6 @@ Font License Notices
                 this.masterGain = null;
                 this.musicGain = null;
                 this.limiter = null;
-                this.audioUnlocked = false;
-                this.audioUnlockPromise = null;
-                this.audioLastUnlockState = 'disposed';
                 this.audioContextGeneration = 0;
                 this.audioNodesCreatedTotal = 0;
                 this.audioNodesCreatedThisContext = 0;
@@ -17333,10 +17280,6 @@ Font License Notices
                 this.audioSourceLimit = 96;
                 this.audioSourceLimitTrips = 0;
                 this.audioLastCleanupReason = 'boot';
-                this.audioUnlocked = false;
-                this.audioUnlockPromise = null;
-                this.audioUnlockAttempts = 0;
-                this.audioLastUnlockState = 'not-attempted';
                 if (!this.muted) this.createAudioContext();
             }
 
@@ -17499,12 +17442,7 @@ Font License Notices
                 const AudioContextClass = window.AudioContext || window.webkitAudioContext;
                 if (!AudioContextClass) return false;
 
-                try {
-                    this.ctx = new AudioContextClass();
-                } catch (_) {
-                    this.ctx = null;
-                    return false;
-                }
+                this.ctx = new AudioContextClass();
                 this.audioContextGeneration++;
                 this.audioNodesCreatedThisContext = 0;
                 this.audioLiveSources.clear();
@@ -17532,8 +17470,6 @@ Font License Notices
                 this.audioPersistentNodes.add(this.masterGain);
                 this.audioPersistentNodes.add(this.musicGain);
                 this.audioPersistentNodes.add(this.limiter);
-                this.audioUnlocked = this.ctx.state === 'running';
-                this.audioLastUnlockState = this.ctx.state || 'created';
                 return true;
             }
 
@@ -17628,99 +17564,17 @@ Font License Notices
                 if (!this.ctx || this.ctx.state === 'closed') this.createAudioContext();
             }
 
-            // Start an inaudible one-frame source through the real output graph. Safari/iPhone
-            // is more reliable when a user gesture both resumes the context and starts a source.
-            primeAudioGraph() {
-                if (!this.ctx || !this.masterGain || this.ctx.state === 'closed') return false;
-                try {
-                    const buffer = this.ctx.createBuffer(1, 1, Math.max(8000, this.ctx.sampleRate || 44100));
-                    const source = this.ctx.createBufferSource();
-                    const gain = this.ctx.createGain();
-                    gain.gain.value = 0.000001;
-                    source.buffer = buffer;
-                    source.connect(gain);
-                    gain.connect(this.masterGain);
-                    source.addEventListener('ended', () => {
-                        try { source.disconnect(); } catch (_) {}
-                        try { gain.disconnect(); } catch (_) {}
-                    }, { once: true });
-                    source.start(0);
-                    return true;
-                } catch (_) {
-                    return false;
-                }
-            }
-
-            isAudioReady() {
-                return !this.muted && !!this.ctx && this.ctx.state === 'running';
-            }
-
-            // This method must be entered directly from pointer/touch/click input. Context
-            // replacement happens synchronously before the first await so iOS treats it as
-            // gesture-owned rather than as an autoplay request.
-            unlockFromGesture(options = {}) {
-                if (this.muted || !GAME_FEATURE_FLAGS.audio) return Promise.resolve(false);
-                if (this.audioUnlockPromise) return this.audioUnlockPromise;
-
-                const forceRecreate = options.forceRecreate === true;
-                const stalePreGestureContext = !this.audioUnlocked && this.ctx && this.ctx.state !== 'running';
-                if (forceRecreate || stalePreGestureContext || !this.ctx || this.ctx.state === 'closed') {
-                    if (this.ctx) this.disposeAudioContext(forceRecreate ? 'gesture-force-recreate' : 'gesture-fresh-context');
-                    if (!this.createAudioContext()) return Promise.resolve(false);
-                }
-
-                const context = this.ctx;
-                this.audioUnlockAttempts++;
-                this.primeAudioGraph();
-
-                const unlockTask = (async () => {
-                    try {
-                        if (context.state === 'suspended' || context.state === 'interrupted') {
-                            await context.resume();
-                        }
-                        // Prime once more after resume; some WebKit builds ignore the first source.
-                        if (this.ctx === context) this.primeAudioGraph();
-                        this.audioUnlocked = this.ctx === context && context.state === 'running';
-                        this.audioLastUnlockState = context.state || 'unknown';
-                        return this.audioUnlocked;
-                    } catch (_) {
-                        this.audioUnlocked = false;
-                        this.audioLastUnlockState = context && context.state ? context.state : 'unlock-error';
-                        return false;
-                    }
-                })();
-
-                this.audioUnlockPromise = unlockTask.finally(() => {
-                    this.audioUnlockPromise = null;
-                });
-                return this.audioUnlockPromise;
-            }
-
-            // Synchronous fallback for sounds triggered after the initial gesture unlock.
+            // Safari can suspend or interrupt audio after page/game restarts.
+            // Reopen the graph if needed, then request resume whenever a sound is about to play.
             ensureAudio() {
                 if (this.muted) return false;
                 if (!this.ctx || this.ctx.state === 'closed') {
-                    if (!this.createAudioContext()) return false;
+                    this.createAudioContext();
                 }
 
-                if (this.ctx.state === 'running') {
-                    this.audioUnlocked = true;
-                    this.audioLastUnlockState = 'running';
-                    return true;
-                }
-
-                if (this.ctx.state === 'suspended' || this.ctx.state === 'interrupted') {
-                    try {
-                        const resumePromise = this.ctx.resume();
-                        if (resumePromise && resumePromise.then) {
-                            resumePromise.then(() => {
-                                this.audioUnlocked = !!this.ctx && this.ctx.state === 'running';
-                                this.audioLastUnlockState = this.ctx ? this.ctx.state : 'missing';
-                            }).catch(() => {});
-                        }
-                    } catch (_) {
-                        return false;
-                    }
+                if (this.ctx && (this.ctx.state === 'suspended' || this.ctx.state === 'interrupted')) {
+                    const resumePromise = this.ctx.resume();
+                    if (resumePromise && resumePromise.catch) resumePromise.catch(() => {});
                 }
                 return !!this.ctx;
             }
@@ -17758,20 +17612,17 @@ Font License Notices
                 if (nextMuted === this.muted) return;
 
                 if (nextMuted) {
+                    this.disposeAudioContext();
                     this.muted = true;
-                    try {
-                        localStorage.setItem('blockazoidsSoundMuted', '1');
-                    } catch (_) {}
-                    this.disposeAudioContext('sound-muted');
-                    return;
+                } else {
+                    this.muted = false;
+                    this.createAudioContext();
+                    this.ensureAudio();
                 }
 
-                this.muted = false;
                 try {
-                    localStorage.setItem('blockazoidsSoundMuted', '0');
-                } catch (_) {}
-                this.createAudioContext();
-                this.audioUnlocked = this.ctx ? this.ctx.state === 'running' : false;
+                    localStorage.setItem('blockazoidsSoundMuted', this.muted ? '1' : '0');
+                } catch (error) {}
             }
 
             setMusicMuted(muted) {
@@ -18598,7 +18449,7 @@ startMaxSwarmBeat(delaySeconds = 0) {
             // Short spaceship-console button press: firm mechanical thunk, quick electronic chirp, and tight contact snap.
 
             playUiClick() {
-                if (!this.ensureAudio() || !this.ctx) return false;
+                this.ensureAudio();
                 const now = this.ctx.currentTime;
 
                 const clickMix = this.createAudioNode('createGain');
@@ -19330,10 +19181,10 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 this.backgroundMixGain = null;
             }
 
-            // Backward-compatible entry point used by existing lifecycle code.
+            // Resume audio context after user gestures and after Safari/iOS interruptions.
             resume() {
-                if (this.muted) return Promise.resolve(false);
-                return this.unlockFromGesture();
+                if (this.muted) return false;
+                return this.ensureAudio();
             }
         }
 
