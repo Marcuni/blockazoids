@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Trackpad Prototype p027: Retains the persistent three-crystal distance-value system while reducing marker size to zero, one, or two white outlines for 10, 15, or 20 points.
+Trackpad Prototype p028: Retains the persistent three-crystal distance-value system while replacing outline markers with low, medium, and high blinking intensity for 10, 15, or 20 points.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="trackpad-p027">
+<html data-build-version="trackpad-p028">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -572,49 +572,76 @@ Font License Notices
             z-index: 2;
         }
         
-        /* Crystal color variants using CSS variables */
-        .crystal.red { background-color: var(--red-color); }
-        .crystal.green { background-color: var(--green-color); }
-        .crystal.blue { background-color: var(--blue-color); }
+        /* Crystal color variants expose their RGB base color to the value-blink animations. */
+        .crystal.red {
+            --crystal-base-color: var(--red-color);
+            background-color: var(--crystal-base-color);
+        }
+        .crystal.green {
+            --crystal-base-color: var(--green-color);
+            background-color: var(--crystal-base-color);
+        }
+        .crystal.blue {
+            --crystal-base-color: var(--blue-color);
+            background-color: var(--crystal-base-color);
+        }
         
-        /* Highlighted crystal with twinkle animation */
+        /* Selected crystals use equal-size, equal-speed pulses. Only blink intensity communicates value. */
         .crystal.next {
-            box-shadow: 0 0 25px #FFF, 0 0 40px #FFF, 0 0 60px #FFF;
-            animation: twinkle .25s infinite alternate;
             transform: rotate(45deg);
             z-index: 3;
-        }
-        
-        /* Compact distance-value markers: zero, one, or two white diamonds show 10, 15, or 20 points. */
-        .crystal-value-outlines {
-            position: absolute;
-            inset: 0;
-            pointer-events: none;
-            overflow: visible;
+            animation: crystalValueBlinkLow 0.30s ease-in-out infinite alternate;
         }
 
-        .crystal-value-outline {
-            position: absolute;
-            box-sizing: border-box;
-            border: 1px solid #fff;
-            opacity: 0;
-            pointer-events: none;
-            box-shadow: 0 0 calc(var(--default-glow) * 0.34px) rgba(255, 255, 255, 0.92);
+        .crystal.next.value-rank-1 {
+            animation-name: crystalValueBlinkLow;
         }
 
-        .crystal-value-outline-1 { inset: -40%; }
-        .crystal-value-outline-2 { inset: -80%; }
-
-        .crystal.next.value-rank-2 .crystal-value-outline-1,
-        .crystal.next.value-rank-3 .crystal-value-outline-1,
-        .crystal.next.value-rank-3 .crystal-value-outline-2 {
-            opacity: 1;
+        .crystal.next.value-rank-2 {
+            animation-name: crystalValueBlinkMedium;
         }
 
-        /* Twinkle animation for next crystal */
-        @keyframes twinkle {
-            0% { background-color: inherit; }
-            100% { background-color: rgba(255, 255, 255, 0.7); }
+        .crystal.next.value-rank-3 {
+            animation-name: crystalValueBlinkHigh;
+        }
+
+        @keyframes crystalValueBlinkLow {
+            0% {
+                background-color: var(--crystal-base-color);
+                filter: brightness(0.92);
+                box-shadow: 0 0 5px rgba(255, 255, 255, 0.28), 0 0 10px rgba(255, 255, 255, 0.10);
+            }
+            100% {
+                background-color: color-mix(in srgb, var(--crystal-base-color) 76%, white 24%);
+                filter: brightness(1.08);
+                box-shadow: 0 0 9px rgba(255, 255, 255, 0.58), 0 0 16px rgba(255, 255, 255, 0.18);
+            }
+        }
+
+        @keyframes crystalValueBlinkMedium {
+            0% {
+                background-color: var(--crystal-base-color);
+                filter: brightness(0.96);
+                box-shadow: 0 0 7px rgba(255, 255, 255, 0.38), 0 0 13px rgba(255, 255, 255, 0.14);
+            }
+            100% {
+                background-color: color-mix(in srgb, var(--crystal-base-color) 52%, white 48%);
+                filter: brightness(1.14);
+                box-shadow: 0 0 13px rgba(255, 255, 255, 0.80), 0 0 23px rgba(255, 255, 255, 0.30);
+            }
+        }
+
+        @keyframes crystalValueBlinkHigh {
+            0% {
+                background-color: var(--crystal-base-color);
+                filter: brightness(1);
+                box-shadow: 0 0 9px rgba(255, 255, 255, 0.48), 0 0 16px rgba(255, 255, 255, 0.20);
+            }
+            100% {
+                background-color: color-mix(in srgb, var(--crystal-base-color) 24%, white 76%);
+                filter: brightness(1.20);
+                box-shadow: 0 0 17px rgba(255, 255, 255, 0.96), 0 0 30px rgba(255, 255, 255, 0.48), 0 0 42px rgba(255, 255, 255, 0.18);
+            }
         }
         
         /* Optional Prism Relic pickup: oversized crystal with a big collectible glow */
@@ -7055,7 +7082,7 @@ Font License Notices
                         <ul class="how-to-crystal-list">
                             <li>Swipe below the Grid to move the white Orb.</li>
                             <li>Choose among three blinking crystals.</li>
-                            <li>No, one, or two white outlines show 10, 15, or 20 points.</li>
+                            <li>Low, medium, or high blink intensity shows 10, 15, or 20 points.</li>
                             <li>Avoid Block-A-Zoids.</li>
                             <li><span>Shake to Cosmic Zap.</span><span class="how-to-inline-note">(OR DOUBLE TAP THE GRID)</span></li>
                         </ul>
@@ -7064,7 +7091,7 @@ Font License Notices
 
                     <section class="how-to-detail-section help-scoring-section">
                         <h2>POINT SCORING</h2>
-                        <div class="scoring-row"><span>Crystal <span class="scoring-label-note">(0/1/2 outlines)</span></span><span>10/15/20</span></div>
+                        <div class="scoring-row"><span>Crystal <span class="scoring-label-note">(low/medium/high blink)</span></span><span>10/15/20</span></div>
                         <div class="scoring-row"><span>Color Complete</span><span>100/ea</span></div>
                         <div class="scoring-row"><span>Time Alive</span><span>1/sec</span></div>
                         <div class="scoring-section-title">EXTRA</div>
@@ -7252,7 +7279,7 @@ Font License Notices
     </div>
 
     <script>
-        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'trackpad-p027'}`;
+        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'trackpad-p028'}`;
 
         // Central diagnostic feature flags. Change values here before loading the page to isolate systems.
         const GAME_FEATURE_FLAGS = window.BLOCKAZOIDS_FEATURE_FLAGS = {
@@ -17022,15 +17049,6 @@ Font License Notices
 
                 this.element = document.createElement('div');
                 this.element.className = `crystal ${this.color}`; // Apply color class
-
-                this.valueOutlineLayer = document.createElement('div');
-                this.valueOutlineLayer.className = 'crystal-value-outlines';
-                for (let rank = 1; rank <= 2; rank++) {
-                    const outline = document.createElement('div');
-                    outline.className = `crystal-value-outline crystal-value-outline-${rank}`;
-                    this.valueOutlineLayer.appendChild(outline);
-                }
-                this.element.appendChild(this.valueOutlineLayer);
 
                 this.updatePosition(); // Set initial position
                 this.game.container.appendChild(this.element); // Add to DOM
