@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Trackpad Prototype p047: Adds the minimum enemy-behavior architecture needed for future Block-A-Zoid types by routing the existing Drifter movement through a registered behavior while preserving p046 gameplay, physics, visuals, spawning, and balance.
+Trackpad Prototype p048: Adds the first developer-only Green Charger behavior test on top of the p047 enemy-behavior foundation, with a telegraphed straight-line charge and no normal-campaign integration.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="trackpad-p047">
+<html data-build-version="trackpad-p048">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -457,6 +457,52 @@ Font License Notices
             opacity: 0;
             transition: opacity 0.5s ease-in, transform 0.3s ease-out;
             --enemy-color: #fff;
+        }
+
+
+        /* p048 developer-only Green Charger presentation. The square body remains shared with every Block-A-Zoid. */
+        .enemy[data-enemy-behavior="charger"] {
+            box-shadow: 0 0 8px rgba(0,255,0,0.78), 0 0 18px rgba(0,255,0,0.30);
+        }
+
+        .enemy[data-enemy-behavior="charger"].charger-telegraph {
+            animation: chargerTelegraphPulse 0.18s steps(2, end) infinite;
+        }
+
+        .enemy[data-enemy-behavior="charger"].charger-telegraph::before {
+            content: "";
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            width: calc(var(--grid-size, 60px) * 0.72);
+            height: 1px;
+            pointer-events: none;
+            transform-origin: left center;
+            transform: translateY(-50%) rotate(var(--charger-aim-angle, 0rad));
+            background: rgba(255,255,255,0.92);
+            box-shadow: 0 0 5px #fff, 0 0 11px rgba(0,255,0,0.78);
+            opacity: 0.86;
+        }
+
+        .enemy[data-enemy-behavior="charger"].charger-charge {
+            box-shadow: 0 0 12px #fff, 0 0 26px rgba(0,255,0,0.96), 0 0 44px rgba(0,255,0,0.46);
+            filter: brightness(1.35);
+        }
+
+        .enemy[data-enemy-behavior="charger"].charger-recovery {
+            filter: brightness(0.72);
+            box-shadow: 0 0 5px rgba(0,255,0,0.62), 0 0 12px rgba(0,255,0,0.20);
+        }
+
+        @keyframes chargerTelegraphPulse {
+            0% {
+                filter: brightness(0.82);
+                box-shadow: 0 0 6px rgba(0,255,0,0.62), 0 0 14px rgba(0,255,0,0.22);
+            }
+            100% {
+                filter: brightness(1.65);
+                box-shadow: 0 0 12px #fff, 0 0 26px rgba(0,255,0,0.95), 0 0 42px rgba(0,255,0,0.44);
+            }
         }
         
         /* Explosion effect for player death or Cosmic Zap discharge */
@@ -7325,11 +7371,11 @@ Font License Notices
                     <section class="how-to-basic-section">
                         <ul class="how-to-crystal-list">
                             <li>Swipe anywhere to move.</li>
-                            <li>Or double tap.</li>
+                            <li>Collect blinking crystals.</li>
                             <li>Avoid Block-A-Zoids.</li>
                             <li>Shake to Cosmic Zap.</li>
                         </ul>
-                        <p class="how-to-curiosity-note">This is honestly everything you need.<br><br>Curiosity, however, has poor impulse control. Keep scrolling for information you absolutely do not need to survive.</p>
+                        <p class="how-to-curiosity-note">This is all you need to know.<br><br>Curiosity, however, has poor impulse control. Keep scrolling for information you absolutely do not need to survive.</p>
                     </section>
 
                     <section class="how-to-detail-section help-scoring-section">
@@ -7528,7 +7574,7 @@ Font License Notices
     </div>
 
     <script>
-        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'trackpad-p047'}`;
+        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'trackpad-p048'}`;
 
         // Central diagnostic feature flags. Change values here before loading the page to isolate systems.
         const GAME_FEATURE_FLAGS = window.BLOCKAZOIDS_FEATURE_FLAGS = {
@@ -7643,6 +7689,24 @@ Font License Notices
             enemySpawning: Object.freeze({
                 proportions: Object.freeze({ small: 0.125, medium: 0.75, large: 0.125 }),
                 spawnWarningDurationMs: 850
+            }),
+            enemyBehaviors: Object.freeze({
+                colors: Object.freeze({
+                    drifter: '#F00',
+                    charger: '#0F0',
+                    blue: '#00F',
+                    yellow: '#FF0'
+                }),
+                charger: Object.freeze({
+                    cruiseSpeedMultiplier: 0.62,
+                    cruiseMinMs: 1300,
+                    cruiseMaxMs: 2200,
+                    warningMs: 520,
+                    chargeSpeedMultiplier: 3.2,
+                    chargeMaxMs: 850,
+                    recoverySpeedMultiplier: 0.34,
+                    recoveryMs: 650
+                })
             }),
             campaign: Object.freeze({
                 maxLevels: 15,
@@ -9239,6 +9303,7 @@ Font License Notices
                 }; // Map of colors to hex values
 
                 // Enemy spawn management
+                this.enemyBehaviorTestMode = null;    // Developer-only behavior test active for the currently prepared sector
                 this.spawnQueue = [];                 // Queue of normal-swarm enemies to spawn
                 this.spawnedCount = { small: 0, medium: 0, large: 0 }; // Count of spawned enemies by size
                 this.pendingSpawnWarnings = [];      // Telegraphs queued before enemies materialize
@@ -12047,10 +12112,27 @@ Font License Notices
                 for (let i = 0; i < adjustedMedium; i++) this.spawnQueue.push('medium');
                 for (let i = 0; i < adjustedLarge; i++) this.spawnQueue.push('large');
 
-                // Shuffle spawn queue for randomness
+                // Shuffle size order for randomness. Behavior order remains authored in developer tests.
                 for (let i = this.spawnQueue.length - 1; i > 0; i--) {
                     const j = Math.floor(Math.random() * (i + 1));
                     [this.spawnQueue[i], this.spawnQueue[j]] = [this.spawnQueue[j], this.spawnQueue[i]];
+                }
+
+                if (this.enemyBehaviorTestMode === ENEMY_BEHAVIOR_TYPES.CHARGER) {
+                    const chargerTeachingPlan = [
+                        ENEMY_BEHAVIOR_TYPES.DRIFTER,
+                        ENEMY_BEHAVIOR_TYPES.DRIFTER,
+                        ENEMY_BEHAVIOR_TYPES.CHARGER,
+                        ENEMY_BEHAVIOR_TYPES.DRIFTER,
+                        ENEMY_BEHAVIOR_TYPES.CHARGER,
+                        ENEMY_BEHAVIOR_TYPES.DRIFTER,
+                        ENEMY_BEHAVIOR_TYPES.DRIFTER,
+                        ENEMY_BEHAVIOR_TYPES.CHARGER
+                    ];
+                    this.spawnQueue = this.spawnQueue.map((type, index) => ({
+                        type,
+                        behaviorType: chargerTeachingPlan[index] || ENEMY_BEHAVIOR_TYPES.DRIFTER
+                    }));
                 }
             }
 
@@ -12333,6 +12415,7 @@ Font License Notices
                 this.flow.enter(GAME_FLOW_STATES.SECTOR_INTRO, 'prepare-level-start');
                 this.systems.prepareSectorEntry(options);
 
+                this.enemyBehaviorTestMode = options.enemyBehaviorTestMode || null;
                 this.level = targetLevel;
                 this.markStabilityEvent('prepare-sector', { sector: this.level, cycle: this.cycle, resetScore: !!resetScore });
                 this.recordProgressUnlocks(this.level, this.cycle);
@@ -12395,7 +12478,8 @@ Font License Notices
             async runLevelCountdown(loadToken) {
                 this.ensureTransitionGroup('sector-countdown', loadToken);
                 const steps = ['3', '2', '1'];
-                const levelName = this.getLevelPatternName(this.level).toUpperCase();
+                const chargerTestActive = this.enemyBehaviorTestMode === ENEMY_BEHAVIOR_TYPES.CHARGER;
+                const levelName = chargerTestActive ? 'GREEN CHARGER TEST' : this.getLevelPatternName(this.level).toUpperCase();
 
                 this.setTransitionState({ showHudDuringSectorIntro: true });
                 this.ui.updateAll();
@@ -12404,7 +12488,7 @@ Font License Notices
                 this.bonusTextElement.style.transition = 'opacity 0.12s ease-in-out';
                 this.bonusTextElement.style.opacity = '1';
                 const difficultyName = this.difficultyMode || 'Normal';
-                this.bonusTextElement.innerHTML = `<span class="countdown-level-number">GRID SECTOR ${this.level}</span><span class="countdown-level-name">${levelName}</span><span class="countdown-difficulty">${difficultyName}</span>`;
+                this.bonusTextElement.innerHTML = `<span class="countdown-level-number">${chargerTestActive ? 'DEV SECTOR' : `GRID SECTOR ${this.level}`}</span><span class="countdown-level-name">${levelName}</span><span class="countdown-difficulty">${difficultyName}</span>`;
 
                 const cancelCountdown = () => {
                     this.setTransitionState({ showHudDuringSectorIntro: false });
@@ -13501,6 +13585,22 @@ Font License Notices
                 }
 
                 if (this.developerModeEnabled) {
+                    const chargerButton = document.createElement('button');
+                    chargerButton.className = 'level-select-button';
+                    chargerButton.textContent = 'CHG';
+                    chargerButton.setAttribute('aria-label', 'Green Charger behavior test');
+                    chargerButton.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (!this.canChangeSectorSelection()) {
+                            this.updateLevelSelectButtonLockState();
+                            return;
+                        }
+                        this.playUiClick();
+                        this.startChargerBehaviorTest();
+                    });
+                    this.levelSelectGrid.appendChild(chargerButton);
+
                     const endButton = document.createElement('button');
                     endButton.className = 'level-select-button';
                     endButton.textContent = 'END';
@@ -13536,6 +13636,23 @@ Font License Notices
                 this.refreshGameOverlay();
                 this.clearGameOverlayForGameplay();
                 this.ui.updateAll();
+            }
+
+            startChargerBehaviorTest() {
+                if (!this.developerModeEnabled || !this.canChangeSectorSelection()) return false;
+
+                const previousSelectedSector = this.selectedStartSector;
+                this.hideLevelSelectMenu();
+                const loadToken = ++this.levelLoadToken;
+                this.audio.resume();
+                this.audio.stopBackgroundMusic();
+                if (this.telemetryEnabled) this.beginTelemetryRun('charger-behavior-test');
+                this.beginSector(3, true, { enemyBehaviorTestMode: ENEMY_BEHAVIOR_TYPES.CHARGER });
+                this.selectedStartSector = previousSelectedSector;
+                this.setTransitionState({ startInputLocked: true });
+                this.ui.updateAll();
+                this.startPreparedLevel(loadToken);
+                return true;
             }
 
             startEndCycleTest() {
@@ -15135,7 +15252,7 @@ Font License Notices
 
                 if (requeue) {
                     for (let i = pending.length - 1; i >= 0; i--) {
-                        if (pending[i].requeueOnCancel !== false) this.spawnQueue.unshift(pending[i].type);
+                        if (pending[i].requeueOnCancel !== false) this.spawnQueue.unshift(pending[i].spawnRequest || pending[i].type);
                     }
                 }
 
@@ -15214,15 +15331,29 @@ Font License Notices
                 return topChoices[Math.floor(Math.random() * topChoices.length)];
             }
 
+            normalizeEnemySpawnRequest(request) {
+                if (typeof request === 'string') {
+                    return { type: request, behaviorType: ENEMY_BEHAVIOR_TYPES.DRIFTER };
+                }
+                const type = request && typeof request.type === 'string' ? request.type : 'medium';
+                const behaviorType = request && request.behaviorType
+                    ? request.behaviorType
+                    : ENEMY_BEHAVIOR_TYPES.DRIFTER;
+                return { type, behaviorType };
+            }
+
             // Flash one grid cell first, then materialize the queued enemy in its clamped spawn location.
-            // The warning is always the same size so it does not reveal the next Block-A-Zoid size.
-            startEnemySpawnWarning(type, options = {}) {
+            // The warning stays behavior-neutral so it does not reveal the next Block-A-Zoid before materialization.
+            startEnemySpawnWarning(spawnRequest, options = {}) {
+                const normalizedRequest = this.normalizeEnemySpawnRequest(spawnRequest);
+                const type = normalizedRequest.type;
+                const behaviorType = normalizedRequest.behaviorType;
                 const size = type === 'small' ? this.PLAYER_SIZE : (type === 'medium' ? this.PLAYER_SIZE * 2 : this.PLAYER_SIZE * 3);
                 const location = this.choosePeripheralSpawnLocation(size);
                 if (!location) return false;
 
                 if (!GAME_FEATURE_FLAGS.spawnWarnings) {
-                    const enemy = new Enemy(this, type, { x: location.x, y: location.y });
+                    const enemy = new Enemy(this, type, { x: location.x, y: location.y }, behaviorType);
                     this.enemies.push(enemy);
                     this.noteTelemetryEnemySpawn(type);
                     this.checkMaxSwarmProgress();
@@ -15237,6 +15368,8 @@ Font License Notices
                 const warning = new SpawnWarning(this, location.warningX, location.warningY, this.GRID_SIZE);
                 const pending = {
                     type,
+                    behaviorType,
+                    spawnRequest: normalizedRequest,
                     warning,
                     size,
                     spawnX: location.x,
@@ -15250,11 +15383,11 @@ Font License Notices
                     warning.remove();
 
                     if (!this.flow.isLiveAction()) {
-                        if (options.requeueOnCancel !== false) this.spawnQueue.unshift(type);
+                        if (options.requeueOnCancel !== false) this.spawnQueue.unshift(normalizedRequest);
                         return;
                     }
 
-                    const enemy = new Enemy(this, type, { x: location.x, y: location.y });
+                    const enemy = new Enemy(this, type, { x: location.x, y: location.y }, behaviorType);
                     this.enemies.push(enemy);
                     this.noteTelemetryEnemySpawn(type);
                     this.checkMaxSwarmProgress();
@@ -15277,8 +15410,8 @@ Font License Notices
                 if (this.spawnCounter >= this.spawnDelay && 
                     this.enemies.length + this.pendingSpawnWarnings.length < this.normalSwarmSize &&
                     this.spawnQueue.length > 0) { // Telegraph the next enemy if conditions met
-                    const nextType = this.spawnQueue[0];
-                    if (this.startEnemySpawnWarning(nextType)) {
+                    const nextSpawnRequest = this.spawnQueue[0];
+                    if (this.startEnemySpawnWarning(nextSpawnRequest)) {
                         this.spawnCounter = 0; // Reset counter only when a valid telegraph was created
                         this.spawnQueue.shift();
                     }
@@ -15880,15 +16013,11 @@ Font License Notices
                 this.container.appendChild(square);
             }
 
-            // Update enemy colors to match current crystal color
+            // Dynamic Drifters continue to follow the current crystal color in normal play.
+            // Fixed-color behavior types override that fallback through their behavior contract.
             updateEnemyColors() {
                 const currentColor = this.colorMap[this.colorOrder[this.currentColorIndex]];
-                this.enemies.forEach(enemy => {
-                    enemy.baseColor = currentColor;
-                    enemy.element.style.backgroundColor = currentColor; // Set color
-                    enemy.element.style.setProperty('--enemy-base-color', currentColor);
-                    enemy.updateAnimation(); // Update border and glow
-                });
+                this.enemies.forEach(enemy => enemy.applyVisualColor(currentColor));
             }
 
             canTriggerCosmicZap() {
@@ -17156,10 +17285,11 @@ Font License Notices
             }
         }
 
-        // Enemy movement decisions are isolated behind a small behavior boundary so future
-        // Block-A-Zoid types can vary movement without duplicating rendering or collision physics.
+        // Enemy movement decisions are isolated behind a small behavior boundary so Block-A-Zoid
+        // types can vary movement without duplicating rendering, collision, or lifecycle physics.
         const ENEMY_BEHAVIOR_TYPES = Object.freeze({
-            DRIFTER: 'drifter'
+            DRIFTER: 'drifter',
+            CHARGER: 'charger'
         });
 
         const ENEMY_BEHAVIOR_FACTORIES = new Map();
@@ -17174,6 +17304,10 @@ Font License Notices
             }
 
             initialize() {}
+            onElementReady() {}
+            onBoundaryCollision() {}
+            dispose() {}
+            getVisualColor() { return null; }
 
             update() {
                 throw new Error(`Enemy behavior "${this.type}" must implement update().`);
@@ -17191,7 +17325,130 @@ Font License Notices
                 enemy.dy = (Math.random() > 0.5 ? 1 : -1) * enemy.speed;
             }
 
+            getVisualColor() {
+                // During the developer behavior test, familiar Drifters stay unmistakably red.
+                return this.enemy.game.enemyBehaviorTestMode === ENEMY_BEHAVIOR_TYPES.CHARGER
+                    ? GAME_CONFIG.enemyBehaviors.colors.drifter
+                    : null;
+            }
+
             update(deltaTime) {
+                const enemy = this.enemy;
+                const frameScale = deltaTime / 16.67;
+                enemy.x += enemy.dx * frameScale;
+                enemy.y += enemy.dy * frameScale;
+            }
+        }
+
+        class ChargerBehavior extends EnemyBehavior {
+            constructor(enemy) {
+                super(enemy);
+                this.tuning = GAME_CONFIG.enemyBehaviors.charger;
+                this.state = 'cruise';
+                this.stateEndsAt = 0;
+                this.chargeDirection = { x: 1, y: 0 };
+            }
+
+            get type() {
+                return ENEMY_BEHAVIOR_TYPES.CHARGER;
+            }
+
+            getVisualColor() {
+                return GAME_CONFIG.enemyBehaviors.colors.charger;
+            }
+
+            randomCruiseDuration() {
+                return this.tuning.cruiseMinMs + Math.random() * (this.tuning.cruiseMaxMs - this.tuning.cruiseMinMs);
+            }
+
+            setMovementDirection(x, y, speedMultiplier = 1) {
+                const enemy = this.enemy;
+                const magnitude = Math.hypot(x, y) || 1;
+                const speed = enemy.speed * speedMultiplier;
+                enemy.dx = x / magnitude * speed;
+                enemy.dy = y / magnitude * speed;
+            }
+
+            setVisualState(nextState) {
+                const element = this.enemy.element;
+                if (!element) return;
+                element.classList.remove('charger-cruise', 'charger-telegraph', 'charger-charge', 'charger-recovery');
+                element.classList.add(`charger-${nextState}`);
+                element.dataset.chargerState = nextState;
+            }
+
+            initialize() {
+                const angle = Math.random() * Math.PI * 2;
+                this.setMovementDirection(Math.cos(angle), Math.sin(angle), this.tuning.cruiseSpeedMultiplier);
+                this.state = 'cruise';
+                this.stateEndsAt = performance.now() + this.randomCruiseDuration();
+            }
+
+            onElementReady() {
+                this.setVisualState(this.state);
+            }
+
+            beginTelegraph(now) {
+                const enemy = this.enemy;
+                const player = enemy.game.player;
+                const enemyCenterX = enemy.x + enemy.size / 2;
+                const enemyCenterY = enemy.y + enemy.size / 2;
+                const playerCenterX = player.x + player.size / 2;
+                const playerCenterY = player.y + player.size / 2;
+                const targetX = playerCenterX - enemyCenterX;
+                const targetY = playerCenterY - enemyCenterY;
+                const magnitude = Math.hypot(targetX, targetY) || 1;
+                this.chargeDirection = { x: targetX / magnitude, y: targetY / magnitude };
+                enemy.dx = 0;
+                enemy.dy = 0;
+                if (enemy.element) {
+                    enemy.element.style.setProperty('--charger-aim-angle', `${Math.atan2(targetY, targetX)}rad`);
+                }
+                this.state = 'telegraph';
+                this.stateEndsAt = now + this.tuning.warningMs;
+                this.setVisualState(this.state);
+            }
+
+            beginCharge(now) {
+                this.state = 'charge';
+                this.stateEndsAt = now + this.tuning.chargeMaxMs;
+                this.setMovementDirection(this.chargeDirection.x, this.chargeDirection.y, this.tuning.chargeSpeedMultiplier);
+                this.setVisualState(this.state);
+            }
+
+            beginRecovery(now) {
+                const enemy = this.enemy;
+                const directionX = Math.abs(enemy.dx) > 0.001 || Math.abs(enemy.dy) > 0.001 ? enemy.dx : -this.chargeDirection.x;
+                const directionY = Math.abs(enemy.dx) > 0.001 || Math.abs(enemy.dy) > 0.001 ? enemy.dy : -this.chargeDirection.y;
+                this.state = 'recovery';
+                this.stateEndsAt = now + this.tuning.recoveryMs;
+                this.setMovementDirection(directionX, directionY, this.tuning.recoverySpeedMultiplier);
+                this.setVisualState(this.state);
+            }
+
+            beginCruise(now) {
+                const enemy = this.enemy;
+                const directionX = Math.abs(enemy.dx) > 0.001 || Math.abs(enemy.dy) > 0.001 ? enemy.dx : (Math.random() > 0.5 ? 1 : -1);
+                const directionY = Math.abs(enemy.dx) > 0.001 || Math.abs(enemy.dy) > 0.001 ? enemy.dy : (Math.random() > 0.5 ? 1 : -1);
+                this.state = 'cruise';
+                this.stateEndsAt = now + this.randomCruiseDuration();
+                this.setMovementDirection(directionX, directionY, this.tuning.cruiseSpeedMultiplier);
+                this.setVisualState(this.state);
+            }
+
+            onBoundaryCollision() {
+                if (this.state === 'charge') this.beginRecovery(performance.now());
+            }
+
+            update(deltaTime, timestamp = performance.now()) {
+                if (timestamp >= this.stateEndsAt) {
+                    if (this.state === 'cruise') this.beginTelegraph(timestamp);
+                    else if (this.state === 'telegraph') this.beginCharge(timestamp);
+                    else if (this.state === 'charge') this.beginRecovery(timestamp);
+                    else this.beginCruise(timestamp);
+                }
+
+                if (this.state === 'telegraph') return;
                 const enemy = this.enemy;
                 const frameScale = deltaTime / 16.67;
                 enemy.x += enemy.dx * frameScale;
@@ -17244,6 +17501,10 @@ Font License Notices
             ENEMY_BEHAVIOR_TYPES.DRIFTER,
             enemy => new DrifterBehavior(enemy)
         );
+        EnemyBehaviorRegistry.register(
+            ENEMY_BEHAVIOR_TYPES.CHARGER,
+            enemy => new ChargerBehavior(enemy)
+        );
 
         // Enemy class owns the shared body: size, position, rendering, bounds, collision, and cleanup.
         class Enemy {
@@ -17291,14 +17552,15 @@ Font License Notices
                 this.element.dataset.enemySizeType = this.type;
                 this.element.style.width = `${this.size}px`;
                 this.element.style.height = `${this.size}px`;
-                const enemyBaseColor = this.game.colorMap[this.game.colorOrder[this.game.currentColorIndex]];
+                const enemyBaseColor = this.getBehaviorVisualColor() || this.game.colorMap[this.game.colorOrder[this.game.currentColorIndex]];
                 this.baseColor = enemyBaseColor;
                 this.vectorTrailSampleAt = 0;
-                this.element.style.backgroundColor = enemyBaseColor; // Set color
+                this.element.style.backgroundColor = enemyBaseColor;
                 this.element.style.setProperty('--enemy-base-color', enemyBaseColor);
                 this.element.style.transform = 'scale(0)'; // Start scaled down
                 this.updatePosition(); // Set initial position
                 game.container.appendChild(this.element); // Add to DOM
+                if (this.behavior && typeof this.behavior.onElementReady === 'function') this.behavior.onElementReady();
                 this.game.scheduler.scheduleTimeout('visual-effects', `${this.visualEffectKey}-spawn`, () => { // Fade in animation
                     this.element.style.opacity = '1';
                     this.element.style.transform = 'scale(1)';
@@ -17306,6 +17568,20 @@ Font License Notices
                 game.audio.playSpawn(); // Play consistent Block-A-Zoid spawn sound
 
                 this.updateAnimation(); // Set border and glow
+            }
+
+            getBehaviorVisualColor() {
+                if (!this.behavior || typeof this.behavior.getVisualColor !== 'function') return null;
+                return this.behavior.getVisualColor() || null;
+            }
+
+            applyVisualColor(fallbackColor) {
+                const resolvedColor = this.getBehaviorVisualColor() || fallbackColor;
+                if (!resolvedColor || !this.element) return;
+                this.baseColor = resolvedColor;
+                this.element.style.backgroundColor = resolvedColor;
+                this.element.style.setProperty('--enemy-base-color', resolvedColor);
+                this.updateAnimation();
             }
 
             // Calculate distance to player
@@ -17340,15 +17616,22 @@ Font License Notices
 
             // Shared boundary collision remains part of the Enemy body, not a movement behavior.
             resolvePlayfieldBounds() {
+                let hitX = false;
+                let hitY = false;
                 if (this.x <= 0 || this.x >= this.game.PLAYFIELD_SIZE - this.size) {
                     this.x = Math.max(0, Math.min(this.game.PLAYFIELD_SIZE - this.size, this.x));
                     this.dx = -this.dx;
+                    hitX = true;
                     this.flashBorder();
                 }
                 if (this.y <= 0 || this.y >= this.game.PLAYFIELD_SIZE - this.size) {
                     this.y = Math.max(0, Math.min(this.game.PLAYFIELD_SIZE - this.size, this.y));
                     this.dy = -this.dy;
+                    hitY = true;
                     this.flashBorder();
+                }
+                if ((hitX || hitY) && this.behavior && typeof this.behavior.onBoundaryCollision === 'function') {
+                    this.behavior.onBoundaryCollision({ hitX, hitY });
                 }
             }
 
@@ -17358,6 +17641,7 @@ Font License Notices
                     requestedType: this.requestedBehaviorType,
                     resolvedType: this.behaviorType,
                     usedFallback: this.behaviorFallbackUsed,
+                    state: this.behavior && this.behavior.state ? this.behavior.state : null,
                     valid: Boolean(this.behavior && typeof this.behavior.update === 'function')
                 };
             }
