@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Trackpad Prototype p048: Adds the first developer-only Green Charger behavior test on top of the p047 enemy-behavior foundation, with a telegraphed straight-line charge and no normal-campaign integration.
+Trackpad Prototype p049: Makes the developer-only Green Charger test reachable from Settings by exposing Sector Select inside the unlocked developer section while preserving normal campaign behavior.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="trackpad-p048">
+<html data-build-version="trackpad-p049">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -2062,6 +2062,10 @@ Font License Notices
             gap: 8px;
             width: 100%;
             margin-bottom: 14px;
+        }
+
+        #levelSelectWindow #levelSelectCloseButton {
+            margin-top: auto;
         }
 
         .level-select-button {
@@ -7495,6 +7499,7 @@ Font License Notices
                 <button id="resetHighScoreButton" class="menu-button settings-toggle">Reset High Score</button>
                 <div id="telemetryPanel" class="developer-settings-section" aria-hidden="true">
                     <div class="crt-dev-heading">DEVELOPER</div>
+                    <button id="developerSectorSelectButton" class="menu-button settings-toggle" type="button">Sector Select</button>
                     <div class="crt-dev-heading developer-subheading">TELEMETRY</div>
                     <div id="telemetrySummary" class="telemetry-summary">Developer Mode required.</div>
                     <button id="exportTelemetryButton" class="menu-button settings-toggle">Export Balance Data</button>
@@ -7539,6 +7544,7 @@ Font License Notices
         <div id="levelSelectWindow">
             <div id="levelSelectTitle">SECTOR SELECT</div>
             <div id="levelSelectGrid"></div>
+            <button id="levelSelectCloseButton" class="menu-back-button" type="button">Back</button>
         </div>
         </div>
     </div>
@@ -7574,7 +7580,7 @@ Font License Notices
     </div>
 
     <script>
-        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'trackpad-p048'}`;
+        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'trackpad-p049'}`;
 
         // Central diagnostic feature flags. Change values here before loading the page to isolate systems.
         const GAME_FEATURE_FLAGS = window.BLOCKAZOIDS_FEATURE_FLAGS = {
@@ -9032,6 +9038,7 @@ Font License Notices
                 this.storyButton = document.getElementById('storyButton');
                 this.settingsButton = document.getElementById('settingsButton');
                 this.levelSelectButton = document.getElementById('levelSelectButton');
+                this.developerSectorSelectButton = document.getElementById('developerSectorSelectButton');
                 this.devLevelSelectHudButton = document.getElementById('devLevelSelectHudButton');
                 this.levelSelectUnlocked = true;
                 this.settingsUnlockTapCount = 0;
@@ -9438,8 +9445,7 @@ Font License Notices
                         e.preventDefault();
                         e.stopPropagation();
                         this.playUiClick();
-                        if (this.developerAttractMenuOpen) this.closeDeveloperMenuToStartScreen();
-                        else this.closeBottomPanelOverlay();
+                        this.hideLevelSelectMenu();
                     });
                 }
                 this.resumeButton.addEventListener('click', (e) => {
@@ -9486,6 +9492,15 @@ Font License Notices
                     this.playUiClick();
                     this.showLevelSelectMenu();
                 });
+                if (this.developerSectorSelectButton) {
+                    this.developerSectorSelectButton.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (this.shouldIgnoreFreshMenuInput() || !this.developerModeEnabled) return;
+                        this.playUiClick();
+                        this.showLevelSelectMenu();
+                    });
+                }
                 if (this.howToBackButton) {
                     this.howToBackButton.addEventListener('click', (e) => {
                         e.preventDefault();
@@ -10543,6 +10558,11 @@ Font License Notices
 
             updateLevelSelectUnlockState() {
                 if (this.levelSelectButton) this.levelSelectButton.style.display = 'none';
+                if (this.developerSectorSelectButton) {
+                    const available = !!this.developerModeEnabled;
+                    this.developerSectorSelectButton.disabled = !available;
+                    this.developerSectorSelectButton.setAttribute('aria-hidden', available ? 'false' : 'true');
+                }
                 if (this.devLevelSelectHudButton) this.devLevelSelectHudButton.classList.remove('visible');
                 if (this.telemetryButton) this.telemetryButton.style.display = 'none';
                 if (this.developerModeLabel) this.developerModeLabel.classList.remove('visible');
@@ -11603,7 +11623,7 @@ Font License Notices
                 const recoveredLine = this.telemetry && this.telemetry.recoveredActiveRuns ? `\nRecovered Runs: ${this.telemetry.recoveredActiveRuns}` : '';
                 this.telemetrySummary.textContent = this.developerModeEnabled ?
                     `Runs: ${runs.length}\nSector Attempts: ${sectors.length}\nCompleted Sectors: ${completed}\nDeaths: ${deaths}\nGridlock Reached: ${gridlocks}\nGridlock Bonuses: ${relics}\nCosmic Zaps Used: ${zaps}\nBest Sector: ${bestSector}\nBest Score: ${bestScore}${recoveredLine}` :
-                    'Developer Mode required. Tap the score ten times to unlock.';
+                    'Developer Mode required. Tap SETTINGS ten times to unlock.';
             }
 
             setTelemetryStatus(message) {
@@ -12569,6 +12589,7 @@ Font License Notices
                     this.storyButton,
                     this.settingsButton,
                     this.levelSelectButton,
+                    this.developerSectorSelectButton,
                     this.scoringBackButton,
                     this.storyBackButton,
                     this.settingsBackButton,
