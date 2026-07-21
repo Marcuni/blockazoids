@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Trackpad Prototype p056: Converts both Developer Mode skin frames to external assets stored beside the HTML, using a shared live loader and a plain-black fallback when a selected asset is unavailable.
+Trackpad Prototype p057: Adds per-skin viewport zoom and position controls so external cabinet frames can fill the phone cleanly without breaking alignment between the skin and live interface.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="trackpad-p056">
+<html data-build-version="trackpad-p057">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -5891,15 +5891,22 @@ Font License Notices
         .developer-settings-section .settings-toggle {
             width: min(300px, 94%);
         }
-        .developer-settings-section .developer-skin-control {
+        .developer-settings-section .developer-skin-control,
+        .developer-settings-section .developer-skin-fit-control {
             width: min(300px, 94%);
             margin: 8px auto 10px;
         }
-        .developer-settings-section .developer-skin-control .settings-stepper-title {
+        .developer-settings-section .developer-skin-control .settings-stepper-title,
+        .developer-settings-section .developer-skin-fit-control .settings-stepper-title {
             font-size: clamp(12px, 3.2vw, 15px);
         }
-        .developer-settings-section .developer-skin-control .settings-stepper-value {
+        .developer-settings-section .developer-skin-control .settings-stepper-value,
+        .developer-settings-section .developer-skin-fit-control .settings-stepper-value {
             min-width: 112px;
+        }
+        .developer-settings-section .developer-skin-reset {
+            width: min(300px, 94%);
+            margin: 4px auto 10px;
         }
         #settingsPanel.developer-expanded {
             overflow-y: auto;
@@ -7615,6 +7622,31 @@ Font License Notices
                             <button id="skinFrameIncreaseButton" class="settings-stepper-arrow" type="button" aria-label="Next skin frame">▶</button>
                         </div>
                     </div>
+                    <div id="skinFrameZoomControl" class="settings-stepper developer-skin-fit-control" role="group" aria-label="Skin Zoom">
+                        <div class="settings-stepper-title">Skin Zoom</div>
+                        <div class="settings-stepper-row">
+                            <button id="skinFrameZoomDecreaseButton" class="settings-stepper-arrow" type="button" aria-label="Decrease skin zoom">◀</button>
+                            <div id="settingsSkinFrameZoomValue" class="settings-stepper-value">100%</div>
+                            <button id="skinFrameZoomIncreaseButton" class="settings-stepper-arrow" type="button" aria-label="Increase skin zoom">▶</button>
+                        </div>
+                    </div>
+                    <div id="skinFrameXControl" class="settings-stepper developer-skin-fit-control" role="group" aria-label="Skin Horizontal Position">
+                        <div class="settings-stepper-title">Skin Horizontal</div>
+                        <div class="settings-stepper-row">
+                            <button id="skinFrameXDecreaseButton" class="settings-stepper-arrow" type="button" aria-label="Move skin left">◀</button>
+                            <div id="settingsSkinFrameXValue" class="settings-stepper-value">CENTER</div>
+                            <button id="skinFrameXIncreaseButton" class="settings-stepper-arrow" type="button" aria-label="Move skin right">▶</button>
+                        </div>
+                    </div>
+                    <div id="skinFrameYControl" class="settings-stepper developer-skin-fit-control" role="group" aria-label="Skin Vertical Position">
+                        <div class="settings-stepper-title">Skin Vertical</div>
+                        <div class="settings-stepper-row">
+                            <button id="skinFrameYDecreaseButton" class="settings-stepper-arrow" type="button" aria-label="Move skin up">◀</button>
+                            <div id="settingsSkinFrameYValue" class="settings-stepper-value">TOP</div>
+                            <button id="skinFrameYIncreaseButton" class="settings-stepper-arrow" type="button" aria-label="Move skin down">▶</button>
+                        </div>
+                    </div>
+                    <button id="resetSkinFrameFitButton" class="menu-button settings-toggle developer-skin-reset" type="button">Reset Skin Fit</button>
                     <div class="crt-dev-heading developer-subheading">TELEMETRY</div>
                     <div id="telemetrySummary" class="telemetry-summary">Developer Mode required.</div>
                     <button id="exportTelemetryButton" class="menu-button settings-toggle">Export Balance Data</button>
@@ -7695,7 +7727,7 @@ Font License Notices
     </div>
 
     <script>
-        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'trackpad-p056'}`;
+        const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'trackpad-p057'}`;
 
         // Central diagnostic feature flags. Change values here before loading the page to isolate systems.
         const GAME_FEATURE_FLAGS = window.BLOCKAZOIDS_FEATURE_FLAGS = {
@@ -9227,23 +9259,40 @@ Font License Notices
                 this.skinFrameDecreaseButton = document.getElementById('skinFrameDecreaseButton');
                 this.skinFrameIncreaseButton = document.getElementById('skinFrameIncreaseButton');
                 this.settingsSkinFrameValue = document.getElementById('settingsSkinFrameValue');
+                this.skinFrameZoomControl = document.getElementById('skinFrameZoomControl');
+                this.skinFrameZoomDecreaseButton = document.getElementById('skinFrameZoomDecreaseButton');
+                this.skinFrameZoomIncreaseButton = document.getElementById('skinFrameZoomIncreaseButton');
+                this.settingsSkinFrameZoomValue = document.getElementById('settingsSkinFrameZoomValue');
+                this.skinFrameXControl = document.getElementById('skinFrameXControl');
+                this.skinFrameXDecreaseButton = document.getElementById('skinFrameXDecreaseButton');
+                this.skinFrameXIncreaseButton = document.getElementById('skinFrameXIncreaseButton');
+                this.settingsSkinFrameXValue = document.getElementById('settingsSkinFrameXValue');
+                this.skinFrameYControl = document.getElementById('skinFrameYControl');
+                this.skinFrameYDecreaseButton = document.getElementById('skinFrameYDecreaseButton');
+                this.skinFrameYIncreaseButton = document.getElementById('skinFrameYIncreaseButton');
+                this.settingsSkinFrameYValue = document.getElementById('settingsSkinFrameYValue');
+                this.resetSkinFrameFitButton = document.getElementById('resetSkinFrameFitButton');
                 this.skinFrameStorageKey = 'blockazoidsDeveloperSkinFrameV1';
+                this.skinFrameTuningStorageKey = 'blockazoidsDeveloperSkinFrameTuningV1';
                 this.skinFrameOptions = [
                     {
                         id: 'vector',
                         label: 'Vector',
+                        defaultTuning: { zoom: 1.00, x: 0, y: 0 },
                         candidates: [
                             'blockazoids-skin-vector-frame.png',
                             'blockazoids-skin-vector-frame.webp',
                             'blockazoids-skin-vector-frame.jpg',
                             'blockazoids-skin-vector-frame.jpeg',
                             'blockazoids-skin-vector-frame',
-                            'blockazoids-skin-vector-frame-trim-only-tight.png'
+                            'blockazoids-skin-vector-frame-trim-only-tight.png',
+                            'blockazoids-skin-vector-frame(3).png'
                         ]
                     },
                     {
                         id: 'orb',
                         label: 'Orb',
+                        defaultTuning: { zoom: 1.06, x: 0, y: 0 },
                         candidates: [
                             'blockazoids-skin-orb-frame.png',
                             'blockazoids-skin-orb-frame.webp',
@@ -9254,6 +9303,7 @@ Font License Notices
                     }
                 ];
                 this.selectedSkinFrameId = this.loadSkinFrameSelection();
+                this.skinFrameTunings = this.loadSkinFrameTunings();
                 this.skinFrameLoadToken = 0;
                 this.applySelectedSkinFrame({ silent: true });
                 this.resetIntroCompletionButton = document.getElementById('resetIntroCompletionButton');
@@ -9928,6 +9978,31 @@ Font License Notices
                         this.adjustSkinFrameSelection(1);
                     });
                 }
+                const bindSkinFitStepper = (button, property, direction) => {
+                    if (!button) return;
+                    button.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (!this.developerModeEnabled) return;
+                        this.playUiClick();
+                        this.adjustSkinFrameTuning(property, direction);
+                    });
+                };
+                bindSkinFitStepper(this.skinFrameZoomDecreaseButton, 'zoom', -1);
+                bindSkinFitStepper(this.skinFrameZoomIncreaseButton, 'zoom', 1);
+                bindSkinFitStepper(this.skinFrameXDecreaseButton, 'x', -1);
+                bindSkinFitStepper(this.skinFrameXIncreaseButton, 'x', 1);
+                bindSkinFitStepper(this.skinFrameYDecreaseButton, 'y', -1);
+                bindSkinFitStepper(this.skinFrameYIncreaseButton, 'y', 1);
+                if (this.resetSkinFrameFitButton) {
+                    this.resetSkinFrameFitButton.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (!this.developerModeEnabled) return;
+                        this.playUiClick();
+                        this.resetSkinFrameTuning();
+                    });
+                }
                 if (this.resetIntroCompletionButton) {
                     this.resetIntroCompletionButton.addEventListener('click', (e) => {
                         e.preventDefault();
@@ -10583,7 +10658,7 @@ Font License Notices
                 }, 180);
             }
 
-            applyResponsiveViewportUpdate(reason = 'resize') {
+            applyResponsiveViewportUpdate(reason = 'resize', force = false) {
                 const oldSize = Number(this.PLAYFIELD_SIZE) || 0;
                 const oldGridSize = Number(this.GRID_SIZE) || (oldSize ? oldSize / GAME_CONFIG.playfield.cells : 0);
                 const oldPlayerSize = Number(this.PLAYER_SIZE) || 20;
@@ -10591,7 +10666,7 @@ Font License Notices
                 const desiredSize = desiredLayout.playfieldSize;
                 const activeResizeThreshold = Math.max(10,
                     Math.round(20 * desiredLayout.effectivePresentationScale));
-                if (oldSize && this.active && Math.abs(desiredSize - oldSize) < activeResizeThreshold) {
+                if (!force && oldSize && this.active && Math.abs(desiredSize - oldSize) < activeResizeThreshold) {
                     this.markStabilityEvent(`${reason}-minor-viewport-change`, { board: oldSize, desired: desiredSize });
                     return;
                 }
@@ -10802,6 +10877,7 @@ Font License Notices
                     this.updateTelemetrySummary();
                     this.updateInvincibilityToggleLabel();
                     this.updateSkinFrameLabel();
+                    this.updateSkinFrameTuningLabels();
                     this.setTelemetryStatus('Local balance data only.');
                 }
             }
@@ -10823,10 +10899,87 @@ Font License Notices
                 }
             }
 
+            normalizeSkinFrameTuning(value, fallback = { zoom: 1, x: 0, y: 0 }) {
+                const source = value && typeof value === 'object' ? value : fallback;
+                const zoom = Math.max(0.95, Math.min(1.15, Number(source.zoom) || Number(fallback.zoom) || 1));
+                const x = Math.max(-8, Math.min(8, Number(source.x) || 0));
+                const y = Math.max(-8, Math.min(8, Number(source.y) || 0));
+                return { zoom, x, y };
+            }
+
+            loadSkinFrameTunings() {
+                let saved = null;
+                try {
+                    saved = JSON.parse(localStorage.getItem(this.skinFrameTuningStorageKey) || 'null');
+                } catch (error) {
+                    saved = null;
+                }
+                const tunings = {};
+                this.skinFrameOptions.forEach(option => {
+                    tunings[option.id] = this.normalizeSkinFrameTuning(saved && saved[option.id], option.defaultTuning);
+                });
+                return tunings;
+            }
+
+            saveSkinFrameTunings() {
+                try {
+                    localStorage.setItem(this.skinFrameTuningStorageKey, JSON.stringify(this.skinFrameTunings));
+                } catch (error) {
+                    // Live tuning remains available when storage is blocked.
+                }
+            }
+
+            getCurrentSkinFrameTuning() {
+                const option = this.skinFrameOptions.find(item => item.id === this.selectedSkinFrameId) || this.skinFrameOptions[0];
+                if (!this.skinFrameTunings) this.skinFrameTunings = {};
+                const tuning = this.normalizeSkinFrameTuning(this.skinFrameTunings[option.id], option.defaultTuning);
+                this.skinFrameTunings[option.id] = tuning;
+                return tuning;
+            }
+
+            updateSkinFrameTuningLabels() {
+                const tuning = this.getCurrentSkinFrameTuning();
+                const percent = Math.round(tuning.zoom * 100);
+                const formatOffset = (value, zeroLabel) => value === 0 ? zeroLabel : `${value > 0 ? '+' : ''}${value}%`;
+                if (this.settingsSkinFrameZoomValue) this.settingsSkinFrameZoomValue.textContent = `${percent}%`;
+                if (this.settingsSkinFrameXValue) this.settingsSkinFrameXValue.textContent = formatOffset(tuning.x, 'CENTER');
+                if (this.settingsSkinFrameYValue) this.settingsSkinFrameYValue.textContent = formatOffset(tuning.y, 'TOP');
+                if (this.skinFrameZoomControl) this.skinFrameZoomControl.setAttribute('aria-label', `Skin Zoom: ${percent}%`);
+                if (this.skinFrameXControl) this.skinFrameXControl.setAttribute('aria-label', `Skin Horizontal Position: ${tuning.x}%`);
+                if (this.skinFrameYControl) this.skinFrameYControl.setAttribute('aria-label', `Skin Vertical Position: ${tuning.y}%`);
+            }
+
+            applySkinFrameTuningLayout(reason = 'skin-frame-tuning') {
+                this.updateSkinFrameTuningLabels();
+                if (Number(this.PLAYFIELD_SIZE) > 0) this.applyResponsiveViewportUpdate(reason, true);
+            }
+
+            adjustSkinFrameTuning(property, direction) {
+                const tuning = { ...this.getCurrentSkinFrameTuning() };
+                if (property === 'zoom') tuning.zoom = Math.round((tuning.zoom + Math.sign(direction) * 0.01) * 100) / 100;
+                if (property === 'x') tuning.x += Math.sign(direction);
+                if (property === 'y') tuning.y += Math.sign(direction);
+                const option = this.skinFrameOptions.find(item => item.id === this.selectedSkinFrameId) || this.skinFrameOptions[0];
+                this.skinFrameTunings[option.id] = this.normalizeSkinFrameTuning(tuning, option.defaultTuning);
+                this.saveSkinFrameTunings();
+                this.applySkinFrameTuningLayout();
+                const current = this.getCurrentSkinFrameTuning();
+                this.setTelemetryStatus(`Skin Fit: ${Math.round(current.zoom * 100)}% zoom, X ${current.x}%, Y ${current.y}%.`);
+            }
+
+            resetSkinFrameTuning() {
+                const option = this.skinFrameOptions.find(item => item.id === this.selectedSkinFrameId) || this.skinFrameOptions[0];
+                this.skinFrameTunings[option.id] = this.normalizeSkinFrameTuning(option.defaultTuning, option.defaultTuning);
+                this.saveSkinFrameTunings();
+                this.applySkinFrameTuningLayout('skin-frame-tuning-reset');
+                this.setTelemetryStatus(`${option.label} Skin Fit restored.`);
+            }
+
             updateSkinFrameLabel() {
                 const option = this.skinFrameOptions.find(item => item.id === this.selectedSkinFrameId) || this.skinFrameOptions[0];
                 if (this.settingsSkinFrameValue) this.settingsSkinFrameValue.textContent = option.label;
                 if (this.skinFrameControl) this.skinFrameControl.setAttribute('aria-label', `Skin Frame: ${option.label}`);
+                this.updateSkinFrameTuningLabels();
             }
 
             adjustSkinFrameSelection(direction) {
@@ -10835,6 +10988,7 @@ Font License Notices
                 this.selectedSkinFrameId = this.skinFrameOptions[nextIndex].id;
                 this.saveSkinFrameSelection();
                 this.applySelectedSkinFrame();
+                this.applySkinFrameTuningLayout('skin-frame-change');
             }
 
             applySelectedSkinFrame({ silent = false } = {}) {
@@ -12283,12 +12437,15 @@ Font License Notices
                 const viewportWidth = Math.max(1, document.documentElement.clientWidth || window.innerWidth || 1);
                 const viewportHeight = Math.max(1, window.visualViewport?.height || window.innerHeight || document.documentElement.clientHeight || 1);
 
-                // Uniform cover scaling: one ratio controls width and height, so the PNG is never distorted.
-                const skinScale = Math.max(viewportWidth / masterWidth, viewportHeight / masterHeight);
+                // Uniform cover scaling: one ratio controls the frame and every live slot. Per-skin
+                // developer tuning adjusts the complete cabinet map, never the bitmap alone, so art and UI stay aligned.
+                const tuning = this.getCurrentSkinFrameTuning ? this.getCurrentSkinFrameTuning() : { zoom: 1, x: 0, y: 0 };
+                const baseSkinScale = Math.max(viewportWidth / masterWidth, viewportHeight / masterHeight);
+                const skinScale = baseSkinScale * tuning.zoom;
                 const skinWidth = masterWidth * skinScale;
                 const skinHeight = masterHeight * skinScale;
-                const skinLeft = (viewportWidth - skinWidth) / 2;
-                const skinTop = 0; // Top-align the artwork; any unavoidable cover crop occurs at the bottom/sides.
+                const skinLeft = (viewportWidth - skinWidth) / 2 + viewportWidth * (tuning.x / 100);
+                const skinTop = viewportHeight * (tuning.y / 100); // Zero remains the production top alignment.
                 const playfieldSize = this.snapPlayfieldPixel(masterPlayfieldSize * skinScale);
                 const gameplayScale = playfieldSize / config.designSize;
 
