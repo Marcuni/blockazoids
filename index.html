@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Trackpad Prototype p081: Prevents tutorial shake input from carrying into Sector 1 by requiring a neutral motion reset before normal Cosmic Zaps can re-arm.
+Trackpad Prototype p082: Adds the centralized ZIG, DASH, and ECHO enemy identity system with attract cards, distinct spawn sounds, Game Over causes, How to Play integration, and expanded telemetry while preserving tutorial behavior and enemy balance.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="trackpad-p081">
+<html data-build-version="trackpad-p082">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -7608,6 +7608,263 @@ Font License Notices
             margin-bottom: clamp(20px, 5.5vw, 32px) !important;
         }
 
+    
+
+        /* p082: named Block-A-Zoid identity presentation. */
+        #enemyIdentityCard {
+            position: absolute;
+            inset: 0;
+            z-index: 1008;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 5%;
+            box-sizing: border-box;
+            background: #000;
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+            transition: opacity 0.30s ease-in-out, visibility 0.30s ease-in-out;
+        }
+
+        #enemyIdentityCard.visible {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .enemy-identity-card-panel {
+            width: min(88%, 520px);
+            box-sizing: border-box;
+            padding: clamp(18px, 4.8vw, 28px) clamp(14px, 4vw, 24px);
+            border: 2px solid #fff;
+            background: #000;
+            text-align: center;
+            font-family: 'Orbitron';
+            box-shadow: 0 0 14px rgba(255,255,255,0.56), inset 0 0 18px rgba(255,255,255,0.06);
+        }
+
+        .enemy-card-name {
+            color: var(--enemy-card-color, #fff);
+            font-size: clamp(42px, 12vw, 72px);
+            font-weight: 900;
+            line-height: 0.94;
+            letter-spacing: clamp(4px, 1.4vw, 9px);
+            text-shadow: 0 0 12px var(--enemy-card-color, #fff), 0 0 28px color-mix(in srgb, var(--enemy-card-color, #fff) 58%, transparent);
+        }
+
+        .enemy-card-class {
+            margin-top: 7px;
+            color: #fff;
+            font-size: clamp(18px, 5.2vw, 28px);
+            line-height: 1;
+            letter-spacing: 3px;
+        }
+
+        .enemy-card-stage {
+            position: relative;
+            width: min(86%, 380px);
+            height: clamp(112px, 27vw, 158px);
+            margin: clamp(16px, 4vw, 24px) auto;
+            overflow: hidden;
+            border: 1px solid rgba(255,255,255,0.72);
+            background-color: #000;
+            background-image:
+                linear-gradient(rgba(255,255,255,0.22) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,0.22) 1px, transparent 1px);
+            background-size: 28px 28px;
+        }
+
+        .enemy-card-block {
+            position: absolute;
+            left: 10%;
+            top: 42%;
+            width: clamp(18px, 5.4vw, 30px);
+            height: clamp(18px, 5.4vw, 30px);
+            background: var(--enemy-card-color, #fff);
+            border: 1px solid #fff;
+            box-shadow: 0 0 9px var(--enemy-card-color, #fff), 0 0 20px color-mix(in srgb, var(--enemy-card-color, #fff) 72%, transparent);
+            transform: translate(-50%, -50%);
+        }
+
+        .enemy-card-lock-line,
+        .enemy-card-trace,
+        .enemy-card-warning {
+            position: absolute;
+            pointer-events: none;
+            opacity: 0;
+        }
+
+        .enemy-card-lock-line {
+            left: 19%;
+            top: 52%;
+            width: 62%;
+            height: 1px;
+            background: var(--enemy-card-color, #fff);
+            box-shadow: 0 0 7px var(--enemy-card-color, #fff);
+            transform-origin: left center;
+        }
+
+        .enemy-card-trace {
+            left: 16%;
+            top: 62%;
+            width: 66%;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--enemy-card-color, #fff), transparent);
+            box-shadow: 0 0 6px var(--enemy-card-color, #fff);
+        }
+
+        .enemy-card-warning {
+            left: 73%;
+            top: 32%;
+            width: clamp(28px, 8vw, 44px);
+            height: clamp(28px, 8vw, 44px);
+            border: 2px solid #fff;
+            box-shadow: 0 0 9px #fff, inset 0 0 8px rgba(255,255,255,0.35);
+            transform: translate(-50%, -50%);
+        }
+
+        #enemyIdentityCard[data-identity="drifter"] .enemy-card-block {
+            animation: enemyCardZigMotion 2.9s linear infinite;
+        }
+
+        #enemyIdentityCard[data-identity="charger"] .enemy-card-block {
+            animation: enemyCardDashMotion 3.0s ease-in-out infinite;
+        }
+
+        #enemyIdentityCard[data-identity="charger"] .enemy-card-lock-line {
+            animation: enemyCardDashLock 3.0s linear infinite;
+        }
+
+        #enemyIdentityCard[data-identity="pulse"] .enemy-card-block {
+            animation: enemyCardEchoMotion 3.2s linear infinite;
+        }
+
+        #enemyIdentityCard[data-identity="pulse"] .enemy-card-trace {
+            animation: enemyCardEchoTrace 3.2s linear infinite;
+        }
+
+        #enemyIdentityCard[data-identity="pulse"] .enemy-card-warning {
+            animation: enemyCardEchoWarning 3.2s steps(2, end) infinite;
+        }
+
+        .enemy-card-description {
+            color: #fff;
+            font-size: clamp(13px, 3.8vw, 19px);
+            line-height: 1.3;
+            letter-spacing: 1.4px;
+            white-space: normal;
+        }
+
+        @keyframes enemyCardZigMotion {
+            0% { left: 9%; top: 24%; }
+            20% { left: 39%; top: 74%; }
+            42% { left: 78%; top: 30%; }
+            61% { left: 54%; top: 82%; }
+            80% { left: 18%; top: 46%; }
+            100% { left: 9%; top: 24%; }
+        }
+
+        @keyframes enemyCardDashMotion {
+            0% { left: 12%; top: 52%; transform: translate(-50%, -50%) scale(1); }
+            27% { left: 28%; top: 52%; transform: translate(-50%, -50%) scale(1); }
+            43% { left: 28%; top: 52%; transform: translate(-50%, -50%) scale(1.08); }
+            56% { left: 86%; top: 52%; transform: translate(-50%, -50%) scale(1.02); }
+            72% { left: 86%; top: 52%; transform: translate(-50%, -50%) scale(0.90); }
+            100% { left: 12%; top: 52%; transform: translate(-50%, -50%) scale(1); }
+        }
+
+        @keyframes enemyCardDashLock {
+            0%, 26% { opacity: 0; transform: scaleX(0); }
+            31% { opacity: 1; transform: scaleX(0.18); }
+            43% { opacity: 0.92; transform: scaleX(1); }
+            50%, 100% { opacity: 0; transform: scaleX(1); }
+        }
+
+        @keyframes enemyCardEchoMotion {
+            0% { left: 14%; top: 35%; opacity: 1; }
+            24% { left: 41%; top: 67%; opacity: 1; }
+            34% { left: 50%; top: 57%; opacity: 0.15; }
+            53% { left: 68%; top: 34%; opacity: 0.08; }
+            62% { left: 77%; top: 30%; opacity: 0.65; }
+            68% { left: 77%; top: 30%; opacity: 0.08; }
+            74% { left: 77%; top: 30%; opacity: 1; }
+            100% { left: 14%; top: 35%; opacity: 1; }
+        }
+
+        @keyframes enemyCardEchoTrace {
+            0%, 30% { opacity: 0; }
+            38%, 58% { opacity: 0.34; }
+            66%, 100% { opacity: 0; }
+        }
+
+        @keyframes enemyCardEchoWarning {
+            0%, 58% { opacity: 0; }
+            61% { opacity: 1; }
+            65% { opacity: 0.18; }
+            69% { opacity: 1; }
+            74%, 100% { opacity: 0; }
+        }
+
+        #gameOverCause {
+            position: absolute;
+            left: 50%;
+            top: 64%;
+            width: min(92%, 520px);
+            transform: translate(-50%, -50%);
+            z-index: 1002;
+            color: #fff;
+            font-family: 'Orbitron';
+            text-align: center;
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+            transition: opacity 0.22s ease-in-out, visibility 0.22s ease-in-out;
+        }
+
+        #gameOverCause.visible {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .game-over-cause-lead {
+            display: block;
+            font-size: clamp(15px, 4.4vw, 23px);
+            line-height: 1.1;
+            letter-spacing: 2px;
+        }
+
+        .game-over-cause-name {
+            color: var(--death-enemy-color, #fff);
+            text-shadow: 0 0 8px color-mix(in srgb, var(--death-enemy-color, #fff) 64%, transparent);
+        }
+
+        .game-over-cause-class {
+            display: block;
+            margin-top: 6px;
+            color: #9a9a9a;
+            font-size: clamp(14px, 3.9vw, 20px);
+            line-height: 1;
+            letter-spacing: 2px;
+        }
+
+        .enemy-identity-help-list {
+            margin: 0 auto;
+            padding: 0;
+            width: min(360px, 96%);
+            list-style: none;
+            text-align: left;
+        }
+
+        .enemy-identity-help-list li {
+            margin: 8px 0;
+            font-size: clamp(13px, 3.8vw, 17px);
+            line-height: 1.35;
+        }
+
+        .enemy-identity-help-name {
+            font-weight: 800;
+        }
+
     </style>
 </head>
 <body class="crt-phosphor-calibration">
@@ -7687,7 +7944,21 @@ Font License Notices
         <div class="playfield-crt-shutdown" aria-hidden="true"></div>
         <div id="player"></div>
         <button id="tutorialPrompt" type="button" aria-live="polite" aria-atomic="true" aria-hidden="true"><span class="tutorial-window-title"></span><span class="tutorial-window-message"></span><span class="tutorial-window-continue">TAP TO CONTINUE</span></button>
+        <div id="enemyIdentityCard" aria-live="polite" aria-hidden="true">
+            <div class="enemy-identity-card-panel">
+                <div class="enemy-card-name"></div>
+                <div class="enemy-card-class"></div>
+                <div class="enemy-card-stage" aria-hidden="true">
+                    <div class="enemy-card-lock-line"></div>
+                    <div class="enemy-card-trace"></div>
+                    <div class="enemy-card-warning"></div>
+                    <div class="enemy-card-block"></div>
+                </div>
+                <div class="enemy-card-description"></div>
+            </div>
+        </div>
         <div id="gameOver">GAME OVER</div>
+        <div id="gameOverCause" aria-live="polite" aria-hidden="true"></div>
         <div id="bonusText"></div> <!-- New element for bonus display -->
         <button id="cycleContinueButton" type="button" aria-hidden="true">CONTINUE</button>
         <div id="screenFade"></div>
@@ -7714,6 +7985,11 @@ Font License Notices
                             <li>Shake to Cosmic Zap.</li>
                         </ul>
                         <p class="how-to-curiosity-note">This is all you need to know.<br><br>Curiosity, however, has poor impulse control. Keep scrolling for information you absolutely do not need to survive.</p>
+                    </section>
+
+                    <section class="how-to-detail-section enemy-identity-help-section">
+                        <h2>BLOCK-A-ZOIDS</h2>
+                        <ul id="enemyIdentityHelpList" class="enemy-identity-help-list"></ul>
                     </section>
 
                     <section class="how-to-detail-section help-scoring-section">
@@ -8862,6 +9138,8 @@ Font License Notices
                 game.gameOverElement.classList.remove('finalCycleText', 'finalGameCompleteText', 'finalGridlockGameOverText');
                 game.bonusTextElement.classList.remove('countdownText', 'restoreText', 'resumeCountdownText', 'finalCycleSubtext', 'finalGameSummary', 'finalGridlockSummary');
                 game.gameOverElement.textContent = '';
+                game.clearEnemyDeathCause();
+                game.hideAttractEnemyCard();
                 game.bonusTextElement.textContent = '';
                 game.bonusTextElement.style.opacity = '0';
                 if (!options.keepScreenFade) game.screenFadeElement.classList.remove('visible');
@@ -9041,6 +9319,8 @@ Font License Notices
             prepareRunEnd(deathDetails = {}) {
                 const game = this.game;
                 game.markStabilityEvent('game-over-start', { sector: game.level, cycle: game.cycle, enemies: game.enemies.length }); // Exit if already over
+                game.lastDeathCause = deathDetails.deathCause || null;
+                game.hideEnemyDeathCausePresentation();
                 const endedInFinalGridlock = !!game.finalGridlockActive;
                 game.setTerminalState({ finalCompletionActive: false });
                 game.setTerminalState({ finalGridlockResultActive: false });
@@ -9074,6 +9354,13 @@ Font License Notices
                         remainingCrystalsByColor: game.getRemainingCrystalsByColor(),
                         currentColor: game.colorOrder[game.currentColorIndex] || null,
                         enemySize: deathDetails.deathEnemySize || null,
+                        enemyIdentity: deathDetails.deathCause || null,
+                        enemyIdentityKey: deathDetails.deathCause ? deathDetails.deathCause.identityKey : null,
+                        enemyDisplayName: deathDetails.deathCause ? deathDetails.deathCause.displayName : null,
+                        enemyClassName: deathDetails.deathCause ? deathDetails.deathCause.className : null,
+                        enemyBehaviorType: deathDetails.deathCause ? deathDetails.deathCause.behaviorType : null,
+                        enemyBehaviorState: deathDetails.deathCause ? deathDetails.deathCause.behaviorState : null,
+                        deathCategory: deathDetails.deathCause ? deathDetails.deathCause.telemetryCategory : null,
                         inGridlock: !!game.maxSwarmActive,
                         secondsSinceGridlockStarted: game.currentTelemetrySector && game.currentTelemetrySector.gridlockReached ? Math.round((game.telemetrySectorElapsedMs() - game.currentTelemetrySector.gridlockTimeMs) / 1000) : null,
                         lastCrystalPickup: game.getLastCrystalPickupTelemetry(),
@@ -9377,6 +9664,12 @@ Font License Notices
                 this.marqueeImageElement = document.getElementById('marqueeImage');
                 this.marqueePreviewLabel = document.getElementById('marqueePreviewLabel');
                 this.gameOverElement = document.getElementById('gameOver');
+                this.gameOverCauseElement = document.getElementById('gameOverCause');
+                this.enemyIdentityCard = document.getElementById('enemyIdentityCard');
+                this.enemyIdentityCardName = this.enemyIdentityCard ? this.enemyIdentityCard.querySelector('.enemy-card-name') : null;
+                this.enemyIdentityCardClass = this.enemyIdentityCard ? this.enemyIdentityCard.querySelector('.enemy-card-class') : null;
+                this.enemyIdentityCardDescription = this.enemyIdentityCard ? this.enemyIdentityCard.querySelector('.enemy-card-description') : null;
+                this.enemyIdentityHelpList = document.getElementById('enemyIdentityHelpList');
                 this.bonusTextElement = document.getElementById('bonusText'); // New reference for bonus text
                 this.screenFadeElement = document.getElementById('screenFade');
                 this.gameOverlayElement = document.getElementById('gameOverlay');
@@ -10276,6 +10569,7 @@ Font License Notices
                 this.buildLevelSelectButtons();
                 this.updateLevelSelectUnlockState();
                 this.updateTelemetrySummary();
+                this.renderEnemyIdentityHelp();
 
                 // Attract mode variables
                 this.attractInterval = null;          // Scheduler token for attract-mode pattern updates
@@ -10301,6 +10595,9 @@ Font License Notices
                 this.marqueeEasterEggShakeCooldownMs = 2000;
                 this.attractModeStartedAt = 0;
                 this.attractReseedIntervalMs = 20000;
+                this.attractEnemyCardSequenceToken = 0;
+                this.attractEnemyCardIndex = -1;
+                this.lastDeathCause = null;
                 this.marqueePreviewLabelTimer = null;
                 this.splashIntroActive = !!this.splashScreen;
                 this.splashEasterEggReady = false;
@@ -11302,7 +11599,7 @@ Font License Notices
 
             loadTelemetryData() {
                 const emptyTelemetry = {
-                    schema: 'blockazoids-balance-v6',
+                    schema: 'blockazoids-balance-v7',
                     runs: [],
                     restoredFromLocalStorage: false,
                     recoveredActiveRuns: 0,
@@ -11313,7 +11610,7 @@ Font License Notices
                     if (!saved) return emptyTelemetry;
 
                     const telemetry = {
-                        schema: 'blockazoids-balance-v6',
+                        schema: 'blockazoids-balance-v7',
                         runs: Array.isArray(saved.runs) ? saved.runs.slice() : [],
                         restoredFromLocalStorage: true,
                         recoveredActiveRuns: 0,
@@ -11371,7 +11668,7 @@ Font License Notices
 
                 while (storedRuns.length >= 0) {
                     const payload = {
-                        schema: 'blockazoids-balance-v6',
+                        schema: 'blockazoids-balance-v7',
                         savedAt,
                         runs: storedRuns,
                         activeRun,
@@ -11528,6 +11825,8 @@ Font License Notices
                     maxActiveBlockAZoids: this.enemies.length,
                     totalBlockAZoidsSpawned: 0,
                     spawnedBySize: { small: 0, medium: 0, large: 0 },
+                    spawnedByIdentity: { drifter: 0, charger: 0, pulse: 0 },
+                    enemySpawnEvents: [],
                     cosmicZapsUsed: 0,
                     cosmicZapEvents: [],
                     crystalsCollected: 0,
@@ -11648,10 +11947,26 @@ Font License Notices
                 this.saveTelemetryData();
             }
 
-            noteTelemetryEnemySpawn(type) {
+            noteTelemetryEnemySpawn(type, enemy = null) {
                 if (!this.currentTelemetrySector || this.currentTelemetrySector.endedAt) return;
                 this.currentTelemetrySector.totalBlockAZoidsSpawned++;
                 if (this.currentTelemetrySector.spawnedBySize[type] !== undefined) this.currentTelemetrySector.spawnedBySize[type]++;
+                const behaviorType = enemy && enemy.behaviorType ? enemy.behaviorType : ENEMY_BEHAVIOR_TYPES.DRIFTER;
+                const identity = getEnemyIdentity(behaviorType);
+                if (!this.currentTelemetrySector.spawnedByIdentity) this.currentTelemetrySector.spawnedByIdentity = { drifter: 0, charger: 0, pulse: 0 };
+                if (this.currentTelemetrySector.spawnedByIdentity[behaviorType] !== undefined) this.currentTelemetrySector.spawnedByIdentity[behaviorType]++;
+                if (!Array.isArray(this.currentTelemetrySector.enemySpawnEvents)) this.currentTelemetrySector.enemySpawnEvents = [];
+                this.currentTelemetrySector.enemySpawnEvents.push({
+                    sectorTimeMs: this.telemetrySectorElapsedMs(),
+                    identityKey: identity.key,
+                    displayName: identity.displayName,
+                    className: identity.className,
+                    behaviorType,
+                    size: type,
+                    sector: this.level,
+                    cycle: this.cycle,
+                    difficulty: this.difficultyMode
+                });
                 this.currentTelemetrySector.maxActiveBlockAZoids = Math.max(this.currentTelemetrySector.maxActiveBlockAZoids, this.enemies.length);
             }
 
@@ -12181,6 +12496,7 @@ Font License Notices
                 this.updatePauseGridMenu();
                 this.refreshGameOverlay();
                 this.ui.updateAll();
+                if (this.flow.is(GAME_FLOW_STATES.ATTRACT)) this.startAttractEnemyCardSequence(1200);
             }
 
             handleContextButtonClick(action) {
@@ -12315,9 +12631,34 @@ Font License Notices
                 const relics = sectors.filter(sector => sector.prismRelicCollected || sector.gridlockBonusCollected).length;
                 const bestSector = runs.reduce((max, run) => Math.max(max, run.highestSectorReached || 0), 0);
                 const bestScore = runs.reduce((max, run) => Math.max(max, run.finalScore || 0), 0);
-                const recoveredLine = this.telemetry && this.telemetry.recoveredActiveRuns ? `\nRecovered Runs: ${this.telemetry.recoveredActiveRuns}` : '';
+                const deathCategories = { drifter: 0, 'charger-cruise': 0, 'charger-charge': 0, 'pulse-active': 0, 'pulse-reactivation-overlap': 0, 'spawn-materialization': 0 };
+                const deathIdentities = { drifter: 0, charger: 0, pulse: 0 };
+                const spawnedIdentities = { drifter: 0, charger: 0, pulse: 0 };
+                sectors.forEach(sector => {
+                    if (sector && sector.death && sector.death.deathCategory && deathCategories[sector.death.deathCategory] !== undefined) deathCategories[sector.death.deathCategory]++;
+                    const deathIdentityKey = sector && sector.death ? sector.death.enemyIdentityKey : null;
+                    if (deathIdentityKey && deathIdentities[deathIdentityKey] !== undefined) deathIdentities[deathIdentityKey]++;
+                    const counts = sector && sector.spawnedByIdentity ? sector.spawnedByIdentity : null;
+                    if (counts) Object.keys(spawnedIdentities).forEach(key => { spawnedIdentities[key] += Number(counts[key]) || 0; });
+                });
+                const recoveredLine = this.telemetry && this.telemetry.recoveredActiveRuns ? `
+Recovered Runs: ${this.telemetry.recoveredActiveRuns}` : '';
                 this.telemetrySummary.textContent = this.developerModeEnabled ?
-                    `Runs: ${runs.length}\nSector Attempts: ${sectors.length}\nCompleted Sectors: ${completed}\nDeaths: ${deaths}\nGridlock Reached: ${gridlocks}\nGridlock Bonuses: ${relics}\nCosmic Zaps Used: ${zaps}\nBest Sector: ${bestSector}\nBest Score: ${bestScore}${recoveredLine}` :
+                    `Runs: ${runs.length}
+Sector Attempts: ${sectors.length}
+Completed Sectors: ${completed}
+Deaths: ${deaths}
+ZIG Spawns/Deaths: ${spawnedIdentities.drifter}/${deathIdentities.drifter}
+DASH Spawns/Deaths: ${spawnedIdentities.charger}/${deathIdentities.charger}
+  Cruise/Charge: ${deathCategories['charger-cruise']}/${deathCategories['charger-charge']}
+ECHO Spawns/Deaths: ${spawnedIdentities.pulse}/${deathIdentities.pulse}
+  Active/Reactivation: ${deathCategories['pulse-active']}/${deathCategories['pulse-reactivation-overlap']}
+Spawn Materialization Deaths: ${deathCategories['spawn-materialization']}
+Gridlock Reached: ${gridlocks}
+Gridlock Bonuses: ${relics}
+Cosmic Zaps Used: ${zaps}
+Best Sector: ${bestSector}
+Best Score: ${bestScore}${recoveredLine}` :
                     'Developer Mode required. Tap SETTINGS ten times to unlock.';
             }
 
@@ -12586,7 +12927,7 @@ Font License Notices
                     this.setTelemetryStatus('Developer Mode required.');
                     return;
                 }
-                this.telemetry = { schema: 'blockazoids-balance-v6', runs: [], restoredFromLocalStorage: false, recoveredActiveRuns: 0, lastSavedAt: null };
+                this.telemetry = { schema: 'blockazoids-balance-v7', runs: [], restoredFromLocalStorage: false, recoveredActiveRuns: 0, lastSavedAt: null };
                 this.currentTelemetryRun = null;
                 this.currentTelemetrySector = null;
                 try { localStorage.removeItem(this.telemetryStorageKey); } catch (_) {}
@@ -13027,6 +13368,7 @@ Font License Notices
                 this.stopGameplayLoop();
                 const requeueSpawnWarnings = !!options.requeueSpawnWarnings;
                 this.clearPendingSpawnWarnings(requeueSpawnWarnings);
+                if (this.audio && typeof this.audio.cancelEnemySpawnAudio === 'function') this.audio.cancelEnemySpawnAudio();
                 this.scheduler.cancelScope('gameplay');
                 this.updateGameTimer = null;
                 this.maxSwarmCueTimer = null;
@@ -13384,6 +13726,7 @@ Font License Notices
             }
 
             showMenuPanel(panelName) {
+                this.suspendAttractEnemyCards();
                 this.setCrtUiSuspended(true);
                 this.menuButtons.style.display = 'none';
                 if (this.howToPanel) this.howToPanel.classList.toggle('open', panelName === 'howTo');
@@ -14501,7 +14844,7 @@ Font License Notices
                     const pulseButton = document.createElement('button');
                     pulseButton.className = 'level-select-button';
                     pulseButton.textContent = 'PLS';
-                    pulseButton.setAttribute('aria-label', 'Blue Ghost Pulse behavior test');
+                    pulseButton.setAttribute('aria-label', 'ECHO Phaser behavior test');
                     pulseButton.addEventListener('click', (e) => {
                         e.preventDefault();
                         e.stopPropagation();
@@ -14534,6 +14877,7 @@ Font License Notices
             }
 
             showLevelSelectMenu() {
+                this.suspendAttractEnemyCards();
                 this.setCrtUiSuspended(true);
                 this.updateLevelSelectButtonLockState();
                 this.levelSelectWindow.style.display = 'flex';
@@ -15647,10 +15991,12 @@ Font License Notices
                 )) return false;
 
                 this.cancelTransitionGroup('new-run');
+                this.suspendAttractEnemyCards();
                 const selectedOption = Math.max(1, Math.min(this.getSectorSelectOptionCount(), this.selectedStartSector || 1));
                 const endOption = this.getEndSectorOptionValue();
 
                 this.systems.hideRunStartSurface();
+                this.clearEnemyDeathCause();
                 this.resetTerminalState({ clearGameOver: false, clearRestartReady: true });
                 this.hasStartedRun = true;
                 this.cycle = Math.max(1, Math.min(this.getMaximumSelectableCycle(), this.selectedStartCycle || 1));
@@ -16372,7 +16718,7 @@ Font License Notices
                 if (!GAME_FEATURE_FLAGS.spawnWarnings) {
                     const enemy = new Enemy(this, type, { x: location.x, y: location.y }, behaviorType);
                     this.enemies.push(enemy);
-                    this.noteTelemetryEnemySpawn(type);
+                    this.noteTelemetryEnemySpawn(type, enemy);
                     this.checkMaxSwarmProgress();
                     this.checkPrismRelicSpawnProgress();
                     if (enemy.size === this.PLAYER_SIZE) this.spawnedCount.small++;
@@ -16406,7 +16752,7 @@ Font License Notices
 
                     const enemy = new Enemy(this, type, { x: location.x, y: location.y }, behaviorType);
                     this.enemies.push(enemy);
-                    this.noteTelemetryEnemySpawn(type);
+                    this.noteTelemetryEnemySpawn(type, enemy);
                     this.checkMaxSwarmProgress();
                     this.checkPrismRelicSpawnProgress();
                     if (enemy.size === this.PLAYER_SIZE) this.spawnedCount.small++;
@@ -16838,7 +17184,8 @@ Font License Notices
                             this.handleInvincibleCollision(enemy, enemy.type || null);
                             return;
                         }
-                        this.endRun({ deathEnemySize: enemy.type || null });
+                        const deathCause = this.captureEnemyDeathCause(enemy);
+                        this.endRun({ deathEnemySize: enemy.type || null, deathCause });
                         return;
                     }
                 }
@@ -17300,6 +17647,179 @@ Font License Notices
             }
 
 
+
+            renderEnemyIdentityHelp() {
+                if (!this.enemyIdentityHelpList) return;
+                const fragment = document.createDocumentFragment();
+                ENEMY_IDENTITY_ORDER.forEach(key => {
+                    const identity = getEnemyIdentity(key);
+                    const item = document.createElement('li');
+                    const name = document.createElement('span');
+                    name.className = 'enemy-identity-help-name';
+                    name.style.color = identity.color;
+                    name.textContent = identity.displayName;
+                    item.appendChild(name);
+                    item.appendChild(document.createTextNode(` — ${identity.className.toUpperCase()}: ${identity.helpDescription}`));
+                    fragment.appendChild(item);
+                });
+                this.enemyIdentityHelpList.replaceChildren(fragment);
+            }
+
+            isAttractEnemyCardAllowed() {
+                const menuOpen = !!(typeof this.getCurrentMenuContext === 'function' && this.getCurrentMenuContext());
+                const pauseShellOpen = !!(this.pauseWindow && this.pauseWindow.style.display === 'flex');
+                const levelSelectOpen = !!(this.levelSelectWindow && this.levelSelectWindow.style.display === 'flex');
+                return !!(this.flow.is(GAME_FLOW_STATES.ATTRACT) && !this.active && !this.isPaused &&
+                    !this.splashIntroActive && !this.cycleTransitionActive && !this.finalCompletionActive && !this.finalGridlockResultActive &&
+                    !menuOpen && !pauseShellOpen && !levelSelectOpen);
+            }
+
+            hideAttractEnemyCard() {
+                if (!this.enemyIdentityCard) return;
+                this.enemyIdentityCard.classList.remove('visible');
+                this.enemyIdentityCard.setAttribute('aria-hidden', 'true');
+                delete this.enemyIdentityCard.dataset.identity;
+            }
+
+            suspendAttractEnemyCards() {
+                this.attractEnemyCardSequenceToken++;
+                this.scheduler.cancelScope('attract-enemy-cards');
+                this.attractEnemyCardIndex = -1;
+                this.hideAttractEnemyCard();
+            }
+
+            showAttractEnemyCard(identityKey) {
+                if (!this.enemyIdentityCard) return;
+                const identity = getEnemyIdentity(identityKey);
+                this.enemyIdentityCard.dataset.identity = identity.key;
+                this.enemyIdentityCard.style.setProperty('--enemy-card-color', identity.color);
+                if (this.enemyIdentityCardName) this.enemyIdentityCardName.textContent = identity.displayName;
+                if (this.enemyIdentityCardClass) this.enemyIdentityCardClass.textContent = `“${identity.className.toUpperCase()}”`;
+                if (this.enemyIdentityCardDescription) this.enemyIdentityCardDescription.textContent = identity.attractDescription;
+                this.enemyIdentityCard.setAttribute('aria-label', `${identity.displayName}, ${identity.className}. ${identity.attractDescription}`);
+                this.enemyIdentityCard.setAttribute('aria-hidden', 'false');
+                this.enemyIdentityCard.classList.remove('visible');
+                void this.enemyIdentityCard.offsetWidth;
+                this.enemyIdentityCard.classList.add('visible');
+            }
+
+            startAttractEnemyCardSequence(initialDelayMs = 5200) {
+                this.suspendAttractEnemyCards();
+                const token = ++this.attractEnemyCardSequenceToken;
+                const showIndex = index => {
+                    if (token !== this.attractEnemyCardSequenceToken) return;
+                    if (!this.isAttractEnemyCardAllowed()) {
+                        this.hideAttractEnemyCard();
+                        this.scheduler.scheduleTimeout('attract-enemy-cards', 'resume-check', () => showIndex(0), 1200);
+                        return;
+                    }
+                    if (index >= ENEMY_IDENTITY_ORDER.length) {
+                        this.hideAttractEnemyCard();
+                        this.attractEnemyCardIndex = -1;
+                        this.scheduler.scheduleTimeout('attract-enemy-cards', 'normal-attract-hold', () => showIndex(0), 7000);
+                        return;
+                    }
+                    this.attractEnemyCardIndex = index;
+                    this.showAttractEnemyCard(ENEMY_IDENTITY_ORDER[index]);
+                    this.scheduler.scheduleTimeout('attract-enemy-cards', `card-${index}-hold`, () => {
+                        if (token !== this.attractEnemyCardSequenceToken) return;
+                        this.hideAttractEnemyCard();
+                        this.scheduler.scheduleTimeout('attract-enemy-cards', `card-${index}-gap`, () => showIndex(index + 1), 300);
+                    }, 3100);
+                };
+                this.scheduler.scheduleTimeout('attract-enemy-cards', 'initial-normal-attract', () => showIndex(0), Math.max(0, Number(initialDelayMs) || 0));
+            }
+
+            clearEnemyDeathCause() {
+                this.lastDeathCause = null;
+                if (!this.gameOverCauseElement) return;
+                this.gameOverCauseElement.classList.remove('visible');
+                this.gameOverCauseElement.setAttribute('aria-hidden', 'true');
+                this.gameOverCauseElement.textContent = '';
+                this.gameOverCauseElement.removeAttribute('aria-label');
+                this.gameOverCauseElement.style.removeProperty('--death-enemy-color');
+            }
+
+            hideEnemyDeathCausePresentation() {
+                if (!this.gameOverCauseElement) return;
+                this.gameOverCauseElement.classList.remove('visible');
+                this.gameOverCauseElement.setAttribute('aria-hidden', 'true');
+            }
+
+            showEnemyDeathCausePresentation() {
+                const cause = this.lastDeathCause;
+                if (!cause || !this.gameOverCauseElement) return false;
+                this.gameOverCauseElement.style.setProperty('--death-enemy-color', cause.color || '#fff');
+                const fullLead = cause.gameOverLead || `CAUGHT BY ${cause.displayName}`;
+                const leadPrefix = fullLead.endsWith(cause.displayName) ? fullLead.slice(0, -cause.displayName.length) : 'CAUGHT BY ';
+                this.gameOverCauseElement.innerHTML = `<span class="game-over-cause-lead">${leadPrefix}<span class="game-over-cause-name">${cause.displayName}</span></span><span class="game-over-cause-class">“${String(cause.className || '').toUpperCase()}”</span>`;
+                this.gameOverCauseElement.setAttribute('aria-label', `${fullLead}. ${cause.className}.`);
+                this.gameOverCauseElement.setAttribute('aria-hidden', 'false');
+                this.gameOverCauseElement.classList.add('visible');
+                return true;
+            }
+
+            getEnemyBehaviorSpeedMultiplier(enemy) {
+                if (!enemy) return 1;
+                if (enemy.behaviorType === ENEMY_BEHAVIOR_TYPES.CHARGER) {
+                    const state = enemy.behavior && enemy.behavior.state ? enemy.behavior.state : 'cruise';
+                    if (state === 'charge') return GAME_CONFIG.enemyBehaviors.charger.chargeSpeedMultiplier;
+                    if (state === 'recovery') return GAME_CONFIG.enemyBehaviors.charger.recoverySpeedMultiplier;
+                    if (state === 'telegraph') return 0;
+                    return GAME_CONFIG.enemyBehaviors.charger.cruiseSpeedMultiplier;
+                }
+                if (enemy.behaviorType === ENEMY_BEHAVIOR_TYPES.PULSE) return GAME_CONFIG.enemyBehaviors.pulse.speedMultiplier;
+                return 1;
+            }
+
+            captureEnemyDeathCause(enemy) {
+                if (!enemy || this.tutorialActive) return null;
+                const now = performance.now();
+                const identity = getEnemyIdentity(enemy.behaviorType);
+                const behaviorState = enemy.behavior && enemy.behavior.state ? enemy.behavior.state : 'normal';
+                const materializationAgeMs = Math.max(0, Math.round(now - (enemy.materializedAt || now)));
+                const reactivationAgeMs = enemy.behaviorType === ENEMY_BEHAVIOR_TYPES.PULSE && enemy.behavior && enemy.behavior.lastReactivatedAt
+                    ? Math.max(0, Math.round(now - enemy.behavior.lastReactivatedAt))
+                    : null;
+                let telemetryCategory = 'drifter';
+                if (materializationAgeMs <= 350) telemetryCategory = 'spawn-materialization';
+                else if (enemy.behaviorType === ENEMY_BEHAVIOR_TYPES.CHARGER) telemetryCategory = behaviorState === 'charge' ? 'charger-charge' : 'charger-cruise';
+                else if (enemy.behaviorType === ENEMY_BEHAVIOR_TYPES.PULSE) telemetryCategory = reactivationAgeMs !== null && reactivationAgeMs <= 450 ? 'pulse-reactivation-overlap' : 'pulse-active';
+
+                const levelBoost = Math.max(0, this.level - 1) * this.parameters.levelSpeedBoost;
+                const cycleBoost = Math.max(0, this.cycle - 1) * this.parameters.cycleSpeedBoost;
+                const zapBoost = this.cosmicZapPressure * this.parameters.levelSpeedBoost;
+                const difficultyMultiplier = this.getDifficultyConfig().speedMultiplier;
+                const overallMultiplier = this.getCurrentSpeedMultiplier();
+                const specialMovementMultiplier = this.getEnemyBehaviorSpeedMultiplier(enemy);
+                return {
+                    identityKey: identity.key,
+                    displayName: identity.displayName,
+                    className: identity.className,
+                    color: identity.color,
+                    gameOverLead: identity.gameOverLead,
+                    behaviorType: enemy.behaviorType,
+                    behaviorState,
+                    telemetryCategory,
+                    enemySize: enemy.type,
+                    sector: this.level,
+                    cycle: this.cycle,
+                    difficulty: this.difficultyMode,
+                    timeAliveMs: this.telemetryRunElapsedMs() || this.getRunRecordElapsedMs(),
+                    sectorTimeMs: this.telemetrySectorElapsedMs() || this.sectorElapsedMs,
+                    materializationAgeMs,
+                    reactivationAgeMs,
+                    baseSpeed: Number((this.BASE_SPEEDS[enemy.type] || 0).toFixed(4)),
+                    sectorSpeedBoost: Number(levelBoost.toFixed(4)),
+                    cycleSpeedBoost: Number(cycleBoost.toFixed(4)),
+                    cosmicZapPressureBoost: Number(zapBoost.toFixed(4)),
+                    difficultyMultiplier: Number(difficultyMultiplier.toFixed(4)),
+                    combinedSpeedMultiplier: Number(overallMultiplier.toFixed(4)),
+                    specialMovementMultiplier: Number(specialMovementMultiplier.toFixed(4)),
+                    effectiveVelocity: Number(Math.hypot(enemy.dx, enemy.dy).toFixed(4))
+                };
+            }
+
             // Canonical lifecycle entry for attract mode, including its scheduler and audio ownership.
             returnToAttractMode() {
                 const allowedFlow = this.flow.isAny(
@@ -17363,6 +17883,7 @@ Font License Notices
 
                 updatePattern(); // Initial pattern
                 this.attractInterval = this.scheduler.scheduleInterval('attract-mode', 'life-grid', updatePattern, 1000); // Update every second
+                this.startAttractEnemyCardSequence();
                 this.syncAttractModeAudio();
                 this.validateStateInvariants('returnToAttractMode');
                 return true;
@@ -17370,6 +17891,7 @@ Font License Notices
 
             // Stop attract mode and clean up
             stopAttractMode() {
+                this.suspendAttractEnemyCards();
                 this.scheduler.cancelScope('attract-mode');
                 this.attractInterval = null;
                 this.attractModeStartedAt = 0;
@@ -17796,8 +18318,16 @@ Font License Notices
                 this.bonusTextElement.style.opacity = '0';
                 this.bonusTextElement.textContent = '';
                 this.gameOverElement.textContent = 'GAME OVER';
+                this.hideEnemyDeathCausePresentation();
                 this.gameOverElement.style.opacity = '1'; // Show game over text
-                if (!await this.wait(GAME_CONFIG.transitions.gameOverTitleHoldMs, transitionToken, 'game-over-title-hold')) return;
+                const causeDelayMs = this.lastDeathCause ? 400 : 0;
+                if (causeDelayMs > 0) {
+                    if (!await this.wait(causeDelayMs, transitionToken, 'game-over-cause-delay')) return;
+                    this.showEnemyDeathCausePresentation();
+                }
+                const remainingTitleHoldMs = Math.max(0, GAME_CONFIG.transitions.gameOverTitleHoldMs - causeDelayMs);
+                if (!await this.wait(remainingTitleHoldMs, transitionToken, 'game-over-title-hold')) return;
+                this.hideEnemyDeathCausePresentation();
                 this.gameOverElement.style.opacity = '0'; // Fade out text
                 if (!await this.wait(GAME_CONFIG.transitions.gameOverTitleFadeMs, transitionToken, 'game-over-title-fade')) return;
                 this.instructionsWindow.style.display = 'none';
@@ -18329,6 +18859,48 @@ Font License Notices
             PULSE: 'pulse'
         });
 
+
+
+        // One source of truth for every player-facing Block-A-Zoid identity.
+        const ENEMY_IDENTITIES = Object.freeze({
+            drifter: Object.freeze({
+                key: 'drifter',
+                displayName: 'ZIG',
+                className: 'Drifter',
+                color: GAME_CONFIG.colors.red,
+                attractDescription: 'ERRATIC. ALWAYS MOVING.',
+                helpDescription: 'unpredictable movement',
+                spawnSoundId: 'zig',
+                gameOverLead: 'CAUGHT BY ZIG'
+            }),
+            charger: Object.freeze({
+                key: 'charger',
+                displayName: 'DASH',
+                className: 'Charger',
+                color: GAME_CONFIG.colors.green,
+                attractDescription: 'LOCKS ON. THEN STRIKES.',
+                helpDescription: 'locks on and charges',
+                spawnSoundId: 'dash',
+                gameOverLead: 'CAUGHT BY DASH'
+            }),
+            pulse: Object.freeze({
+                key: 'pulse',
+                displayName: 'ECHO',
+                className: 'Phaser',
+                color: GAME_CONFIG.colors.blue,
+                attractDescription: 'FADES OUT. RETURNS WITHOUT WARNING.',
+                helpDescription: 'fades and reappears',
+                spawnSoundId: 'echo',
+                gameOverLead: 'CAUGHT BY ECHO'
+            })
+        });
+
+        const ENEMY_IDENTITY_ORDER = Object.freeze(['drifter', 'charger', 'pulse']);
+
+        function getEnemyIdentity(behaviorType) {
+            return ENEMY_IDENTITIES[String(behaviorType || '').trim()] || ENEMY_IDENTITIES.drifter;
+        }
+
         const ENEMY_BEHAVIOR_FACTORIES = new Map();
 
         class EnemyBehavior {
@@ -18529,6 +19101,7 @@ Font License Notices
                 this.tuning = GAME_CONFIG.enemyBehaviors.pulse;
                 this.state = 'active';
                 this.stateEndsAt = 0;
+                this.lastReactivatedAt = 0;
             }
 
             get type() {
@@ -18553,7 +19126,8 @@ Font License Notices
                 element.classList.remove('pulse-active', 'pulse-deactivation-warning', 'pulse-dormant', 'pulse-reactivation-warning');
                 element.classList.add(`pulse-${nextState}`);
                 element.dataset.pulseState = nextState;
-                element.setAttribute('aria-label', `Blue Ghost Pulse: ${nextState}`);
+                const identity = getEnemyIdentity(ENEMY_BEHAVIOR_TYPES.PULSE);
+                element.setAttribute('aria-label', `${identity.displayName} ${identity.className}: ${nextState}`);
             }
 
             initialize() {
@@ -18589,6 +19163,7 @@ Font License Notices
             }
 
             beginActive(now) {
+                this.lastReactivatedAt = now;
                 this.state = 'active';
                 this.stateEndsAt = now + this.tuning.activeMs;
                 this.setVisualState(this.state);
@@ -18736,6 +19311,9 @@ Font License Notices
                 this.behaviorType = behaviorResolution.resolvedType;
                 this.behaviorFallbackUsed = behaviorResolution.usedFallback;
                 this.behavior.initialize();
+                this.identity = getEnemyIdentity(this.behaviorType);
+                this.materializedAt = performance.now();
+                this.spawnSoundPlayed = false;
                 
                 this.element = document.createElement('div');
                 this.element.className = 'enemy';
@@ -18756,7 +19334,13 @@ Font License Notices
                     this.element.style.opacity = '1';
                     this.element.style.transform = 'scale(1)';
                 }, 50);
-                game.audio.playSpawn(); // Play consistent Block-A-Zoid spawn sound
+                if (game.tutorialActive) {
+                    game.audio.playSpawn(); // Preserve the existing tutorial sound exactly.
+                } else if (!this.spawnSoundPlayed) {
+                    this.spawnSoundPlayed = true;
+                    const spawnSoundKey = `${this.behaviorType}:${Math.round(this.x)}:${Math.round(this.y)}:${Math.floor(performance.now() / 120)}`;
+                    game.audio.playEnemySpawn(this.identity.spawnSoundId, spawnSoundKey);
+                }
 
                 this.updateAnimation(); // Set border and glow
             }
@@ -19148,6 +19732,9 @@ Font License Notices
                 this.audioSourceLimit = 96;
                 this.audioSourceLimitTrips = 0;
                 this.audioLastCleanupReason = 'boot';
+                this.enemySpawnSoundKeys = new Map();
+                this.enemySpawnSoundHistory = [];
+                this.enemySpawnSources = new Set();
                 if (!this.muted) this.createAudioContext();
             }
 
@@ -20539,6 +21126,128 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 osc.stop(now + duration + 0.035);
             }
 
+
+            trackEnemySpawnSource(source) {
+                if (!source) return source;
+                this.enemySpawnSources.add(source);
+                try {
+                    source.addEventListener('ended', () => this.enemySpawnSources.delete(source), { once: true });
+                } catch (_) {}
+                return source;
+            }
+
+            cancelEnemySpawnAudio() {
+                this.enemySpawnSources.forEach(source => {
+                    try { source.stop(); } catch (_) {}
+                    try { source.disconnect(); } catch (_) {}
+                });
+                this.enemySpawnSources.clear();
+                this.enemySpawnSoundHistory = [];
+                this.enemySpawnSoundKeys.clear();
+            }
+
+            playEnemySpawn(soundId = 'zig', dedupeKey = '') {
+                if (!this.ensureAudio() || !this.ctx) return;
+                const nowMs = performance.now();
+                for (const [key, timestamp] of this.enemySpawnSoundKeys.entries()) {
+                    if (nowMs - timestamp > 2000) this.enemySpawnSoundKeys.delete(key);
+                }
+                const normalizedKey = String(dedupeKey || '');
+                if (normalizedKey && this.enemySpawnSoundKeys.has(normalizedKey)) return;
+                if (normalizedKey) this.enemySpawnSoundKeys.set(normalizedKey, nowMs);
+
+                this.enemySpawnSoundHistory = this.enemySpawnSoundHistory.filter(timestamp => nowMs - timestamp < 260);
+                const overlapIndex = this.enemySpawnSoundHistory.length;
+                this.enemySpawnSoundHistory.push(nowMs);
+                const volumeScale = overlapIndex === 0 ? 1 : Math.max(0.34, 0.82 - overlapIndex * 0.16);
+                const durationScale = Math.max(0.72, 1 - overlapIndex * 0.08);
+                const now = this.ctx.currentTime;
+
+                const connectVoice = (oscillator, gainNode, filter = null) => {
+                    if (filter) {
+                        oscillator.connect(filter);
+                        filter.connect(gainNode);
+                    } else {
+                        oscillator.connect(gainNode);
+                    }
+                    this.connectOutput(gainNode);
+                    this.trackEnemySpawnSource(oscillator);
+                };
+
+                if (soundId === 'dash') {
+                    const lock = this.createAudioNode('createOscillator');
+                    const lockGain = this.createAudioNode('createGain');
+                    lock.type = 'square';
+                    lock.frequency.setValueAtTime(390, now);
+                    lock.frequency.exponentialRampToValueAtTime(920, now + 0.16 * durationScale);
+                    lockGain.gain.setValueAtTime(0.001, now);
+                    lockGain.gain.linearRampToValueAtTime(0.055 * volumeScale, now + 0.012);
+                    lockGain.gain.exponentialRampToValueAtTime(0.001, now + 0.19 * durationScale);
+                    connectVoice(lock, lockGain);
+                    lock.start(now);
+                    lock.stop(now + 0.21 * durationScale);
+
+                    const thrustAt = now + 0.13 * durationScale;
+                    const thrust = this.createAudioNode('createOscillator');
+                    const thrustGain = this.createAudioNode('createGain');
+                    const thrustFilter = this.createAudioNode('createBiquadFilter');
+                    thrust.type = 'sawtooth';
+                    thrust.frequency.setValueAtTime(230, thrustAt);
+                    thrust.frequency.exponentialRampToValueAtTime(82, thrustAt + 0.20 * durationScale);
+                    thrustFilter.type = 'lowpass';
+                    thrustFilter.frequency.setValueAtTime(760, thrustAt);
+                    thrustFilter.frequency.exponentialRampToValueAtTime(260, thrustAt + 0.20 * durationScale);
+                    thrustGain.gain.setValueAtTime(0.001, thrustAt);
+                    thrustGain.gain.linearRampToValueAtTime(0.068 * volumeScale, thrustAt + 0.018);
+                    thrustGain.gain.exponentialRampToValueAtTime(0.001, thrustAt + 0.22 * durationScale);
+                    connectVoice(thrust, thrustGain, thrustFilter);
+                    thrust.start(thrustAt);
+                    thrust.stop(thrustAt + 0.24 * durationScale);
+                    return;
+                }
+
+                if (soundId === 'echo') {
+                    const playHollowPulse = (start, peak, startFrequency, endFrequency) => {
+                        const oscillator = this.createAudioNode('createOscillator');
+                        const gainNode = this.createAudioNode('createGain');
+                        const filter = this.createAudioNode('createBiquadFilter');
+                        oscillator.type = 'sine';
+                        oscillator.frequency.setValueAtTime(startFrequency, start);
+                        oscillator.frequency.exponentialRampToValueAtTime(endFrequency, start + 0.27 * durationScale);
+                        filter.type = 'bandpass';
+                        filter.frequency.setValueAtTime(430, start);
+                        filter.frequency.exponentialRampToValueAtTime(220, start + 0.27 * durationScale);
+                        filter.Q.setValueAtTime(2.2, start);
+                        gainNode.gain.setValueAtTime(0.001, start);
+                        gainNode.gain.linearRampToValueAtTime(peak * volumeScale, start + 0.028);
+                        gainNode.gain.exponentialRampToValueAtTime(0.001, start + 0.30 * durationScale);
+                        connectVoice(oscillator, gainNode, filter);
+                        oscillator.start(start);
+                        oscillator.stop(start + 0.32 * durationScale);
+                    };
+                    playHollowPulse(now, 0.066, 340, 165);
+                    playHollowPulse(now + 0.17 * durationScale, 0.026, 270, 135);
+                    return;
+                }
+
+                const tickOffsets = [0, 0.082, 0.142];
+                const tickFrequencies = [790, 575, 880];
+                tickOffsets.forEach((offset, index) => {
+                    const start = now + offset * durationScale;
+                    const oscillator = this.createAudioNode('createOscillator');
+                    const gainNode = this.createAudioNode('createGain');
+                    oscillator.type = index === 1 ? 'triangle' : 'square';
+                    oscillator.frequency.setValueAtTime(tickFrequencies[index], start);
+                    oscillator.frequency.exponentialRampToValueAtTime(tickFrequencies[index] * (index === 1 ? 0.72 : 1.08), start + 0.048 * durationScale);
+                    gainNode.gain.setValueAtTime(0.001, start);
+                    gainNode.gain.linearRampToValueAtTime((index === 2 ? 0.052 : 0.045) * volumeScale, start + 0.005);
+                    gainNode.gain.exponentialRampToValueAtTime(0.001, start + 0.060 * durationScale);
+                    connectVoice(oscillator, gainNode);
+                    oscillator.start(start);
+                    oscillator.stop(start + 0.072 * durationScale);
+                });
+            }
+
             // Play consistent Block-A-Zoid spawn sound
             playSpawn() {
                 this.ensureAudio();
@@ -21060,6 +21769,7 @@ startMaxSwarmBeat(delaySeconds = 0) {
         const audioOneShotCleanupDelays = {
             playCollect: 1200,
             playSpawn: 2200,
+            playEnemySpawn: 3000,
             playUiClick: 1800,
             playHighScoreResetBeep: 1200,
             playTutorialStepBeep: 900,
