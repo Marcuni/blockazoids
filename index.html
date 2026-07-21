@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Trackpad Prototype p079: Refines tutorial wording, timing, and line wrapping while preserving the tap-to-continue phase windows.
+Trackpad Prototype p080: Extends the post-crystal tutorial pause and allows tap-to-continue anywhere within the game page while consuming that input safely.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="trackpad-p079">
+<html data-build-version="trackpad-p080">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -5779,7 +5779,7 @@ Font License Notices
         #gameContainer.crt-zap-medium.crt-zap-event .playfield-crt-event { filter: opacity(0.18) !important; }
         #gameContainer.crt-restore-medium.crt-restore-event .playfield-crt-event { filter: opacity(0.42) !important; }
 
-        /* p079: tutorial phases use proper tap-to-continue playfield windows with controlled wrapping. */
+        /* p080: tutorial phases use proper tap-to-continue playfield windows with controlled wrapping. */
         #tutorialPrompt {
             position: absolute;
             left: 50%;
@@ -8079,7 +8079,7 @@ Font License Notices
             tutorial: Object.freeze({
                 movementRequired: 150,
                 movementAdvanceDelayMs: 1700,
-                crystalAdvanceDelayMs: 650,
+                crystalAdvanceDelayMs: 1650,
                 enemySpawnDelayMs: 650,
                 enemyAvoidRequiredMs: 5000,
                 enemySpeedMultiplier: 0.72,
@@ -9440,6 +9440,8 @@ Font License Notices
                 this.tutorialPromptMessage = this.tutorialPrompt ? this.tutorialPrompt.querySelector('.tutorial-window-message') : null;
                 this.tutorialWindowOpen = false;
                 this.tutorialWindowPhase = '';
+                this.tutorialContinuePointerId = null;
+                this.tutorialContinueClickBlockUntil = 0;
                 this.invincibilityToggleButton = document.getElementById('invincibilityToggleButton');
                 this.skinFrameControl = document.getElementById('skinFrameControl');
                 this.skinFrameDecreaseButton = document.getElementById('skinFrameDecreaseButton');
@@ -9789,11 +9791,38 @@ Font License Notices
                 }
                 this.gestures = FULL_SURFACE_GESTURE_PROTOTYPE ? new FullSurfaceGestureCoordinator(this) : null;
                 if (this.gestures) this.gestures.attach();
+                this.handleTutorialContinueSurfacePointerDown = (e) => {
+                    if (!this.tutorialActive || !this.tutorialWindowOpen || e.isPrimary === false) return;
+                    this.tutorialContinuePointerId = e.pointerId;
+                    this.tutorialContinueClickBlockUntil = performance.now() + 1000;
+                    e.preventDefault();
+                    e.stopImmediatePropagation();
+                    this.handleTutorialWindowContinue();
+                };
+                this.handleTutorialContinueSurfacePointerMove = (e) => {
+                    if (this.tutorialContinuePointerId !== e.pointerId) return;
+                    e.preventDefault();
+                    e.stopImmediatePropagation();
+                };
+                this.handleTutorialContinueSurfacePointerEnd = (e) => {
+                    if (this.tutorialContinuePointerId !== e.pointerId) return;
+                    this.tutorialContinuePointerId = null;
+                    this.tutorialContinueClickBlockUntil = performance.now() + 500;
+                    e.preventDefault();
+                    e.stopImmediatePropagation();
+                    this.player.invalidateDragSession('tutorial-window-surface-release');
+                };
+                this.handleTutorialContinueSurfaceClick = (e) => {
+                    if (performance.now() > this.tutorialContinueClickBlockUntil) return;
+                    e.preventDefault();
+                    e.stopImmediatePropagation();
+                };
+                document.addEventListener('pointerdown', this.handleTutorialContinueSurfacePointerDown, { capture: true, passive: false });
+                document.addEventListener('pointermove', this.handleTutorialContinueSurfacePointerMove, { capture: true, passive: false });
+                document.addEventListener('pointerup', this.handleTutorialContinueSurfacePointerEnd, { capture: true, passive: false });
+                document.addEventListener('pointercancel', this.handleTutorialContinueSurfacePointerEnd, { capture: true, passive: false });
+                document.addEventListener('click', this.handleTutorialContinueSurfaceClick, { capture: true, passive: false });
                 if (this.tutorialPrompt) {
-                    this.tutorialPrompt.addEventListener('pointerdown', (e) => {
-                        e.stopPropagation();
-                    }, { passive: true });
-                    this.tutorialPrompt.addEventListener('click', (e) => this.handleTutorialWindowContinue(e));
                     this.tutorialPrompt.addEventListener('keydown', (e) => {
                         if (e.key !== 'Enter' && e.key !== ' ') return;
                         this.handleTutorialWindowContinue(e);
