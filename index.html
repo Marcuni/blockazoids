@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Trackpad Prototype p070: Enlarges the end-of-sector results, guarantees visible Record Pace feedback with session-safe checkpoints, and tightens the Sector/Cycle value spacing.
+Trackpad Prototype p071: Refines end-of-sector text sizing, replaces crystal pickup feedback with an Orb-centered micro-burst, and removes the duplicate developer Sector Select entry.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="trackpad-p070">
+<html data-build-version="trackpad-p071">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -1037,7 +1037,7 @@ Font License Notices
             width: min(96%, 576px);
             box-sizing: border-box;
             padding: clamp(16px, 4.1vw, 25px) clamp(14px, 3.7vw, 22px);
-            font-size: clamp(22px, 6.15vw, 35px);
+            font-size: clamp(18px, 5.25vw, 30px);
             line-height: 1.28;
             letter-spacing: 0.25px;
             opacity: 1;
@@ -7442,100 +7442,109 @@ Font License Notices
             transform: scale(0.94) !important;
         }
 
-        /* p054: keep the Orb geometrically stable on pickup. The crystal collapses at the
-           contact point while four short color rays and one thin reusable halo remain visible
-           beyond the Orb's edge, even when the Orb completely covers the crystal. */
-        .crystal-collect-collapse {
+        /* p071: crystal collection feedback is centered on the Orb because the Orb normally
+           covers the crystal at contact. Collision geometry stays unchanged while the visible Orb,
+           one expanding ring, and one four-point sparkle create a crisp micro-burst. */
+        #player.crystal-pickup-pop {
+            z-index: 6;
+            animation: orbCrystalPickupPop 170ms cubic-bezier(0.22, 0.78, 0.28, 1) 1;
+        }
+
+        #player.crystal-pickup-pop::after {
+            content: "";
             position: absolute;
-            left: var(--collect-start-x);
-            top: var(--collect-start-y);
-            width: var(--collect-size, 10px);
-            height: var(--collect-size, 10px);
-            background: var(--collect-color, #fff);
-            box-shadow: 0 0 8px var(--collect-color, #fff), 0 0 14px rgba(255,255,255,0.50);
-            opacity: 1;
+            inset: -7.5%;
+            box-sizing: border-box;
+            border-radius: 50%;
+            background: #fff;
+            box-shadow: 0 0 8px #fff, 0 0 20px #fff, 0 0 36px rgba(255,255,255,0.82);
+            opacity: 0;
             pointer-events: none;
-            z-index: 8;
-            transform: translate(-50%, -50%) rotate(45deg) scale(1);
-            animation: crystalCollectCollapse 125ms cubic-bezier(0.25, 0.8, 0.3, 1) forwards;
+            z-index: 1;
+            animation: orbCrystalPickupFlash 170ms ease-out 1;
         }
 
-        @keyframes crystalCollectCollapse {
-            48% {
-                opacity: 0.95;
-                filter: brightness(1.9);
-                transform: translate(-50%, -50%) rotate(45deg) scale(0.55);
-            }
-            100% {
-                opacity: 0;
-                filter: brightness(2.5);
-                transform: translate(-50%, -50%) rotate(45deg) scale(0.05);
-            }
+        @keyframes orbCrystalPickupPop {
+            0% { transform: scale(1); }
+            32% { transform: scale(1.15); }
+            66% { transform: scale(0.985); }
+            100% { transform: scale(1); }
         }
 
-        .crystal-collect-ray {
+        @keyframes orbCrystalPickupFlash {
+            0% { opacity: 0; transform: scale(0.92); }
+            26% { opacity: 0.96; transform: scale(1.04); }
+            100% { opacity: 0; transform: scale(1.16); }
+        }
+
+        .orb-crystal-pickup-ring {
             position: absolute;
-            left: var(--collect-orb-x, 50%);
-            top: var(--collect-orb-y, 50%);
-            width: var(--collect-ray-length, 10px);
-            height: max(1px, calc(var(--playfield-presentation-scale, 1) * 1.5px));
-            background: currentColor;
-            color: var(--collect-color, #fff);
-            box-shadow: 0 0 5px currentColor, 0 0 10px currentColor;
+            left: 50%;
+            top: 50%;
+            width: var(--collect-ring-size, 28px);
+            height: var(--collect-ring-size, 28px);
+            box-sizing: border-box;
+            border: 1px solid #fff;
+            border-radius: 50%;
+            box-shadow: 0 0 5px #fff, 0 0 11px rgba(255,255,255,0.74);
             opacity: 0;
             pointer-events: none;
             z-index: 10;
-            transform-origin: left center;
-            animation: crystalCollectRayBurst 155ms ease-out forwards;
+            transform: translate(-50%, -50%) scale(0.82);
+            animation: orbCrystalPickupRing 180ms ease-out forwards;
         }
 
-        @keyframes crystalCollectRayBurst {
-            0% {
-                opacity: 0;
-                transform: translate(-1px, -50%) rotate(var(--collect-ray-angle, 0deg)) translateX(var(--collect-ray-start, 12px)) scaleX(0.14);
-            }
-            24% {
-                opacity: 0.95;
-            }
-            100% {
-                opacity: 0;
-                transform: translate(-1px, -50%) rotate(var(--collect-ray-angle, 0deg)) translateX(var(--collect-ray-start, 12px)) scaleX(1);
-            }
+        @keyframes orbCrystalPickupRing {
+            0% { opacity: 0.92; transform: translate(-50%, -50%) scale(0.82); }
+            100% { opacity: 0; transform: translate(-50%, -50%) scale(1.92); }
         }
 
-        /* One thin halo is reused and refreshed for rapid pickups; the Orb itself never scales. */
-        .orb-crystal-collect-halo {
+        .orb-crystal-pickup-sparkle {
             position: absolute;
-            width: var(--collect-halo-size, 28px);
-            height: var(--collect-halo-size, 28px);
-            left: var(--collect-orb-x, 50%);
-            top: var(--collect-orb-y, 50%);
-            box-sizing: border-box;
-            border: 1px solid currentColor;
-            border-radius: 50%;
-            color: var(--collect-color, #fff);
-            box-shadow: 0 0 6px currentColor, 0 0 12px currentColor;
+            left: 50%;
+            top: 50%;
+            width: var(--collect-spark-size, 28px);
+            height: var(--collect-spark-size, 28px);
             opacity: 0;
             pointer-events: none;
-            z-index: 9;
+            z-index: 11;
+            transform: translate(-50%, -50%) rotate(45deg) scale(0.45);
+            animation: orbCrystalPickupSparkle 145ms ease-out forwards;
+        }
+
+        .orb-crystal-pickup-sparkle::before,
+        .orb-crystal-pickup-sparkle::after {
+            content: "";
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            box-shadow: 0 0 5px #fff, 0 0 10px rgba(255,255,255,0.78);
             transform: translate(-50%, -50%);
         }
 
-        .orb-crystal-collect-halo.active {
-            animation: orbCrystalCollectHalo 155ms ease-out forwards;
+        .orb-crystal-pickup-sparkle::before {
+            width: 100%;
+            height: 1px;
+            background: linear-gradient(90deg, transparent 0%, #fff 38%, #fff 62%, transparent 100%);
         }
 
-        @keyframes orbCrystalCollectHalo {
-            0% { opacity: 0.88; }
-            100% { opacity: 0; }
+        .orb-crystal-pickup-sparkle::after {
+            width: 1px;
+            height: 100%;
+            background: linear-gradient(0deg, transparent 0%, #fff 38%, #fff 62%, transparent 100%);
+        }
+
+        @keyframes orbCrystalPickupSparkle {
+            0% { opacity: 0; transform: translate(-50%, -50%) rotate(45deg) scale(0.35); }
+            28% { opacity: 1; transform: translate(-50%, -50%) rotate(45deg) scale(1); }
+            100% { opacity: 0; transform: translate(-50%, -50%) rotate(45deg) scale(1.28); }
         }
 
         @media (prefers-reduced-motion: reduce) {
-            .crystal-collect-collapse,
-            .crystal-collect-ray {
-                animation-duration: 1ms;
-            }
-            .orb-crystal-collect-halo.active {
+            #player.crystal-pickup-pop,
+            #player.crystal-pickup-pop::after,
+            .orb-crystal-pickup-ring,
+            .orb-crystal-pickup-sparkle {
                 animation-duration: 80ms;
             }
         }
@@ -7765,7 +7774,6 @@ Font License Notices
                 <button id="resetHighScoreButton" class="menu-button settings-toggle">Reset High Score</button>
                 <div id="telemetryPanel" class="developer-settings-section" aria-hidden="true">
                     <div class="crt-dev-heading">DEVELOPER</div>
-                    <button id="developerSectorSelectButton" class="menu-button settings-toggle" type="button">Sector Select</button>
                     <div class="crt-dev-heading developer-subheading">TELEMETRY</div>
                     <div id="telemetrySummary" class="telemetry-summary">Developer Mode required.</div>
                     <button id="exportTelemetryButton" class="menu-button settings-toggle">Export Balance Data</button>
@@ -9339,7 +9347,6 @@ Font License Notices
                 this.storyButton = document.getElementById('storyButton');
                 this.settingsButton = document.getElementById('settingsButton');
                 this.levelSelectButton = document.getElementById('levelSelectButton');
-                this.developerSectorSelectButton = document.getElementById('developerSectorSelectButton');
                 this.devLevelSelectHudButton = document.getElementById('devLevelSelectHudButton');
                 this.levelSelectUnlocked = true;
                 this.settingsUnlockTapCount = 0;
@@ -9862,15 +9869,6 @@ Font License Notices
                     this.playUiClick();
                     this.showLevelSelectMenu();
                 });
-                if (this.developerSectorSelectButton) {
-                    this.developerSectorSelectButton.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        if (this.shouldIgnoreFreshMenuInput() || !this.developerModeEnabled) return;
-                        this.playUiClick();
-                        this.showLevelSelectMenu();
-                    });
-                }
                 if (this.howToBackButton) {
                     this.howToBackButton.addEventListener('click', (e) => {
                         e.preventDefault();
@@ -10971,11 +10969,6 @@ Font License Notices
 
             updateLevelSelectUnlockState() {
                 if (this.levelSelectButton) this.levelSelectButton.style.display = 'none';
-                if (this.developerSectorSelectButton) {
-                    const available = !!this.developerModeEnabled;
-                    this.developerSectorSelectButton.disabled = !available;
-                    this.developerSectorSelectButton.setAttribute('aria-hidden', available ? 'false' : 'true');
-                }
                 if (this.devLevelSelectHudButton) this.devLevelSelectHudButton.classList.remove('visible');
                 if (this.telemetryButton) this.telemetryButton.style.display = 'none';
                 if (this.developerModeLabel) this.developerModeLabel.classList.remove('visible');
@@ -13224,7 +13217,6 @@ Font License Notices
                     this.storyButton,
                     this.settingsButton,
                     this.levelSelectButton,
-                    this.developerSectorSelectButton,
                     this.scoringBackButton,
                     this.storyBackButton,
                     this.settingsBackButton,
@@ -16562,61 +16554,28 @@ Font License Notices
             playCrystalCollectionEffect(crystal) {
                 if (!crystal || !this.player || !this.player.element || !this.container) return;
 
-                const now = performance.now();
-                const fx = this.crystalCollectionFx || (this.crystalCollectionFx = {
-                    lastPickupAt: -Infinity,
-                    chain: 0,
-                    halo: null
-                });
-                fx.chain = now - fx.lastPickupAt <= 170 ? Math.min(3, fx.chain + 1) : 1;
-                fx.lastPickupAt = now;
-
-                const color = (this.colorMap && this.colorMap[crystal.color]) || '#fff';
-                const orbCenterX = this.player.x + this.player.size / 2;
-                const orbCenterY = this.player.y + this.player.size / 2;
-                const crystalCenterX = crystal.x + crystal.size / 2;
-                const crystalCenterY = crystal.y + crystal.size / 2;
                 const effectId = ++this.visualEffectSequence;
+                const playerElement = this.player.element;
 
-                const collapse = document.createElement('div');
-                collapse.className = 'crystal-collect-collapse';
-                collapse.style.setProperty('--collect-start-x', `${crystalCenterX}px`);
-                collapse.style.setProperty('--collect-start-y', `${crystalCenterY}px`);
-                collapse.style.setProperty('--collect-size', `${crystal.size}px`);
-                collapse.style.setProperty('--collect-color', color);
-                this.container.appendChild(collapse);
-                this.scheduler.scheduleTimeout('visual-effects', `crystal-collect-collapse-${effectId}`, () => collapse.remove(), 180);
+                // Restart the Orb flash/pop cleanly even during rapid pickup chains.
+                playerElement.classList.remove('crystal-pickup-pop');
+                void playerElement.offsetWidth;
+                playerElement.classList.add('crystal-pickup-pop');
+                this.scheduler.scheduleTimeout('visual-effects', 'crystal-pickup-pop', () => {
+                    if (playerElement) playerElement.classList.remove('crystal-pickup-pop');
+                }, 190);
 
-                const rayStart = this.player.size / 2 + Math.max(1, this.player.size * 0.08);
-                const rayLength = this.player.size * (0.46 + ((fx.chain - 1) * 0.04));
-                [0, 90, 180, 270].forEach((angle, rayIndex) => {
-                    const ray = document.createElement('div');
-                    ray.className = 'crystal-collect-ray';
-                    ray.style.setProperty('--collect-orb-x', `${orbCenterX}px`);
-                    ray.style.setProperty('--collect-orb-y', `${orbCenterY}px`);
-                    ray.style.setProperty('--collect-ray-start', `${rayStart}px`);
-                    ray.style.setProperty('--collect-ray-length', `${rayLength}px`);
-                    ray.style.setProperty('--collect-ray-angle', `${angle}deg`);
-                    ray.style.setProperty('--collect-color', color);
-                    this.container.appendChild(ray);
-                    this.scheduler.scheduleTimeout('visual-effects', `crystal-collect-ray-${effectId}-${rayIndex}`, () => ray.remove(), 190);
-                });
+                const ring = document.createElement('div');
+                ring.className = 'orb-crystal-pickup-ring';
+                ring.style.setProperty('--collect-ring-size', `${this.player.size * 1.35}px`);
+                playerElement.appendChild(ring);
+                this.scheduler.scheduleTimeout('visual-effects', `crystal-pickup-ring-${effectId}`, () => ring.remove(), 210);
 
-                if (!fx.halo || !fx.halo.isConnected) {
-                    fx.halo = document.createElement('div');
-                    fx.halo.className = 'orb-crystal-collect-halo';
-                    this.container.appendChild(fx.halo);
-                }
-                fx.halo.style.setProperty('--collect-orb-x', `${orbCenterX}px`);
-                fx.halo.style.setProperty('--collect-orb-y', `${orbCenterY}px`);
-                fx.halo.style.setProperty('--collect-halo-size', `${this.player.size * 1.34}px`);
-                fx.halo.style.setProperty('--collect-color', color);
-                fx.halo.classList.remove('active');
-                void fx.halo.offsetWidth;
-                fx.halo.classList.add('active');
-                this.scheduler.scheduleTimeout('visual-effects', 'crystal-collect-halo', () => {
-                    if (fx.halo) fx.halo.classList.remove('active');
-                }, 175);
+                const sparkle = document.createElement('div');
+                sparkle.className = 'orb-crystal-pickup-sparkle';
+                sparkle.style.setProperty('--collect-spark-size', `${this.player.size * 1.55}px`);
+                playerElement.appendChild(sparkle);
+                this.scheduler.scheduleTimeout('visual-effects', `crystal-pickup-sparkle-${effectId}`, () => sparkle.remove(), 175);
             }
 
             collectCrystalAtIndex(index, crystal) {
