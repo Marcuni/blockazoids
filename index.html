@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Trackpad Prototype p076: Adds the mandatory Grid Calibration tutorial, Reset Tutorial setting, Launch wording, and menu spacing refinements while retaining current gameplay enhancements.
+Trackpad Prototype p077: Moves Grid Calibration instructions onto the playfield, restores the normal HUD, aligns tutorial wording with How to Play, and adds a readable collision-restart sequence.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="trackpad-p076">
+<html data-build-version="trackpad-p077">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -5779,24 +5779,37 @@ Font License Notices
         #gameContainer.crt-zap-medium.crt-zap-event .playfield-crt-event { filter: opacity(0.18) !important; }
         #gameContainer.crt-restore-medium.crt-restore-event .playfield-crt-event { filter: opacity(0.42) !important; }
 
-        /* v298: one-time interactive intro replaces the normal top HUD without pausing play. */
-        #tutorialHud {
-            display: none;
-            width: 100%;
+        /* p077: tutorial instructions live inside the playfield at the countdown position. */
+        #tutorialPrompt {
+            position: absolute;
+            left: 50%;
+            top: 33.333%;
+            transform: translate(-50%, -50%);
+            width: min(94%, 560px);
             box-sizing: border-box;
-            padding: 0 8px;
+            padding: 8px 10px;
             color: #fff;
+            background: rgba(0, 0, 0, 0.82);
             font-family: "Orbitron";
-            font-size: clamp(17px, 5vw, 26px);
+            font-size: clamp(15px, 4.2vw, 24px);
             font-weight: 700;
             line-height: 1.15;
-            letter-spacing: clamp(1px, 0.7vw, 3px);
+            letter-spacing: clamp(1px, 0.55vw, 2.5px);
             text-align: center;
             white-space: nowrap;
             text-shadow: 0 0 8px rgba(255,255,255,0.72);
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+            z-index: 1004;
         }
 
-        #tutorialHud.tutorial-starting-flash {
+        #tutorialPrompt.visible {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        #tutorialPrompt.tutorial-starting-flash {
             animation: tutorialStartingFlash 0.22s steps(2, end) 4;
         }
 
@@ -5805,16 +5818,6 @@ Font License Notices
             50% { opacity: 0.12; }
         }
 
-        body.tutorial-active #tutorialHud,
-        body.tutorial-pending #tutorialHud { display: block; }
-        body.tutorial-active #scoreHud > :not(#tutorialHud),
-        body.tutorial-pending #scoreHud > :not(#tutorialHud) { display: none !important; }
-        body.tutorial-active #scoreHud,
-        body.tutorial-pending #scoreHud {
-            justify-content: center;
-            padding-left: 4px;
-            padding-right: 4px;
-        }
         body.tutorial-active #pauseGridMenu,
         body.tutorial-active #devLevelSelectHudButton { display: none !important; }
 
@@ -6760,7 +6763,7 @@ Font License Notices
             letter-spacing: 2px;
         }
 
-        #scoreHud > :not(#score):not(#tutorialHud) {
+        #scoreHud > :not(#score) {
             display: none !important;
         }
 
@@ -7555,7 +7558,7 @@ Font License Notices
 
 
 
-        /* p076: player-facing menu wording and spacing. */
+        /* p077: player-facing menu wording and spacing. */
         #settingsPanel {
             overflow-y: auto;
         }
@@ -7596,7 +7599,6 @@ Font License Notices
 
     <!-- Score display -->
     <div id="scoreHud">
-        <div id="tutorialHud" role="status" aria-live="polite" aria-atomic="true"></div>
         <div class="hud-group" id="cycleHud" aria-live="polite"></div>
         <div id="score">0</div>
         <div id="highScoreHud">0</div>
@@ -7651,6 +7653,7 @@ Font License Notices
         <div class="playfield-crt-layer playfield-crt-event" aria-hidden="true"></div>
         <div class="playfield-crt-shutdown" aria-hidden="true"></div>
         <div id="player"></div>
+        <div id="tutorialPrompt" role="status" aria-live="polite" aria-atomic="true"></div>
         <div id="gameOver">GAME OVER</div>
         <div id="bonusText"></div> <!-- New element for bonus display -->
         <button id="cycleContinueButton" type="button" aria-hidden="true">CONTINUE</button>
@@ -8041,7 +8044,7 @@ Font License Notices
                 })
             }),
             tutorial: Object.freeze({
-                introTitleMs: 900,
+                introTitleMs: 1000,
                 movementRequired: 150,
                 movementAdvanceDelayMs: 700,
                 crystalAdvanceDelayMs: 650,
@@ -8049,9 +8052,11 @@ Font License Notices
                 enemyAvoidRequiredMs: 5000,
                 enemySpeedMultiplier: 0.72,
                 zapTargetSpawnDelayMs: 450,
-                retryMessageMs: 1100,
+                collisionFreezeMs: 800,
+                retryFadeMs: 350,
+                retryBlackHoldMs: 500,
                 completeMessageMs: 1200,
-                hudGapMs: 300
+                messageGapMs: 300
             }),
             input: Object.freeze({
                 cosmicZapCooldownMs: 450,
@@ -8158,11 +8163,10 @@ Font License Notices
             ].map(plan => Object.freeze(plan))),
             tutorialMessages: Object.freeze({
                 intro: 'GRID CALIBRATION',
-                movement: 'SWIPE TO MOVE THE ORB',
-                crystal: 'COLLECT THE FLASHING CRYSTALS',
-                enemy: 'AVOID THE BLOCK-A-ZOID',
+                movement: 'SWIPE ANYWHERE TO MOVE',
+                crystal: 'COLLECT BLINKING CRYSTALS',
+                enemy: 'AVOID BLOCK-A-ZOIDS',
                 zap: 'SHAKE TO COSMIC ZAP',
-                failed: 'CALIBRATION FAILED',
                 complete: 'GRID CALIBRATION COMPLETE'
             }),
             sectorNames: Object.freeze(
@@ -8796,7 +8800,8 @@ Font License Notices
                     game.tutorialToken++;
                     game.cancelTutorialScheduling();
                     game.clearTutorialObjects();
-                    game.setTutorialHud('');
+                    game.setTutorialPrompt('');
+                    game.screenFadeElement.classList.remove('visible');
                     document.body.classList.remove('tutorial-active');
                 }
                 game.stopRunRecordActionClock();
@@ -9400,7 +9405,7 @@ Font License Notices
                 this.settingsTrackingSpeedValue = document.getElementById('settingsTrackingSpeedValue');
                 this.trackingSpeedStorageKey = 'blockazoidsTrackingSpeedV1';
                 this.trackingSpeed = this.loadTrackingSpeed();
-                this.tutorialHud = document.getElementById('tutorialHud');
+                this.tutorialPrompt = document.getElementById('tutorialPrompt');
                 this.invincibilityToggleButton = document.getElementById('invincibilityToggleButton');
                 this.skinFrameControl = document.getElementById('skinFrameControl');
                 this.skinFrameDecreaseButton = document.getElementById('skinFrameDecreaseButton');
@@ -9651,11 +9656,13 @@ Font License Notices
                 this.tutorialEnemyAvoidRequiredMs = GAME_CONFIG.tutorial.enemyAvoidRequiredMs;
                 this.tutorialEnemySpeedMultiplier = GAME_CONFIG.tutorial.enemySpeedMultiplier;
                 this.tutorialZapTargetSpawnDelayMs = GAME_CONFIG.tutorial.zapTargetSpawnDelayMs;
-                this.tutorialRetryMessageMs = GAME_CONFIG.tutorial.retryMessageMs;
+                this.tutorialCollisionFreezeMs = GAME_CONFIG.tutorial.collisionFreezeMs;
+                this.tutorialRetryFadeMs = GAME_CONFIG.tutorial.retryFadeMs;
+                this.tutorialRetryBlackHoldMs = GAME_CONFIG.tutorial.retryBlackHoldMs;
                 this.tutorialCompleteMessageMs = GAME_CONFIG.tutorial.completeMessageMs;
-                this.tutorialHudGapMs = GAME_CONFIG.tutorial.hudGapMs;
-                this.tutorialHudTimer = null;
-                this.tutorialHudMessageToken = 0;
+                this.tutorialMessageGapMs = GAME_CONFIG.tutorial.messageGapMs;
+                this.tutorialPromptTimer = null;
+                this.tutorialPromptMessageToken = 0;
                 this.tutorialStepTimer = null;
                 this.tutorialEnemy = null;
                 this.tutorialEnemySpawned = false;
@@ -13107,9 +13114,6 @@ Font License Notices
                     this.activationHowToOverlay.classList.remove('visible');
                     this.activationHowToOverlay.setAttribute('aria-hidden', 'true');
                 }
-                const tutorialPending = TUTORIAL_ENABLED && !this.introCompleted;
-                document.body.classList.toggle('tutorial-pending', tutorialPending);
-                this.setTutorialHud(tutorialPending ? 'CALIBRATION REQUIRED' : '');
             }
 
             hideActivationHowToOverlay() {
@@ -13117,8 +13121,7 @@ Font License Notices
                     this.activationHowToOverlay.classList.remove('visible');
                     this.activationHowToOverlay.setAttribute('aria-hidden', 'true');
                 }
-                document.body.classList.remove('tutorial-pending');
-                if (!this.tutorialActive) this.setTutorialHud('');
+                if (!this.tutorialActive) this.setTutorialPrompt('');
                 return Promise.resolve();
             }
 
@@ -14865,8 +14868,10 @@ Font License Notices
                 this.setTelemetryStatus(`Invincibility ${this.invincibilityEnabled ? 'enabled' : 'disabled'}.`);
             }
 
-            setTutorialHud(text = '') {
-                if (this.tutorialHud) this.tutorialHud.textContent = text;
+            setTutorialPrompt(text = '') {
+                if (!this.tutorialPrompt) return;
+                this.tutorialPrompt.textContent = text;
+                this.tutorialPrompt.classList.toggle('visible', !!text);
             }
 
             clearTutorialAnimationFrame() {
@@ -14885,33 +14890,33 @@ Font License Notices
                 return this.tutorialRafId;
             }
 
-            clearTutorialHudTimer() {
-                if (this.tutorialHudTimer) {
-                    this.scheduler.cancelTask(this.tutorialHudTimer);
-                    this.tutorialHudTimer = null;
+            clearTutorialPromptTimer() {
+                if (this.tutorialPromptTimer) {
+                    this.scheduler.cancelTask(this.tutorialPromptTimer);
+                    this.tutorialPromptTimer = null;
                 }
-                this.tutorialHudMessageToken++;
-                if (this.tutorialHud) this.tutorialHud.classList.remove('tutorial-starting-flash');
+                this.tutorialPromptMessageToken++;
+                if (this.tutorialPrompt) this.tutorialPrompt.classList.remove('tutorial-starting-flash');
             }
 
-            showTutorialHudMessage(text, stepIndex = 0, options = {}) {
+            showTutorialPromptMessage(text, stepIndex = 0, options = {}) {
                 const gap = options.gap === true;
                 const flash = options.flash === true;
                 const expectedStep = options.expectedStep || this.tutorialStep;
                 const onShown = typeof options.onShown === 'function' ? options.onShown : null;
-                this.clearTutorialHudTimer();
-                const messageToken = this.tutorialHudMessageToken;
-                this.setTutorialHud('');
+                this.clearTutorialPromptTimer();
+                const messageToken = this.tutorialPromptMessageToken;
+                this.setTutorialPrompt('');
 
                 const showMessage = () => {
-                    this.tutorialHudTimer = null;
-                    if (!this.tutorialActive || messageToken !== this.tutorialHudMessageToken) return;
+                    this.tutorialPromptTimer = null;
+                    if (!this.tutorialActive || messageToken !== this.tutorialPromptMessageToken) return;
                     if (expectedStep && this.tutorialStep !== expectedStep) return;
-                    this.setTutorialHud(text);
-                    if (flash && this.tutorialHud) {
-                        this.tutorialHud.classList.remove('tutorial-starting-flash');
-                        void this.tutorialHud.offsetWidth;
-                        this.tutorialHud.classList.add('tutorial-starting-flash');
+                    this.setTutorialPrompt(text);
+                    if (flash && this.tutorialPrompt) {
+                        this.tutorialPrompt.classList.remove('tutorial-starting-flash');
+                        void this.tutorialPrompt.offsetWidth;
+                        this.tutorialPrompt.classList.add('tutorial-starting-flash');
                     }
                     if (this.audio && typeof this.audio.playTutorialStepBeep === 'function') {
                         this.audio.playTutorialStepBeep(stepIndex);
@@ -14921,7 +14926,7 @@ Font License Notices
                 };
 
                 if (gap) {
-                    this.tutorialHudTimer = this.scheduler.scheduleTimeout('tutorial', 'hud-message', showMessage, this.tutorialHudGapMs);
+                    this.tutorialPromptTimer = this.scheduler.scheduleTimeout('tutorial', 'prompt-message', showMessage, this.tutorialMessageGapMs);
                 } else {
                     showMessage();
                 }
@@ -14946,14 +14951,14 @@ Font License Notices
             cancelTutorialScheduling() {
                 const cancelledTasks = this.scheduler.cancelScope('tutorial');
                 this.tutorialRafId = null;
-                this.tutorialHudTimer = null;
+                this.tutorialPromptTimer = null;
                 this.tutorialStepTimer = null;
                 return cancelledTasks;
             }
 
             clearTutorialObjects() {
                 this.clearTutorialStepTimer();
-                this.clearTutorialHudTimer();
+                this.clearTutorialPromptTimer();
                 this.clearPendingSpawnWarnings(true);
                 this.enemies.forEach(enemy => {
                     try { enemy.element.remove(); } catch (_) {}
@@ -15016,6 +15021,7 @@ Font License Notices
                 this.setGameplayState({ levelActionStarted: true });
                 this.player.reset();
                 document.body.classList.add('tutorial-active');
+                this.screenFadeElement.classList.remove('visible');
                 this.setGameOverlayVisible(false);
                 this.setCrtUiSuspended(false);
                 this.setCrtPaused(false);
@@ -15034,7 +15040,7 @@ Font License Notices
             setTutorialStep(step, options = {}) {
                 if (!this.tutorialActive) return;
                 this.clearTutorialStepTimer();
-                this.clearTutorialHudTimer();
+                this.clearTutorialPromptTimer();
                 // Tutorial instructions change the ruleset state without replacing the shared
                 // movement, collection, enemy, collision, or Cosmic Zap systems.
                 this.setTutorialState({ tutorialStep: step });
@@ -15050,7 +15056,7 @@ Font License Notices
                     this.tutorialEnemySpawned = false;
                     this.tutorialZapTargetsSpawned = 0;
                     this.setTutorialState({ tutorialZapTargetsReady: false });
-                    this.showTutorialHudMessage(GAME_DATA.tutorialMessages.intro, 0, {
+                    this.showTutorialPromptMessage(GAME_DATA.tutorialMessages.intro, 0, {
                         gap: false,
                         flash: true,
                         expectedStep: 'intro'
@@ -15063,7 +15069,7 @@ Font License Notices
                     this.tutorialMovementDistance = 0;
                     this.tutorialMovementQualified = false;
                     this.cosmicZapsLeft = 0;
-                    this.showTutorialHudMessage(GAME_DATA.tutorialMessages.movement, 1, { gap: false, expectedStep: 'movement' });
+                    this.showTutorialPromptMessage(GAME_DATA.tutorialMessages.movement, 1, { gap: false, expectedStep: 'movement' });
                 } else if (step === 'crystal') {
                     this.clearTutorialObjects();
                     this.cosmicZapsLeft = 0;
@@ -15083,13 +15089,13 @@ Font License Notices
                         crystal.element.classList.add('next');
                         return crystal;
                     });
-                    this.showTutorialHudMessage(GAME_DATA.tutorialMessages.crystal, 2, { expectedStep: 'crystal' });
+                    this.showTutorialPromptMessage(GAME_DATA.tutorialMessages.crystal, 2, { expectedStep: 'crystal' });
                 } else if (step === 'enemy') {
                     this.clearTutorialObjects();
                     this.cosmicZapsLeft = 0;
                     this.tutorialEnemyAvoidMs = 0;
                     this.tutorialEnemySpawned = false;
-                    this.showTutorialHudMessage(GAME_DATA.tutorialMessages.enemy, 3, {
+                    this.showTutorialPromptMessage(GAME_DATA.tutorialMessages.enemy, 3, {
                         expectedStep: 'enemy',
                         onShown: () => {
                             this.scheduleTutorialStepTimer(() => {
@@ -15104,7 +15110,7 @@ Font License Notices
                     this.cosmicZapsLeft = 0;
                     this.tutorialZapTargetsSpawned = 0;
                     this.setTutorialState({ tutorialZapTargetsReady: false });
-                    this.setTutorialHud('');
+                    this.setTutorialPrompt('');
                     this.scheduleTutorialStepTimer(() => {
                         if (this.tutorialActive && this.tutorialStep === 'zap') this.spawnTutorialZapTargets();
                     }, this.tutorialZapTargetSpawnDelayMs);
@@ -15218,7 +15224,7 @@ Font License Notices
                         if (this.tutorialZapTargetsSpawned >= locations.length) {
                             this.cosmicZapsLeft = 1;
                             this.setTutorialState({ tutorialZapTargetsReady: true });
-                            this.showTutorialHudMessage(GAME_DATA.tutorialMessages.zap, 4, {
+                            this.showTutorialPromptMessage(GAME_DATA.tutorialMessages.zap, 4, {
                                 gap: false,
                                 expectedStep: 'zap'
                             });
@@ -15302,27 +15308,41 @@ Font License Notices
                     true
                 ));
                 this.tutorialToken++;
+                const retryToken = this.tutorialToken;
                 this.clearTutorialAnimationFrame();
-                this.clearTutorialObjects();
+                this.clearTutorialStepTimer();
+                this.clearTutorialPromptTimer();
+                this.setTutorialPrompt('');
                 this.tutorialEnemyAvoidMs = 0;
                 this.tutorialEnemySpawned = false;
                 this.tutorialZapTargetsSpawned = 0;
                 this.setTutorialState({ tutorialZapTargetsReady: false });
                 this.player.invalidateDragSession('tutorial-death');
+                this.setTransitionState({ startInputLocked: true });
                 this.setTutorialState({ tutorialStep: 'retry' });
-                this.showTutorialHudMessage(GAME_DATA.tutorialMessages.failed, 5, {
-                    gap: false,
-                    flash: true,
-                    expectedStep: 'retry'
-                });
+
+                // Let the collision read, then hide the reset behind a short black transition.
                 this.scheduleTutorialStepTimer(() => {
-                    if (!this.tutorialActive || this.tutorialStep !== 'retry') return;
-                    this.player.reset();
-                    this.setTutorialStep('intro');
-                    this.tutorialLastFrameTime = performance.now();
-                    const token = this.tutorialToken;
-                    this.scheduleTutorialAnimationFrame(token);
-                }, this.tutorialRetryMessageMs);
+                    if (!this.tutorialActive || this.tutorialStep !== 'retry' || retryToken !== this.tutorialToken) return;
+                    this.screenFadeElement.style.transition = `opacity ${this.tutorialRetryFadeMs}ms ease-in-out`;
+                    this.screenFadeElement.classList.add('visible');
+
+                    this.scheduleTutorialStepTimer(() => {
+                        if (!this.tutorialActive || this.tutorialStep !== 'retry' || retryToken !== this.tutorialToken) return;
+                        this.clearTutorialObjects();
+                        this.player.reset();
+
+                        this.scheduleTutorialStepTimer(() => {
+                            if (!this.tutorialActive || this.tutorialStep !== 'retry' || retryToken !== this.tutorialToken) return;
+                            this.screenFadeElement.style.transition = `opacity ${this.tutorialRetryFadeMs}ms ease-in-out`;
+                            this.screenFadeElement.classList.remove('visible');
+                            this.setTransitionState({ startInputLocked: false });
+                            this.setTutorialStep('intro');
+                            this.tutorialLastFrameTime = performance.now();
+                            this.scheduleTutorialAnimationFrame(retryToken);
+                        }, this.tutorialRetryBlackHoldMs);
+                    }, this.tutorialRetryFadeMs);
+                }, this.tutorialCollisionFreezeMs);
             }
 
             updateTutorial(timestamp, token) {
@@ -15414,7 +15434,7 @@ Font License Notices
             completeOneTimeIntro() {
                 if (!this.tutorialActive || this.tutorialStep !== 'zap') return;
                 this.setTutorialState({ tutorialStep: 'complete-message' });
-                this.showTutorialHudMessage(GAME_DATA.tutorialMessages.complete, 6, {
+                this.showTutorialPromptMessage(GAME_DATA.tutorialMessages.complete, 6, {
                     gap: false,
                     flash: true,
                     expectedStep: 'complete-message'
@@ -15447,7 +15467,8 @@ Font License Notices
                 this.setTutorialState({ tutorialActive: false });
                 this.setTutorialState({ tutorialStep: '' });
                 this.cancelTutorialScheduling();
-                this.setTutorialHud('');
+                this.setTutorialPrompt('');
+                this.screenFadeElement.classList.remove('visible');
                 document.body.classList.remove('tutorial-active');
                 this.syncMotionListenerState();
                 this.ui.updateAll();
