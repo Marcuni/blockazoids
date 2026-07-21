@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Trackpad Prototype p069: Adds end-of-sector Record Pace checkpoints, enlarges the restoration score panel, and tightens the Sector/Cycle label-to-value spacing.
+Trackpad Prototype p070: Enlarges the end-of-sector results, guarantees visible Record Pace feedback with session-safe checkpoints, and tightens the Sector/Cycle value spacing.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="trackpad-p069">
+<html data-build-version="trackpad-p070">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -1034,12 +1034,12 @@ Font License Notices
         /* Framed grid-sector restoration sequence between levels. The panel is intentionally
            large because it appears briefly and must be readable at a glance on a phone. */
         #bonusText.restoreText {
-            width: min(94%, 560px);
+            width: min(96%, 576px);
             box-sizing: border-box;
-            padding: clamp(14px, 3.7vw, 22px) clamp(13px, 3.5vw, 20px);
-            font-size: clamp(18px, 5.25vw, 30px);
-            line-height: 1.30;
-            letter-spacing: 0.35px;
+            padding: clamp(16px, 4.1vw, 25px) clamp(14px, 3.7vw, 22px);
+            font-size: clamp(22px, 6.15vw, 35px);
+            line-height: 1.28;
+            letter-spacing: 0.25px;
             opacity: 1;
             color: #fff;
             background: #000;
@@ -1049,28 +1049,29 @@ Font License Notices
             white-space: normal;
         }
 
+        /* Match the main level-start title exactly. */
         .restore-title {
             white-space: nowrap;
-            font-size: clamp(27px, 7.35vw, 44px);
-            line-height: 1.06;
-            letter-spacing: 0.65px;
-            margin-bottom: clamp(3px, 1vw, 7px);
+            font-size: clamp(34px, 9vw, 58px);
+            line-height: 1.08;
+            letter-spacing: 3px;
+            margin-bottom: clamp(5px, 1.35vw, 9px);
         }
 
         .bonus-score-spacer {
-            height: clamp(8px, 2vw, 12px);
+            height: clamp(10px, 2.6vw, 16px);
         }
 
         .bonus-score-row {
             display: flex;
             justify-content: space-between;
             align-items: baseline;
-            gap: clamp(12px, 3vw, 22px);
+            gap: clamp(14px, 3.6vw, 25px);
             width: 100%;
             box-sizing: border-box;
-            padding: clamp(1px, 0.35vw, 3px) 3px;
+            padding: clamp(3px, 0.8vw, 5px) 3px;
             white-space: nowrap;
-            line-height: 1.34;
+            line-height: 1.38;
         }
 
         .bonus-score-row > span:last-child {
@@ -1087,11 +1088,16 @@ Font License Notices
         }
 
         .record-pace-row {
-            font-size: 1.08em;
+            font-size: 1.10em;
             font-weight: 800;
             letter-spacing: 0.55px;
             opacity: 0;
             transform: translateY(4px);
+        }
+
+        .record-pace-row.pace-established {
+            justify-content: center;
+            text-align: center;
         }
 
         .record-pace-row.visible {
@@ -7305,7 +7311,7 @@ Font License Notices
         html body .skin-status-value {
             position: absolute;
             left: 50%;
-            top: 50.5%;
+            top: 49.5%;
             transform: translate(-50%, -50%);
             width: 100%;
             font-size: calc(var(--skin-scale, 1) * 60px);
@@ -9577,6 +9583,7 @@ Font License Notices
                 this.highScoreTarget = this.highScore; // Saved score the current run must beat for the record fanfare
                 this.highScoreBeatenThisRun = this.highScoreTarget <= 0; // Avoid a record fanfare when no real score exists yet
                 this.highScoreDetails = this.loadHighScoreDetails();
+                this.recordPaceSessionProfilesByStorageKey = {};
                 this.recordPaceProfiles = this.loadRecordPaceProfiles();
                 this.recordPaceTargetProfile = null;
                 this.currentRunPaceCheckpoints = {};
@@ -13974,43 +13981,61 @@ Font License Notices
                 return { version: 1, profiles: {} };
             }
 
-            loadRecordPaceProfiles() {
-                try {
-                    const parsed = JSON.parse(localStorage.getItem(this.recordPaceProfilesStorageKey) || 'null');
-                    if (!parsed || typeof parsed !== 'object' || !parsed.profiles || typeof parsed.profiles !== 'object') {
-                        return this.getEmptyRecordPaceProfiles();
-                    }
-
-                    const profiles = {};
-                    Object.entries(parsed.profiles).forEach(([profileKey, rawProfile]) => {
-                        if (!rawProfile || typeof rawProfile !== 'object') return;
-                        const checkpoints = {};
-                        Object.entries(rawProfile.checkpoints || {}).forEach(([checkpointKey, rawScore]) => {
-                            const checkpointScore = Math.max(0, Math.floor(Number(rawScore) || 0));
-                            if (checkpointScore > 0) checkpoints[checkpointKey] = checkpointScore;
-                        });
-                        const profileScore = Math.max(0, Math.floor(Number(rawProfile.score) || 0));
-                        if (profileScore <= 0 && Object.keys(checkpoints).length === 0) return;
-                        profiles[profileKey] = {
-                            score: profileScore,
-                            startCycle: Math.max(1, Math.floor(Number(rawProfile.startCycle) || 1)),
-                            startSector: Math.max(1, Math.floor(Number(rawProfile.startSector) || 1)),
-                            checkpoints,
-                            updatedAt: typeof rawProfile.updatedAt === 'string' ? rawProfile.updatedAt : ''
-                        };
-                    });
-                    return { version: 1, profiles };
-                } catch (error) {
+            normalizeRecordPaceProfiles(rawProfiles) {
+                if (!rawProfiles || typeof rawProfiles !== 'object' || !rawProfiles.profiles || typeof rawProfiles.profiles !== 'object') {
                     return this.getEmptyRecordPaceProfiles();
                 }
+
+                const profiles = {};
+                Object.entries(rawProfiles.profiles).forEach(([profileKey, rawProfile]) => {
+                    if (!rawProfile || typeof rawProfile !== 'object') return;
+                    const checkpoints = {};
+                    Object.entries(rawProfile.checkpoints || {}).forEach(([checkpointKey, rawScore]) => {
+                        const checkpointScore = Math.max(0, Math.floor(Number(rawScore) || 0));
+                        if (checkpointScore > 0) checkpoints[checkpointKey] = checkpointScore;
+                    });
+                    const profileScore = Math.max(0, Math.floor(Number(rawProfile.score) || 0));
+                    if (profileScore <= 0 && Object.keys(checkpoints).length === 0) return;
+                    profiles[profileKey] = {
+                        score: profileScore,
+                        startCycle: Math.max(1, Math.floor(Number(rawProfile.startCycle) || 1)),
+                        startSector: Math.max(1, Math.floor(Number(rawProfile.startSector) || 1)),
+                        checkpoints,
+                        updatedAt: typeof rawProfile.updatedAt === 'string' ? rawProfile.updatedAt : ''
+                    };
+                });
+                return { version: 1, profiles };
+            }
+
+            cloneRecordPaceProfiles(profiles) {
+                return this.normalizeRecordPaceProfiles(JSON.parse(JSON.stringify(profiles || this.getEmptyRecordPaceProfiles())));
+            }
+
+            loadRecordPaceProfiles() {
+                const storageKey = this.recordPaceProfilesStorageKey || 'record-pace-default';
+                try {
+                    const parsed = JSON.parse(localStorage.getItem(storageKey) || 'null');
+                    const normalized = this.normalizeRecordPaceProfiles(parsed);
+                    if (Object.keys(normalized.profiles).length > 0) {
+                        if (this.recordPaceSessionProfilesByStorageKey) {
+                            this.recordPaceSessionProfilesByStorageKey[storageKey] = this.cloneRecordPaceProfiles(normalized);
+                        }
+                        return normalized;
+                    }
+                } catch (error) {}
+
+                const sessionProfiles = this.recordPaceSessionProfilesByStorageKey && this.recordPaceSessionProfilesByStorageKey[storageKey];
+                return sessionProfiles ? this.cloneRecordPaceProfiles(sessionProfiles) : this.getEmptyRecordPaceProfiles();
             }
 
             saveRecordPaceProfiles() {
+                const storageKey = this.recordPaceProfilesStorageKey || 'record-pace-default';
+                const normalized = this.cloneRecordPaceProfiles(this.recordPaceProfiles || this.getEmptyRecordPaceProfiles());
+                if (this.recordPaceSessionProfilesByStorageKey) {
+                    this.recordPaceSessionProfilesByStorageKey[storageKey] = this.cloneRecordPaceProfiles(normalized);
+                }
                 try {
-                    localStorage.setItem(
-                        this.recordPaceProfilesStorageKey,
-                        JSON.stringify(this.recordPaceProfiles || this.getEmptyRecordPaceProfiles())
-                    );
+                    localStorage.setItem(storageKey, JSON.stringify(normalized));
                 } catch (error) {}
             }
 
@@ -16368,23 +16393,23 @@ Font License Notices
                 const scoreAnimationCompleted = await this.animateScoreBonus(totalBonus, transitionToken);
                 let stillCurrent = scoreAnimationCompleted && transitionToken === this.levelLoadToken && !this.isGameOver;
 
-                // Compare the completed cumulative sector score with the same checkpoint from
-                // the best prior run that started from the same Cycle/Sector configuration.
+                // Always explain the pace state. The first comparable checkpoint is visibly
+                // established; later runs compare against that saved Cycle/Sector checkpoint.
                 if (stillCurrent) {
                     const paceResult = this.captureSectorRecordPace(completedLevel);
-                    if (paceResult.hasTarget) {
-                        const paceValue = this.formatRecordPaceDelta(paceResult.delta);
-                        this.bonusTextElement.insertAdjacentHTML(
-                            'beforeend',
-                            `<div class="bonus-score-divider"></div><div class="bonus-score-row record-pace-row"><span>RECORD PACE</span><span>${paceValue}</span></div>`
-                        );
-                        const paceRow = this.bonusTextElement.querySelector('.record-pace-row');
-                        if (paceRow) {
-                            void paceRow.offsetWidth;
-                            paceRow.classList.add('visible');
-                        }
-                        stillCurrent = await this.wait(1250, transitionToken, 'record-pace-hold');
+                    const paceMarkup = paceResult.hasTarget
+                        ? `<div class="bonus-score-row record-pace-row"><span>RECORD PACE</span><span>${this.formatRecordPaceDelta(paceResult.delta)}</span></div>`
+                        : `<div class="bonus-score-row record-pace-row pace-established"><span>PACE ESTABLISHED</span></div>`;
+                    this.bonusTextElement.insertAdjacentHTML(
+                        'beforeend',
+                        `<div class="bonus-score-divider"></div>${paceMarkup}`
+                    );
+                    const paceRow = this.bonusTextElement.querySelector('.record-pace-row');
+                    if (paceRow) {
+                        void paceRow.offsetWidth;
+                        paceRow.classList.add('visible');
                     }
+                    stillCurrent = await this.wait(1900, transitionToken, 'record-pace-hold');
                 }
 
                 this.bonusTextElement.style.opacity = '0';
