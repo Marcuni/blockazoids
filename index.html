@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Trackpad Prototype p087: Fits the cast title on narrow playfields, removes secondary attract-card copy, and silences Drifter wall bounces.
+Trackpad Prototype p088: Stacks the cast title, raises enemy card copy, simplifies the finale, and trims nonessential Block-A-Zoid audio.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="trackpad-p087">
+<html data-build-version="trackpad-p088">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -7610,7 +7610,7 @@ Font License Notices
 
     
 
-        /* p087: full-playfield arcade identification sequence with compact cast framing and streamlined enemy cards. */
+        /* p088: full-playfield arcade identification sequence with stacked cast framing, raised copy, and a silent presentation layer. */
         #enemyIdentityCard {
             position: absolute;
             inset: 0;
@@ -7735,8 +7735,10 @@ Font License Notices
         #enemyIdentityCard[data-card="cast-intro"] .enemy-card-name {
             color: #fff;
             max-width: 100%;
-            font-size: clamp(24px, 7vw, 40px);
-            letter-spacing: clamp(1px, 0.5vw, 3px);
+            font-size: clamp(40px, 12vw, 72px);
+            line-height: 0.92;
+            letter-spacing: clamp(3px, 1.1vw, 7px);
+            white-space: pre-line;
             text-shadow: 0 0 10px #fff, 0 0 24px rgba(255,255,255,0.62);
         }
 
@@ -7746,8 +7748,11 @@ Font License Notices
         }
 
         #enemyIdentityCard[data-card="full-cast"] .enemy-card-name {
-            font-size: clamp(25px, 7.2vw, 42px);
-            letter-spacing: clamp(2px, 0.85vw, 5px);
+            width: 100%;
+            font-size: clamp(23px, 6.7vw, 39px);
+            line-height: 1.08;
+            letter-spacing: clamp(1px, 0.55vw, 3px);
+            white-space: normal;
         }
 
         #enemyIdentityCard[data-card="full-cast"] .enemy-card-class {
@@ -7891,7 +7896,7 @@ Font License Notices
         .enemy-card-copy {
             position: absolute;
             left: 5%;
-            bottom: clamp(24px, 6.6%, 42px);
+            bottom: clamp(54px, 14.5%, 88px);
             width: 90%;
             z-index: 3;
             text-align: center;
@@ -9576,9 +9581,6 @@ Font License Notices
                 game.explosions.push(new Explosion(game, game.player.x + game.player.size / 2, game.player.y + game.player.size / 2, true)); // Player explosion
                 game.container.classList.add('shake'); // Screen shake
                 game.audio.playExplosion(true); // Explosion sound
-                if (game.lastDeathCause && game.audio && typeof game.audio.playEnemyGameOverAccent === 'function') {
-                    game.audio.scheduleAudioTimer(() => game.audio.playEnemyGameOverAccent(game.lastDeathCause), 260, 'enemy-game-over-accent');
-                }
                 game.enemies.forEach(enemy => enemy.element.remove()); // Clear enemies
                 game.enemies = [];
                 game.crystals.forEach(crys => crys.element.remove()); // Clear crystals
@@ -17791,7 +17793,6 @@ Best Score: ${bestScore}${recoveredLine}` :
                     this.cosmicZapPressure++;
                     this.ui.updateCosmicZapIndicators();
                     this.audio.playCosmicZapSound();
-                    if (typeof this.audio.playEnemyZapDestructions === 'function') this.audio.playEnemyZapDestructions(clearedEnemies);
                     this.triggerCrtEvent('zap');
                     this.playCosmicZapDischarge(clearedEnemies);
                     this.container.classList.remove('cosmicZapShake');
@@ -17992,12 +17993,6 @@ Best Score: ${bestScore}${recoveredLine}` :
                 if (!stage) return;
                 const token = ++this.attractEnemyCardSimulationToken;
                 const startedAt = performance.now();
-                const cueFlags = new Set();
-                const triggerCue = (key, cueId) => {
-                    if (cueFlags.has(key)) return;
-                    cueFlags.add(key);
-                    if (this.audio && typeof this.audio.playEnemyCardCue === 'function') this.audio.playEnemyCardCue(cueId);
-                };
                 const zigState = { x: 0, y: 0, vx: 96, vy: 74, initialized: false, bounceCount: 0 };
 
                 const animate = now => {
@@ -18038,9 +18033,6 @@ Best Score: ${bestScore}${recoveredLine}` :
                             zigState.vx = Math.cos(angle) * speed;
                             zigState.vy = Math.sin(angle) * speed;
                             this.addAttractEnemyTrailDot(zigState.x, zigState.y, GAME_CONFIG.colors.red);
-                            if (this.audio && typeof this.audio.playEnemyCardCue === 'function' && zigState.bounceCount % 2 === 0) {
-                                this.audio.playEnemyCardCue('zig-direction');
-                            }
                         }
                         this.positionAttractCardElement(this.enemyIdentityCardPrimary, zigState.x, zigState.y, 1);
                     } else if (cardKey === 'charger') {
@@ -18058,18 +18050,15 @@ Best Score: ${bestScore}${recoveredLine}` :
                             const lockProgress = (elapsed - 0.72) / 0.76;
                             this.updateAttractLockLine(x, y, orbX, orbY, Math.min(1, lockProgress * 1.8));
                             transform = `scale(${1 + Math.sin(lockProgress * Math.PI * 5) * 0.05})`;
-                            triggerCue('dash-lock', 'dash-lock');
                         } else if (elapsed < 2.02) {
                             const chargeProgress = (elapsed - 1.48) / 0.54;
                             x = width * (0.28 + (0.88 - 0.28) * Math.min(1, chargeProgress * chargeProgress));
                             transform = 'scale(1.10)';
                             this.updateAttractLockLine(x, y, orbX, orbY, 0);
-                            triggerCue('dash-charge', 'dash-charge');
                         } else if (elapsed < 2.82) {
                             x = width * (0.88 - 0.07 * ((elapsed - 2.02) / 0.80));
                             opacity = 0.62;
                             transform = 'scale(0.92)';
-                            triggerCue('dash-recovery', 'dash-recovery');
                         } else {
                             x = width * 0.81;
                             opacity = 0.76;
@@ -18087,7 +18076,6 @@ Best Score: ${bestScore}${recoveredLine}` :
                             opacity = 1;
                         } else if (elapsed < 1.12) {
                             opacity = Math.max(0.08, 1 - ((elapsed - 0.82) / 0.30) * 0.92);
-                            triggerCue('echo-phase-down', 'echo-phase-down');
                             if (this.enemyIdentityCardAfterimage) {
                                 this.positionAttractCardElement(this.enemyIdentityCardAfterimage, width * 0.31, height * 0.49, 0.34);
                             }
@@ -18096,7 +18084,6 @@ Best Score: ${bestScore}${recoveredLine}` :
                             const flashLocal = (elapsed - 1.12) % 0.35;
                             opacity = flashLocal < 0.07 ? 0.58 : 0.055;
                             filter = 'brightness(0.58)';
-                            if (flashCycle >= 1) triggerCue(`echo-ping-${flashCycle}`, 'echo-ping');
                             if (this.enemyIdentityCardAfterimage) {
                                 const fade = Math.max(0, 0.34 * (1 - (elapsed - 1.12) / 0.82));
                                 this.enemyIdentityCardAfterimage.style.opacity = String(fade);
@@ -18108,12 +18095,10 @@ Best Score: ${bestScore}${recoveredLine}` :
                             if (this.enemyIdentityCardWarningRing) {
                                 this.positionAttractCardElement(this.enemyIdentityCardWarningRing, x, y, 0.35 + pulse * 0.65, `scale(${0.82 + pulse * 0.28})`);
                             }
-                            triggerCue('echo-return', 'echo-return');
                         } else if (elapsed < 3.14) {
                             opacity = 1;
                             filter = 'brightness(1.14)';
                             if (this.enemyIdentityCardWarningRing) this.enemyIdentityCardWarningRing.style.opacity = '0';
-                            triggerCue('echo-full-return', 'echo-full-return');
                         } else {
                             opacity = Math.max(0.04, 1 - ((elapsed - 3.14) / 0.36) * 0.96);
                         }
@@ -18160,7 +18145,6 @@ Best Score: ${bestScore}${recoveredLine}` :
             hideAttractEnemyCard(options = {}) {
                 if (!this.enemyIdentityCard) return;
                 this.stopAttractEnemyCardSimulation();
-                if (this.audio && typeof this.audio.setAttractEnemyAudioFocus === 'function') this.audio.setAttractEnemyAudioFocus(false);
                 this.enemyIdentityCard.classList.remove('visible', 'transition-prelude', 'transition-color', 'full-cast-brighten');
                 this.enemyIdentityCard.setAttribute('aria-hidden', 'true');
                 delete this.enemyIdentityCard.dataset.card;
@@ -18177,7 +18161,6 @@ Best Score: ${bestScore}${recoveredLine}` :
             showAttractTransitionFrame(color = '#fff', prelude = false) {
                 if (!this.enemyIdentityCard) return;
                 this.stopAttractEnemyCardSimulation();
-                if (this.audio && typeof this.audio.setAttractEnemyAudioFocus === 'function') this.audio.setAttractEnemyAudioFocus(true);
                 this.enemyIdentityCard.dataset.card = 'transition';
                 this.enemyIdentityCard.style.setProperty('--enemy-card-transition-color', color || '#fff');
                 this.enemyIdentityCard.setAttribute('aria-hidden', 'false');
@@ -18206,17 +18189,17 @@ Best Score: ${bestScore}${recoveredLine}` :
                     if (this.enemyIdentityCardBehavior) this.enemyIdentityCardBehavior.textContent = '';
                     this.enemyIdentityCard.setAttribute('aria-label', 'Arkom presents.');
                 } else if (isCastIntro) {
-                    if (this.enemyIdentityCardName) this.enemyIdentityCardName.textContent = 'THE BLOCK-A-ZOIDS';
+                    if (this.enemyIdentityCardName) this.enemyIdentityCardName.textContent = 'BLOCK\n-A-\nZOIDS';
                     if (this.enemyIdentityCardClass) this.enemyIdentityCardClass.textContent = '';
                     if (this.enemyIdentityCardPersonality) this.enemyIdentityCardPersonality.textContent = '';
                     if (this.enemyIdentityCardBehavior) this.enemyIdentityCardBehavior.textContent = '';
-                    this.enemyIdentityCard.setAttribute('aria-label', 'The Block-A-Zoids.');
+                    this.enemyIdentityCard.setAttribute('aria-label', 'Block-A-Zoids.');
                 } else if (isFullCast) {
-                    if (this.enemyIdentityCardName) this.enemyIdentityCardName.textContent = 'ZIG · DASH · ECHO';
-                    if (this.enemyIdentityCardClass) this.enemyIdentityCardClass.textContent = 'ENTER THE GRID';
+                    if (this.enemyIdentityCardName) this.enemyIdentityCardName.textContent = 'NOW ENTER THE GRID';
+                    if (this.enemyIdentityCardClass) this.enemyIdentityCardClass.textContent = '';
                     if (this.enemyIdentityCardPersonality) this.enemyIdentityCardPersonality.textContent = '';
                     if (this.enemyIdentityCardBehavior) this.enemyIdentityCardBehavior.textContent = '';
-                    this.enemyIdentityCard.setAttribute('aria-label', 'Zig, Dash, and Echo. Enter the Grid.');
+                    this.enemyIdentityCard.setAttribute('aria-label', 'Now enter the Grid.');
                 } else {
                     if (this.enemyIdentityCardName) this.enemyIdentityCardName.textContent = identity.displayName;
                     if (this.enemyIdentityCardClass) this.enemyIdentityCardClass.textContent = `“${identity.className.toUpperCase()}”`;
@@ -18227,20 +18210,12 @@ Best Score: ${bestScore}${recoveredLine}` :
 
                 this.enemyIdentityCard.setAttribute('aria-hidden', 'false');
                 this.enemyIdentityCard.classList.add('visible');
-                if (this.audio && typeof this.audio.setAttractEnemyAudioFocus === 'function') this.audio.setAttractEnemyAudioFocus(true);
-
                 if (isPresentationCard) {
                     this.stopAttractEnemyCardSimulation();
-                    if (this.audio && typeof this.audio.playAttractPresentationCue === 'function') {
-                        this.audio.playAttractPresentationCue(isCompany ? 'company' : 'cast-intro');
-                    }
                     return;
                 }
 
                 this.startAttractEnemyCardSimulation(isFullCast ? 'full-cast' : identity.key);
-                if (!isFullCast && this.audio && typeof this.audio.playEnemySpawn === 'function') {
-                    this.audio.playEnemySpawn(identity.spawnSoundId, `attract-card-${identity.key}-${performance.now()}`, { attract: true });
-                }
             }
 
             startAttractEnemyCardSequence(initialDelayMs = 6500) {
@@ -19513,25 +19488,10 @@ Best Score: ${bestScore}${recoveredLine}` :
                 const enemy = this.enemy;
                 enemy.dx = (Math.random() > 0.5 ? 1 : -1) * enemy.speed;
                 enemy.dy = (Math.random() > 0.5 ? 1 : -1) * enemy.speed;
-                this.directionChangesSinceAccent = 0;
-                this.nextDirectionAccentAt = 2 + Math.floor(Math.random() * 3);
-            }
-
-            noteDirectionChange(kind = 'impact') {
-                this.directionChangesSinceAccent++;
-                if (this.directionChangesSinceAccent >= this.nextDirectionAccentAt) {
-                    this.directionChangesSinceAccent = 0;
-                    this.nextDirectionAccentAt = 2 + Math.floor(Math.random() * 3);
-                    this.playSound('zig-direction', { cooldownMs: 360 });
-                }
             }
 
             getVisualColor() {
                 return GAME_CONFIG.enemyBehaviors.colors.drifter;
-            }
-
-            onBoundaryCollision() {
-                this.noteDirectionChange('bounce');
             }
 
             onEnemyCollision({ normal = null } = {}) {
@@ -19539,7 +19499,6 @@ Best Score: ${bestScore}${recoveredLine}` :
                 const enemy = this.enemy;
                 const normalDirection = normal || { x: enemy.dx, y: enemy.dy };
                 enemy.normalizeVelocityMagnitude(enemy.speed * Math.SQRT2, normalDirection);
-                this.noteDirectionChange('impact');
             }
 
             update(deltaTime) {
@@ -19557,8 +19516,6 @@ Best Score: ${bestScore}${recoveredLine}` :
                 this.state = 'cruise';
                 this.stateEndsAt = 0;
                 this.chargeDirection = { x: 1, y: 0 };
-                this.nextCruiseSoundAt = 0;
-                this.minimumChargeDistance = Infinity;
             }
 
             get type() {
@@ -19595,7 +19552,6 @@ Best Score: ${bestScore}${recoveredLine}` :
                 this.state = 'cruise';
                 const now = performance.now();
                 this.stateEndsAt = now + this.randomCruiseDuration();
-                this.nextCruiseSoundAt = now + 900 + Math.random() * 850;
             }
 
             onElementReady() {
@@ -19627,7 +19583,6 @@ Best Score: ${bestScore}${recoveredLine}` :
             beginCharge(now) {
                 this.state = 'charge';
                 this.stateEndsAt = now + this.tuning.chargeMaxMs;
-                this.minimumChargeDistance = Infinity;
                 this.setMovementDirection(this.chargeDirection.x, this.chargeDirection.y, this.tuning.chargeSpeedMultiplier);
                 this.setVisualState(this.state);
                 this.playSound('dash-charge', {
@@ -19638,22 +19593,9 @@ Best Score: ${bestScore}${recoveredLine}` :
                 });
             }
 
-            playerCenterDistance() {
-                const enemy = this.enemy;
-                const player = enemy.game.player;
-                const dx = (enemy.x + enemy.size / 2) - (player.x + player.size / 2);
-                const dy = (enemy.y + enemy.size / 2) - (player.y + player.size / 2);
-                return Math.hypot(dx, dy);
-            }
-
             beginRecovery(now) {
                 const enemy = this.enemy;
                 const previousState = this.state;
-                const nearMissThreshold = enemy.size / 2 + enemy.game.player.size * 2.35;
-                const collisionThreshold = enemy.size / 2 + enemy.game.player.size * 0.55;
-                const wasNearMiss = previousState === 'charge' &&
-                    this.minimumChargeDistance < nearMissThreshold &&
-                    this.minimumChargeDistance > collisionThreshold;
                 const directionX = Math.abs(enemy.dx) > 0.001 || Math.abs(enemy.dy) > 0.001 ? enemy.dx : -this.chargeDirection.x;
                 const directionY = Math.abs(enemy.dx) > 0.001 || Math.abs(enemy.dy) > 0.001 ? enemy.dy : -this.chargeDirection.y;
                 this.state = 'recovery';
@@ -19661,11 +19603,6 @@ Best Score: ${bestScore}${recoveredLine}` :
                 this.setMovementDirection(directionX, directionY, this.tuning.recoverySpeedMultiplier);
                 this.setVisualState(this.state);
                 if (previousState === 'charge') {
-                    if (wasNearMiss) {
-                        this.playSound('dash-near-miss', {
-                            directionPan: Math.max(-0.24, Math.min(0.24, this.chargeDirection.x * 0.24))
-                        });
-                    }
                     this.playSound('dash-recovery', { cooldownMs: 300 });
                 }
             }
@@ -19676,7 +19613,6 @@ Best Score: ${bestScore}${recoveredLine}` :
                 const directionY = Math.abs(enemy.dx) > 0.001 || Math.abs(enemy.dy) > 0.001 ? enemy.dy : (Math.random() > 0.5 ? 1 : -1);
                 this.state = 'cruise';
                 this.stateEndsAt = now + this.randomCruiseDuration();
-                this.nextCruiseSoundAt = now + 850 + Math.random() * 950;
                 this.setMovementDirection(directionX, directionY, this.tuning.cruiseSpeedMultiplier);
                 this.setVisualState(this.state);
             }
@@ -19722,15 +19658,6 @@ Best Score: ${bestScore}${recoveredLine}` :
                 const frameScale = deltaTime / 16.67;
                 enemy.x += enemy.dx * frameScale;
                 enemy.y += enemy.dy * frameScale;
-
-                if (this.state === 'charge') {
-                    this.minimumChargeDistance = Math.min(this.minimumChargeDistance, this.playerCenterDistance());
-                } else if (this.state === 'cruise' && timestamp >= this.nextCruiseSoundAt) {
-                    this.nextCruiseSoundAt = timestamp + 1050 + Math.random() * 950;
-                    if (this.playerCenterDistance() <= enemy.game.PLAYFIELD_SIZE * 0.38) {
-                        this.playSound('dash-cruise', { cooldownMs: 850 });
-                    }
-                }
             }
         }
 
@@ -19742,7 +19669,6 @@ Best Score: ${bestScore}${recoveredLine}` :
                 this.stateEndsAt = 0;
                 this.lastReactivatedAt = 0;
                 this.nextDormantPingAt = 0;
-                this.nextActivePulseAt = 0;
             }
 
             get type() {
@@ -19777,7 +19703,6 @@ Best Score: ${bestScore}${recoveredLine}` :
                 this.state = 'active';
                 const now = performance.now();
                 this.stateEndsAt = now + this.tuning.activeMs;
-                this.nextActivePulseAt = now + 850 + Math.random() * 850;
             }
 
             onElementReady() {
@@ -19813,7 +19738,6 @@ Best Score: ${bestScore}${recoveredLine}` :
                 this.lastReactivatedAt = now;
                 this.state = 'active';
                 this.stateEndsAt = now + this.tuning.activeMs;
-                this.nextActivePulseAt = now + 850 + Math.random() * 850;
                 this.setVisualState(this.state);
                 if (returningFromWarning) this.playSound('echo-return', { priority: 5, priorityHoldMs: 180 });
             }
@@ -19867,9 +19791,6 @@ Best Score: ${bestScore}${recoveredLine}` :
                 if (this.state === 'dormant' && timestamp >= this.nextDormantPingAt) {
                     this.nextDormantPingAt = timestamp + this.tuning.positionFlashIntervalMs;
                     this.playSound('echo-dormant-ping', { cooldownMs: Math.max(220, this.tuning.positionFlashIntervalMs - 40) });
-                } else if (this.state === 'active' && timestamp >= this.nextActivePulseAt) {
-                    this.nextActivePulseAt = timestamp + 1300 + Math.random() * 1100;
-                    this.playSound('echo-active', { cooldownMs: 900 });
                 }
             }
         }
@@ -20407,8 +20328,6 @@ Best Score: ${bestScore}${recoveredLine}` :
                 this.enemyAudioEventTimes = new Map();
                 this.enemyAudioPriorityUntil = 0;
                 this.enemyAudioPriorityLevel = 0;
-                this.enemyAudioSequence = 0;
-                this.attractEnemyAudioFocused = false;
                 if (!this.muted) this.createAudioContext();
             }
 
@@ -21800,51 +21719,6 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 osc.stop(now + duration + 0.035);
             }
 
-            playAttractPresentationCue(cue = 'company') {
-                if (!this.ensureAudio() || !this.ctx) return;
-                const now = this.ctx.currentTime;
-                const playPulse = ({
-                    offset = 0,
-                    type = 'sine',
-                    startFrequency = 220,
-                    endFrequency = 180,
-                    duration = 0.18,
-                    peak = 0.018,
-                    filterType = 'bandpass',
-                    filterFrequency = 420,
-                    filterQ = 2.2,
-                    pan = 0
-                }) => {
-                    const oscillator = this.createAudioNode('createOscillator');
-                    const gainNode = this.createAudioNode('createGain');
-                    const filter = this.createAudioNode('createBiquadFilter');
-                    const start = now + offset;
-                    oscillator.type = type;
-                    oscillator.frequency.setValueAtTime(Math.max(20, startFrequency), start);
-                    oscillator.frequency.exponentialRampToValueAtTime(Math.max(20, endFrequency), start + duration);
-                    filter.type = filterType;
-                    filter.frequency.setValueAtTime(Math.max(20, filterFrequency), start);
-                    filter.Q.setValueAtTime(filterQ, start);
-                    gainNode.gain.setValueAtTime(0.001, start);
-                    gainNode.gain.linearRampToValueAtTime(Math.max(0.001, peak), start + 0.012);
-                    gainNode.gain.exponentialRampToValueAtTime(0.001, start + duration);
-                    this.connectEnemyAudioVoice(oscillator, gainNode, filter, pan);
-                    oscillator.start(start);
-                    oscillator.stop(start + duration + 0.035);
-                };
-
-                if (cue === 'cast-intro') {
-                    playPulse({ offset: 0.00, type: 'square', startFrequency: 620, endFrequency: 430, duration: 0.11, peak: 0.013, filterFrequency: 780, filterQ: 3.0, pan: -0.28 });
-                    playPulse({ offset: 0.28, type: 'triangle', startFrequency: 190, endFrequency: 120, duration: 0.18, peak: 0.022, filterFrequency: 310, filterQ: 2.1, pan: 0 });
-                    playPulse({ offset: 0.58, type: 'sine', startFrequency: 270, endFrequency: 92, duration: 0.28, peak: 0.018, filterFrequency: 230, filterQ: 3.6, pan: 0.28 });
-                    return;
-                }
-
-                playPulse({ offset: 0.00, type: 'triangle', startFrequency: 92, endFrequency: 184, duration: 0.26, peak: 0.018, filterType: 'lowpass', filterFrequency: 420, filterQ: 0.8, pan: 0 });
-                playPulse({ offset: 0.24, type: 'square', startFrequency: 368, endFrequency: 368, duration: 0.055, peak: 0.010, filterFrequency: 520, filterQ: 2.4, pan: 0 });
-            }
-
-
             trackEnemySpawnSource(source) {
                 if (!source) return source;
                 this.enemySpawnSources.add(source);
@@ -22008,19 +21882,6 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 });
             }
 
-
-            setAttractEnemyAudioFocus(active) {
-                const focused = !!active;
-                this.attractEnemyAudioFocused = focused;
-                if (!this.musicGain || !this.ctx || this.ctx.state === 'closed') return;
-                const now = this.ctx.currentTime;
-                try {
-                    this.musicGain.gain.cancelScheduledValues(now);
-                    this.musicGain.gain.setValueAtTime(this.musicGain.gain.value, now);
-                    this.musicGain.gain.linearRampToValueAtTime(focused ? 0.47 : 0.58, now + 0.12);
-                } catch (_) {}
-            }
-
             getEnemyAudioPan(enemy, fallbackPan = 0) {
                 if (!enemy || !enemy.game) return Math.max(-0.72, Math.min(0.72, Number(fallbackPan) || 0));
                 const width = Math.max(1, Number(enemy.game.PLAYFIELD_SIZE) || 1);
@@ -22087,34 +21948,20 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 const volumeScale = Math.max(0.1, Number(options.volumeScale) || 1) * (attract ? 1.15 : 1);
                 const pan = this.getEnemyAudioPan(enemy, options.pan || 0);
                 const priorityByEvent = {
-                    'zig-direction': 2,
                     'zig-dash-hit': 4,
-                    'zig-zap': 4,
-                    'zig-death': 7,
-                    'dash-cruise': 2,
                     'dash-lock': 6,
                     'dash-charge': 6,
-                    'dash-near-miss': 3,
                     'dash-recovery': 3,
-                    'dash-zap': 4,
-                    'dash-death': 7,
-                    'echo-active': 2,
                     'echo-phase-out': 3,
                     'echo-dormant-ping': 3,
                     'echo-reactivation': 5,
-                    'echo-return': 5,
-                    'echo-zap': 4,
-                    'echo-death': 7
+                    'echo-return': 5
                 };
                 const cooldownByEvent = {
-                    'zig-direction': 360,
                     'zig-dash-hit': 300,
-                    'dash-cruise': 850,
                     'dash-lock': 260,
                     'dash-charge': 260,
-                    'dash-near-miss': 700,
                     'dash-recovery': 300,
-                    'echo-active': 900,
                     'echo-phase-out': 260,
                     'echo-dormant-ping': 260,
                     'echo-reactivation': 260,
@@ -22200,24 +22047,10 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 };
 
                 switch (eventId) {
-                    case 'zig-direction':
-                        playTone({ type: 'square', startFrequency: 680, endFrequency: 910, duration: 0.055, peak: 0.013, filterType: 'bandpass', filterStart: 920, filterEnd: 1260, filterQ: 2.2 });
-                        playNoise({ offset: 0.044, duration: 0.045, peak: 0.006, filterStart: 1800, filterEnd: 720, filterQ: 1.4, panOffset: 0.05 });
-                        break;
                     case 'zig-dash-hit':
                         playTone({ type: 'square', startFrequency: 420, endFrequency: 260, duration: 0.045, peak: 0.025, filterType: 'bandpass', filterStart: 780, filterEnd: 520, filterQ: 1.5 });
                         playTone({ offset: 0.038, type: 'sawtooth', startFrequency: 520, endFrequency: 1280, duration: 0.115, peak: 0.026, filterType: 'highpass', filterStart: 420, filterEnd: 900, filterQ: 0.8 });
                         playNoise({ offset: 0.11, duration: 0.055, peak: 0.012, filterStart: 2100, filterEnd: 680, filterQ: 1.1 });
-                        break;
-                    case 'zig-zap':
-                        [980, 760, 560].forEach((frequency, index) => playTone({ offset: index * 0.045, type: index === 2 ? 'sawtooth' : 'square', startFrequency: frequency, endFrequency: frequency * 0.68, duration: 0.055, peak: 0.014, filterType: 'bandpass', filterStart: frequency * 1.15, filterEnd: frequency * 0.72, filterQ: 1.8 }));
-                        playNoise({ offset: 0.11, duration: 0.075, peak: 0.010, filterStart: 1800, filterEnd: 260, filterQ: 1.0 });
-                        break;
-                    case 'zig-death':
-                        [0, 0.064, 0.116].forEach((offset, index) => playTone({ offset, type: 'square', startFrequency: [760, 620, 840][index], endFrequency: [540, 430, 570][index], duration: 0.045, peak: 0.017, filterType: 'bandpass', filterStart: 1050, filterEnd: 620, filterQ: 1.8 }));
-                        break;
-                    case 'dash-cruise':
-                        playTone({ type: 'triangle', startFrequency: 108, endFrequency: 96, duration: 0.20, peak: 0.006, filterType: 'lowpass', filterStart: 330, filterEnd: 250, filterQ: 0.7 });
                         break;
                     case 'dash-lock': {
                         const warningDuration = Math.max(0.24, Math.min(0.62, (Number(options.durationMs) || 520) / 1000));
@@ -22233,24 +22066,9 @@ startMaxSwarmBeat(delaySeconds = 0) {
                         playTone({ offset: 0.035, type: 'sawtooth', startFrequency: 92, endFrequency: 310, duration: chargeDuration, peak: 0.032, filterType: 'lowpass', filterStart: 380, filterEnd: 920, filterQ: 0.9, panOffset: Number(options.directionPan) || 0 });
                         break;
                     }
-                    case 'dash-near-miss':
-                        playNoise({ duration: 0.16, peak: 0.012, filterStart: 520, filterEnd: 2200, filterQ: 1.2, panOffset: Number(options.directionPan) || 0 });
-                        break;
                     case 'dash-recovery':
                         playTone({ type: 'triangle', startFrequency: 210, endFrequency: 72, duration: 0.27, peak: 0.018, filterType: 'lowpass', filterStart: 520, filterEnd: 180, filterQ: 0.8 });
                         playNoise({ offset: 0.05, duration: 0.15, peak: 0.006, filterStart: 620, filterEnd: 140, filterQ: 0.7 });
-                        break;
-                    case 'dash-zap':
-                        playNoise({ duration: 0.07, peak: 0.034, filterStart: 1200, filterEnd: 260, filterQ: 0.8 });
-                        playTone({ offset: 0.025, type: 'square', startFrequency: 150, endFrequency: 62, duration: 0.16, peak: 0.030, filterType: 'lowpass', filterStart: 420, filterEnd: 120, filterQ: 0.8 });
-                        playTone({ offset: 0.12, type: 'triangle', startFrequency: 110, endFrequency: 44, duration: 0.15, peak: 0.015, filterType: 'lowpass', filterStart: 260, filterEnd: 95, filterQ: 0.7 });
-                        break;
-                    case 'dash-death':
-                        playTone({ type: 'square', startFrequency: 470, endFrequency: 410, duration: 0.05, peak: 0.023, filterType: 'bandpass', filterStart: 780, filterEnd: 620, filterQ: 1.6 });
-                        playTone({ offset: 0.065, type: 'triangle', startFrequency: 125, endFrequency: 58, duration: 0.14, peak: 0.036, filterType: 'lowpass', filterStart: 360, filterEnd: 110, filterQ: 0.7 });
-                        break;
-                    case 'echo-active':
-                        playTone({ type: 'sine', startFrequency: 260, endFrequency: 208, duration: 0.14, peak: 0.0055, filterType: 'bandpass', filterStart: 360, filterEnd: 280, filterQ: 3.0 });
                         break;
                     case 'echo-phase-out':
                         playTone({ type: 'sine', startFrequency: 310, endFrequency: 128, duration: 0.16, peak: 0.018, filterType: 'bandpass', filterStart: 430, filterEnd: 180, filterQ: 3.0 });
@@ -22268,15 +22086,6 @@ startMaxSwarmBeat(delaySeconds = 0) {
                         playNoise({ duration: 0.11, peak: 0.013, filterStart: 320, filterEnd: 2400, filterQ: 1.2 });
                         playTone({ offset: 0.015, type: 'square', startFrequency: 760, endFrequency: 520, duration: 0.055, peak: 0.022, filterType: 'bandpass', filterStart: 980, filterEnd: 680, filterQ: 2.2 });
                         break;
-                    case 'echo-zap':
-                        playTone({ type: 'sine', startFrequency: 72, endFrequency: 260, duration: 0.16, peak: 0.020, filterType: 'bandpass', filterStart: 110, filterEnd: 420, filterQ: 3.0 });
-                        playNoise({ offset: 0.02, duration: 0.17, peak: 0.011, filterStart: 180, filterEnd: 1700, filterQ: 1.4 });
-                        playTone({ offset: 0.19, type: 'sine', startFrequency: 150, endFrequency: 82, duration: 0.08, peak: 0.004, filterType: 'bandpass', filterStart: 210, filterEnd: 110, filterQ: 3.2, panOffset: 0.12 });
-                        break;
-                    case 'echo-death':
-                        playTone({ type: 'sine', startFrequency: 112, endFrequency: 64, duration: 0.24, peak: 0.020, filterType: 'bandpass', filterStart: 180, filterEnd: 92, filterQ: 3.4 });
-                        playNoise({ offset: 0.075, duration: 0.15, peak: 0.008, filterStart: 240, filterEnd: 1500, filterQ: 1.6, panOffset: 0.10 });
-                        break;
                     default:
                         this.cleanupAudioScope(scope, true);
                         return false;
@@ -22288,82 +22097,6 @@ startMaxSwarmBeat(delaySeconds = 0) {
             playEnemyBehaviorSound(eventId, enemy, options = {}) {
                 if (!enemy || !enemy.game || enemy.game.tutorialActive) return false;
                 return this.playEnemySoundEvent(eventId, enemy, options);
-            }
-
-            playEnemyZapDestructions(enemies = []) {
-                if (!Array.isArray(enemies) || !enemies.length) return;
-                const unique = new Map();
-                enemies.forEach(enemy => {
-                    if (!enemy || !enemy.behaviorType || unique.has(enemy.behaviorType)) return;
-                    unique.set(enemy.behaviorType, enemy);
-                });
-                const events = {
-                    drifter: 'zig-zap',
-                    charger: 'dash-zap',
-                    pulse: 'echo-zap'
-                };
-                [...unique.entries()].slice(0, 3).forEach(([behaviorType, enemy], index) => {
-                    this.scheduleAudioTimer(() => {
-                        this.playEnemySoundEvent(events[behaviorType], enemy, {
-                            priority: 4,
-                            volumeScale: Math.max(0.55, 0.86 - index * 0.13),
-                            key: `zap-${behaviorType}-${performance.now()}`
-                        });
-                    }, 80 + index * 55, 'enemy-zap-destruction');
-                });
-            }
-
-            playEnemyGameOverAccent(cause = null) {
-                if (!cause) return false;
-                const eventId = cause.identityKey === 'charger'
-                    ? 'dash-death'
-                    : cause.identityKey === 'pulse'
-                        ? 'echo-death'
-                        : 'zig-death';
-                const pseudoEnemy = {
-                    x: 0.5,
-                    size: 0,
-                    visualEffectKey: `death-${cause.identityKey || 'enemy'}`,
-                    game: { PLAYFIELD_SIZE: 1 }
-                };
-                return this.playEnemySoundEvent(eventId, pseudoEnemy, {
-                    priority: 7,
-                    priorityHoldMs: 420,
-                    volumeScale: 0.82,
-                    pan: 0
-                });
-            }
-
-            playEnemyCardCue(cueId = '') {
-                const map = {
-                    'zig-direction': 'zig-direction',
-                    'dash-lock': 'dash-lock',
-                    'dash-charge': 'dash-charge',
-                    'dash-recovery': 'dash-recovery',
-                    'echo-phase-down': 'echo-phase-out',
-                    'echo-ping': 'echo-dormant-ping',
-                    'echo-return': 'echo-reactivation',
-                    'echo-full-return': 'echo-return'
-                };
-                const eventId = map[cueId];
-                if (!eventId) return false;
-                const panByCue = {
-                    'zig-direction': -0.16,
-                    'dash-lock': -0.20,
-                    'dash-charge': 0.24,
-                    'dash-recovery': 0.42,
-                    'echo-phase-down': -0.18,
-                    'echo-ping': 0.12,
-                    'echo-return': 0.28,
-                    'echo-full-return': 0.34
-                };
-                return this.playEnemySoundEvent(eventId, null, {
-                    attract: true,
-                    priority: cueId === 'dash-lock' ? 6 : cueId === 'echo-return' ? 5 : 2,
-                    pan: panByCue[cueId] || 0,
-                    key: `attract-${cueId}-${++this.enemyAudioSequence}`,
-                    durationMs: cueId === 'dash-lock' ? 520 : cueId === 'dash-charge' ? 540 : undefined
-                });
             }
 
             // Play consistent Block-A-Zoid spawn sound
