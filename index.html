@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Trackpad Prototype p102: Replaces the cabinet overlay with the new external six-aperture artwork while preserving gameplay and HUD behavior.
+Trackpad Prototype p104: Removes the main overlay bezel, retunes the remaining playfield edge, raises Sector/Cycle, and disables wall-pulse feedback.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="trackpad-p102">
+<html data-build-version="trackpad-p104">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -8111,6 +8111,35 @@ Font License Notices
             display: none !important;
         }
 
+
+        /* p104: the external skin no longer supplies a main playfield bezel.
+           The live square edge is the only border with Monitor off; the curved CRT edge owns it with Monitor on. */
+        html body #playfieldShell::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            box-sizing: border-box;
+            pointer-events: none;
+            z-index: 1208;
+            border: max(1px, calc(var(--skin-scale, 1) * 2px)) solid rgba(238, 242, 244, 0.82);
+            box-shadow: 0 0 max(2px, calc(var(--skin-scale, 1) * 5px)) rgba(255, 255, 255, 0.24);
+            opacity: 1;
+            animation: none !important;
+        }
+
+        html body #playfieldShell.crt-enabled::before {
+            opacity: 0;
+        }
+
+        html body #playfieldShell:has(#gameContainer.borderFlash)::before {
+            animation: none !important;
+        }
+
+        html body .playfield-crt-outline .crt-outline-line {
+            stroke: rgba(238, 242, 244, 0.82) !important;
+            stroke-width: 1.08 !important;
+        }
+
     </style>
 </head>
 <body class="crt-phosphor-calibration">
@@ -10050,7 +10079,7 @@ Font License Notices
                             startLeft: 12.232244,
                             startTop: 7.384442,
                             startWidth: 14.994363,
-                            statusTop: 68.042841,
+                            statusTop: 67.450000,
                             statusWidth: 14.994363,
                             sectorX: 13.900000,
                             cycleX: 85.700000,
@@ -17470,8 +17499,6 @@ Best Score: ${bestScore}${recoveredLine}` :
                 if (now < this.invincibilityCollisionCooldownUntil) return;
                 this.invincibilityCollisionCooldownUntil = now + 850;
                 if (enemy && typeof enemy.flashBorder === 'function') enemy.flashBorder();
-                this.container.classList.add('borderFlash');
-                this.scheduler.scheduleTimeout('visual-effects', 'invincibility-border-flash', () => this.container.classList.remove('borderFlash'), 300);
                 if (this.audio) {
                     this.audio.resume();
                     this.audio.playExplosionSound();
@@ -20221,10 +20248,8 @@ Best Score: ${bestScore}${recoveredLine}` :
             // Flash border on collision or bounce
             flashBorder() {
                 this.element.classList.add('enemyBorderFlash'); // Enemy flash
-                this.game.container.classList.add('borderFlash'); // Container flash
                 this.game.scheduler.scheduleTimeout('visual-effects', `${this.visualEffectKey}-border-flash`, () => {
                     this.element.classList.remove('enemyBorderFlash');
-                    this.game.container.classList.remove('borderFlash');
                     this.updateAnimation(); // Reset animation
                 }, 300); // Duration matches animation
             }
