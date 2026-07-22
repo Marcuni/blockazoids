@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Trackpad Prototype p083: Fixes the enemy attract-card sequence, places enemy cause directly below GAME OVER, and redesigns enemy spawn audio as lower mechanical cues distinct from crystal pickups.
+Trackpad Prototype p084: Expands attract mode into isolated enemy behavior identification screens, updates enemy-specific Game Over causes, and centralizes the 500 ms double-tap window.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="trackpad-p083">
+<html data-build-version="trackpad-p084">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -7610,21 +7610,25 @@ Font License Notices
 
     
 
-        /* p083: named Block-A-Zoid identity presentation and corrected attract/game-over layout. */
+        /* p084: full-playfield arcade identification screens for the named Block-A-Zoids. */
         #enemyIdentityCard {
             position: absolute;
             inset: 0;
             z-index: 1008;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 5%;
+            display: block;
             box-sizing: border-box;
-            background: #000;
+            overflow: hidden;
+            background-color: #000;
+            background-image:
+                linear-gradient(rgba(255,255,255,0.16) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,0.16) 1px, transparent 1px);
+            background-size: 10% 10%;
             opacity: 0;
             visibility: hidden;
             pointer-events: none;
-            transition: opacity 0.30s ease-in-out, visibility 0.30s ease-in-out;
+            transition: opacity 0.16s linear, visibility 0.16s linear;
+            --enemy-card-color: #fff;
+            --enemy-card-transition-color: #fff;
         }
 
         #enemyIdentityCard.visible {
@@ -7632,177 +7636,262 @@ Font License Notices
             visibility: visible;
         }
 
-        .enemy-identity-card-panel {
-            width: min(88%, 520px);
-            box-sizing: border-box;
-            padding: clamp(18px, 4.8vw, 28px) clamp(14px, 4vw, 24px);
-            border: 2px solid #fff;
-            background: #000;
-            text-align: center;
-            font-family: 'Orbitron';
-            box-shadow: 0 0 14px rgba(255,255,255,0.56), inset 0 0 18px rgba(255,255,255,0.06);
-        }
-
-        .enemy-card-name {
-            color: var(--enemy-card-color, #fff);
-            font-size: clamp(42px, 12vw, 72px);
-            font-weight: 900;
-            line-height: 0.94;
-            letter-spacing: clamp(4px, 1.4vw, 9px);
-            text-shadow: 0 0 12px var(--enemy-card-color, #fff), 0 0 28px color-mix(in srgb, var(--enemy-card-color, #fff) 58%, transparent);
-        }
-
-        .enemy-card-class {
-            margin-top: 7px;
-            color: #fff;
-            font-size: clamp(18px, 5.2vw, 28px);
-            line-height: 1;
-            letter-spacing: 3px;
-        }
-
-        .enemy-card-stage {
-            position: relative;
-            width: min(86%, 380px);
-            height: clamp(112px, 27vw, 158px);
-            margin: clamp(16px, 4vw, 24px) auto;
-            overflow: hidden;
-            border: 1px solid rgba(255,255,255,0.72);
-            background-color: #000;
-            background-image:
-                linear-gradient(rgba(255,255,255,0.22) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(255,255,255,0.22) 1px, transparent 1px);
-            background-size: 28px 28px;
-        }
-
-        .enemy-card-block {
+        #enemyIdentityCard::before,
+        #enemyIdentityCard::after {
+            content: "";
             position: absolute;
-            left: 10%;
-            top: 42%;
-            width: clamp(18px, 5.4vw, 30px);
-            height: clamp(18px, 5.4vw, 30px);
-            background: var(--enemy-card-color, #fff);
-            border: 1px solid #fff;
-            box-shadow: 0 0 9px var(--enemy-card-color, #fff), 0 0 20px color-mix(in srgb, var(--enemy-card-color, #fff) 72%, transparent);
-            transform: translate(-50%, -50%);
-        }
-
-        .enemy-card-lock-line,
-        .enemy-card-trace,
-        .enemy-card-warning {
-            position: absolute;
+            inset: 0;
+            z-index: 4;
             pointer-events: none;
             opacity: 0;
         }
 
-        .enemy-card-lock-line {
-            left: 19%;
-            top: 52%;
-            width: 62%;
-            height: 1px;
+        #enemyIdentityCard.transition-prelude::before {
+            background:
+                repeating-linear-gradient(0deg, transparent 0 8px, rgba(255,255,255,0.62) 9px, transparent 11px),
+                linear-gradient(90deg, rgba(255,0,0,0.25), transparent 16%, transparent 84%, rgba(0,90,255,0.28));
+            animation: enemyCardCrtPrelude 0.24s steps(3, end) 1;
+        }
+
+        #enemyIdentityCard.transition-color::after {
+            background: radial-gradient(circle at center, var(--enemy-card-transition-color, #fff) 0%, rgba(0,0,0,0) 56%);
+            animation: enemyCardColorCollapse 0.24s ease-in-out 1;
+        }
+
+        .enemy-identity-card-panel {
+            position: absolute;
+            inset: 0;
+            box-sizing: border-box;
+            background: rgba(0,0,0,0.14);
+            color: #fff;
+            font-family: 'Orbitron';
+            text-align: center;
+            opacity: 1;
+        }
+
+        #enemyIdentityCard[data-card="transition"] .enemy-identity-card-panel {
+            opacity: 0;
+        }
+
+        .enemy-card-heading {
+            position: absolute;
+            top: clamp(24px, 6.5%, 42px);
+            left: 4%;
+            width: 92%;
+            z-index: 3;
+            text-align: center;
+        }
+
+        .enemy-card-name {
+            color: var(--enemy-card-color, #fff);
+            font-size: clamp(40px, 11.2vw, 68px);
+            font-weight: 900;
+            line-height: 0.94;
+            letter-spacing: clamp(4px, 1.4vw, 9px);
+            text-shadow: 0 0 10px var(--enemy-card-color, #fff), 0 0 24px color-mix(in srgb, var(--enemy-card-color, #fff) 58%, transparent);
+            white-space: nowrap;
+        }
+
+        .enemy-card-class {
+            margin-top: clamp(7px, 1.8vw, 11px);
+            color: #fff;
+            font-size: clamp(17px, 4.8vw, 27px);
+            line-height: 1;
+            letter-spacing: 3px;
+            text-shadow: none;
+            white-space: nowrap;
+        }
+
+        .enemy-card-stage {
+            position: absolute;
+            left: 5%;
+            top: 27%;
+            width: 90%;
+            height: 39%;
+            overflow: hidden;
+            border-top: 1px solid rgba(255,255,255,0.52);
+            border-bottom: 1px solid rgba(255,255,255,0.52);
+            background: rgba(0,0,0,0.26);
+            z-index: 2;
+        }
+
+        .enemy-card-block {
+            position: absolute;
+            width: clamp(19px, 5.5vw, 31px);
+            height: clamp(19px, 5.5vw, 31px);
             background: var(--enemy-card-color, #fff);
+            border: 1px solid #fff;
+            box-shadow: 0 0 9px currentColor, 0 0 20px color-mix(in srgb, currentColor 70%, transparent);
+            transform: translate(-50%, -50%);
+            color: var(--enemy-card-color, #fff);
+            will-change: left, top, opacity, transform, filter;
+        }
+
+        .enemy-card-primary {
+            left: 12%;
+            top: 40%;
+        }
+
+        .enemy-card-zig,
+        .enemy-card-dash,
+        .enemy-card-echo {
+            display: none;
+        }
+
+        .enemy-card-orb {
+            position: absolute;
+            left: 66%;
+            top: 52%;
+            width: clamp(13px, 3.8vw, 22px);
+            height: clamp(13px, 3.8vw, 22px);
+            border-radius: 50%;
+            background: #fff;
+            border: 1px solid #fff;
+            box-shadow: 0 0 9px #fff, 0 0 22px rgba(255,255,255,0.78);
+            transform: translate(-50%, -50%);
+            opacity: 0;
+        }
+
+        .enemy-card-lock-line {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 1px;
+            height: 1px;
+            background: #fff;
             box-shadow: 0 0 7px var(--enemy-card-color, #fff);
             transform-origin: left center;
+            opacity: 0;
+            pointer-events: none;
         }
 
-        .enemy-card-trace {
-            left: 16%;
-            top: 62%;
-            width: 66%;
-            height: 1px;
-            background: linear-gradient(90deg, transparent, var(--enemy-card-color, #fff), transparent);
-            box-shadow: 0 0 6px var(--enemy-card-color, #fff);
-        }
-
-        .enemy-card-warning {
-            left: 73%;
-            top: 32%;
-            width: clamp(28px, 8vw, 44px);
-            height: clamp(28px, 8vw, 44px);
+        .enemy-card-warning-ring {
+            position: absolute;
+            width: clamp(34px, 9vw, 52px);
+            height: clamp(34px, 9vw, 52px);
             border: 2px solid #fff;
             box-shadow: 0 0 9px #fff, inset 0 0 8px rgba(255,255,255,0.35);
             transform: translate(-50%, -50%);
+            opacity: 0;
+            pointer-events: none;
         }
 
-        #enemyIdentityCard[data-identity="drifter"] .enemy-card-block {
-            animation: enemyCardZigMotion 2.9s linear infinite;
+        .enemy-card-afterimage {
+            position: absolute;
+            width: clamp(19px, 5.5vw, 31px);
+            height: clamp(19px, 5.5vw, 31px);
+            border: 1px solid rgba(80,150,255,0.52);
+            background: rgba(0,40,255,0.06);
+            box-shadow: 0 0 10px rgba(0,90,255,0.28);
+            transform: translate(-50%, -50%);
+            opacity: 0;
+            pointer-events: none;
         }
 
-        #enemyIdentityCard[data-identity="charger"] .enemy-card-block {
-            animation: enemyCardDashMotion 3.0s ease-in-out infinite;
+        .enemy-card-trail-layer {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
         }
 
-        #enemyIdentityCard[data-identity="charger"] .enemy-card-lock-line {
-            animation: enemyCardDashLock 3.0s linear infinite;
+        .enemy-card-trail-dot {
+            position: absolute;
+            width: 5px;
+            height: 5px;
+            border-radius: 50%;
+            background: var(--trail-color, #f00);
+            box-shadow: 0 0 6px var(--trail-color, #f00);
+            transform: translate(-50%, -50%);
+            animation: enemyCardTrailFade 0.62s ease-out forwards;
         }
 
-        #enemyIdentityCard[data-identity="pulse"] .enemy-card-block {
-            animation: enemyCardEchoMotion 3.2s linear infinite;
+        .enemy-card-copy {
+            position: absolute;
+            left: 5%;
+            bottom: clamp(24px, 6.6%, 42px);
+            width: 90%;
+            z-index: 3;
+            text-align: center;
         }
 
-        #enemyIdentityCard[data-identity="pulse"] .enemy-card-trace {
-            animation: enemyCardEchoTrace 3.2s linear infinite;
-        }
-
-        #enemyIdentityCard[data-identity="pulse"] .enemy-card-warning {
-            animation: enemyCardEchoWarning 3.2s steps(2, end) infinite;
-        }
-
-        .enemy-card-description {
+        .enemy-card-personality {
             color: #fff;
-            font-size: clamp(13px, 3.8vw, 19px);
-            line-height: 1.3;
-            letter-spacing: 1.4px;
-            white-space: normal;
+            font-size: clamp(15px, 4.25vw, 23px);
+            font-weight: 800;
+            line-height: 1.18;
+            letter-spacing: 1.5px;
+            white-space: nowrap;
         }
 
-        @keyframes enemyCardZigMotion {
-            0% { left: 9%; top: 24%; }
-            20% { left: 39%; top: 74%; }
-            42% { left: 78%; top: 30%; }
-            61% { left: 54%; top: 82%; }
-            80% { left: 18%; top: 46%; }
-            100% { left: 9%; top: 24%; }
+        .enemy-card-behavior {
+            margin-top: clamp(9px, 2.3vw, 14px);
+            color: #9a9a9a;
+            font-size: clamp(12px, 3.45vw, 18px);
+            line-height: 1.2;
+            letter-spacing: 1.25px;
+            white-space: nowrap;
+            text-shadow: none;
         }
 
-        @keyframes enemyCardDashMotion {
-            0% { left: 12%; top: 52%; transform: translate(-50%, -50%) scale(1); }
-            27% { left: 28%; top: 52%; transform: translate(-50%, -50%) scale(1); }
-            43% { left: 28%; top: 52%; transform: translate(-50%, -50%) scale(1.08); }
-            56% { left: 86%; top: 52%; transform: translate(-50%, -50%) scale(1.02); }
-            72% { left: 86%; top: 52%; transform: translate(-50%, -50%) scale(0.90); }
-            100% { left: 12%; top: 52%; transform: translate(-50%, -50%) scale(1); }
+        #enemyIdentityCard[data-card="drifter"] .enemy-card-orb,
+        #enemyIdentityCard[data-card="pulse"] .enemy-card-orb {
+            opacity: 0;
         }
 
-        @keyframes enemyCardDashLock {
-            0%, 26% { opacity: 0; transform: scaleX(0); }
-            31% { opacity: 1; transform: scaleX(0.18); }
-            43% { opacity: 0.92; transform: scaleX(1); }
-            50%, 100% { opacity: 0; transform: scaleX(1); }
+        #enemyIdentityCard[data-card="charger"] .enemy-card-orb,
+        #enemyIdentityCard[data-card="full-cast"] .enemy-card-orb {
+            opacity: 1;
         }
 
-        @keyframes enemyCardEchoMotion {
-            0% { left: 14%; top: 35%; opacity: 1; }
-            24% { left: 41%; top: 67%; opacity: 1; }
-            34% { left: 50%; top: 57%; opacity: 0.15; }
-            53% { left: 68%; top: 34%; opacity: 0.08; }
-            62% { left: 77%; top: 30%; opacity: 0.65; }
-            68% { left: 77%; top: 30%; opacity: 0.08; }
-            74% { left: 77%; top: 30%; opacity: 1; }
-            100% { left: 14%; top: 35%; opacity: 1; }
+        #enemyIdentityCard[data-card="full-cast"] .enemy-card-primary {
+            display: none;
         }
 
-        @keyframes enemyCardEchoTrace {
-            0%, 30% { opacity: 0; }
-            38%, 58% { opacity: 0.34; }
-            66%, 100% { opacity: 0; }
+        #enemyIdentityCard[data-card="full-cast"] .enemy-card-zig,
+        #enemyIdentityCard[data-card="full-cast"] .enemy-card-dash,
+        #enemyIdentityCard[data-card="full-cast"] .enemy-card-echo {
+            display: block;
         }
 
-        @keyframes enemyCardEchoWarning {
-            0%, 58% { opacity: 0; }
-            61% { opacity: 1; }
-            65% { opacity: 0.18; }
-            69% { opacity: 1; }
-            74%, 100% { opacity: 0; }
+        #enemyIdentityCard[data-card="full-cast"] .enemy-card-zig { color: #f00; background: #f00; }
+        #enemyIdentityCard[data-card="full-cast"] .enemy-card-dash { color: #0f0; background: #0f0; }
+        #enemyIdentityCard[data-card="full-cast"] .enemy-card-echo { color: #00f; background: #00f; }
+
+        #enemyIdentityCard.full-cast-brighten .enemy-card-zig,
+        #enemyIdentityCard.full-cast-brighten .enemy-card-dash,
+        #enemyIdentityCard.full-cast-brighten .enemy-card-echo {
+            filter: brightness(2.15);
+            box-shadow: 0 0 13px #fff, 0 0 28px currentColor, 0 0 48px currentColor;
+        }
+
+        #gameContainer.attract-grid-rebuild {
+            animation: attractGridRebuildPulse 0.44s ease-out 1;
+        }
+
+        @keyframes enemyCardCrtPrelude {
+            0% { opacity: 0; transform: translateX(-12px); }
+            18% { opacity: 0.92; transform: translateX(8px); }
+            44% { opacity: 0.22; transform: translateX(-5px); }
+            72% { opacity: 0.66; transform: translateX(3px); }
+            100% { opacity: 0; transform: translateX(0); }
+        }
+
+        @keyframes enemyCardColorCollapse {
+            0% { opacity: 0; transform: scale(1.4); }
+            36% { opacity: 0.42; transform: scale(0.72); }
+            68% { opacity: 0.66; transform: scale(0.16); }
+            100% { opacity: 0; transform: scale(0); }
+        }
+
+        @keyframes enemyCardTrailFade {
+            0% { opacity: 0.66; transform: translate(-50%, -50%) scale(1); }
+            100% { opacity: 0; transform: translate(-50%, -50%) scale(0.2); }
+        }
+
+        @keyframes attractGridRebuildPulse {
+            0% { background-color: #000; box-shadow: none; }
+            38% { background-color: rgba(255,255,255,0.16); box-shadow: 0 0 26px #fff, 0 0 62px #fff; }
+            100% { background-color: #000; box-shadow: 0 0 calc(var(--default-glow) * 1px) #fff; }
         }
 
         #gameOverCause {
@@ -7828,23 +7917,20 @@ Font License Notices
 
         .game-over-cause-lead {
             display: block;
+            color: #fff;
             font-size: clamp(15px, 4.4vw, 23px);
             line-height: 1.1;
             letter-spacing: 2px;
         }
 
         .game-over-cause-name {
-            color: var(--death-enemy-color, #fff);
-            text-shadow: 0 0 8px color-mix(in srgb, var(--death-enemy-color, #fff) 64%, transparent);
-        }
-
-        .game-over-cause-class {
             display: block;
             margin-top: 6px;
-            color: #9a9a9a;
-            font-size: clamp(14px, 3.9vw, 20px);
+            color: var(--death-enemy-color, #fff);
+            font-size: clamp(22px, 6.5vw, 34px);
             line-height: 1;
-            letter-spacing: 2px;
+            letter-spacing: 3px;
+            text-shadow: 0 0 9px color-mix(in srgb, var(--death-enemy-color, #fff) 68%, transparent);
         }
 
         .enemy-identity-help-list {
@@ -7946,15 +8032,25 @@ Font License Notices
         <button id="tutorialPrompt" type="button" aria-live="polite" aria-atomic="true" aria-hidden="true"><span class="tutorial-window-title"></span><span class="tutorial-window-message"></span><span class="tutorial-window-continue">TAP TO CONTINUE</span></button>
         <div id="enemyIdentityCard" aria-live="polite" aria-hidden="true">
             <div class="enemy-identity-card-panel">
-                <div class="enemy-card-name"></div>
-                <div class="enemy-card-class"></div>
-                <div class="enemy-card-stage" aria-hidden="true">
-                    <div class="enemy-card-lock-line"></div>
-                    <div class="enemy-card-trace"></div>
-                    <div class="enemy-card-warning"></div>
-                    <div class="enemy-card-block"></div>
+                <div class="enemy-card-heading">
+                    <div class="enemy-card-name"></div>
+                    <div class="enemy-card-class"></div>
                 </div>
-                <div class="enemy-card-description"></div>
+                <div class="enemy-card-stage" aria-hidden="true">
+                    <div class="enemy-card-trail-layer"></div>
+                    <div class="enemy-card-afterimage"></div>
+                    <div class="enemy-card-lock-line"></div>
+                    <div class="enemy-card-warning-ring"></div>
+                    <div class="enemy-card-orb"></div>
+                    <div class="enemy-card-block enemy-card-primary"></div>
+                    <div class="enemy-card-block enemy-card-zig"></div>
+                    <div class="enemy-card-block enemy-card-dash"></div>
+                    <div class="enemy-card-block enemy-card-echo"></div>
+                </div>
+                <div class="enemy-card-copy">
+                    <div class="enemy-card-personality"></div>
+                    <div class="enemy-card-behavior"></div>
+                </div>
             </div>
         </div>
         <div id="gameOver">GAME OVER</div>
@@ -8367,14 +8463,13 @@ Font License Notices
             input: Object.freeze({
                 cosmicZapCooldownMs: 450,
                 cosmicZapProtectionMs: 520,
-                doubleTapWindowMs: 360,
                 tapMaxDurationMs: 300,
                 tapMaxMoveMinimum: 24,
                 tapMaxMovePlayerMultiplier: 1.35,
                 relativeSwipeSensitivity: 1.0,
                 gestureTapMaxMove: 12,
                 gestureTapMaxDurationMs: 280,
-                gestureDoubleTapWindowMs: 330,
+                gestureDoubleTapWindowMs: 500,
                 gestureDoubleTapMaxSeparation: 48,
                 shakeCooldownMs: 1200,
                 shakeThreshold: 32,
@@ -8442,7 +8537,8 @@ Font License Notices
                 highestCycle: 'blockazoidsHighestCycleUnlockedV1',
                 difficulty: 'blockazoidsDifficulty',
                 introCompletion: 'blockazoidsGridCalibrationCompletedV1',
-                telemetry: 'blockazoidsBalanceTelemetry'
+                telemetry: 'blockazoidsBalanceTelemetry',
+                enemyEncounters: 'blockazoidsEnemyEncountersV1'
             })
         });
 
@@ -9668,7 +9764,18 @@ Font License Notices
                 this.enemyIdentityCard = document.getElementById('enemyIdentityCard');
                 this.enemyIdentityCardName = this.enemyIdentityCard ? this.enemyIdentityCard.querySelector('.enemy-card-name') : null;
                 this.enemyIdentityCardClass = this.enemyIdentityCard ? this.enemyIdentityCard.querySelector('.enemy-card-class') : null;
-                this.enemyIdentityCardDescription = this.enemyIdentityCard ? this.enemyIdentityCard.querySelector('.enemy-card-description') : null;
+                this.enemyIdentityCardPersonality = this.enemyIdentityCard ? this.enemyIdentityCard.querySelector('.enemy-card-personality') : null;
+                this.enemyIdentityCardBehavior = this.enemyIdentityCard ? this.enemyIdentityCard.querySelector('.enemy-card-behavior') : null;
+                this.enemyIdentityCardStage = this.enemyIdentityCard ? this.enemyIdentityCard.querySelector('.enemy-card-stage') : null;
+                this.enemyIdentityCardPrimary = this.enemyIdentityCard ? this.enemyIdentityCard.querySelector('.enemy-card-primary') : null;
+                this.enemyIdentityCardZig = this.enemyIdentityCard ? this.enemyIdentityCard.querySelector('.enemy-card-zig') : null;
+                this.enemyIdentityCardDash = this.enemyIdentityCard ? this.enemyIdentityCard.querySelector('.enemy-card-dash') : null;
+                this.enemyIdentityCardEcho = this.enemyIdentityCard ? this.enemyIdentityCard.querySelector('.enemy-card-echo') : null;
+                this.enemyIdentityCardOrb = this.enemyIdentityCard ? this.enemyIdentityCard.querySelector('.enemy-card-orb') : null;
+                this.enemyIdentityCardLockLine = this.enemyIdentityCard ? this.enemyIdentityCard.querySelector('.enemy-card-lock-line') : null;
+                this.enemyIdentityCardWarningRing = this.enemyIdentityCard ? this.enemyIdentityCard.querySelector('.enemy-card-warning-ring') : null;
+                this.enemyIdentityCardAfterimage = this.enemyIdentityCard ? this.enemyIdentityCard.querySelector('.enemy-card-afterimage') : null;
+                this.enemyIdentityCardTrailLayer = this.enemyIdentityCard ? this.enemyIdentityCard.querySelector('.enemy-card-trail-layer') : null;
                 this.enemyIdentityHelpList = document.getElementById('enemyIdentityHelpList');
                 this.bonusTextElement = document.getElementById('bonusText'); // New reference for bonus text
                 this.screenFadeElement = document.getElementById('screenFade');
@@ -9934,8 +10041,10 @@ Font License Notices
                 this.selectedStartCycle = 1;           // Settings selector for the next fresh run
                 this.progressSectorStorageKey = GAME_CONFIG.storage.highestSector;
                 this.progressCycleStorageKey = GAME_CONFIG.storage.highestCycle;
+                this.enemyEncounterStorageKey = GAME_CONFIG.storage.enemyEncounters;
                 this.highestUnlockedSector = this.loadProgressUnlockValue(this.progressSectorStorageKey, this.MAX_LEVEL);
                 this.highestUnlockedCycle = this.loadProgressUnlockValue(this.progressCycleStorageKey, this.MAX_CYCLES);
+                this.enemyEncounterUnlocks = this.loadEnemyEncounterUnlocks();
                 this.difficultyOptions = GAME_CONFIG.difficulty.options.slice();
                 this.difficultyStorageKey = GAME_CONFIG.storage.difficulty;
                 this.difficultyMode = this.loadDifficultyMode();
@@ -10597,6 +10706,8 @@ Font License Notices
                 this.attractReseedIntervalMs = 20000;
                 this.attractEnemyCardSequenceToken = 0;
                 this.attractEnemyCardIndex = -1;
+                this.attractEnemyCardFrame = null;
+                this.attractEnemyCardSimulationToken = 0;
                 this.lastDeathCause = null;
                 this.marqueePreviewLabelTimer = null;
                 this.splashIntroActive = !!this.splashScreen;
@@ -17649,6 +17760,43 @@ Best Score: ${bestScore}${recoveredLine}` :
 
 
 
+            loadEnemyEncounterUnlocks() {
+                const inferred = {
+                    drifter: true,
+                    charger: (this.highestUnlockedSector || 1) >= 3,
+                    pulse: (this.highestUnlockedSector || 1) >= 6
+                };
+                try {
+                    const stored = JSON.parse(localStorage.getItem(this.enemyEncounterStorageKey) || 'null');
+                    if (stored && typeof stored === 'object') {
+                        ENEMY_IDENTITY_ORDER.forEach(key => {
+                            if (stored[key]) inferred[key] = true;
+                        });
+                    }
+                } catch (_) {}
+                return inferred;
+            }
+
+            saveEnemyEncounterUnlocks() {
+                try {
+                    localStorage.setItem(this.enemyEncounterStorageKey, JSON.stringify(this.enemyEncounterUnlocks || { drifter: true }));
+                } catch (_) {}
+            }
+
+            recordEnemyEncounter(behaviorType) {
+                const identity = getEnemyIdentity(behaviorType);
+                if (!identity || !identity.key) return;
+                if (!this.enemyEncounterUnlocks) this.enemyEncounterUnlocks = { drifter: true };
+                if (this.enemyEncounterUnlocks[identity.key]) return;
+                this.enemyEncounterUnlocks[identity.key] = true;
+                this.saveEnemyEncounterUnlocks();
+            }
+
+            getUnlockedEnemyIdentityOrder() {
+                const unlocks = this.enemyEncounterUnlocks || { drifter: true };
+                return ENEMY_IDENTITY_ORDER.filter(key => !!unlocks[key]);
+            }
+
             renderEnemyIdentityHelp() {
                 if (!this.enemyIdentityHelpList) return;
                 const fragment = document.createDocumentFragment();
@@ -17674,11 +17822,248 @@ Best Score: ${bestScore}${recoveredLine}` :
                     !menuOpen && !levelSelectOpen);
             }
 
-            hideAttractEnemyCard() {
+            stopAttractEnemyCardSimulation() {
+                this.attractEnemyCardSimulationToken++;
+                if (this.attractEnemyCardFrame !== null) {
+                    cancelAnimationFrame(this.attractEnemyCardFrame);
+                    this.attractEnemyCardFrame = null;
+                }
+                this.scheduler.cancelScope('attract-enemy-card-sim');
+                if (this.enemyIdentityCardTrailLayer) this.enemyIdentityCardTrailLayer.replaceChildren();
+                if (this.audio && typeof this.audio.cancelEnemySpawnAudio === 'function') this.audio.cancelEnemySpawnAudio();
+            }
+
+            resetAttractEnemyCardStage() {
+                const elements = [
+                    this.enemyIdentityCardPrimary,
+                    this.enemyIdentityCardZig,
+                    this.enemyIdentityCardDash,
+                    this.enemyIdentityCardEcho,
+                    this.enemyIdentityCardOrb,
+                    this.enemyIdentityCardLockLine,
+                    this.enemyIdentityCardWarningRing,
+                    this.enemyIdentityCardAfterimage
+                ];
+                elements.forEach(element => {
+                    if (!element) return;
+                    element.style.removeProperty('left');
+                    element.style.removeProperty('top');
+                    element.style.removeProperty('opacity');
+                    element.style.removeProperty('transform');
+                    element.style.removeProperty('filter');
+                    element.style.removeProperty('width');
+                });
+                if (this.enemyIdentityCardTrailLayer) this.enemyIdentityCardTrailLayer.replaceChildren();
+                if (this.enemyIdentityCard) this.enemyIdentityCard.classList.remove('full-cast-brighten', 'transition-prelude', 'transition-color');
+            }
+
+            addAttractEnemyTrailDot(x, y, color) {
+                if (!this.enemyIdentityCardTrailLayer) return;
+                const dot = document.createElement('div');
+                dot.className = 'enemy-card-trail-dot';
+                dot.style.left = `${x}px`;
+                dot.style.top = `${y}px`;
+                dot.style.setProperty('--trail-color', color || '#fff');
+                this.enemyIdentityCardTrailLayer.appendChild(dot);
+                this.scheduler.scheduleTimeout('attract-enemy-card-sim', `trail-${performance.now()}-${Math.random()}`, () => dot.remove(), 680);
+            }
+
+            positionAttractCardElement(element, x, y, opacity = 1, transform = '') {
+                if (!element) return;
+                element.style.left = `${x}px`;
+                element.style.top = `${y}px`;
+                element.style.opacity = String(opacity);
+                element.style.transform = `translate(-50%, -50%)${transform ? ` ${transform}` : ''}`;
+            }
+
+            updateAttractLockLine(fromX, fromY, toX, toY, opacity = 1) {
+                if (!this.enemyIdentityCardLockLine) return;
+                const dx = toX - fromX;
+                const dy = toY - fromY;
+                const length = Math.hypot(dx, dy);
+                this.enemyIdentityCardLockLine.style.left = `${fromX}px`;
+                this.enemyIdentityCardLockLine.style.top = `${fromY}px`;
+                this.enemyIdentityCardLockLine.style.width = `${length}px`;
+                this.enemyIdentityCardLockLine.style.opacity = String(opacity);
+                this.enemyIdentityCardLockLine.style.transform = `rotate(${Math.atan2(dy, dx)}rad)`;
+            }
+
+            startAttractEnemyCardSimulation(cardKey) {
+                this.stopAttractEnemyCardSimulation();
+                this.resetAttractEnemyCardStage();
+                const stage = this.enemyIdentityCardStage;
+                if (!stage) return;
+                const token = ++this.attractEnemyCardSimulationToken;
+                const startedAt = performance.now();
+                const cueFlags = new Set();
+                const triggerCue = (key, cueId) => {
+                    if (cueFlags.has(key)) return;
+                    cueFlags.add(key);
+                    if (this.audio && typeof this.audio.playEnemyCardCue === 'function') this.audio.playEnemyCardCue(cueId);
+                };
+                const zigState = { x: 0, y: 0, vx: 96, vy: 74, initialized: false, bounceCount: 0 };
+
+                const animate = now => {
+                    if (token !== this.attractEnemyCardSimulationToken || !this.enemyIdentityCard || !this.enemyIdentityCard.classList.contains('visible')) return;
+                    const rect = stage.getBoundingClientRect();
+                    const width = Math.max(1, rect.width);
+                    const height = Math.max(1, rect.height);
+                    const elapsed = Math.max(0, (now - startedAt) / 1000);
+                    const blockHalf = Math.max(10, Math.min(width, height) * 0.045);
+
+                    if (cardKey === 'drifter') {
+                        if (!zigState.initialized) {
+                            zigState.x = width * 0.14;
+                            zigState.y = height * 0.25;
+                            zigState.initialized = true;
+                        }
+                        const dt = Math.min(0.032, Math.max(0.001, (now - (zigState.lastAt || now - 16)) / 1000));
+                        zigState.lastAt = now;
+                        zigState.x += zigState.vx * dt;
+                        zigState.y += zigState.vy * dt;
+                        let bounced = false;
+                        if (zigState.x <= blockHalf || zigState.x >= width - blockHalf) {
+                            zigState.x = Math.max(blockHalf, Math.min(width - blockHalf, zigState.x));
+                            zigState.vx *= -1;
+                            zigState.vy *= zigState.bounceCount % 2 ? 0.84 : 1.12;
+                            bounced = true;
+                        }
+                        if (zigState.y <= blockHalf || zigState.y >= height - blockHalf) {
+                            zigState.y = Math.max(blockHalf, Math.min(height - blockHalf, zigState.y));
+                            zigState.vy *= -1;
+                            zigState.vx *= zigState.bounceCount % 2 ? 1.10 : 0.88;
+                            bounced = true;
+                        }
+                        if (bounced) {
+                            zigState.bounceCount++;
+                            const speed = Math.max(88, Math.min(132, Math.hypot(zigState.vx, zigState.vy)));
+                            const angle = Math.atan2(zigState.vy, zigState.vx) + (zigState.bounceCount % 2 ? 0.12 : -0.10);
+                            zigState.vx = Math.cos(angle) * speed;
+                            zigState.vy = Math.sin(angle) * speed;
+                            this.addAttractEnemyTrailDot(zigState.x, zigState.y, GAME_CONFIG.colors.red);
+                            if (this.audio && typeof this.audio.playEnemyCardCue === 'function') this.audio.playEnemyCardCue('zig-bounce');
+                        }
+                        this.positionAttractCardElement(this.enemyIdentityCardPrimary, zigState.x, zigState.y, 1);
+                    } else if (cardKey === 'charger') {
+                        const orbX = width * 0.66;
+                        const orbY = height * 0.52;
+                        this.positionAttractCardElement(this.enemyIdentityCardOrb, orbX, orbY, 1);
+                        let x = width * 0.12;
+                        const y = height * 0.52;
+                        let opacity = 1;
+                        let transform = '';
+                        if (elapsed < 0.72) {
+                            x = width * (0.12 + (0.28 - 0.12) * (elapsed / 0.72));
+                        } else if (elapsed < 1.48) {
+                            x = width * 0.28;
+                            const lockProgress = (elapsed - 0.72) / 0.76;
+                            this.updateAttractLockLine(x, y, orbX, orbY, Math.min(1, lockProgress * 1.8));
+                            transform = `scale(${1 + Math.sin(lockProgress * Math.PI * 5) * 0.05})`;
+                            triggerCue('dash-lock', 'dash-lock');
+                        } else if (elapsed < 2.02) {
+                            const chargeProgress = (elapsed - 1.48) / 0.54;
+                            x = width * (0.28 + (0.88 - 0.28) * Math.min(1, chargeProgress * chargeProgress));
+                            transform = 'scale(1.10)';
+                            this.updateAttractLockLine(x, y, orbX, orbY, 0);
+                            triggerCue('dash-charge', 'dash-charge');
+                        } else if (elapsed < 2.82) {
+                            x = width * (0.88 - 0.07 * ((elapsed - 2.02) / 0.80));
+                            opacity = 0.62;
+                            transform = 'scale(0.92)';
+                            triggerCue('dash-recovery', 'dash-recovery');
+                        } else {
+                            x = width * 0.81;
+                            opacity = 0.76;
+                            transform = 'scale(0.95)';
+                        }
+                        this.positionAttractCardElement(this.enemyIdentityCardPrimary, x, y, opacity, transform);
+                    } else if (cardKey === 'pulse') {
+                        const startX = width * 0.15;
+                        const endX = width * 0.80;
+                        const x = startX + (endX - startX) * Math.min(1, elapsed / 3.25);
+                        const y = height * (0.36 + Math.sin(elapsed * 2.2) * 0.17);
+                        let opacity = 1;
+                        let filter = 'brightness(1.08)';
+                        if (elapsed < 0.82) {
+                            opacity = 1;
+                        } else if (elapsed < 1.12) {
+                            opacity = Math.max(0.08, 1 - ((elapsed - 0.82) / 0.30) * 0.92);
+                            triggerCue('echo-phase-down', 'echo-phase-down');
+                            if (this.enemyIdentityCardAfterimage) {
+                                this.positionAttractCardElement(this.enemyIdentityCardAfterimage, width * 0.31, height * 0.49, 0.34);
+                            }
+                        } else if (elapsed < 2.20) {
+                            const flashCycle = Math.floor((elapsed - 1.12) / 0.35);
+                            const flashLocal = (elapsed - 1.12) % 0.35;
+                            opacity = flashLocal < 0.07 ? 0.58 : 0.055;
+                            filter = 'brightness(0.58)';
+                            if (flashCycle >= 1) triggerCue(`echo-ping-${flashCycle}`, 'echo-ping');
+                            if (this.enemyIdentityCardAfterimage) {
+                                const fade = Math.max(0, 0.34 * (1 - (elapsed - 1.12) / 0.82));
+                                this.enemyIdentityCardAfterimage.style.opacity = String(fade);
+                            }
+                        } else if (elapsed < 2.76) {
+                            const pulse = (Math.sin((elapsed - 2.20) * 24) + 1) * 0.5;
+                            opacity = 0.38 + pulse * 0.62;
+                            filter = `brightness(${1.05 + pulse * 0.85})`;
+                            if (this.enemyIdentityCardWarningRing) {
+                                this.positionAttractCardElement(this.enemyIdentityCardWarningRing, x, y, 0.35 + pulse * 0.65, `scale(${0.82 + pulse * 0.28})`);
+                            }
+                            triggerCue('echo-return', 'echo-return');
+                        } else if (elapsed < 3.14) {
+                            opacity = 1;
+                            filter = 'brightness(1.14)';
+                            if (this.enemyIdentityCardWarningRing) this.enemyIdentityCardWarningRing.style.opacity = '0';
+                        } else {
+                            opacity = Math.max(0.04, 1 - ((elapsed - 3.14) / 0.36) * 0.96);
+                        }
+                        this.positionAttractCardElement(this.enemyIdentityCardPrimary, x, y, opacity);
+                        if (this.enemyIdentityCardPrimary) this.enemyIdentityCardPrimary.style.filter = filter;
+                    } else if (cardKey === 'full-cast') {
+                        const orbX = width * 0.50;
+                        const orbY = height * 0.52;
+                        this.positionAttractCardElement(this.enemyIdentityCardOrb, orbX, orbY, 1);
+
+                        const zigAngle = elapsed * 2.55;
+                        const zigX = width * (0.50 + Math.cos(zigAngle) * 0.40);
+                        const zigY = height * (0.50 + Math.sin(zigAngle * 1.18) * 0.36);
+                        this.positionAttractCardElement(this.enemyIdentityCardZig, zigX, zigY, 1);
+
+                        const dashPhase = elapsed % 2.25;
+                        let dashX = width * 0.14;
+                        const dashY = height * 0.36;
+                        if (dashPhase < 0.75) {
+                            dashX = width * (0.14 + 0.15 * (dashPhase / 0.75));
+                        } else if (dashPhase < 1.25) {
+                            dashX = width * 0.29;
+                            this.updateAttractLockLine(dashX, dashY, orbX, orbY, 0.9);
+                        } else {
+                            const p = Math.min(1, (dashPhase - 1.25) / 0.70);
+                            dashX = width * (0.29 + 0.15 * p);
+                            this.updateAttractLockLine(dashX, dashY, orbX, orbY, 0);
+                        }
+                        this.positionAttractCardElement(this.enemyIdentityCardDash, dashX, dashY, 1, dashPhase >= 1.25 ? 'scale(1.08)' : '');
+
+                        const echoX = width * (0.82 - elapsed * 0.16);
+                        const echoY = height * (0.72 - Math.sin(elapsed * 2.8) * 0.14);
+                        const echoOpacity = (elapsed % 1.15) < 0.54 ? 1 : 0.07;
+                        this.positionAttractCardElement(this.enemyIdentityCardEcho, Math.max(width * 0.56, echoX), echoY, echoOpacity);
+
+                        if (elapsed >= 2.16 && this.enemyIdentityCard) this.enemyIdentityCard.classList.add('full-cast-brighten');
+                    }
+
+                    this.attractEnemyCardFrame = requestAnimationFrame(animate);
+                };
+                this.attractEnemyCardFrame = requestAnimationFrame(animate);
+            }
+
+            hideAttractEnemyCard(options = {}) {
                 if (!this.enemyIdentityCard) return;
-                this.enemyIdentityCard.classList.remove('visible');
+                this.stopAttractEnemyCardSimulation();
+                this.enemyIdentityCard.classList.remove('visible', 'transition-prelude', 'transition-color', 'full-cast-brighten');
                 this.enemyIdentityCard.setAttribute('aria-hidden', 'true');
-                delete this.enemyIdentityCard.dataset.identity;
+                delete this.enemyIdentityCard.dataset.card;
+                if (!options.keepColor) this.enemyIdentityCard.style.removeProperty('--enemy-card-color');
             }
 
             suspendAttractEnemyCards() {
@@ -17688,24 +18073,54 @@ Best Score: ${bestScore}${recoveredLine}` :
                 this.hideAttractEnemyCard();
             }
 
-            showAttractEnemyCard(identityKey) {
+            showAttractTransitionFrame(color = '#fff', prelude = false) {
                 if (!this.enemyIdentityCard) return;
-                const identity = getEnemyIdentity(identityKey);
-                this.enemyIdentityCard.dataset.identity = identity.key;
-                this.enemyIdentityCard.style.setProperty('--enemy-card-color', identity.color);
-                if (this.enemyIdentityCardName) this.enemyIdentityCardName.textContent = identity.displayName;
-                if (this.enemyIdentityCardClass) this.enemyIdentityCardClass.textContent = `“${identity.className.toUpperCase()}”`;
-                if (this.enemyIdentityCardDescription) this.enemyIdentityCardDescription.textContent = identity.attractDescription;
-                this.enemyIdentityCard.setAttribute('aria-label', `${identity.displayName}, ${identity.className}. ${identity.attractDescription}`);
+                this.stopAttractEnemyCardSimulation();
+                this.enemyIdentityCard.dataset.card = 'transition';
+                this.enemyIdentityCard.style.setProperty('--enemy-card-transition-color', color || '#fff');
                 this.enemyIdentityCard.setAttribute('aria-hidden', 'false');
-                this.enemyIdentityCard.classList.remove('visible');
+                this.enemyIdentityCard.classList.remove('transition-prelude', 'transition-color', 'full-cast-brighten');
                 void this.enemyIdentityCard.offsetWidth;
-                this.enemyIdentityCard.classList.add('visible');
+                this.enemyIdentityCard.classList.add('visible', prelude ? 'transition-prelude' : 'transition-color');
             }
 
-            startAttractEnemyCardSequence(initialDelayMs = 5200) {
+            showAttractEnemyCard(identityKey) {
+                if (!this.enemyIdentityCard) return;
+                const isFullCast = identityKey === 'full-cast';
+                const identity = isFullCast ? null : getEnemyIdentity(identityKey);
+                const cardColor = isFullCast ? '#fff' : identity.color;
+                this.enemyIdentityCard.dataset.card = isFullCast ? 'full-cast' : identity.key;
+                this.enemyIdentityCard.style.setProperty('--enemy-card-color', cardColor);
+                this.enemyIdentityCard.classList.remove('transition-prelude', 'transition-color', 'full-cast-brighten');
+                if (isFullCast) {
+                    if (this.enemyIdentityCardName) this.enemyIdentityCardName.textContent = 'THE BLOCK-A-ZOIDS';
+                    if (this.enemyIdentityCardClass) this.enemyIdentityCardClass.textContent = 'ZIG · DASH · ECHO';
+                    if (this.enemyIdentityCardPersonality) this.enemyIdentityCardPersonality.textContent = '';
+                    if (this.enemyIdentityCardBehavior) this.enemyIdentityCardBehavior.textContent = '';
+                    this.enemyIdentityCard.setAttribute('aria-label', 'The Block-A-Zoids. Zig, Dash, and Echo.');
+                } else {
+                    if (this.enemyIdentityCardName) this.enemyIdentityCardName.textContent = identity.displayName;
+                    if (this.enemyIdentityCardClass) this.enemyIdentityCardClass.textContent = `“${identity.className.toUpperCase()}”`;
+                    if (this.enemyIdentityCardPersonality) this.enemyIdentityCardPersonality.textContent = identity.attractPersonality;
+                    if (this.enemyIdentityCardBehavior) this.enemyIdentityCardBehavior.textContent = identity.attractBehavior;
+                    this.enemyIdentityCard.setAttribute('aria-label', `${identity.displayName}, ${identity.className}. ${identity.attractPersonality} ${identity.attractBehavior}`);
+                }
+                this.enemyIdentityCard.setAttribute('aria-hidden', 'false');
+                this.enemyIdentityCard.classList.add('visible');
+                this.startAttractEnemyCardSimulation(isFullCast ? 'full-cast' : identity.key);
+                if (!isFullCast && this.audio && typeof this.audio.playEnemySpawn === 'function') {
+                    this.audio.playEnemySpawn(identity.spawnSoundId, `attract-card-${identity.key}-${performance.now()}`);
+                }
+            }
+
+            startAttractEnemyCardSequence(initialDelayMs = 6500) {
                 this.suspendAttractEnemyCards();
                 const token = ++this.attractEnemyCardSequenceToken;
+                const unlocked = this.getUnlockedEnemyIdentityOrder();
+                const cards = unlocked.slice();
+                if (unlocked.length === ENEMY_IDENTITY_ORDER.length) cards.push('full-cast');
+                const durationFor = key => key === 'drifter' ? 3000 : key === 'full-cast' ? 2500 : 3500;
+
                 const showIndex = index => {
                     if (token !== this.attractEnemyCardSequenceToken) return;
                     if (!this.isAttractEnemyCardAllowed()) {
@@ -17713,21 +18128,41 @@ Best Score: ${bestScore}${recoveredLine}` :
                         this.scheduler.scheduleTimeout('attract-enemy-cards', 'resume-check', () => showIndex(0), 1200);
                         return;
                     }
-                    if (index >= ENEMY_IDENTITY_ORDER.length) {
+                    if (index >= cards.length) {
                         this.hideAttractEnemyCard();
                         this.attractEnemyCardIndex = -1;
-                        this.scheduler.scheduleTimeout('attract-enemy-cards', 'normal-attract-hold', () => showIndex(0), 7000);
+                        if (this.container) {
+                            this.container.classList.remove('attract-grid-rebuild');
+                            void this.container.offsetWidth;
+                            this.container.classList.add('attract-grid-rebuild');
+                            this.scheduler.scheduleTimeout('attract-enemy-cards', 'grid-rebuild-clear', () => this.container && this.container.classList.remove('attract-grid-rebuild'), 500);
+                        }
+                        this.scheduler.scheduleTimeout('attract-enemy-cards', 'normal-attract-hold', () => beginSequence(), 8000);
                         return;
                     }
+
                     this.attractEnemyCardIndex = index;
-                    this.showAttractEnemyCard(ENEMY_IDENTITY_ORDER[index]);
+                    const key = cards[index];
+                    this.showAttractEnemyCard(key);
                     this.scheduler.scheduleTimeout('attract-enemy-cards', `card-${index}-hold`, () => {
                         if (token !== this.attractEnemyCardSequenceToken) return;
-                        this.hideAttractEnemyCard();
-                        this.scheduler.scheduleTimeout('attract-enemy-cards', `card-${index}-gap`, () => showIndex(index + 1), 300);
-                    }, 3100);
+                        const color = key === 'full-cast' ? '#fff' : getEnemyIdentity(key).color;
+                        this.showAttractTransitionFrame(color, false);
+                        this.scheduler.scheduleTimeout('attract-enemy-cards', `card-${index}-transition`, () => showIndex(index + 1), 250);
+                    }, durationFor(key));
                 };
-                this.scheduler.scheduleTimeout('attract-enemy-cards', 'initial-normal-attract', () => showIndex(0), Math.max(0, Number(initialDelayMs) || 0));
+
+                const beginSequence = () => {
+                    if (token !== this.attractEnemyCardSequenceToken) return;
+                    if (!this.isAttractEnemyCardAllowed()) {
+                        this.scheduler.scheduleTimeout('attract-enemy-cards', 'begin-retry', beginSequence, 1200);
+                        return;
+                    }
+                    this.showAttractTransitionFrame('#fff', true);
+                    this.scheduler.scheduleTimeout('attract-enemy-cards', 'prelude-frame', () => showIndex(0), 240);
+                };
+
+                this.scheduler.scheduleTimeout('attract-enemy-cards', 'initial-normal-attract', beginSequence, Math.max(0, Number(initialDelayMs) || 0));
             }
 
             clearEnemyDeathCause() {
@@ -17750,10 +18185,9 @@ Best Score: ${bestScore}${recoveredLine}` :
                 const cause = this.lastDeathCause;
                 if (!cause || !this.gameOverCauseElement) return false;
                 this.gameOverCauseElement.style.setProperty('--death-enemy-color', cause.color || '#fff');
-                const fullLead = cause.gameOverLead || `CAUGHT BY ${cause.displayName}`;
-                const leadPrefix = fullLead.endsWith(cause.displayName) ? fullLead.slice(0, -cause.displayName.length) : 'CAUGHT BY ';
-                this.gameOverCauseElement.innerHTML = `<span class="game-over-cause-lead">${leadPrefix}<span class="game-over-cause-name">${cause.displayName}</span></span><span class="game-over-cause-class">“${String(cause.className || '').toUpperCase()}”</span>`;
-                this.gameOverCauseElement.setAttribute('aria-label', `${fullLead}. ${cause.className}.`);
+                const phrase = cause.gameOverPhrase || 'CAUGHT BY';
+                this.gameOverCauseElement.innerHTML = `<span class="game-over-cause-lead">${phrase}</span><span class="game-over-cause-name">${cause.displayName}</span>`;
+                this.gameOverCauseElement.setAttribute('aria-label', `${phrase} ${cause.displayName}.`);
                 this.gameOverCauseElement.setAttribute('aria-hidden', 'false');
                 this.gameOverCauseElement.classList.add('visible');
                 return true;
@@ -17797,7 +18231,7 @@ Best Score: ${bestScore}${recoveredLine}` :
                     displayName: identity.displayName,
                     className: identity.className,
                     color: identity.color,
-                    gameOverLead: identity.gameOverLead,
+                    gameOverPhrase: identity.gameOverPhrase,
                     behaviorType: enemy.behaviorType,
                     behaviorState,
                     telemetryCategory,
@@ -18868,30 +19302,33 @@ Best Score: ${bestScore}${recoveredLine}` :
                 displayName: 'ZIG',
                 className: 'Drifter',
                 color: GAME_CONFIG.colors.red,
-                attractDescription: 'ERRATIC. ALWAYS MOVING.',
+                attractPersonality: 'ERRATIC. ALWAYS MOVING.',
+                attractBehavior: 'BOUNCES THROUGH THE GRID',
                 helpDescription: 'unpredictable movement',
                 spawnSoundId: 'zig',
-                gameOverLead: 'CAUGHT BY ZIG'
+                gameOverPhrase: 'OUTMANEUVERED BY'
             }),
             charger: Object.freeze({
                 key: 'charger',
                 displayName: 'DASH',
                 className: 'Charger',
                 color: GAME_CONFIG.colors.green,
-                attractDescription: 'LOCKS ON. THEN STRIKES.',
+                attractPersonality: 'LOCKS ON. THEN STRIKES.',
+                attractBehavior: 'MOVE BEFORE THE CHARGE',
                 helpDescription: 'locks on and charges',
                 spawnSoundId: 'dash',
-                gameOverLead: 'CAUGHT BY DASH'
+                gameOverPhrase: 'RAMMED BY'
             }),
             pulse: Object.freeze({
                 key: 'pulse',
                 displayName: 'ECHO',
                 className: 'Phaser',
                 color: GAME_CONFIG.colors.blue,
-                attractDescription: 'FADES OUT. RETURNS WITHOUT WARNING.',
+                attractPersonality: 'FADES FROM THE GRID.',
+                attractBehavior: 'WATCH FOR THE RETURN',
                 helpDescription: 'fades and reappears',
                 spawnSoundId: 'echo',
-                gameOverLead: 'CAUGHT BY ECHO'
+                gameOverPhrase: 'PHASED OUT BY'
             })
         });
 
@@ -19337,6 +19774,7 @@ Best Score: ${bestScore}${recoveredLine}` :
                 if (game.tutorialActive) {
                     game.audio.playSpawn(); // Preserve the existing tutorial sound exactly.
                 } else if (!this.spawnSoundPlayed) {
+                    game.recordEnemyEncounter(this.behaviorType);
                     this.spawnSoundPlayed = true;
                     const spawnSoundKey = `${this.behaviorType}:${Math.round(this.x)}:${Math.round(this.y)}:${Math.floor(performance.now() / 120)}`;
                     game.audio.playEnemySpawn(this.identity.spawnSoundId, spawnSoundKey);
@@ -21284,6 +21722,56 @@ startMaxSwarmBeat(delaySeconds = 0) {
                         filterQ: 0.8
                     });
                 });
+            }
+
+            playEnemyCardCue(cueId = '') {
+                if (!this.ensureAudio() || !this.ctx) return;
+                const now = this.ctx.currentTime;
+                const playCueTone = ({
+                    start = now,
+                    type = 'square',
+                    frequency = 180,
+                    endFrequency = frequency,
+                    duration = 0.07,
+                    peak = 0.028,
+                    filterFrequency = 520,
+                    q = 1.0
+                }) => {
+                    const oscillator = this.createAudioNode('createOscillator');
+                    const gainNode = this.createAudioNode('createGain');
+                    const filter = this.createAudioNode('createBiquadFilter');
+                    oscillator.type = type;
+                    oscillator.frequency.setValueAtTime(Math.max(20, frequency), start);
+                    oscillator.frequency.exponentialRampToValueAtTime(Math.max(20, endFrequency), start + duration);
+                    filter.type = 'lowpass';
+                    filter.frequency.setValueAtTime(filterFrequency, start);
+                    filter.Q.setValueAtTime(q, start);
+                    gainNode.gain.setValueAtTime(0.001, start);
+                    gainNode.gain.linearRampToValueAtTime(peak, start + 0.006);
+                    gainNode.gain.exponentialRampToValueAtTime(0.001, start + duration);
+                    oscillator.connect(filter);
+                    filter.connect(gainNode);
+                    this.connectOutput(gainNode);
+                    this.trackEnemySpawnSource(oscillator);
+                    oscillator.start(start);
+                    oscillator.stop(start + duration + 0.025);
+                };
+
+                if (cueId === 'zig-bounce') {
+                    playCueTone({ type: 'square', frequency: 152, endFrequency: 106, duration: 0.045, peak: 0.020, filterFrequency: 390 });
+                } else if (cueId === 'dash-lock') {
+                    playCueTone({ type: 'triangle', frequency: 118, endFrequency: 205, duration: 0.19, peak: 0.026, filterFrequency: 560 });
+                } else if (cueId === 'dash-charge') {
+                    playCueTone({ type: 'sawtooth', frequency: 138, endFrequency: 54, duration: 0.25, peak: 0.047, filterFrequency: 470 });
+                } else if (cueId === 'dash-recovery') {
+                    playCueTone({ type: 'sine', frequency: 92, endFrequency: 68, duration: 0.20, peak: 0.018, filterFrequency: 280 });
+                } else if (cueId === 'echo-phase-down') {
+                    playCueTone({ type: 'sine', frequency: 198, endFrequency: 62, duration: 0.30, peak: 0.032, filterFrequency: 340, q: 2.1 });
+                } else if (cueId === 'echo-ping') {
+                    playCueTone({ type: 'sine', frequency: 126, endFrequency: 92, duration: 0.08, peak: 0.014, filterFrequency: 260, q: 2.8 });
+                } else if (cueId === 'echo-return') {
+                    playCueTone({ type: 'triangle', frequency: 82, endFrequency: 214, duration: 0.28, peak: 0.030, filterFrequency: 430, q: 1.8 });
+                }
             }
 
             // Play consistent Block-A-Zoid spawn sound
