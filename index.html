@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Trackpad Prototype p089: Makes the Block-A-Zoid introductions shake-triggered, gives the full-cast finale authentic enemy behavior, and removes nonessential behavior audio.
+Trackpad Prototype p090: Splits the full-cast challenge across the top and bottom of the grid and replaces musical spawn cues with a distinct electromechanical sound family.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="trackpad-p089">
+<html data-build-version="trackpad-p090">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -7610,7 +7610,7 @@ Font License Notices
 
     
 
-        /* p089: shake-triggered full-playfield arcade identification sequence with a silent presentation layer. */
+        /* p090: shake-triggered full-playfield arcade identification sequence with a silent presentation layer. */
         #enemyIdentityCard {
             position: absolute;
             inset: 0;
@@ -7759,6 +7759,42 @@ Font License Notices
             font-size: clamp(16px, 4.5vw, 25px);
             font-weight: 800;
             letter-spacing: 3px;
+        }
+
+
+        /* p090: the finale challenge frames the moving trio instead of stacking both sentences together. */
+        #enemyIdentityCard[data-card="full-cast"] .enemy-card-heading {
+            top: clamp(28px, 6.5%, 44px);
+            left: 3%;
+            width: 94%;
+        }
+
+        #enemyIdentityCard[data-card="full-cast"] .enemy-card-name {
+            font-size: clamp(23px, 6.7vw, 39px);
+            line-height: 1;
+            white-space: nowrap;
+        }
+
+        #enemyIdentityCard[data-card="full-cast"] .enemy-card-class {
+            display: none;
+        }
+
+        #enemyIdentityCard[data-card="full-cast"] .enemy-card-stage {
+            top: 23%;
+            height: 54%;
+        }
+
+        #enemyIdentityCard[data-card="full-cast"] .enemy-card-copy {
+            left: 3%;
+            bottom: clamp(28px, 6.5%, 44px);
+            width: 94%;
+        }
+
+        #enemyIdentityCard[data-card="full-cast"] .enemy-card-personality {
+            font-size: clamp(23px, 6.7vw, 39px);
+            line-height: 1;
+            letter-spacing: clamp(1px, 0.55vw, 3px);
+            white-space: nowrap;
         }
 
         .enemy-card-heading {
@@ -18287,9 +18323,9 @@ Best Score: ${bestScore}${recoveredLine}` :
                     if (this.enemyIdentityCardBehavior) this.enemyIdentityCardBehavior.textContent = '';
                     this.enemyIdentityCard.setAttribute('aria-label', 'Block-A-Zoids.');
                 } else if (isFullCast) {
-                    if (this.enemyIdentityCardName) this.enemyIdentityCardName.textContent = 'YOU’VE MET THEM.\nNOW SURVIVE THEM.';
+                    if (this.enemyIdentityCardName) this.enemyIdentityCardName.textContent = 'YOU’VE MET THEM.';
                     if (this.enemyIdentityCardClass) this.enemyIdentityCardClass.textContent = '';
-                    if (this.enemyIdentityCardPersonality) this.enemyIdentityCardPersonality.textContent = '';
+                    if (this.enemyIdentityCardPersonality) this.enemyIdentityCardPersonality.textContent = 'NOW SURVIVE THEM.';
                     if (this.enemyIdentityCardBehavior) this.enemyIdentityCardBehavior.textContent = '';
                     this.enemyIdentityCard.setAttribute('aria-label', 'You’ve met them. Now survive them.');
                 } else {
@@ -21824,7 +21860,10 @@ startMaxSwarmBeat(delaySeconds = 0) {
             }
 
             playEnemySpawn(soundId = 'zig', dedupeKey = '', options = {}) {
+                // Attract cards are intentionally silent. Spawn identity belongs to live play only.
+                if (options && options.attract) return;
                 if (!this.ensureAudio() || !this.ctx) return;
+
                 const nowMs = performance.now();
                 for (const [key, timestamp] of this.enemySpawnSoundKeys.entries()) {
                     if (nowMs - timestamp > 2000) this.enemySpawnSoundKeys.delete(key);
@@ -21836,16 +21875,50 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 this.enemySpawnSoundHistory = this.enemySpawnSoundHistory.filter(timestamp => nowMs - timestamp < 260);
                 const overlapIndex = this.enemySpawnSoundHistory.length;
                 this.enemySpawnSoundHistory.push(nowMs);
-                const attractScale = options && options.attract ? 1.15 : 1;
-                const volumeScale = (overlapIndex === 0 ? 1 : Math.max(0.30, 0.78 - overlapIndex * 0.16)) * attractScale;
-                const durationScale = Math.max(0.70, 1 - overlapIndex * 0.08);
+                const volumeScale = overlapIndex === 0 ? 1 : Math.max(0.42, 0.82 - overlapIndex * 0.14);
+                const durationScale = Math.max(0.76, 1 - overlapIndex * 0.06);
                 const now = this.ctx.currentTime;
 
-                const connectVoice = (source, gainNode, filter = null) => {
+                // Make room for the transient instead of trying to win a volume contest with the soundtrack.
+                if (this.musicGain && !this.musicMuted) {
+                    const musicParam = this.musicGain.gain;
+                    const normalMusicGain = 0.58;
+                    const duckedMusicGain = overlapIndex === 0 ? 0.31 : 0.36;
+                    try {
+                        if (typeof musicParam.cancelAndHoldAtTime === 'function') {
+                            musicParam.cancelAndHoldAtTime(now);
+                        } else {
+                            const heldValue = Math.max(0.001, Math.min(normalMusicGain, Number(musicParam.value) || normalMusicGain));
+                            musicParam.cancelScheduledValues(now);
+                            musicParam.setValueAtTime(heldValue, now);
+                        }
+                        musicParam.linearRampToValueAtTime(duckedMusicGain, now + 0.012);
+                        musicParam.setValueAtTime(duckedMusicGain, now + 0.125);
+                        musicParam.linearRampToValueAtTime(normalMusicGain, now + 0.285);
+                    } catch (_) {}
+                }
+
+                const connectSpawnVoice = (source, gainNode, filter = null, panValue = 0) => {
                     if (!source || !gainNode) return;
+                    let panner = null;
+                    try {
+                        panner = this.createAudioNode('createStereoPanner');
+                        if (panner) panner.pan.setValueAtTime(Math.max(-0.34, Math.min(0.34, panValue)), now);
+                    } catch (_) {
+                        panner = null;
+                    }
+
                     if (filter) {
                         source.connect(filter);
-                        filter.connect(gainNode);
+                        if (panner) {
+                            filter.connect(panner);
+                            panner.connect(gainNode);
+                        } else {
+                            filter.connect(gainNode);
+                        }
+                    } else if (panner) {
+                        source.connect(panner);
+                        panner.connect(gainNode);
                     } else {
                         source.connect(gainNode);
                     }
@@ -21853,115 +21926,98 @@ startMaxSwarmBeat(delaySeconds = 0) {
                     this.trackEnemySpawnSource(source);
                 };
 
-                const playMechanicalTone = ({
-                    start = now,
-                    type = 'square',
-                    startFrequency = 180,
-                    endFrequency = 120,
-                    duration = 0.10,
-                    peak = 0.045,
-                    filterType = null,
-                    filterStart = 500,
-                    filterEnd = 220,
-                    filterQ = 1.2
+                const playNoiseImpact = ({
+                    offset = 0,
+                    duration = 0.035,
+                    peak = 0.08,
+                    filterType = 'bandpass',
+                    filterStart = 2200,
+                    filterEnd = 900,
+                    filterQ = 1.1,
+                    attackRatio = 0.10,
+                    pan = 0
                 }) => {
+                    const start = now + Math.max(0, offset) * durationScale;
+                    const scaledDuration = Math.max(0.014, duration * durationScale);
+                    const frameCount = Math.max(1, Math.floor(this.ctx.sampleRate * scaledDuration));
+                    const buffer = this.ctx.createBuffer(1, frameCount, this.ctx.sampleRate);
+                    const data = buffer.getChannelData(0);
+                    for (let index = 0; index < frameCount; index++) {
+                        const progress = index / Math.max(1, frameCount - 1);
+                        const body = Math.random() * 2 - 1;
+                        const mechanicalRattle = index % 5 === 0 ? (Math.random() * 2 - 1) * 0.42 : 0;
+                        data[index] = (body + mechanicalRattle) * Math.pow(1 - progress, 0.72);
+                    }
+
+                    const source = this.createAudioNode('createBufferSource');
+                    const gainNode = this.createAudioNode('createGain');
+                    const filter = this.createAudioNode('createBiquadFilter');
+                    source.buffer = buffer;
+                    filter.type = filterType;
+                    filter.frequency.setValueAtTime(Math.max(30, filterStart), start);
+                    filter.frequency.exponentialRampToValueAtTime(Math.max(30, filterEnd), start + scaledDuration);
+                    filter.Q.setValueAtTime(Math.max(0.1, filterQ), start);
+                    gainNode.gain.setValueAtTime(0.001, start);
+                    gainNode.gain.linearRampToValueAtTime(Math.max(0.002, peak * volumeScale), start + Math.max(0.002, scaledDuration * attackRatio));
+                    gainNode.gain.exponentialRampToValueAtTime(0.001, start + scaledDuration);
+                    connectSpawnVoice(source, gainNode, filter, pan);
+                    source.start(start);
+                    source.stop(start + scaledDuration + 0.018);
+                };
+
+                const playBodyThunk = ({
+                    offset = 0,
+                    startFrequency = 105,
+                    endFrequency = 55,
+                    duration = 0.075,
+                    peak = 0.07,
+                    filterStart = 420,
+                    filterEnd = 180,
+                    filterQ = 0.8,
+                    pan = 0
+                }) => {
+                    const start = now + Math.max(0, offset) * durationScale;
+                    const scaledDuration = Math.max(0.026, duration * durationScale);
                     const oscillator = this.createAudioNode('createOscillator');
                     const gainNode = this.createAudioNode('createGain');
-                    const filter = filterType ? this.createAudioNode('createBiquadFilter') : null;
-                    oscillator.type = type;
-                    oscillator.frequency.setValueAtTime(Math.max(20, startFrequency), start);
-                    oscillator.frequency.exponentialRampToValueAtTime(Math.max(20, endFrequency), start + duration * durationScale);
-                    if (filter) {
-                        filter.type = filterType;
-                        filter.frequency.setValueAtTime(Math.max(20, filterStart), start);
-                        filter.frequency.exponentialRampToValueAtTime(Math.max(20, filterEnd), start + duration * durationScale);
-                        filter.Q.setValueAtTime(filterQ, start);
-                    }
+                    const filter = this.createAudioNode('createBiquadFilter');
+                    oscillator.type = 'triangle';
+                    oscillator.frequency.setValueAtTime(Math.max(24, startFrequency), start);
+                    oscillator.frequency.exponentialRampToValueAtTime(Math.max(24, endFrequency), start + scaledDuration);
+                    filter.type = 'lowpass';
+                    filter.frequency.setValueAtTime(Math.max(40, filterStart), start);
+                    filter.frequency.exponentialRampToValueAtTime(Math.max(40, filterEnd), start + scaledDuration);
+                    filter.Q.setValueAtTime(Math.max(0.1, filterQ), start);
                     gainNode.gain.setValueAtTime(0.001, start);
-                    gainNode.gain.linearRampToValueAtTime(Math.max(0.001, peak * volumeScale), start + 0.009);
-                    gainNode.gain.exponentialRampToValueAtTime(0.001, start + duration * durationScale);
-                    connectVoice(oscillator, gainNode, filter);
+                    gainNode.gain.linearRampToValueAtTime(Math.max(0.002, peak * volumeScale), start + 0.006);
+                    gainNode.gain.exponentialRampToValueAtTime(0.001, start + scaledDuration);
+                    connectSpawnVoice(oscillator, gainNode, filter, pan);
                     oscillator.start(start);
-                    oscillator.stop(start + duration * durationScale + 0.025);
+                    oscillator.stop(start + scaledDuration + 0.022);
                 };
 
                 if (soundId === 'dash') {
-                    // Low targeting sweep followed by a compact mechanical thrust. No bright pickup-like chirp.
-                    playMechanicalTone({
-                        start: now,
-                        type: 'triangle',
-                        startFrequency: 118,
-                        endFrequency: 245,
-                        duration: 0.18,
-                        peak: 0.050,
-                        filterType: 'lowpass',
-                        filterStart: 520,
-                        filterEnd: 760,
-                        filterQ: 1.0
-                    });
-                    playMechanicalTone({
-                        start: now + 0.13 * durationScale,
-                        type: 'sawtooth',
-                        startFrequency: 112,
-                        endFrequency: 42,
-                        duration: 0.24,
-                        peak: 0.070,
-                        filterType: 'lowpass',
-                        filterStart: 460,
-                        filterEnd: 145,
-                        filterQ: 0.9
-                    });
+                    // DASH: a loaded solenoid, latch snap, and compressed discharge.
+                    playBodyThunk({ startFrequency: 74, endFrequency: 38, duration: 0.115, peak: 0.118, filterStart: 360, filterEnd: 145, filterQ: 0.72 });
+                    playNoiseImpact({ offset: 0.008, duration: 0.036, peak: 0.105, filterType: 'bandpass', filterStart: 1280, filterEnd: 520, filterQ: 1.25 });
+                    playNoiseImpact({ offset: 0.074, duration: 0.096, peak: 0.061, filterType: 'highpass', filterStart: 3200, filterEnd: 860, filterQ: 0.62, attackRatio: 0.05 });
+                    playNoiseImpact({ offset: 0.151, duration: 0.022, peak: 0.074, filterType: 'bandpass', filterStart: 2500, filterEnd: 1350, filterQ: 1.55 });
                     return;
                 }
 
                 if (soundId === 'echo') {
-                    // Hollow low pulse with a quieter delayed ghost repeat.
-                    playMechanicalTone({
-                        start: now,
-                        type: 'sine',
-                        startFrequency: 205,
-                        endFrequency: 68,
-                        duration: 0.31,
-                        peak: 0.064,
-                        filterType: 'bandpass',
-                        filterStart: 310,
-                        filterEnd: 115,
-                        filterQ: 2.8
-                    });
-                    playMechanicalTone({
-                        start: now + 0.19 * durationScale,
-                        type: 'sine',
-                        startFrequency: 132,
-                        endFrequency: 48,
-                        duration: 0.26,
-                        peak: 0.026,
-                        filterType: 'bandpass',
-                        filterStart: 205,
-                        filterEnd: 82,
-                        filterQ: 3.2
-                    });
+                    // ECHO: a hollow cabinet knock followed by a brief signal rupture, not a musical pulse.
+                    playBodyThunk({ startFrequency: 158, endFrequency: 82, duration: 0.128, peak: 0.079, filterStart: 330, filterEnd: 118, filterQ: 3.8, pan: -0.04 });
+                    playNoiseImpact({ offset: 0.016, duration: 0.132, peak: 0.068, filterType: 'bandpass', filterStart: 3600, filterEnd: 610, filterQ: 1.35, attackRatio: 0.34, pan: 0.06 });
+                    playNoiseImpact({ offset: 0.142, duration: 0.024, peak: 0.052, filterType: 'highpass', filterStart: 2450, filterEnd: 1250, filterQ: 0.8, pan: 0.14 });
                     return;
                 }
 
-                // ZIG: three irregular dry machine ticks, all well below the crystal pickup pitch.
-                [
-                    { offset: 0.000, startFrequency: 168, endFrequency: 124, peak: 0.046, duration: 0.055 },
-                    { offset: 0.086, startFrequency: 238, endFrequency: 154, peak: 0.039, duration: 0.046 },
-                    { offset: 0.151, startFrequency: 186, endFrequency: 102, peak: 0.052, duration: 0.062 }
-                ].forEach((tick, index) => {
-                    playMechanicalTone({
-                        start: now + tick.offset * durationScale,
-                        type: index === 1 ? 'sawtooth' : 'square',
-                        startFrequency: tick.startFrequency,
-                        endFrequency: tick.endFrequency,
-                        duration: tick.duration,
-                        peak: tick.peak,
-                        filterType: 'lowpass',
-                        filterStart: index === 1 ? 620 : 430,
-                        filterEnd: 190,
-                        filterQ: 0.8
-                    });
-                });
+                // ZIG: loose relay chatter with irregular dry contacts.
+                playNoiseImpact({ offset: 0.000, duration: 0.026, peak: 0.101, filterType: 'bandpass', filterStart: 3100, filterEnd: 1650, filterQ: 1.45, pan: -0.09 });
+                playNoiseImpact({ offset: 0.054, duration: 0.019, peak: 0.078, filterType: 'highpass', filterStart: 2200, filterEnd: 2900, filterQ: 0.65, pan: 0.07 });
+                playNoiseImpact({ offset: 0.103, duration: 0.030, peak: 0.091, filterType: 'bandpass', filterStart: 2400, filterEnd: 980, filterQ: 1.2, pan: -0.03 });
+                playBodyThunk({ offset: 0.096, startFrequency: 112, endFrequency: 63, duration: 0.064, peak: 0.041, filterStart: 390, filterEnd: 155, filterQ: 0.7, pan: 0.03 });
             }
 
             getEnemyAudioPan(enemy, fallbackPan = 0) {
