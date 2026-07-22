@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Trackpad Prototype p095: Speeds up the universal synthesized “uh-oh” spawn cue and raises both notes by one octave for a quicker, brighter arcade warning.
+Trackpad Prototype p096: Plays the universal synthesized “uh-oh” spawn cue at twice the speed with a much shorter release for a sharper arcade warning.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="trackpad-p095">
+<html data-build-version="trackpad-p096">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -21890,9 +21890,9 @@ startMaxSwarmBeat(delaySeconds = 0) {
                             musicParam.cancelScheduledValues(now);
                             musicParam.setValueAtTime(heldValue, now);
                         }
-                        musicParam.linearRampToValueAtTime(duckedMusicGain, now + 0.010);
-                        musicParam.setValueAtTime(duckedMusicGain, now + 0.28);
-                        musicParam.linearRampToValueAtTime(normalMusicGain, now + 0.40);
+                        musicParam.linearRampToValueAtTime(duckedMusicGain, now + 0.006);
+                        musicParam.setValueAtTime(duckedMusicGain, now + 0.125);
+                        musicParam.linearRampToValueAtTime(normalMusicGain, now + 0.19);
                     } catch (_) {}
                 }
 
@@ -21923,9 +21923,11 @@ startMaxSwarmBeat(delaySeconds = 0) {
                     lowpass.frequency.exponentialRampToValueAtTime(lowpassEnd, end);
                     lowpass.Q.setValueAtTime(0.72, start);
 
+                    const attackTime = Math.min(0.008, duration * 0.16);
+                    const releaseTime = Math.min(0.018, duration * 0.25);
                     outputGain.gain.setValueAtTime(0.001, start);
-                    outputGain.gain.linearRampToValueAtTime(peak * volumeScale, start + 0.018);
-                    outputGain.gain.setValueAtTime(peak * volumeScale, end - 0.055);
+                    outputGain.gain.linearRampToValueAtTime(peak * volumeScale, start + attackTime);
+                    outputGain.gain.setValueAtTime(peak * volumeScale, end - releaseTime);
                     outputGain.gain.exponentialRampToValueAtTime(0.001, end);
                     lowpass.connect(outputGain);
                     this.connectOutput(outputGain);
@@ -21948,7 +21950,7 @@ startMaxSwarmBeat(delaySeconds = 0) {
                         voiceGain.connect(lowpass);
                         this.trackEnemySpawnSource(oscillator);
                         oscillator.start(start);
-                        oscillator.stop(end + 0.025);
+                        oscillator.stop(end + 0.008);
                     });
 
                     // A narrow resonant branch gives the oscillator stack a restrained vowel-like body.
@@ -21963,20 +21965,20 @@ startMaxSwarmBeat(delaySeconds = 0) {
                         formantFilter.frequency.setValueAtTime(formantFrequency, start);
                         formantFilter.Q.setValueAtTime(3.4, start);
                         formantGain.gain.setValueAtTime(0.001, start);
-                        formantGain.gain.linearRampToValueAtTime(0.19, start + 0.025);
+                        formantGain.gain.linearRampToValueAtTime(0.19, start + Math.min(0.010, duration * 0.18));
                         formantGain.gain.exponentialRampToValueAtTime(0.001, end);
                         formantOscillator.connect(formantFilter);
                         formantFilter.connect(formantGain);
                         formantGain.connect(outputGain);
                         this.trackEnemySpawnSource(formantOscillator);
                         formantOscillator.start(start);
-                        formantOscillator.stop(end + 0.025);
+                        formantOscillator.stop(end + 0.008);
                     }
                 };
 
                 const playBreathAttack = (offset, centerFrequency) => {
                     const start = now + offset;
-                    const duration = 0.036;
+                    const duration = 0.018;
                     const buffer = this.ctx.createBuffer(1, Math.max(1, Math.floor(this.ctx.sampleRate * duration)), this.ctx.sampleRate);
                     const data = buffer.getChannelData(0);
                     for (let index = 0; index < data.length; index++) {
@@ -21992,21 +21994,21 @@ startMaxSwarmBeat(delaySeconds = 0) {
                     filter.frequency.setValueAtTime(centerFrequency, start);
                     filter.Q.setValueAtTime(1.1, start);
                     gainNode.gain.setValueAtTime(0.001, start);
-                    gainNode.gain.linearRampToValueAtTime(0.010 * volumeScale, start + 0.006);
+                    gainNode.gain.linearRampToValueAtTime(0.010 * volumeScale, start + 0.003);
                     gainNode.gain.exponentialRampToValueAtTime(0.001, start + duration);
                     source.connect(filter);
                     filter.connect(gainNode);
                     connectSpawnSource(source, gainNode);
                     source.start(start);
-                    source.stop(start + duration + 0.015);
+                    source.stop(start + duration + 0.006);
                 };
 
-                // Faster octave-up contour: a short bright “uh”, a 40 ms gap, then
-                // a lower “oh”. The complete two-note warning now lasts about 0.36 seconds.
+                // Twice-speed octave-up contour: a sharp bright “uh”, a 20 ms gap, then
+                // a clipped lower “oh”. The complete two-note warning lasts about 0.18 seconds.
                 playBreathAttack(0, 1450);
                 playSyllable({
                     offset: 0,
-                    duration: 0.14,
+                    duration: 0.07,
                     startFrequency: 700,
                     endFrequency: 676,
                     peak: 0.091,
@@ -22015,10 +22017,10 @@ startMaxSwarmBeat(delaySeconds = 0) {
                     formantFrequency: 1600
                 });
 
-                playBreathAttack(0.18, 1220);
+                playBreathAttack(0.09, 1220);
                 playSyllable({
-                    offset: 0.18,
-                    duration: 0.18,
+                    offset: 0.09,
+                    duration: 0.09,
                     startFrequency: 560,
                     endFrequency: 536,
                     peak: 0.103,
