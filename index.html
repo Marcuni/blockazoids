@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Trackpad Prototype p097: Softens and darkens the fast universal synthesized “uh-oh” spawn cue while preserving its compact two-note timing.
+Trackpad Prototype p099: Replaces the universal two-note spawn cue with one compact speaker-friendly thump for every Block-A-Zoid.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="trackpad-p097">
+<html data-build-version="trackpad-p099">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -21858,8 +21858,8 @@ startMaxSwarmBeat(delaySeconds = 0) {
             }
 
             playEnemySpawn(soundId = 'zig', dedupeKey = '', options = {}) {
-                // Attract cards are intentionally silent. Live play and tutorial spawns share
-                // one universal synthesized “uh-oh” identity cue.
+                // Attract cards are intentionally silent. Every live Block-A-Zoid materializes
+                // with the same compact thump, tuned to remain audible on small phone speakers.
                 if (options && options.attract) return;
                 if (!this.ensureAudio() || !this.ctx) return;
 
@@ -21871,17 +21871,19 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 if (normalizedKey && this.enemySpawnSoundKeys.has(normalizedKey)) return;
                 if (normalizedKey) this.enemySpawnSoundKeys.set(normalizedKey, nowMs);
 
-                this.enemySpawnSoundHistory = this.enemySpawnSoundHistory.filter(timestamp => nowMs - timestamp < 260);
+                this.enemySpawnSoundHistory = this.enemySpawnSoundHistory.filter(timestamp => nowMs - timestamp < 220);
                 const overlapIndex = this.enemySpawnSoundHistory.length;
                 this.enemySpawnSoundHistory.push(nowMs);
-                const volumeScale = overlapIndex === 0 ? 1 : Math.max(0.38, 0.78 - overlapIndex * 0.16);
+                const volumeScale = overlapIndex === 0 ? 1 : Math.max(0.42, 0.78 - overlapIndex * 0.14);
                 const now = this.ctx.currentTime;
+                const duration = 0.115;
+                const end = now + duration;
 
-                // Duck the soundtrack for the complete two-syllable cue.
+                // Briefly clear space in the soundtrack without making the impact feel musical.
                 if (this.musicGain && !this.musicMuted) {
                     const musicParam = this.musicGain.gain;
                     const normalMusicGain = 0.58;
-                    const duckedMusicGain = overlapIndex === 0 ? 0.31 : 0.36;
+                    const duckedMusicGain = overlapIndex === 0 ? 0.39 : 0.43;
                     try {
                         if (typeof musicParam.cancelAndHoldAtTime === 'function') {
                             musicParam.cancelAndHoldAtTime(now);
@@ -21890,144 +21892,89 @@ startMaxSwarmBeat(delaySeconds = 0) {
                             musicParam.cancelScheduledValues(now);
                             musicParam.setValueAtTime(heldValue, now);
                         }
-                        musicParam.linearRampToValueAtTime(duckedMusicGain, now + 0.006);
-                        musicParam.setValueAtTime(duckedMusicGain, now + 0.125);
-                        musicParam.linearRampToValueAtTime(normalMusicGain, now + 0.19);
+                        musicParam.linearRampToValueAtTime(duckedMusicGain, now + 0.004);
+                        musicParam.setValueAtTime(duckedMusicGain, now + 0.075);
+                        musicParam.linearRampToValueAtTime(normalMusicGain, now + 0.145);
                     } catch (_) {}
                 }
 
-                const connectSpawnSource = (source, outputGain) => {
-                    if (!source || !outputGain) return;
-                    this.connectOutput(outputGain);
-                    this.trackEnemySpawnSource(source);
-                };
+                const bodyFilter = this.createAudioNode('createBiquadFilter');
+                const bodyGain = this.createAudioNode('createGain');
+                if (!bodyFilter || !bodyGain) return;
 
-                const playSyllable = ({
-                    offset,
-                    duration,
-                    startFrequency,
-                    endFrequency,
-                    peak,
-                    lowpassStart,
-                    lowpassEnd,
-                    formantFrequency
-                }) => {
-                    const start = now + offset;
-                    const end = start + duration;
-                    const outputGain = this.createAudioNode('createGain');
-                    const lowpass = this.createAudioNode('createBiquadFilter');
-                    if (!outputGain || !lowpass) return;
+                bodyFilter.type = 'lowpass';
+                bodyFilter.frequency.setValueAtTime(1250, now);
+                bodyFilter.frequency.exponentialRampToValueAtTime(620, end);
+                bodyFilter.Q.setValueAtTime(0.72, now);
 
-                    lowpass.type = 'lowpass';
-                    lowpass.frequency.setValueAtTime(lowpassStart, start);
-                    lowpass.frequency.exponentialRampToValueAtTime(lowpassEnd, end);
-                    lowpass.Q.setValueAtTime(0.72, start);
+                bodyGain.gain.setValueAtTime(0.001, now);
+                bodyGain.gain.linearRampToValueAtTime(0.105 * volumeScale, now + 0.004);
+                bodyGain.gain.exponentialRampToValueAtTime(0.026 * volumeScale, now + 0.060);
+                bodyGain.gain.exponentialRampToValueAtTime(0.001, end);
+                bodyFilter.connect(bodyGain);
+                this.connectOutput(bodyGain);
 
-                    const attackTime = Math.min(0.011, duration * 0.20);
-                    const releaseTime = Math.min(0.018, duration * 0.25);
-                    outputGain.gain.setValueAtTime(0.001, start);
-                    outputGain.gain.linearRampToValueAtTime(peak * volumeScale, start + attackTime);
-                    outputGain.gain.setValueAtTime(peak * volumeScale, end - releaseTime);
-                    outputGain.gain.exponentialRampToValueAtTime(0.001, end);
-                    lowpass.connect(outputGain);
-                    this.connectOutput(outputGain);
+                // The primary pitch drop supplies the physical body of the impact.
+                const bodyOscillator = this.createAudioNode('createOscillator');
+                const bodyVoiceGain = this.createAudioNode('createGain');
+                if (bodyOscillator && bodyVoiceGain) {
+                    bodyOscillator.type = 'triangle';
+                    bodyOscillator.frequency.setValueAtTime(225, now);
+                    bodyOscillator.frequency.exponentialRampToValueAtTime(132, end);
+                    bodyVoiceGain.gain.setValueAtTime(0.92, now);
+                    bodyOscillator.connect(bodyVoiceGain);
+                    bodyVoiceGain.connect(bodyFilter);
+                    this.trackEnemySpawnSource(bodyOscillator);
+                    bodyOscillator.start(now);
+                    bodyOscillator.stop(end + 0.010);
+                }
 
-                    const voices = [
-                        { type: 'triangle', gain: 0.82, detune: -3 },
-                        { type: 'sawtooth', gain: 0.18, detune: 3 }
-                    ];
+                // A restrained upper partial keeps the thump readable through iPhone speakers,
+                // which reproduce the true low fundamental less strongly.
+                const speakerOscillator = this.createAudioNode('createOscillator');
+                const speakerVoiceGain = this.createAudioNode('createGain');
+                if (speakerOscillator && speakerVoiceGain) {
+                    speakerOscillator.type = 'sine';
+                    speakerOscillator.frequency.setValueAtTime(450, now);
+                    speakerOscillator.frequency.exponentialRampToValueAtTime(264, end);
+                    speakerVoiceGain.gain.setValueAtTime(0.26, now);
+                    speakerOscillator.connect(speakerVoiceGain);
+                    speakerVoiceGain.connect(bodyFilter);
+                    this.trackEnemySpawnSource(speakerOscillator);
+                    speakerOscillator.start(now);
+                    speakerOscillator.stop(end + 0.010);
+                }
 
-                    voices.forEach(voice => {
-                        const oscillator = this.createAudioNode('createOscillator');
-                        const voiceGain = this.createAudioNode('createGain');
-                        if (!oscillator || !voiceGain) return;
-                        oscillator.type = voice.type;
-                        oscillator.frequency.setValueAtTime(startFrequency, start);
-                        oscillator.frequency.exponentialRampToValueAtTime(endFrequency, end);
-                        oscillator.detune.setValueAtTime(voice.detune, start);
-                        voiceGain.gain.setValueAtTime(voice.gain, start);
-                        oscillator.connect(voiceGain);
-                        voiceGain.connect(lowpass);
-                        this.trackEnemySpawnSource(oscillator);
-                        oscillator.start(start);
-                        oscillator.stop(end + 0.008);
-                    });
+                // A very short, muted attack gives the impact definition without turning it into a click.
+                const transientDuration = 0.018;
+                const transientBuffer = this.ctx.createBuffer(
+                    1,
+                    Math.max(1, Math.floor(this.ctx.sampleRate * transientDuration)),
+                    this.ctx.sampleRate
+                );
+                const transientData = transientBuffer.getChannelData(0);
+                for (let index = 0; index < transientData.length; index++) {
+                    const progress = index / Math.max(1, transientData.length - 1);
+                    transientData[index] = (Math.random() * 2 - 1) * Math.pow(1 - progress, 3.1);
+                }
 
-                    // A narrow resonant branch gives the oscillator stack a restrained vowel-like body.
-                    const formantOscillator = this.createAudioNode('createOscillator');
-                    const formantFilter = this.createAudioNode('createBiquadFilter');
-                    const formantGain = this.createAudioNode('createGain');
-                    if (formantOscillator && formantFilter && formantGain) {
-                        formantOscillator.type = 'sawtooth';
-                        formantOscillator.frequency.setValueAtTime(startFrequency, start);
-                        formantOscillator.frequency.exponentialRampToValueAtTime(endFrequency, end);
-                        formantFilter.type = 'bandpass';
-                        formantFilter.frequency.setValueAtTime(formantFrequency, start);
-                        formantFilter.Q.setValueAtTime(3.4, start);
-                        formantGain.gain.setValueAtTime(0.001, start);
-                        formantGain.gain.linearRampToValueAtTime(0.145, start + Math.min(0.012, duration * 0.22));
-                        formantGain.gain.exponentialRampToValueAtTime(0.001, end);
-                        formantOscillator.connect(formantFilter);
-                        formantFilter.connect(formantGain);
-                        formantGain.connect(outputGain);
-                        this.trackEnemySpawnSource(formantOscillator);
-                        formantOscillator.start(start);
-                        formantOscillator.stop(end + 0.008);
-                    }
-                };
-
-                const playBreathAttack = (offset, centerFrequency) => {
-                    const start = now + offset;
-                    const duration = 0.018;
-                    const buffer = this.ctx.createBuffer(1, Math.max(1, Math.floor(this.ctx.sampleRate * duration)), this.ctx.sampleRate);
-                    const data = buffer.getChannelData(0);
-                    for (let index = 0; index < data.length; index++) {
-                        const progress = index / Math.max(1, data.length - 1);
-                        data[index] = (Math.random() * 2 - 1) * Math.pow(1 - progress, 2.4);
-                    }
-                    const source = this.createAudioNode('createBufferSource');
-                    const filter = this.createAudioNode('createBiquadFilter');
-                    const gainNode = this.createAudioNode('createGain');
-                    if (!source || !filter || !gainNode) return;
-                    source.buffer = buffer;
-                    filter.type = 'bandpass';
-                    filter.frequency.setValueAtTime(centerFrequency, start);
-                    filter.Q.setValueAtTime(1.1, start);
-                    gainNode.gain.setValueAtTime(0.001, start);
-                    gainNode.gain.linearRampToValueAtTime(0.0065 * volumeScale, start + 0.0045);
-                    gainNode.gain.exponentialRampToValueAtTime(0.001, start + duration);
-                    source.connect(filter);
-                    filter.connect(gainNode);
-                    connectSpawnSource(source, gainNode);
-                    source.start(start);
-                    source.stop(start + duration + 0.006);
-                };
-
-                // Twice-speed octave-up contour: a compact, slightly softer “uh”, a 20 ms gap, then
-                // a clipped lower “oh”. The complete two-note warning still lasts about 0.18 seconds.
-                playBreathAttack(0, 1120);
-                playSyllable({
-                    offset: 0,
-                    duration: 0.07,
-                    startFrequency: 700,
-                    endFrequency: 676,
-                    peak: 0.078,
-                    lowpassStart: 2450,
-                    lowpassEnd: 1820,
-                    formantFrequency: 1420
-                });
-
-                playBreathAttack(0.09, 980);
-                playSyllable({
-                    offset: 0.09,
-                    duration: 0.09,
-                    startFrequency: 560,
-                    endFrequency: 536,
-                    peak: 0.088,
-                    lowpassStart: 2150,
-                    lowpassEnd: 1580,
-                    formantFrequency: 1120
-                });
+                const transientSource = this.createAudioNode('createBufferSource');
+                const transientFilter = this.createAudioNode('createBiquadFilter');
+                const transientGain = this.createAudioNode('createGain');
+                if (transientSource && transientFilter && transientGain) {
+                    transientSource.buffer = transientBuffer;
+                    transientFilter.type = 'bandpass';
+                    transientFilter.frequency.setValueAtTime(880, now);
+                    transientFilter.Q.setValueAtTime(0.82, now);
+                    transientGain.gain.setValueAtTime(0.012 * volumeScale, now);
+                    transientGain.gain.exponentialRampToValueAtTime(0.001, now + transientDuration);
+                    transientSource.connect(transientFilter);
+                    transientFilter.connect(transientGain);
+                    this.connectOutput(transientGain);
+                    this.trackEnemySpawnSource(transientSource);
+                    transientSource.start(now);
+                    transientSource.stop(now + transientDuration + 0.006);
+                }
             }
 
             getEnemyAudioPan(enemy, fallbackPan = 0) {
