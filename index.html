@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Trackpad Prototype p084: Expands attract mode into isolated enemy behavior identification screens, updates enemy-specific Game Over causes, and centralizes the 500 ms double-tap window.
+Trackpad Prototype p085: Adds complete enemy sound families for ZIG, DASH, and ECHO across gameplay, attract mode, Cosmic Zap destruction, and enemy-caused Game Over.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="trackpad-p084">
+<html data-build-version="trackpad-p085">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -9483,6 +9483,9 @@ Font License Notices
                 game.explosions.push(new Explosion(game, game.player.x + game.player.size / 2, game.player.y + game.player.size / 2, true)); // Player explosion
                 game.container.classList.add('shake'); // Screen shake
                 game.audio.playExplosion(true); // Explosion sound
+                if (game.lastDeathCause && game.audio && typeof game.audio.playEnemyGameOverAccent === 'function') {
+                    game.audio.scheduleAudioTimer(() => game.audio.playEnemyGameOverAccent(game.lastDeathCause), 260, 'enemy-game-over-accent');
+                }
                 game.enemies.forEach(enemy => enemy.element.remove()); // Clear enemies
                 game.enemies = [];
                 game.crystals.forEach(crys => crys.element.remove()); // Clear crystals
@@ -17695,6 +17698,7 @@ Best Score: ${bestScore}${recoveredLine}` :
                     this.cosmicZapPressure++;
                     this.ui.updateCosmicZapIndicators();
                     this.audio.playCosmicZapSound();
+                    if (typeof this.audio.playEnemyZapDestructions === 'function') this.audio.playEnemyZapDestructions(clearedEnemies);
                     this.triggerCrtEvent('zap');
                     this.playCosmicZapDischarge(clearedEnemies);
                     this.container.classList.remove('cosmicZapShake');
@@ -17941,7 +17945,10 @@ Best Score: ${bestScore}${recoveredLine}` :
                             zigState.vx = Math.cos(angle) * speed;
                             zigState.vy = Math.sin(angle) * speed;
                             this.addAttractEnemyTrailDot(zigState.x, zigState.y, GAME_CONFIG.colors.red);
-                            if (this.audio && typeof this.audio.playEnemyCardCue === 'function') this.audio.playEnemyCardCue('zig-bounce');
+                            if (this.audio && typeof this.audio.playEnemyCardCue === 'function') {
+                                this.audio.playEnemyCardCue('zig-bounce');
+                                if (zigState.bounceCount % 2 === 0) this.audio.playEnemyCardCue('zig-direction');
+                            }
                         }
                         this.positionAttractCardElement(this.enemyIdentityCardPrimary, zigState.x, zigState.y, 1);
                     } else if (cardKey === 'charger') {
@@ -18014,6 +18021,7 @@ Best Score: ${bestScore}${recoveredLine}` :
                             opacity = 1;
                             filter = 'brightness(1.14)';
                             if (this.enemyIdentityCardWarningRing) this.enemyIdentityCardWarningRing.style.opacity = '0';
+                            triggerCue('echo-full-return', 'echo-full-return');
                         } else {
                             opacity = Math.max(0.04, 1 - ((elapsed - 3.14) / 0.36) * 0.96);
                         }
@@ -18060,6 +18068,7 @@ Best Score: ${bestScore}${recoveredLine}` :
             hideAttractEnemyCard(options = {}) {
                 if (!this.enemyIdentityCard) return;
                 this.stopAttractEnemyCardSimulation();
+                if (this.audio && typeof this.audio.setAttractEnemyAudioFocus === 'function') this.audio.setAttractEnemyAudioFocus(false);
                 this.enemyIdentityCard.classList.remove('visible', 'transition-prelude', 'transition-color', 'full-cast-brighten');
                 this.enemyIdentityCard.setAttribute('aria-hidden', 'true');
                 delete this.enemyIdentityCard.dataset.card;
@@ -18076,6 +18085,7 @@ Best Score: ${bestScore}${recoveredLine}` :
             showAttractTransitionFrame(color = '#fff', prelude = false) {
                 if (!this.enemyIdentityCard) return;
                 this.stopAttractEnemyCardSimulation();
+                if (this.audio && typeof this.audio.setAttractEnemyAudioFocus === 'function') this.audio.setAttractEnemyAudioFocus(true);
                 this.enemyIdentityCard.dataset.card = 'transition';
                 this.enemyIdentityCard.style.setProperty('--enemy-card-transition-color', color || '#fff');
                 this.enemyIdentityCard.setAttribute('aria-hidden', 'false');
@@ -18107,9 +18117,10 @@ Best Score: ${bestScore}${recoveredLine}` :
                 }
                 this.enemyIdentityCard.setAttribute('aria-hidden', 'false');
                 this.enemyIdentityCard.classList.add('visible');
+                if (this.audio && typeof this.audio.setAttractEnemyAudioFocus === 'function') this.audio.setAttractEnemyAudioFocus(true);
                 this.startAttractEnemyCardSimulation(isFullCast ? 'full-cast' : identity.key);
                 if (!isFullCast && this.audio && typeof this.audio.playEnemySpawn === 'function') {
-                    this.audio.playEnemySpawn(identity.spawnSoundId, `attract-card-${identity.key}-${performance.now()}`);
+                    this.audio.playEnemySpawn(identity.spawnSoundId, `attract-card-${identity.key}-${performance.now()}`, { attract: true });
                 }
             }
 
@@ -19354,6 +19365,13 @@ Best Score: ${bestScore}${recoveredLine}` :
             onBoundaryCollision() {}
             onEnemyCollision() {}
             dispose() {}
+            playSound(eventId, options = {}) {
+                const enemy = this.enemy;
+                if (!enemy || !enemy.game || enemy.game.tutorialActive) return false;
+                const audio = enemy.game.audio;
+                if (!audio || typeof audio.playEnemyBehaviorSound !== 'function') return false;
+                return audio.playEnemyBehaviorSound(eventId, enemy, options);
+            }
             getVisualColor() { return null; }
             isDangerousToPlayer() { return true; }
 
@@ -19371,10 +19389,26 @@ Best Score: ${bestScore}${recoveredLine}` :
                 const enemy = this.enemy;
                 enemy.dx = (Math.random() > 0.5 ? 1 : -1) * enemy.speed;
                 enemy.dy = (Math.random() > 0.5 ? 1 : -1) * enemy.speed;
+                this.directionChangesSinceAccent = 0;
+                this.nextDirectionAccentAt = 2 + Math.floor(Math.random() * 3);
+            }
+
+            noteDirectionChange(kind = 'impact') {
+                this.directionChangesSinceAccent++;
+                if (kind === 'bounce') this.playSound('zig-bounce', { cooldownMs: 110 });
+                if (this.directionChangesSinceAccent >= this.nextDirectionAccentAt) {
+                    this.directionChangesSinceAccent = 0;
+                    this.nextDirectionAccentAt = 2 + Math.floor(Math.random() * 3);
+                    this.playSound('zig-direction', { cooldownMs: 360 });
+                }
             }
 
             getVisualColor() {
                 return GAME_CONFIG.enemyBehaviors.colors.drifter;
+            }
+
+            onBoundaryCollision() {
+                this.noteDirectionChange('bounce');
             }
 
             onEnemyCollision({ normal = null } = {}) {
@@ -19382,6 +19416,7 @@ Best Score: ${bestScore}${recoveredLine}` :
                 const enemy = this.enemy;
                 const normalDirection = normal || { x: enemy.dx, y: enemy.dy };
                 enemy.normalizeVelocityMagnitude(enemy.speed * Math.SQRT2, normalDirection);
+                this.noteDirectionChange('impact');
             }
 
             update(deltaTime) {
@@ -19399,6 +19434,8 @@ Best Score: ${bestScore}${recoveredLine}` :
                 this.state = 'cruise';
                 this.stateEndsAt = 0;
                 this.chargeDirection = { x: 1, y: 0 };
+                this.nextCruiseSoundAt = 0;
+                this.minimumChargeDistance = Infinity;
             }
 
             get type() {
@@ -19433,7 +19470,9 @@ Best Score: ${bestScore}${recoveredLine}` :
                 const angle = Math.random() * Math.PI * 2;
                 this.setMovementDirection(Math.cos(angle), Math.sin(angle), this.tuning.cruiseSpeedMultiplier);
                 this.state = 'cruise';
-                this.stateEndsAt = performance.now() + this.randomCruiseDuration();
+                const now = performance.now();
+                this.stateEndsAt = now + this.randomCruiseDuration();
+                this.nextCruiseSoundAt = now + 900 + Math.random() * 850;
             }
 
             onElementReady() {
@@ -19459,23 +19498,53 @@ Best Score: ${bestScore}${recoveredLine}` :
                 this.state = 'telegraph';
                 this.stateEndsAt = now + this.tuning.warningMs;
                 this.setVisualState(this.state);
+                this.playSound('dash-lock', { durationMs: this.tuning.warningMs, priority: 6, priorityHoldMs: this.tuning.warningMs });
             }
 
             beginCharge(now) {
                 this.state = 'charge';
                 this.stateEndsAt = now + this.tuning.chargeMaxMs;
+                this.minimumChargeDistance = Infinity;
                 this.setMovementDirection(this.chargeDirection.x, this.chargeDirection.y, this.tuning.chargeSpeedMultiplier);
                 this.setVisualState(this.state);
+                this.playSound('dash-charge', {
+                    durationMs: this.tuning.chargeMaxMs,
+                    directionPan: Math.max(-0.22, Math.min(0.22, this.chargeDirection.x * 0.22)),
+                    priority: 6,
+                    priorityHoldMs: 280
+                });
+            }
+
+            playerCenterDistance() {
+                const enemy = this.enemy;
+                const player = enemy.game.player;
+                const dx = (enemy.x + enemy.size / 2) - (player.x + player.size / 2);
+                const dy = (enemy.y + enemy.size / 2) - (player.y + player.size / 2);
+                return Math.hypot(dx, dy);
             }
 
             beginRecovery(now) {
                 const enemy = this.enemy;
+                const previousState = this.state;
+                const nearMissThreshold = enemy.size / 2 + enemy.game.player.size * 2.35;
+                const collisionThreshold = enemy.size / 2 + enemy.game.player.size * 0.55;
+                const wasNearMiss = previousState === 'charge' &&
+                    this.minimumChargeDistance < nearMissThreshold &&
+                    this.minimumChargeDistance > collisionThreshold;
                 const directionX = Math.abs(enemy.dx) > 0.001 || Math.abs(enemy.dy) > 0.001 ? enemy.dx : -this.chargeDirection.x;
                 const directionY = Math.abs(enemy.dx) > 0.001 || Math.abs(enemy.dy) > 0.001 ? enemy.dy : -this.chargeDirection.y;
                 this.state = 'recovery';
                 this.stateEndsAt = now + this.tuning.recoveryMs;
                 this.setMovementDirection(directionX, directionY, this.tuning.recoverySpeedMultiplier);
                 this.setVisualState(this.state);
+                if (previousState === 'charge') {
+                    if (wasNearMiss) {
+                        this.playSound('dash-near-miss', {
+                            directionPan: Math.max(-0.24, Math.min(0.24, this.chargeDirection.x * 0.24))
+                        });
+                    }
+                    this.playSound('dash-recovery', { cooldownMs: 300 });
+                }
             }
 
             beginCruise(now) {
@@ -19484,6 +19553,7 @@ Best Score: ${bestScore}${recoveredLine}` :
                 const directionY = Math.abs(enemy.dx) > 0.001 || Math.abs(enemy.dy) > 0.001 ? enemy.dy : (Math.random() > 0.5 ? 1 : -1);
                 this.state = 'cruise';
                 this.stateEndsAt = now + this.randomCruiseDuration();
+                this.nextCruiseSoundAt = now + 850 + Math.random() * 950;
                 this.setMovementDirection(directionX, directionY, this.tuning.cruiseSpeedMultiplier);
                 this.setVisualState(this.state);
             }
@@ -19529,6 +19599,15 @@ Best Score: ${bestScore}${recoveredLine}` :
                 const frameScale = deltaTime / 16.67;
                 enemy.x += enemy.dx * frameScale;
                 enemy.y += enemy.dy * frameScale;
+
+                if (this.state === 'charge') {
+                    this.minimumChargeDistance = Math.min(this.minimumChargeDistance, this.playerCenterDistance());
+                } else if (this.state === 'cruise' && timestamp >= this.nextCruiseSoundAt) {
+                    this.nextCruiseSoundAt = timestamp + 1050 + Math.random() * 950;
+                    if (this.playerCenterDistance() <= enemy.game.PLAYFIELD_SIZE * 0.38) {
+                        this.playSound('dash-cruise', { cooldownMs: 850 });
+                    }
+                }
             }
         }
 
@@ -19539,6 +19618,8 @@ Best Score: ${bestScore}${recoveredLine}` :
                 this.state = 'active';
                 this.stateEndsAt = 0;
                 this.lastReactivatedAt = 0;
+                this.nextDormantPingAt = 0;
+                this.nextActivePulseAt = 0;
             }
 
             get type() {
@@ -19571,7 +19652,9 @@ Best Score: ${bestScore}${recoveredLine}` :
                 const angle = Math.random() * Math.PI * 2;
                 this.setMovementDirection(Math.cos(angle), Math.sin(angle));
                 this.state = 'active';
-                this.stateEndsAt = performance.now() + this.tuning.activeMs;
+                const now = performance.now();
+                this.stateEndsAt = now + this.tuning.activeMs;
+                this.nextActivePulseAt = now + 850 + Math.random() * 850;
             }
 
             onElementReady() {
@@ -19585,11 +19668,13 @@ Best Score: ${bestScore}${recoveredLine}` :
                 this.state = 'deactivation-warning';
                 this.stateEndsAt = now + this.tuning.deactivationWarningMs;
                 this.setVisualState(this.state);
+                this.playSound('echo-phase-out', { cooldownMs: 260 });
             }
 
             beginDormant(now) {
                 this.state = 'dormant';
                 this.stateEndsAt = now + this.tuning.dormantMs;
+                this.nextDormantPingAt = now + 35;
                 this.setVisualState(this.state);
             }
 
@@ -19597,13 +19682,17 @@ Best Score: ${bestScore}${recoveredLine}` :
                 this.state = 'reactivation-warning';
                 this.stateEndsAt = now + this.tuning.reactivationWarningMs;
                 this.setVisualState(this.state);
+                this.playSound('echo-reactivation', { priority: 5, priorityHoldMs: this.tuning.reactivationWarningMs });
             }
 
             beginActive(now) {
+                const returningFromWarning = this.state === 'reactivation-warning';
                 this.lastReactivatedAt = now;
                 this.state = 'active';
                 this.stateEndsAt = now + this.tuning.activeMs;
+                this.nextActivePulseAt = now + 850 + Math.random() * 850;
                 this.setVisualState(this.state);
+                if (returningFromWarning) this.playSound('echo-return', { priority: 5, priorityHoldMs: 180 });
             }
 
             overlapsPlayer() {
@@ -19651,6 +19740,14 @@ Best Score: ${bestScore}${recoveredLine}` :
                 const frameScale = deltaTime / 16.67;
                 enemy.x += enemy.dx * frameScale;
                 enemy.y += enemy.dy * frameScale;
+
+                if (this.state === 'dormant' && timestamp >= this.nextDormantPingAt) {
+                    this.nextDormantPingAt = timestamp + this.tuning.positionFlashIntervalMs;
+                    this.playSound('echo-dormant-ping', { cooldownMs: Math.max(220, this.tuning.positionFlashIntervalMs - 40) });
+                } else if (this.state === 'active' && timestamp >= this.nextActivePulseAt) {
+                    this.nextActivePulseAt = timestamp + 1300 + Math.random() * 1100;
+                    this.playSound('echo-active', { cooldownMs: 900 });
+                }
             }
         }
 
@@ -19970,6 +20067,13 @@ Best Score: ${bestScore}${recoveredLine}` :
                 }
 
                 const now = performance.now();
+                const thisWasCharging = this.behaviorType === ENEMY_BEHAVIOR_TYPES.CHARGER && this.behavior && this.behavior.state === 'charge';
+                const otherWasCharging = other.behaviorType === ENEMY_BEHAVIOR_TYPES.CHARGER && other.behavior && other.behavior.state === 'charge';
+                const dashStruckDrifter = thisWasCharging && other.behaviorType === ENEMY_BEHAVIOR_TYPES.DRIFTER
+                    ? other
+                    : otherWasCharging && this.behaviorType === ENEMY_BEHAVIOR_TYPES.DRIFTER
+                        ? this
+                        : null;
                 const applyImpact = this.shouldApplyCollisionImpact(other, now);
                 if (applyImpact) {
                     this.applyCollisionDeflection(collisionAxis, collisionAxis === 'x' ? thisNormal.x : thisNormal.y);
@@ -19980,6 +20084,10 @@ Best Score: ${bestScore}${recoveredLine}` :
                     }
                     if (other.behavior && typeof other.behavior.onEnemyCollision === 'function') {
                         other.behavior.onEnemyCollision({ other: this, axis: collisionAxis, normal: otherNormal, now });
+                    }
+                    if (dashStruckDrifter && dashStruckDrifter.game && !dashStruckDrifter.game.tutorialActive &&
+                        dashStruckDrifter.game.audio && typeof dashStruckDrifter.game.audio.playEnemyBehaviorSound === 'function') {
+                        dashStruckDrifter.game.audio.playEnemyBehaviorSound('zig-dash-hit', dashStruckDrifter, { priority: 4, cooldownMs: 300 });
                     }
 
                     this.flashBorder();
@@ -20173,6 +20281,11 @@ Best Score: ${bestScore}${recoveredLine}` :
                 this.enemySpawnSoundKeys = new Map();
                 this.enemySpawnSoundHistory = [];
                 this.enemySpawnSources = new Set();
+                this.enemyAudioEventTimes = new Map();
+                this.enemyAudioPriorityUntil = 0;
+                this.enemyAudioPriorityLevel = 0;
+                this.enemyAudioSequence = 0;
+                this.attractEnemyAudioFocused = false;
                 if (!this.muted) this.createAudioContext();
             }
 
@@ -21582,9 +21695,12 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 this.enemySpawnSources.clear();
                 this.enemySpawnSoundHistory = [];
                 this.enemySpawnSoundKeys.clear();
+                this.enemyAudioEventTimes.clear();
+                this.enemyAudioPriorityUntil = 0;
+                this.enemyAudioPriorityLevel = 0;
             }
 
-            playEnemySpawn(soundId = 'zig', dedupeKey = '') {
+            playEnemySpawn(soundId = 'zig', dedupeKey = '', options = {}) {
                 if (!this.ensureAudio() || !this.ctx) return;
                 const nowMs = performance.now();
                 for (const [key, timestamp] of this.enemySpawnSoundKeys.entries()) {
@@ -21597,7 +21713,8 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 this.enemySpawnSoundHistory = this.enemySpawnSoundHistory.filter(timestamp => nowMs - timestamp < 260);
                 const overlapIndex = this.enemySpawnSoundHistory.length;
                 this.enemySpawnSoundHistory.push(nowMs);
-                const volumeScale = overlapIndex === 0 ? 1 : Math.max(0.30, 0.78 - overlapIndex * 0.16);
+                const attractScale = options && options.attract ? 1.15 : 1;
+                const volumeScale = (overlapIndex === 0 ? 1 : Math.max(0.30, 0.78 - overlapIndex * 0.16)) * attractScale;
                 const durationScale = Math.max(0.70, 1 - overlapIndex * 0.08);
                 const now = this.ctx.currentTime;
 
@@ -21724,54 +21841,371 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 });
             }
 
-            playEnemyCardCue(cueId = '') {
-                if (!this.ensureAudio() || !this.ctx) return;
+
+            setAttractEnemyAudioFocus(active) {
+                const focused = !!active;
+                this.attractEnemyAudioFocused = focused;
+                if (!this.musicGain || !this.ctx || this.ctx.state === 'closed') return;
                 const now = this.ctx.currentTime;
-                const playCueTone = ({
-                    start = now,
-                    type = 'square',
-                    frequency = 180,
-                    endFrequency = frequency,
-                    duration = 0.07,
-                    peak = 0.028,
-                    filterFrequency = 520,
-                    q = 1.0
+                try {
+                    this.musicGain.gain.cancelScheduledValues(now);
+                    this.musicGain.gain.setValueAtTime(this.musicGain.gain.value, now);
+                    this.musicGain.gain.linearRampToValueAtTime(focused ? 0.47 : 0.58, now + 0.12);
+                } catch (_) {}
+            }
+
+            getEnemyAudioPan(enemy, fallbackPan = 0) {
+                if (!enemy || !enemy.game) return Math.max(-0.72, Math.min(0.72, Number(fallbackPan) || 0));
+                const width = Math.max(1, Number(enemy.game.PLAYFIELD_SIZE) || 1);
+                const center = (Number(enemy.x) || 0) + (Number(enemy.size) || 0) / 2;
+                return Math.max(-0.72, Math.min(0.72, (center / width) * 1.44 - 0.72));
+            }
+
+            canPlayEnemyAudioEvent(eventId, enemy = null, options = {}) {
+                const now = performance.now();
+                const priority = Math.max(1, Number(options.priority) || 2);
+                const cooldownMs = Math.max(0, Number(options.cooldownMs) || 0);
+                const enemyKey = enemy && enemy.visualEffectKey ? enemy.visualEffectKey : (options.key || 'global');
+                const key = `${eventId}:${enemyKey}`;
+
+                if (now < this.enemyAudioPriorityUntil && priority < this.enemyAudioPriorityLevel) return false;
+                const previous = this.enemyAudioEventTimes.get(key) || -Infinity;
+                if (now - previous < cooldownMs) return false;
+                this.enemyAudioEventTimes.set(key, now);
+
+                if (priority >= 5) {
+                    this.enemyAudioPriorityLevel = priority;
+                    this.enemyAudioPriorityUntil = now + Math.max(120, Number(options.priorityHoldMs) || 360);
+                }
+                if (this.enemyAudioEventTimes.size > 160) {
+                    for (const [storedKey, timestamp] of this.enemyAudioEventTimes.entries()) {
+                        if (now - timestamp > 6000) this.enemyAudioEventTimes.delete(storedKey);
+                    }
+                }
+                return true;
+            }
+
+            connectEnemyAudioVoice(source, gainNode, filter = null, panValue = 0) {
+                if (!source || !gainNode) return;
+                let panner = null;
+                try {
+                    panner = this.createAudioNode('createStereoPanner');
+                    if (panner) panner.pan.setValueAtTime(Math.max(-0.85, Math.min(0.85, panValue)), this.ctx.currentTime);
+                } catch (_) {
+                    panner = null;
+                }
+
+                if (filter) {
+                    source.connect(filter);
+                    if (panner) {
+                        filter.connect(panner);
+                        panner.connect(gainNode);
+                    } else {
+                        filter.connect(gainNode);
+                    }
+                } else if (panner) {
+                    source.connect(panner);
+                    panner.connect(gainNode);
+                } else {
+                    source.connect(gainNode);
+                }
+                this.connectOutput(gainNode);
+                this.trackEnemySpawnSource(source);
+            }
+
+            playEnemySoundEvent(eventId = '', enemy = null, options = {}) {
+                if (!this.ensureAudio() || !this.ctx) return false;
+
+                const attract = !!options.attract;
+                const volumeScale = Math.max(0.1, Number(options.volumeScale) || 1) * (attract ? 1.15 : 1);
+                const pan = this.getEnemyAudioPan(enemy, options.pan || 0);
+                const priorityByEvent = {
+                    'zig-bounce': 2,
+                    'zig-direction': 2,
+                    'zig-dash-hit': 4,
+                    'zig-zap': 4,
+                    'zig-death': 7,
+                    'dash-cruise': 2,
+                    'dash-lock': 6,
+                    'dash-charge': 6,
+                    'dash-near-miss': 3,
+                    'dash-recovery': 3,
+                    'dash-zap': 4,
+                    'dash-death': 7,
+                    'echo-active': 2,
+                    'echo-phase-out': 3,
+                    'echo-dormant-ping': 3,
+                    'echo-reactivation': 5,
+                    'echo-return': 5,
+                    'echo-zap': 4,
+                    'echo-death': 7
+                };
+                const cooldownByEvent = {
+                    'zig-bounce': 110,
+                    'zig-direction': 360,
+                    'zig-dash-hit': 300,
+                    'dash-cruise': 850,
+                    'dash-lock': 260,
+                    'dash-charge': 260,
+                    'dash-near-miss': 700,
+                    'dash-recovery': 300,
+                    'echo-active': 900,
+                    'echo-phase-out': 260,
+                    'echo-dormant-ping': 260,
+                    'echo-reactivation': 260,
+                    'echo-return': 260
+                };
+                if (!Object.prototype.hasOwnProperty.call(priorityByEvent, eventId)) return false;
+                if (!this.canPlayEnemyAudioEvent(eventId, enemy, {
+                    priority: options.priority || priorityByEvent[eventId] || (attract ? 1 : 2),
+                    cooldownMs: options.cooldownMs ?? cooldownByEvent[eventId] ?? 0,
+                    priorityHoldMs: options.priorityHoldMs,
+                    key: options.key
+                })) return false;
+
+                const scope = this.beginAudioScope(`enemy-${eventId}`);
+                const now = this.ctx.currentTime;
+                const durationScale = Math.max(0.5, Math.min(1.6, Number(options.durationScale) || 1));
+                const playTone = ({
+                    offset = 0,
+                    type = 'sine',
+                    startFrequency = 220,
+                    endFrequency = startFrequency,
+                    duration = 0.10,
+                    peak = 0.025,
+                    filterType = null,
+                    filterStart = 900,
+                    filterEnd = filterStart,
+                    filterQ = 1.0,
+                    panOffset = 0
                 }) => {
+                    const start = now + Math.max(0, offset);
+                    const scaledDuration = Math.max(0.018, duration * durationScale);
                     const oscillator = this.createAudioNode('createOscillator');
                     const gainNode = this.createAudioNode('createGain');
-                    const filter = this.createAudioNode('createBiquadFilter');
+                    const filter = filterType ? this.createAudioNode('createBiquadFilter') : null;
                     oscillator.type = type;
-                    oscillator.frequency.setValueAtTime(Math.max(20, frequency), start);
-                    oscillator.frequency.exponentialRampToValueAtTime(Math.max(20, endFrequency), start + duration);
-                    filter.type = 'lowpass';
-                    filter.frequency.setValueAtTime(filterFrequency, start);
-                    filter.Q.setValueAtTime(q, start);
+                    oscillator.frequency.setValueAtTime(Math.max(20, startFrequency), start);
+                    oscillator.frequency.exponentialRampToValueAtTime(Math.max(20, endFrequency), start + scaledDuration);
+                    if (filter) {
+                        filter.type = filterType;
+                        filter.frequency.setValueAtTime(Math.max(20, filterStart), start);
+                        filter.frequency.exponentialRampToValueAtTime(Math.max(20, filterEnd), start + scaledDuration);
+                        filter.Q.setValueAtTime(Math.max(0.1, filterQ), start);
+                    }
                     gainNode.gain.setValueAtTime(0.001, start);
-                    gainNode.gain.linearRampToValueAtTime(peak, start + 0.006);
-                    gainNode.gain.exponentialRampToValueAtTime(0.001, start + duration);
-                    oscillator.connect(filter);
-                    filter.connect(gainNode);
-                    this.connectOutput(gainNode);
-                    this.trackEnemySpawnSource(oscillator);
+                    gainNode.gain.linearRampToValueAtTime(Math.max(0.0015, peak * volumeScale), start + Math.min(0.012, scaledDuration * 0.22));
+                    gainNode.gain.exponentialRampToValueAtTime(0.001, start + scaledDuration);
+                    this.connectEnemyAudioVoice(oscillator, gainNode, filter, Math.max(-0.85, Math.min(0.85, pan + panOffset)));
                     oscillator.start(start);
-                    oscillator.stop(start + duration + 0.025);
+                    oscillator.stop(start + scaledDuration + 0.035);
                 };
 
-                if (cueId === 'zig-bounce') {
-                    playCueTone({ type: 'square', frequency: 152, endFrequency: 106, duration: 0.045, peak: 0.020, filterFrequency: 390 });
-                } else if (cueId === 'dash-lock') {
-                    playCueTone({ type: 'triangle', frequency: 118, endFrequency: 205, duration: 0.19, peak: 0.026, filterFrequency: 560 });
-                } else if (cueId === 'dash-charge') {
-                    playCueTone({ type: 'sawtooth', frequency: 138, endFrequency: 54, duration: 0.25, peak: 0.047, filterFrequency: 470 });
-                } else if (cueId === 'dash-recovery') {
-                    playCueTone({ type: 'sine', frequency: 92, endFrequency: 68, duration: 0.20, peak: 0.018, filterFrequency: 280 });
-                } else if (cueId === 'echo-phase-down') {
-                    playCueTone({ type: 'sine', frequency: 198, endFrequency: 62, duration: 0.30, peak: 0.032, filterFrequency: 340, q: 2.1 });
-                } else if (cueId === 'echo-ping') {
-                    playCueTone({ type: 'sine', frequency: 126, endFrequency: 92, duration: 0.08, peak: 0.014, filterFrequency: 260, q: 2.8 });
-                } else if (cueId === 'echo-return') {
-                    playCueTone({ type: 'triangle', frequency: 82, endFrequency: 214, duration: 0.28, peak: 0.030, filterFrequency: 430, q: 1.8 });
+                const playNoise = ({
+                    offset = 0,
+                    duration = 0.06,
+                    peak = 0.016,
+                    filterType = 'bandpass',
+                    filterStart = 1200,
+                    filterEnd = 420,
+                    filterQ = 1.5,
+                    panOffset = 0
+                }) => {
+                    const start = now + Math.max(0, offset);
+                    const scaledDuration = Math.max(0.022, duration * durationScale);
+                    const buffer = this.ctx.createBuffer(1, Math.max(1, Math.floor(this.ctx.sampleRate * scaledDuration)), this.ctx.sampleRate);
+                    const data = buffer.getChannelData(0);
+                    for (let index = 0; index < data.length; index++) {
+                        data[index] = (Math.random() * 2 - 1) * (1 - index / data.length);
+                    }
+                    const source = this.createAudioNode('createBufferSource');
+                    const gainNode = this.createAudioNode('createGain');
+                    const filter = this.createAudioNode('createBiquadFilter');
+                    source.buffer = buffer;
+                    filter.type = filterType;
+                    filter.frequency.setValueAtTime(Math.max(20, filterStart), start);
+                    filter.frequency.exponentialRampToValueAtTime(Math.max(20, filterEnd), start + scaledDuration);
+                    filter.Q.setValueAtTime(Math.max(0.1, filterQ), start);
+                    gainNode.gain.setValueAtTime(0.001, start);
+                    gainNode.gain.linearRampToValueAtTime(Math.max(0.0015, peak * volumeScale), start + Math.min(0.010, scaledDuration * 0.24));
+                    gainNode.gain.exponentialRampToValueAtTime(0.001, start + scaledDuration);
+                    this.connectEnemyAudioVoice(source, gainNode, filter, Math.max(-0.85, Math.min(0.85, pan + panOffset)));
+                    source.start(start);
+                    source.stop(start + scaledDuration + 0.02);
+                };
+
+                switch (eventId) {
+                    case 'zig-bounce': {
+                        const variation = 0.92 + Math.random() * 0.16;
+                        playTone({ type: 'square', startFrequency: 760 * variation, endFrequency: 560 * variation, duration: 0.045, peak: 0.012, filterType: 'highpass', filterStart: 360, filterEnd: 430, filterQ: 0.7 });
+                        break;
+                    }
+                    case 'zig-direction':
+                        playTone({ type: 'square', startFrequency: 680, endFrequency: 910, duration: 0.055, peak: 0.013, filterType: 'bandpass', filterStart: 920, filterEnd: 1260, filterQ: 2.2 });
+                        playNoise({ offset: 0.044, duration: 0.045, peak: 0.006, filterStart: 1800, filterEnd: 720, filterQ: 1.4, panOffset: 0.05 });
+                        break;
+                    case 'zig-dash-hit':
+                        playTone({ type: 'square', startFrequency: 420, endFrequency: 260, duration: 0.045, peak: 0.025, filterType: 'bandpass', filterStart: 780, filterEnd: 520, filterQ: 1.5 });
+                        playTone({ offset: 0.038, type: 'sawtooth', startFrequency: 520, endFrequency: 1280, duration: 0.115, peak: 0.026, filterType: 'highpass', filterStart: 420, filterEnd: 900, filterQ: 0.8 });
+                        playNoise({ offset: 0.11, duration: 0.055, peak: 0.012, filterStart: 2100, filterEnd: 680, filterQ: 1.1 });
+                        break;
+                    case 'zig-zap':
+                        [980, 760, 560].forEach((frequency, index) => playTone({ offset: index * 0.045, type: index === 2 ? 'sawtooth' : 'square', startFrequency: frequency, endFrequency: frequency * 0.68, duration: 0.055, peak: 0.014, filterType: 'bandpass', filterStart: frequency * 1.15, filterEnd: frequency * 0.72, filterQ: 1.8 }));
+                        playNoise({ offset: 0.11, duration: 0.075, peak: 0.010, filterStart: 1800, filterEnd: 260, filterQ: 1.0 });
+                        break;
+                    case 'zig-death':
+                        [0, 0.064, 0.116].forEach((offset, index) => playTone({ offset, type: 'square', startFrequency: [760, 620, 840][index], endFrequency: [540, 430, 570][index], duration: 0.045, peak: 0.017, filterType: 'bandpass', filterStart: 1050, filterEnd: 620, filterQ: 1.8 }));
+                        break;
+                    case 'dash-cruise':
+                        playTone({ type: 'triangle', startFrequency: 108, endFrequency: 96, duration: 0.20, peak: 0.006, filterType: 'lowpass', filterStart: 330, filterEnd: 250, filterQ: 0.7 });
+                        break;
+                    case 'dash-lock': {
+                        const warningDuration = Math.max(0.24, Math.min(0.62, (Number(options.durationMs) || 520) / 1000));
+                        playTone({ type: 'square', startFrequency: 390, endFrequency: 390, duration: 0.055, peak: 0.027, filterType: 'bandpass', filterStart: 760, filterEnd: 760, filterQ: 2.0 });
+                        playTone({ offset: 0.05, type: 'triangle', startFrequency: 210, endFrequency: 690, duration: warningDuration - 0.07, peak: 0.033, filterType: 'bandpass', filterStart: 420, filterEnd: 980, filterQ: 1.2 });
+                        playTone({ offset: Math.max(0.16, warningDuration - 0.035), type: 'square', startFrequency: 520, endFrequency: 410, duration: 0.035, peak: 0.031, filterType: 'highpass', filterStart: 300, filterEnd: 360, filterQ: 0.7 });
+                        break;
+                    }
+                    case 'dash-charge': {
+                        const chargeDuration = Math.max(0.25, Math.min(0.50, (Number(options.durationMs) || 650) / 1700));
+                        playTone({ type: 'square', startFrequency: 165, endFrequency: 82, duration: 0.055, peak: 0.045, filterType: 'lowpass', filterStart: 620, filterEnd: 230, filterQ: 0.8 });
+                        playNoise({ offset: 0.035, duration: chargeDuration, peak: 0.027, filterStart: 420, filterEnd: 1450, filterQ: 0.8, panOffset: Number(options.directionPan) || 0 });
+                        playTone({ offset: 0.035, type: 'sawtooth', startFrequency: 92, endFrequency: 310, duration: chargeDuration, peak: 0.032, filterType: 'lowpass', filterStart: 380, filterEnd: 920, filterQ: 0.9, panOffset: Number(options.directionPan) || 0 });
+                        break;
+                    }
+                    case 'dash-near-miss':
+                        playNoise({ duration: 0.16, peak: 0.012, filterStart: 520, filterEnd: 2200, filterQ: 1.2, panOffset: Number(options.directionPan) || 0 });
+                        break;
+                    case 'dash-recovery':
+                        playTone({ type: 'triangle', startFrequency: 210, endFrequency: 72, duration: 0.27, peak: 0.018, filterType: 'lowpass', filterStart: 520, filterEnd: 180, filterQ: 0.8 });
+                        playNoise({ offset: 0.05, duration: 0.15, peak: 0.006, filterStart: 620, filterEnd: 140, filterQ: 0.7 });
+                        break;
+                    case 'dash-zap':
+                        playNoise({ duration: 0.07, peak: 0.034, filterStart: 1200, filterEnd: 260, filterQ: 0.8 });
+                        playTone({ offset: 0.025, type: 'square', startFrequency: 150, endFrequency: 62, duration: 0.16, peak: 0.030, filterType: 'lowpass', filterStart: 420, filterEnd: 120, filterQ: 0.8 });
+                        playTone({ offset: 0.12, type: 'triangle', startFrequency: 110, endFrequency: 44, duration: 0.15, peak: 0.015, filterType: 'lowpass', filterStart: 260, filterEnd: 95, filterQ: 0.7 });
+                        break;
+                    case 'dash-death':
+                        playTone({ type: 'square', startFrequency: 470, endFrequency: 410, duration: 0.05, peak: 0.023, filterType: 'bandpass', filterStart: 780, filterEnd: 620, filterQ: 1.6 });
+                        playTone({ offset: 0.065, type: 'triangle', startFrequency: 125, endFrequency: 58, duration: 0.14, peak: 0.036, filterType: 'lowpass', filterStart: 360, filterEnd: 110, filterQ: 0.7 });
+                        break;
+                    case 'echo-active':
+                        playTone({ type: 'sine', startFrequency: 260, endFrequency: 208, duration: 0.14, peak: 0.0055, filterType: 'bandpass', filterStart: 360, filterEnd: 280, filterQ: 3.0 });
+                        break;
+                    case 'echo-phase-out':
+                        playTone({ type: 'sine', startFrequency: 310, endFrequency: 128, duration: 0.16, peak: 0.018, filterType: 'bandpass', filterStart: 430, filterEnd: 180, filterQ: 3.0 });
+                        playTone({ offset: 0.105, type: 'sine', startFrequency: 215, endFrequency: 72, duration: 0.18, peak: 0.013, filterType: 'bandpass', filterStart: 290, filterEnd: 105, filterQ: 3.4, panOffset: 0.08 });
+                        break;
+                    case 'echo-dormant-ping':
+                        playTone({ type: 'sine', startFrequency: 920, endFrequency: 720, duration: 0.095, peak: 0.0065, filterType: 'bandpass', filterStart: 880, filterEnd: 690, filterQ: 5.0, panOffset: 0.04 });
+                        playTone({ offset: 0.055, type: 'sine', startFrequency: 610, endFrequency: 520, duration: 0.10, peak: 0.0026, filterType: 'bandpass', filterStart: 620, filterEnd: 510, filterQ: 4.5, panOffset: -0.08 });
+                        break;
+                    case 'echo-reactivation':
+                        [0, 0.095, 0.165].forEach((offset, index) => playTone({ offset, type: 'sine', startFrequency: [120, 150, 210][index], endFrequency: [150, 210, 520][index], duration: [0.12, 0.10, 0.13][index], peak: [0.020, 0.024, 0.030][index], filterType: 'bandpass', filterStart: [210, 280, 520][index], filterEnd: [260, 380, 900][index], filterQ: 2.5, panOffset: index === 1 ? 0.05 : 0 }));
+                        playTone({ offset: 0.255, type: 'square', startFrequency: 690, endFrequency: 520, duration: 0.04, peak: 0.026, filterType: 'highpass', filterStart: 360, filterEnd: 430, filterQ: 0.8 });
+                        break;
+                    case 'echo-return':
+                        playNoise({ duration: 0.11, peak: 0.013, filterStart: 320, filterEnd: 2400, filterQ: 1.2 });
+                        playTone({ offset: 0.015, type: 'square', startFrequency: 760, endFrequency: 520, duration: 0.055, peak: 0.022, filterType: 'bandpass', filterStart: 980, filterEnd: 680, filterQ: 2.2 });
+                        break;
+                    case 'echo-zap':
+                        playTone({ type: 'sine', startFrequency: 72, endFrequency: 260, duration: 0.16, peak: 0.020, filterType: 'bandpass', filterStart: 110, filterEnd: 420, filterQ: 3.0 });
+                        playNoise({ offset: 0.02, duration: 0.17, peak: 0.011, filterStart: 180, filterEnd: 1700, filterQ: 1.4 });
+                        playTone({ offset: 0.19, type: 'sine', startFrequency: 150, endFrequency: 82, duration: 0.08, peak: 0.004, filterType: 'bandpass', filterStart: 210, filterEnd: 110, filterQ: 3.2, panOffset: 0.12 });
+                        break;
+                    case 'echo-death':
+                        playTone({ type: 'sine', startFrequency: 112, endFrequency: 64, duration: 0.24, peak: 0.020, filterType: 'bandpass', filterStart: 180, filterEnd: 92, filterQ: 3.4 });
+                        playNoise({ offset: 0.075, duration: 0.15, peak: 0.008, filterStart: 240, filterEnd: 1500, filterQ: 1.6, panOffset: 0.10 });
+                        break;
+                    default:
+                        this.cleanupAudioScope(scope, true);
+                        return false;
                 }
+                this.endAudioScope(scope, 2200);
+                return true;
+            }
+
+            playEnemyBehaviorSound(eventId, enemy, options = {}) {
+                if (!enemy || !enemy.game || enemy.game.tutorialActive) return false;
+                return this.playEnemySoundEvent(eventId, enemy, options);
+            }
+
+            playEnemyZapDestructions(enemies = []) {
+                if (!Array.isArray(enemies) || !enemies.length) return;
+                const unique = new Map();
+                enemies.forEach(enemy => {
+                    if (!enemy || !enemy.behaviorType || unique.has(enemy.behaviorType)) return;
+                    unique.set(enemy.behaviorType, enemy);
+                });
+                const events = {
+                    drifter: 'zig-zap',
+                    charger: 'dash-zap',
+                    pulse: 'echo-zap'
+                };
+                [...unique.entries()].slice(0, 3).forEach(([behaviorType, enemy], index) => {
+                    this.scheduleAudioTimer(() => {
+                        this.playEnemySoundEvent(events[behaviorType], enemy, {
+                            priority: 4,
+                            volumeScale: Math.max(0.55, 0.86 - index * 0.13),
+                            key: `zap-${behaviorType}-${performance.now()}`
+                        });
+                    }, 80 + index * 55, 'enemy-zap-destruction');
+                });
+            }
+
+            playEnemyGameOverAccent(cause = null) {
+                if (!cause) return false;
+                const eventId = cause.identityKey === 'charger'
+                    ? 'dash-death'
+                    : cause.identityKey === 'pulse'
+                        ? 'echo-death'
+                        : 'zig-death';
+                const pseudoEnemy = {
+                    x: 0.5,
+                    size: 0,
+                    visualEffectKey: `death-${cause.identityKey || 'enemy'}`,
+                    game: { PLAYFIELD_SIZE: 1 }
+                };
+                return this.playEnemySoundEvent(eventId, pseudoEnemy, {
+                    priority: 7,
+                    priorityHoldMs: 420,
+                    volumeScale: 0.82,
+                    pan: 0
+                });
+            }
+
+            playEnemyCardCue(cueId = '') {
+                const map = {
+                    'zig-bounce': 'zig-bounce',
+                    'zig-direction': 'zig-direction',
+                    'dash-lock': 'dash-lock',
+                    'dash-charge': 'dash-charge',
+                    'dash-recovery': 'dash-recovery',
+                    'echo-phase-down': 'echo-phase-out',
+                    'echo-ping': 'echo-dormant-ping',
+                    'echo-return': 'echo-reactivation',
+                    'echo-full-return': 'echo-return'
+                };
+                const eventId = map[cueId];
+                if (!eventId) return false;
+                const panByCue = {
+                    'zig-bounce': -0.28,
+                    'zig-direction': -0.16,
+                    'dash-lock': -0.20,
+                    'dash-charge': 0.24,
+                    'dash-recovery': 0.42,
+                    'echo-phase-down': -0.18,
+                    'echo-ping': 0.12,
+                    'echo-return': 0.28,
+                    'echo-full-return': 0.34
+                };
+                return this.playEnemySoundEvent(eventId, null, {
+                    attract: true,
+                    priority: cueId === 'dash-lock' ? 6 : cueId === 'echo-return' ? 5 : 2,
+                    pan: panByCue[cueId] || 0,
+                    key: `attract-${cueId}-${++this.enemyAudioSequence}`,
+                    durationMs: cueId === 'dash-lock' ? 520 : cueId === 'dash-charge' ? 540 : undefined
+                });
             }
 
             // Play consistent Block-A-Zoid spawn sound
