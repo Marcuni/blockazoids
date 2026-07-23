@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Trackpad Prototype p140: adds a resilient Safari motion-permission watchdog, embedded-page detection, and retry-safe late permission handling.
+Trackpad Prototype p150: consolidates the automatic attract sequence, animated Block-A-Zoids title, Gridlock music guard, and radar-center Gridlock signal.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="trackpad-p140">
+<html data-build-version="trackpad-p150">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -442,10 +442,42 @@ Font License Notices
             animation: attractOrbPulse 1.05s ease-in-out infinite;
         }
 
+        /* Secret attract-card trigger: after a short confirmation delay, a tightening ring
+           shows that the two-second Orb hold is being recognized. */
+        #player.attract-orb-hold-cue::after {
+            content: "";
+            position: absolute;
+            inset: -10px;
+            border: 2px solid #fff;
+            border-radius: 50%;
+            opacity: 0;
+            pointer-events: none;
+            transform: scale(1.55);
+            box-shadow: 0 0 8px rgba(255,255,255,0.72), inset 0 0 8px rgba(255,255,255,0.28);
+            animation: attractOrbHoldCue 1.6s linear forwards;
+        }
+
         @keyframes attractOrbPulse {
             0% { transform: scale(1); box-shadow: 0 0 8px #fff, 0 0 16px rgba(255,255,255,0.72); }
             50% { transform: scale(1.12); box-shadow: 0 0 16px #fff, 0 0 36px rgba(255,255,255,0.95), 0 0 64px rgba(255,255,255,0.45); }
             100% { transform: scale(1); box-shadow: 0 0 8px #fff, 0 0 16px rgba(255,255,255,0.72); }
+        }
+
+        @keyframes attractOrbHoldCue {
+            0% {
+                opacity: 0.28;
+                transform: scale(1.55);
+                box-shadow: 0 0 6px rgba(255,255,255,0.44), inset 0 0 5px rgba(255,255,255,0.18);
+            }
+            72% {
+                opacity: 0.76;
+                transform: scale(1.12);
+            }
+            100% {
+                opacity: 1;
+                transform: scale(1);
+                box-shadow: 0 0 15px #fff, 0 0 34px rgba(255,255,255,0.82), inset 0 0 10px rgba(255,255,255,0.52);
+            }
         }
         
         /* Enemy styling with dynamic color and glow */
@@ -2494,6 +2526,34 @@ Font License Notices
             animation: gridlockRecordBurst 0.78s ease-in-out 3;
         }
 
+
+        #score.gridlockAwardAlert {
+            min-width: 5ch;
+            white-space: nowrap;
+            box-sizing: border-box;
+            padding: 0;
+            color: #fff;
+            background: transparent;
+            border: none;
+            box-shadow: none;
+            font-size: clamp(24px, 7.2vw, 40px);
+            font-weight: 900;
+            letter-spacing: 2px;
+            line-height: 1;
+            transform-origin: center;
+            text-shadow: 0 0 calc(var(--default-glow) * 1.8px) #fff,
+                         0 0 calc(var(--default-glow) * 3.8px) rgba(255,255,255,0.96),
+                         0 0 calc(var(--default-glow) * 6.4px) rgba(255,255,255,0.68);
+            animation: gridlockAwardBurst 0.72s ease-out 1;
+        }
+
+        @keyframes gridlockAwardBurst {
+            0% { transform: scale(0.82); opacity: 0; }
+            28% { transform: scale(1.16); opacity: 1; }
+            62% { transform: scale(1.02); opacity: 1; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
         @keyframes gridlockRecordBurst {
             0% {
                 transform: scale(1);
@@ -2680,6 +2740,16 @@ Font License Notices
             letter-spacing: 2px;
             text-align: center;
             transform: translateY(2px);
+        }
+
+        #score.superGridlockAlert .super-gridlock-award {
+            display: block;
+            margin-top: clamp(2px, 0.8vw, 5px);
+            font-size: clamp(11px, 3.2vw, 18px);
+            font-weight: 800;
+            line-height: 1;
+            letter-spacing: clamp(1px, 0.55vw, 3px);
+            white-space: nowrap;
         }
 
         @keyframes superGridlockBurst {
@@ -7401,7 +7471,7 @@ Font License Notices
             margin-top: 0;
         }
 
-        /* Keep the lower Settings actions compact after the shake-permission control. */
+        /* Keep the lower Settings actions compact. */
         #settingsPanel #resetHighScoreButton {
             margin-top: clamp(10px, 2.8vw, 16px);
         }
@@ -7637,21 +7707,6 @@ Font License Notices
             margin-top: clamp(8px, 2.2vw, 12px);
         }
 
-        #settingsPanel #enableShakeButton {
-            margin-top: clamp(10px, 2.8vw, 16px);
-        }
-
-        .shake-access-status {
-            min-height: 14px;
-            margin: 5px auto 0;
-            width: min(270px, 92%);
-            color: rgba(255, 255, 255, 0.74);
-            font-family: "Orbitron";
-            font-size: clamp(9px, 2.7vw, 12px);
-            line-height: 1.25;
-            letter-spacing: 0.4px;
-            text-align: center;
-        }
 
         #highScorePanel > .menu-panel-title {
             margin-bottom: clamp(20px, 5.5vw, 32px) !important;
@@ -7789,6 +7844,129 @@ Font License Notices
             letter-spacing: clamp(3px, 1.1vw, 7px);
             white-space: pre-line;
             text-shadow: 0 0 10px #fff, 0 0 24px rgba(255,255,255,0.62);
+        }
+
+        /* The Block-A-Zoids title assembles from opposing directions, locks around the
+           central A, then receives a brief vector-monitor power scan. */
+        #enemyIdentityCard[data-card="cast-intro"] .enemy-card-heading {
+            overflow: visible;
+        }
+
+        #enemyIdentityCard[data-card="cast-intro"] .enemy-card-name {
+            position: relative;
+            transform-origin: center;
+            animation: attractBlockAZoidsTitleLock 4.42s ease-out forwards;
+        }
+
+        #enemyIdentityCard[data-card="cast-intro"] .attract-title-line {
+            display: block;
+            opacity: 0;
+            will-change: transform, opacity, filter;
+        }
+
+        #enemyIdentityCard[data-card="cast-intro"] .attract-title-block {
+            transform: translateX(-42%) skewX(-8deg);
+            animation: attractBlockTitleFromLeft 0.72s cubic-bezier(0.16, 0.84, 0.22, 1) 0.18s forwards;
+        }
+
+        #enemyIdentityCard[data-card="cast-intro"] .attract-title-a {
+            transform: scale(0.12) rotate(45deg);
+            animation: attractBlockTitleCore 0.58s cubic-bezier(0.18, 0.92, 0.22, 1.18) 0.58s forwards;
+        }
+
+        #enemyIdentityCard[data-card="cast-intro"] .attract-title-zoids {
+            transform: translateX(42%) skewX(8deg);
+            animation: attractBlockTitleFromRight 0.72s cubic-bezier(0.16, 0.84, 0.22, 1) 0.30s forwards;
+        }
+
+        #enemyIdentityCard[data-card="cast-intro"] .enemy-card-name::after {
+            content: "";
+            position: absolute;
+            left: 6%;
+            right: 6%;
+            top: -8%;
+            height: 2px;
+            opacity: 0;
+            pointer-events: none;
+            background: #fff;
+            box-shadow: 0 0 7px #fff, 0 0 18px rgba(255,255,255,0.88);
+            animation: attractBlockTitleScan 1.18s ease-in-out 1.16s 1 forwards;
+        }
+
+        #enemyIdentityCard[data-card="cast-intro"] .enemy-identity-card-panel::after {
+            content: "";
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            width: clamp(7px, 2vw, 12px);
+            height: clamp(7px, 2vw, 12px);
+            z-index: 1;
+            opacity: 0;
+            pointer-events: none;
+            background: #0f0;
+            box-shadow: -24vw 0 #f00, 24vw 0 #00f;
+            transform: translate(-50%, -50%) scale(0.2) rotate(45deg);
+            animation: attractBlockTitleRgbConverge 1.28s cubic-bezier(0.16, 0.84, 0.22, 1) 0.04s 1 forwards;
+        }
+
+        @keyframes attractBlockTitleFromLeft {
+            0% { opacity: 0; transform: translateX(-42%) skewX(-8deg); filter: brightness(0.45); }
+            58% { opacity: 1; transform: translateX(3%) skewX(2deg); filter: brightness(1.9); }
+            76% { transform: translateX(-1.2%) skewX(-1deg); }
+            100% { opacity: 1; transform: translateX(0) skewX(0); filter: brightness(1); }
+        }
+
+        @keyframes attractBlockTitleFromRight {
+            0% { opacity: 0; transform: translateX(42%) skewX(8deg); filter: brightness(0.45); }
+            58% { opacity: 1; transform: translateX(-3%) skewX(-2deg); filter: brightness(1.9); }
+            76% { transform: translateX(1.2%) skewX(1deg); }
+            100% { opacity: 1; transform: translateX(0) skewX(0); filter: brightness(1); }
+        }
+
+        @keyframes attractBlockTitleCore {
+            0% { opacity: 0; transform: scale(0.12) rotate(45deg); filter: brightness(0.5); }
+            48% { opacity: 1; transform: scale(1.28) rotate(-4deg); filter: brightness(2.4); }
+            72% { transform: scale(0.94) rotate(2deg); }
+            100% { opacity: 1; transform: scale(1) rotate(0); filter: brightness(1); }
+        }
+
+        @keyframes attractBlockTitleRgbConverge {
+            0% { opacity: 0; transform: translate(-50%, -50%) scale(0.2) rotate(45deg); }
+            24% { opacity: 0.94; }
+            70% { opacity: 0.84; transform: translate(-50%, -50%) scale(1.05) rotate(135deg); }
+            100% { opacity: 0; transform: translate(-50%, -50%) scale(0.12) rotate(225deg); box-shadow: 0 0 #f00, 0 0 #00f; }
+        }
+
+        @keyframes attractBlockTitleScan {
+            0% { top: -8%; opacity: 0; transform: scaleX(0.18); }
+            12% { opacity: 0.92; transform: scaleX(1); }
+            82% { opacity: 0.62; }
+            100% { top: 108%; opacity: 0; transform: scaleX(0.72); }
+        }
+
+        @keyframes attractBlockAZoidsTitleLock {
+            0%, 24% { transform: scale(0.98); filter: brightness(0.82); }
+            31% { transform: scale(1.045); filter: brightness(1.75); text-shadow: -3px 0 10px rgba(255,0,0,0.72), 3px 0 10px rgba(0,90,255,0.82), 0 0 28px #fff; }
+            38% { transform: scale(1); filter: brightness(1); text-shadow: 0 0 10px #fff, 0 0 24px rgba(255,255,255,0.62); }
+            76% { transform: scale(1); filter: brightness(1); }
+            80% { transform: scale(1.018); filter: brightness(1.38); text-shadow: 0 0 15px #fff, 0 0 34px rgba(255,255,255,0.82); }
+            85%, 100% { transform: scale(1); filter: brightness(1); text-shadow: 0 0 10px #fff, 0 0 24px rgba(255,255,255,0.62); }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            #enemyIdentityCard[data-card="cast-intro"] .enemy-card-name,
+            #enemyIdentityCard[data-card="cast-intro"] .attract-title-line {
+                animation: none !important;
+                opacity: 1;
+                transform: none;
+                filter: none;
+            }
+
+            #enemyIdentityCard[data-card="cast-intro"] .enemy-card-name::after,
+            #enemyIdentityCard[data-card="cast-intro"] .enemy-identity-card-panel::after {
+                animation: none !important;
+                opacity: 0;
+            }
         }
 
         #enemyIdentityCard[data-card="company"] .enemy-card-class,
@@ -8686,6 +8864,56 @@ Font License Notices
             animation: radarCenterGlow 2.4s ease-in-out infinite;
         }
 
+        /* p149: Gridlock keeps the crystal-color orb readable while a white core blinks at its center.
+           The faster silent variant replaces the missing kick-loop warning when Music is disabled. */
+        html body #radarColorIndicator .radar-gridlock-core {
+            position: absolute;
+            left: 50%;
+            top: var(--radar-center-y);
+            width: max(5px, calc(var(--skin-scale, 1) * 7px));
+            height: max(5px, calc(var(--skin-scale, 1) * 7px));
+            box-sizing: border-box;
+            border-radius: 50%;
+            background: #fff;
+            opacity: 0;
+            transform: translate(-50%, -50%) scale(0.72);
+            box-shadow:
+                0 0 calc(var(--skin-scale, 1) * 5px) #fff,
+                0 0 calc(var(--skin-scale, 1) * 12px) rgba(255, 255, 255, 0.78),
+                0 0 calc(var(--skin-scale, 1) * 22px) rgba(255, 255, 255, 0.34);
+            pointer-events: none;
+            z-index: 2;
+        }
+
+        html body #radarColorIndicator.gridlock-active .radar-gridlock-core {
+            animation: radarGridlockCoreBlink 0.82s steps(1, end) infinite;
+        }
+
+        html body #radarColorIndicator.gridlock-silent .radar-gridlock-core {
+            animation-duration: 0.58s;
+        }
+
+        html body #radarColorIndicator.gridlock-active .radar-center-orb {
+            filter: brightness(1.18) saturate(1.08);
+            box-shadow:
+                0 0 calc(var(--skin-scale, 1) * 7px) rgba(var(--radar-rgb), 1),
+                0 0 calc(var(--skin-scale, 1) * 21px) rgba(var(--radar-rgb), 0.54),
+                0 0 calc(var(--skin-scale, 1) * 34px) rgba(var(--radar-rgb), 0.24);
+        }
+
+        @keyframes radarGridlockCoreBlink {
+            0%, 42% {
+                opacity: 1;
+                transform: translate(-50%, -50%) scale(1.12);
+                filter: brightness(1.35);
+            }
+            43%, 100% {
+                opacity: 0.10;
+                transform: translate(-50%, -50%) scale(0.68);
+                filter: brightness(0.78);
+            }
+        }
+
         /* Before the first tutorial pickup, the radar center is neutral instead of implying a target color. */
         html body #radarColorIndicator.tutorial-neutral .radar-center-orb {
             box-sizing: border-box;
@@ -8762,7 +8990,14 @@ Font License Notices
             100% { opacity: 0; transform: translate(-50%, -50%) scale(1); }
         }
 
-    </style>
+    
+
+        /* p145: lower only the large High Score value; title and detail rows stay fixed. */
+        html body #highScorePanel #highScorePanelValue {
+            position: relative !important;
+            top: clamp(6px, 1.8vw, 10px) !important;
+        }
+</style>
 </head>
 <body class="crt-phosphor-calibration">
 
@@ -8889,7 +9124,7 @@ Font License Notices
                             <li>Swipe anywhere to move.</li>
                             <li>Collect blinking crystals.</li>
                             <li>Avoid Block-A-Zoids.</li>
-                            <li>Shake to Cosmic Zap.</li>
+                            <li>Double tap to Cosmic Zap.</li>
                         </ul>
                         <p class="how-to-curiosity-note">This is all you need to know.<br><br>Curiosity, however, has poor impulse control. Keep scrolling for information you absolutely do not need to survive.</p>
                     </section>
@@ -8916,8 +9151,13 @@ Font License Notices
                         </ul>
 
                         <div class="scoring-section-title">EXTRA</div>
-                        <div class="scoring-row"><span>Gridlock Relic <span class="scoring-label-note">(banked)</span></span><span>300</span></div>
-                        <div class="scoring-row"><span>Super Gridlock <span class="scoring-label-note">(banked)</span></span><span>500/750/1000</span></div>
+                        <div class="scoring-row"><span>Gridlock Relic <span class="scoring-label-note">(awarded on pickup)</span></span><span>300</span></div>
+                        <div class="scoring-row"><span>Super Gridlock <span class="scoring-label-note">(awarded on spawn)</span></span><span>500/750/1000</span></div>
+                        <div class="scoring-row"><span>Super Gridlock maximum</span><span>2,250</span></div>
+                        <ul class="scoring-rules-list">
+                            <li>Gridlock and Super Gridlock points are added to the live score immediately.</li>
+                            <li>A Cosmic Zap never removes earned points or restarts the Super Gridlock sequence.</li>
+                        </ul>
                         <div class="scoring-row"><span>Unused Cosmic Zap</span><span>50/ea</span></div>
                         <div class="scoring-row"><span>Perfect Sector <span class="scoring-label-note">(no Zap)</span></span><span>100</span></div>
                     </section>
@@ -9013,8 +9253,6 @@ Font License Notices
                         <button id="trackingSpeedIncreaseButton" class="settings-stepper-arrow" type="button" aria-label="Increase tracking speed">▶</button>
                     </div>
                 </div>
-                <button id="enableShakeButton" class="menu-button settings-toggle" type="button">Enable Shake</button>
-                <div id="shakeAccessStatus" class="shake-access-status" aria-live="polite">Motion access has not been requested.</div>
                 <button id="resetHighScoreButton" class="menu-button settings-toggle">Reset High Score</button>
                 <button id="resetTutorialButton" class="menu-button settings-toggle" type="button">Reset Tutorial</button>
                 <div id="telemetryPanel" class="developer-settings-section" aria-hidden="true">
@@ -9097,6 +9335,7 @@ Font License Notices
 
     <div id="radarColorIndicator" aria-hidden="true">
         <span class="radar-center-orb" aria-hidden="true"></span>
+        <span class="radar-gridlock-core" aria-hidden="true"></span>
         <span class="radar-cross-pulse" aria-hidden="true"></span>
     </div>
 
@@ -9296,7 +9535,9 @@ Font License Notices
             }),
             gridlock: Object.freeze({
                 activationCueDelayMs: 1000,
-                initialRelicCueDelayMs: 1000
+                initialRelicCueDelayMs: 1000,
+                superGridlockRewards: Object.freeze([500, 750, 1000]),
+                superGridlockMaximum: 2250
             }),
             transitions: Object.freeze({
                 countdownStepMs: 1000,
@@ -9387,7 +9628,7 @@ Font License Notices
                 movement: 'SWIPE ANYWHERE TO MOVE',
                 crystal: 'COLLECT BLINKING CRYSTALS',
                 enemy: 'AVOID\nBLOCK-A-ZOIDS',
-                zap: 'SHAKE TO COSMIC ZAP',
+                zap: 'DOUBLE TAP TO COSMIC ZAP',
                 complete: 'STARTING GAME'
             }),
             sectorNames: Object.freeze(
@@ -9600,7 +9841,7 @@ Font License Notices
         if (!GAME_FEATURE_FLAGS.visualEffects) document.body.classList.add('feature-visual-effects-off');
 
         const splashBuildVersion = document.getElementById('splashBuildVersion');
-        if (splashBuildVersion) splashBuildVersion.textContent = BUILD_VERSION;
+        if (splashBuildVersion) splashBuildVersion.textContent = BUILD_VERSION.replace(/\btrackpad-/i, '');
 
         let lastGlobalTouchEndTime = 0;
         document.addEventListener('touchend', (e) => {
@@ -10201,7 +10442,7 @@ Font License Notices
                 game.lines = [];
                 game.sectorElapsedMs = 0;
                 game.survivalScoreAccumulator = 0;
-                game.spawnCounter = 0;
+                game.enemySpawnElapsedMs = 0;
                 game.spawnedCount = { small: 0, medium: 0, large: 0 };
                 game.setGridlockState({ maxSwarmActive: false });
                 game.resetOvertimeState();
@@ -10218,11 +10459,7 @@ Font License Notices
                 game.bonusTextElement.style.opacity = '0';
                 game.setGameOverlayVisible(false);
                 if (game.ui) {
-                    game.scheduler.cancelTask('ui-effects', 'score-alert');
-                    game.ui.scoreAlertTimer = null;
-                    game.ui.scoreAlertActive = false;
-                    if (game.ui.scoreHud) game.ui.scoreHud.classList.remove('gridlock-announcement-active');
-                    if (game.ui.scoreElement) game.ui.scoreElement.classList.remove('gridlockAlert', 'superGridlockAlert');
+                    game.ui.clearScoreAnnouncement();
                 }
                 game.audio.resume();
                 game.player.reset();
@@ -10288,6 +10525,7 @@ Font License Notices
                     }
                 });
                 game.finishTelemetryRun('death');
+                game.resetOvertimeState();
                 game.saveRunRecordIfCurrentHighScore();
                 game.container.classList.remove('cycleCelebrationSequence', 'cycleRestoredIdle');
                 game.removeCycleRebootCells();
@@ -10329,6 +10567,7 @@ Font License Notices
                 this.suppressClicksUntil = 0;
                 this.attached = false;
                 this.sequence = 0;
+                this.attractOrbHoldPointerId = null;
 
                 this.onPointerDown = (event) => this.handlePointerDown(event);
                 this.onPointerMove = (event) => this.handlePointerMove(event);
@@ -10349,6 +10588,7 @@ Font License Notices
             }
 
             reset(reason = 'reset', options = {}) {
+                this.cancelAttractOrbHold(reason);
                 this.pointers.clear();
                 this.primaryPointerId = null;
                 this.multitouchBlocked = false;
@@ -10368,6 +10608,27 @@ Font License Notices
                 return !!(target && target.closest && target.closest('#splashScreen'));
             }
 
+            isAttractOrbTarget(target) {
+                return !!(target && target.closest && target.closest('#player'));
+            }
+
+            beginAttractOrbHold(pointer) {
+                // p148: the attract presentation is timer-driven; holding the Orb no longer launches it.
+                return false;
+            }
+
+            cancelAttractOrbHold(reason = 'cancel') {
+                const pointerId = this.attractOrbHoldPointerId;
+                if (pointerId !== null) {
+                    const pointer = this.pointers.get(pointerId);
+                    if (pointer) pointer.attractOrbHoldActive = false;
+                }
+                this.attractOrbHoldPointerId = null;
+                if (this.game && this.game.scheduler) this.game.scheduler.cancelScope('attract-orb-hold');
+                if (this.game && this.game.player && this.game.player.element) {
+                    this.game.player.element.classList.remove('attract-orb-hold-cue');
+                }
+            }
 
             isInteractiveTarget(target) {
                 return !!(target && target.closest && target.closest(
@@ -10406,12 +10667,8 @@ Font License Notices
                 if (!event || !this.isPrimaryMouseButton(event)) return;
                 if (this.isSplashTarget(event.target)) return;
 
-                // General playfield contact may recover audio, but motion permission is owned only
-                // by explicit Play, splash-dismiss, and tutorial Continue gestures. This prevents
-                // an incidental pointer from consuming Safari's protected permission request.
-                if (this.pointers.size === 0 && this.game.audio) {
-                    this.game.audio.resume('primary-pointer');
-                }
+                if (this.game.audio) this.game.audio.resume('primary-pointer');
+                if (!this.game.motionPermissionGranted && this.pointers.size === 0) this.game.enableShakeCosmicZap();
 
                 const pointer = this.createPointerState(event);
                 this.pointers.set(event.pointerId, pointer);
@@ -10428,6 +10685,7 @@ Font License Notices
                 // contact arrives, reject the whole chord until every pointer is lifted. This keeps
                 // secondary fingers from moving the Orb, completing a Zap tap, or clicking a menu.
                 this.lastGameplayTap = null;
+                this.cancelAttractOrbHold('multitouch');
                 this.multitouchBlocked = true;
                 this.pointers.forEach(activePointer => { activePointer.multitouchSeen = true; });
                 this.suppressClicksUntil = this.now() + 600;
@@ -10461,6 +10719,9 @@ Font License Notices
 
                 for (const sample of events) {
                     const movement = this.updatePointer(pointer, sample);
+                    if (pointer.attractOrbHoldActive && pointer.travel > GAME_CONFIG.input.gestureTapMaxMove) {
+                        this.cancelAttractOrbHold('moved');
+                    }
                     if (this.multitouchBlocked) {
                         if (event.cancelable) event.preventDefault();
                         continue;
@@ -10494,11 +10755,16 @@ Font License Notices
                     return;
                 }
 
+                if (pointer.attractOrbHoldActive) this.cancelAttractOrbHold(canceled ? 'pointer-cancel' : 'released-early');
                 this.pointers.delete(pointer.id);
                 if (pointer.id !== this.primaryPointerId) return;
 
                 this.primaryPointerId = null;
                 document.body.classList.remove('gameplay-gesture-active');
+                if (pointer.attractOrbHoldCompleted) {
+                    this.suppressClicksUntil = this.now() + 220;
+                    return;
+                }
                 const duration = this.now() - pointer.startedAt;
                 const wasTap = !canceled && !pointer.multitouchSeen && !pointer.movementCommitted &&
                     pointer.travel <= GAME_CONFIG.input.gestureTapMaxMove &&
@@ -10561,257 +10827,6 @@ Font License Notices
                 event.preventDefault();
                 event.stopImmediatePropagation();
                 event.stopPropagation();
-            }
-        }
-
-        // Owns the complete browser motion lifecycle. Gameplay receives only normalized
-        // shake samples and never requests permissions or manages listeners directly.
-        class MotionInputController {
-            constructor(game) {
-                this.game = game;
-                this.state = 'unknown'; // unknown, requesting, granted, denied, unavailable, temporary-error
-                this.requestPromise = null;
-                this.requestSequence = 0;
-                this.permissionWatchdogTimer = null;
-                this.lastFailureReason = '';
-                this.listenerAttached = false;
-                this.lastSampleAt = 0;
-                this.lastRequestSource = '';
-                this.handleDeviceMotion = (event) => {
-                    const firstSample = this.lastSampleAt <= 0;
-                    this.lastSampleAt = performance.now();
-                    this.game.motionSampleSeenSinceAttach = true;
-                    if (firstSample) this.publishState();
-                    this.game.handleShakeMotion(event);
-                };
-                this.publishState();
-            }
-
-            get DeviceMotionAPI() {
-                return typeof window !== 'undefined' ? window.DeviceMotionEvent : undefined;
-            }
-
-            isEmbeddedContext() {
-                if (typeof window === 'undefined') return false;
-                try {
-                    return window.top !== window.self;
-                } catch (_) {
-                    return true;
-                }
-            }
-
-            clearPermissionWatchdog() {
-                if (!this.permissionWatchdogTimer) return;
-                clearTimeout(this.permissionWatchdogTimer);
-                this.permissionWatchdogTimer = null;
-            }
-
-            isFeatureAvailable() {
-                return !!(GAME_FEATURE_FLAGS.motionShake && this.DeviceMotionAPI);
-            }
-
-            isReady() {
-                return this.state === 'granted';
-            }
-
-            publishState() {
-                const game = this.game;
-                game.motionPermissionGranted = this.isReady();
-                game.motionPermissionState = this.state === 'unavailable' ? 'unsupported' : this.state;
-                game.motionPermissionPromise = this.requestPromise;
-                game.motionListenerAttached = this.listenerAttached;
-                if (typeof game.updateShakeControlLabel === 'function') game.updateShakeControlLabel();
-            }
-
-            initializeWithoutPrompt(source = 'startup') {
-                if (!this.isFeatureAvailable()) {
-                    this.state = 'unavailable';
-                    this.publishState();
-                    return Promise.resolve(false);
-                }
-
-                const MotionAPI = this.DeviceMotionAPI;
-                if (typeof MotionAPI.requestPermission === 'function') {
-                    // iOS must wait for the explicit Play or tutorial Continue action.
-                    this.state = this.state === 'temporary-error' ? 'temporary-error' : 'unknown';
-                    this.publishState();
-                    return Promise.resolve(false);
-                }
-
-                this.state = 'granted';
-                this.attachListener(source);
-                this.publishState();
-                return Promise.resolve(true);
-            }
-
-            requestAccessFromUserGesture(source = 'player-action', options = {}) {
-                if (!this.isFeatureAvailable()) {
-                    this.state = 'unavailable';
-                    this.lastFailureReason = 'feature-unavailable';
-                    this.publishState();
-                    return Promise.resolve(false);
-                }
-                if (this.state === 'granted') {
-                    this.ensureListener(source);
-                    return Promise.resolve(true);
-                }
-                const allowDeniedRetry = options.allowDeniedRetry === true;
-                if (this.state === 'unavailable') return Promise.resolve(false);
-                if (this.state === 'denied' && !allowDeniedRetry) return Promise.resolve(false);
-                if (this.state === 'denied' && allowDeniedRetry) {
-                    this.state = 'unknown';
-                    this.lastFailureReason = '';
-                    this.publishState();
-                }
-                if (this.requestPromise) return this.requestPromise;
-
-                if (this.isEmbeddedContext()) {
-                    this.state = 'temporary-error';
-                    this.lastFailureReason = 'embedded-context';
-                    this.publishState();
-                    return Promise.resolve(false);
-                }
-
-                const MotionAPI = this.DeviceMotionAPI;
-                if (typeof MotionAPI.requestPermission !== 'function') {
-                    this.state = 'granted';
-                    this.lastFailureReason = '';
-                    this.attachListener(source);
-                    this.publishState();
-                    return Promise.resolve(true);
-                }
-
-                let permissionRequest;
-                const requestToken = ++this.requestSequence;
-                try {
-                    // This call must remain synchronous within the trusted button/Continue event.
-                    this.state = 'requesting';
-                    this.lastFailureReason = '';
-                    this.lastRequestSource = source;
-                    this.publishState();
-                    permissionRequest = MotionAPI.requestPermission();
-                } catch (_) {
-                    this.state = 'temporary-error';
-                    this.lastFailureReason = 'request-threw';
-                    this.publishState();
-                    return Promise.resolve(false);
-                }
-
-                let publicResolve;
-                let responseHandled = false;
-                let publicResolved = false;
-                const request = new Promise((resolve) => {
-                    publicResolve = resolve;
-                });
-                const resolvePublic = (value) => {
-                    if (publicResolved) return;
-                    publicResolved = true;
-                    publicResolve(value);
-                };
-
-                this.requestPromise = request;
-                this.clearPermissionWatchdog();
-                this.permissionWatchdogTimer = setTimeout(() => {
-                    if (requestToken !== this.requestSequence || responseHandled) return;
-                    this.permissionWatchdogTimer = null;
-                    this.state = 'temporary-error';
-                    this.lastFailureReason = 'permission-timeout';
-                    if (this.requestPromise === request) this.requestPromise = null;
-                    this.publishState();
-                    resolvePublic(false);
-                }, 4000);
-                this.publishState();
-
-                Promise.resolve(permissionRequest)
-                    .then((permission) => {
-                        if (requestToken !== this.requestSequence) return;
-                        responseHandled = true;
-                        this.clearPermissionWatchdog();
-                        if (permission === 'granted') {
-                            this.state = 'granted';
-                            this.lastFailureReason = '';
-                            this.attachListener(source);
-                            if (this.requestPromise === request) this.requestPromise = null;
-                            this.publishState();
-                            resolvePublic(true);
-                            return;
-                        }
-                        if (permission === 'denied') {
-                            this.state = 'denied';
-                            this.lastFailureReason = 'permission-denied';
-                        } else {
-                            this.state = 'temporary-error';
-                            this.lastFailureReason = 'unexpected-response';
-                        }
-                        if (this.requestPromise === request) this.requestPromise = null;
-                        this.publishState();
-                        resolvePublic(false);
-                    })
-                    .catch(() => {
-                        if (requestToken !== this.requestSequence) return;
-                        responseHandled = true;
-                        this.clearPermissionWatchdog();
-                        this.state = 'temporary-error';
-                        this.lastFailureReason = 'request-rejected';
-                        if (this.requestPromise === request) this.requestPromise = null;
-                        this.publishState();
-                        resolvePublic(false);
-                    });
-
-                return request;
-            }
-
-            retryAccessFromUserGesture(source = 'settings-enable-shake') {
-                return this.requestAccessFromUserGesture(source, { allowDeniedRetry: true });
-            }
-
-            attachListener(source = 'attach') {
-                if (!this.isReady() || this.listenerAttached) {
-                    this.publishState();
-                    return this.listenerAttached;
-                }
-                window.addEventListener('devicemotion', this.handleDeviceMotion, { passive: true });
-                this.listenerAttached = true;
-                this.lastSampleAt = 0;
-                this.game.lastMotionSample = null;
-                this.game.motionSampleSeenSinceAttach = false;
-                this.publishState();
-                return true;
-            }
-
-            ensureListener(source = 'ensure') {
-                if (!this.isReady()) return false;
-                return this.attachListener(source) || this.listenerAttached;
-            }
-
-            handleVisibilityChange(visibilityState) {
-                if (visibilityState !== 'visible' || !this.isReady()) return;
-                // Keep one stable listener for the page lifetime. Reset only the motion baseline
-                // so the first sample after an interruption cannot be mistaken for a shake.
-                this.game.lastMotionSample = null;
-                this.ensureListener('page-visible');
-            }
-
-            destroy() {
-                this.requestSequence++;
-                this.clearPermissionWatchdog();
-                if (this.listenerAttached) {
-                    window.removeEventListener('devicemotion', this.handleDeviceMotion);
-                    this.listenerAttached = false;
-                }
-                this.requestPromise = null;
-                this.publishState();
-            }
-
-            getStatus() {
-                return Object.freeze({
-                    state: this.state,
-                    listenerAttached: this.listenerAttached,
-                    lastSampleAt: this.lastSampleAt,
-                    lastRequestSource: this.lastRequestSource,
-                    lastFailureReason: this.lastFailureReason,
-                    embeddedContext: this.isEmbeddedContext()
-                });
             }
         }
 
@@ -10920,8 +10935,6 @@ Font License Notices
                 this.trackingSpeedDecreaseButton = document.getElementById('trackingSpeedDecreaseButton');
                 this.trackingSpeedIncreaseButton = document.getElementById('trackingSpeedIncreaseButton');
                 this.settingsTrackingSpeedValue = document.getElementById('settingsTrackingSpeedValue');
-                this.enableShakeButton = document.getElementById('enableShakeButton');
-                this.shakeAccessStatus = document.getElementById('shakeAccessStatus');
                 this.trackingSpeedStorageKey = 'blockazoidsTrackingSpeedV1';
                 this.trackingSpeed = this.loadTrackingSpeed();
                 this.tutorialPrompt = document.getElementById('tutorialPrompt');
@@ -11150,7 +11163,7 @@ Font License Notices
                 this.runRecordHighestSector = 1;
                 this.runRecordHighestCycle = this.cycle;
                 this.cosmicZapsLeft = this.getCosmicZapsForCurrentCycle(); // Remaining Cosmic Zaps
-                this.cosmicZapPressure = 0;                // Extra danger added by Cosmic Zap use during the current level
+                this.cosmicZapPressure = 0;                // Counts Zap use for no-Zap bonuses and telemetry; it no longer affects enemy speed
                 this.active = false;                  // Game active state
                 this.levelActionStarted = false;      // Enemy spawning/game loop has started for the current level
                 this.showHudDuringSectorIntro = false; // Keep the top score/Zap HUD visible during sector introductions
@@ -11188,20 +11201,14 @@ Font License Notices
                 this.tutorialRadarColor = '';
                 this.tutorialRelicReady = false;
                 this.resumeCountdownActive = false;   // Blocks repeated resume clicks during the short countdown.
-                this.updateGameTimer = null;          // Enemy spawn timer so pause/resume cannot duplicate spawn loops
+                this.updateGameTimer = null;          // Legacy compatibility token; spawn timing now runs in the live frame loop
                 this.gameplayRunToken = 0;            // Revision for the one scheduler-owned live-gameplay animation loop
                 this.lastCosmicZapTriggerTime = 0;         // Prevents repeated Cosmic Zap triggers from one input
                 this.cosmicZapInputCooldownMs = GAME_CONFIG.input.cosmicZapCooldownMs;
                 this.cosmicZapProtectionUntil = 0;         // Protects the Orb immediately while the Zap confirms visually
                 this.cosmicZapProtectionMs = GAME_CONFIG.input.cosmicZapProtectionMs;
                 this.motionPermissionGranted = false;       // Permission survives listener suspension during pause/no-Zap states
-                this.motionPermissionState = 'unknown';     // unknown, requesting, granted, denied, retryable, or unsupported
-                this.motionPermissionPromise = null;        // Deduplicates simultaneous permission requests from one gesture
-                this.motionListenerAttached = false;        // True while the device-motion listener is attached
-                this.motionSampleSeenSinceAttach = false;   // Confirms Safari is delivering samples after permission
-                this.motionListenerHealthTimer = null;      // One-shot reattach check after permission/foreground restoration
-                this.motionListenerGeneration = 0;          // Invalidates stale health checks after listener changes
-                this.motionListenerHealthRetries = 0;       // Caps silent-listener recovery attempts per activation
+                this.motionListenerAttached = false;        // True only while motion input can currently do useful work
                 this.lastShakeCosmicZapTime = 0;           // Prevents one shake from firing multiple Cosmic Zaps
                 this.shakeCosmicZapCooldownMs = GAME_CONFIG.input.shakeCooldownMs;
                 this.shakeThreshold = GAME_CONFIG.input.shakeThreshold; // Higher = harder to trigger accidentally
@@ -11217,7 +11224,7 @@ Font License Notices
                 this.finalGridlockResultActive = false;  // Persistent Final Gridlock GAME OVER statistics screen
                 this.finalGridlockElapsedMs = 0;         // Active survival time inside Final Gridlock only
                 this.finalGridlockHandoffPromise = null; // Single canonical completion-to-survival transition owner
-                this.spawnCounter = 0;                // Counter for enemy spawn delay
+                this.enemySpawnElapsedMs = 0;         // Active gameplay time accumulated toward the next normal spawn
                 this.lastFrameTime = performance.now(); // Last frame timestamp
                 this.currentColorIndex = 0;           // Index of current crystal color
                 this.nextCrystalOrder = 1;            // Current blinking crystal order marker
@@ -11230,6 +11237,7 @@ Font License Notices
                 this.overtimeActive = false;       // Overtime starts after Gridlock and lasts until sector end/death/restart
                 this.overtimeEnemyTimer = null;    // Adds extra Block-A-Zoids during Overtime
                 this.overtimeEnemiesAdded = 0;     // Raises the Gridlock beat tempo/pitch as Overtime escalates
+                this.overtimeBehaviorQueue = [];     // Shuffled copy of the current sector's authored enemy mixture
                 this.superGridlockBonusesThisSector = 0;
                 this.superGridlockBonusPointsThisSector = 0;
                 this.prismRelicCueTimer = null;       // Delays the actual Prism Relic trigger so it does not overlap an enemy spawn sound
@@ -11267,7 +11275,6 @@ Font License Notices
                 this.audio = new AudioManager(this.scheduler); // Audio manager instance with Phase 3H timer ownership
                 this.ui = new UI(this);               // UI manager instance
                 this.systems = new GameSystemCoordinator(this); // Build 341 cross-system lifecycle coordinator
-                this.motionInput = new MotionInputController(this); // Single owner for permission, listener, and motion delivery
 
                 // Event handlers for player input
                 this.handlePointerDown = (e) => this.player.handlePointerDown(e);
@@ -11532,13 +11539,6 @@ Font License Notices
                         this.toggleCrtSetting();
                     });
                 }
-                if (this.enableShakeButton) {
-                    this.enableShakeButton.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        this.requestShakeAccessFromSettings();
-                    });
-                }
                 if (this.trackingSpeedDecreaseButton) {
                     this.trackingSpeedDecreaseButton.addEventListener('click', (e) => {
                         e.preventDefault();
@@ -11776,6 +11776,8 @@ Font License Notices
 
                 // Attract mode variables
                 this.attractInterval = null;          // Scheduler token for attract-mode pattern updates
+                this.attractEnemyCardAutoInterval = null; // Scheduler token for automatic attract-card starts
+                this.attractScreenIntervalMs = 5000;  // Every attract screen advances on a five-second cadence
                 this.lifeGrid = [];                   // 10x10 grid for Game of Life
                 this.levelLoadToken = 0;             // Cancels older intro/level-start work during test jumps
                 this.transitionGroupRevision = 0;     // Phase 3D: one authoritative cancellable transition sequence at a time
@@ -11804,8 +11806,6 @@ Font License Notices
                 this.attractEnemyCardFrame = null;
                 this.attractEnemyCardSimulationToken = 0;
                 this.enemyIdentityCardHideCleanupTimer = null;
-                this.lastAttractEnemyCardShakeTime = 0;
-                this.attractEnemyCardShakeCooldownMs = 1200;
                 this.lastDeathCause = null;
                 this.marqueePreviewLabelTimer = null;
                 this.splashIntroActive = !!this.splashScreen;
@@ -11848,8 +11848,12 @@ Font License Notices
                 this.splashEasterEggTimer = null; // Intro easter egg disabled for now.
 
                 const continueFromSplash = (e) => {
+                    if (!this.splashIntroActive) return;
                     if (e && e.preventDefault) e.preventDefault();
                     if (e && e.stopPropagation) e.stopPropagation();
+                    // The splash dismissal is the first guaranteed player gesture. Unlock audio here
+                    // so Safari never has to create or resume the sound graph from an attract-mode timer.
+                    if (this.audio) this.audio.resume('splash-dismiss');
                     this.dismissSplashIntro();
                 };
 
@@ -12089,7 +12093,7 @@ Font License Notices
                     documentNodes: count('*', document),
                     viewport: `${window.innerWidth}x${window.innerHeight}`,
                     boardSize: Number(this.PLAYFIELD_SIZE) || 0,
-                    updateTimer: !!this.updateGameTimer,
+                    spawnClockActive: this.flow.isLiveAction(),
                     overtimeTimer: !!this.overtimeEnemyTimer,
                     gridlockTimer: !!this.maxSwarmCueTimer,
                     relicTimer: !!this.prismRelicCueTimer,
@@ -12874,8 +12878,7 @@ Font License Notices
             getCurrentSpeedMultiplier() {
                 const levelBoost = (this.level - 1) * this.parameters.levelSpeedBoost;
                 const cycleBoost = Math.max(0, this.cycle - 1) * this.parameters.cycleSpeedBoost;
-                const zapBoost = this.cosmicZapPressure * this.parameters.levelSpeedBoost;
-                return (1 + levelBoost + cycleBoost + zapBoost) * this.getDifficultyConfig().speedMultiplier;
+                return (1 + levelBoost + cycleBoost) * this.getDifficultyConfig().speedMultiplier;
             }
 
             getEffectiveEnemySpeedsSnapshot() {
@@ -13907,8 +13910,9 @@ Best Score: ${bestScore}${recoveredLine}` :
                     enemies: {
                         active: Array.isArray(this.enemies) ? this.enemies.length : 0,
                         pendingSpawnWarnings: Array.isArray(this.pendingSpawnWarnings) ? this.pendingSpawnWarnings.length : 0,
-                        spawnCounter: Number(this.spawnCounter) || 0,
-                        gameplayUpdateScheduled: !!this.updateGameTimer
+                        enemySpawnElapsedMs: Math.round(Number(this.enemySpawnElapsedMs) || 0),
+                        enemySpawnDelayMs: Math.round((Number(this.spawnDelay) || 0) * 1000),
+                        spawnClockActive: this.flow.isLiveAction()
                     },
                     gridlock: {
                         active: !!this.maxSwarmActive,
@@ -14321,7 +14325,7 @@ Best Score: ${bestScore}${recoveredLine}` :
                 return plan;
             }
 
-            // Adjust spawn delay by level; enemy count stays capped at a constant value. Cosmic Zap pressure only affects speed.
+            // Adjust spawn delay by level; enemy count stays capped at a constant value. Cosmic Zap use does not affect speed.
             applyLevelParameters() {
                 const difficultyConfig = this.getDifficultyConfig();
                 this.spawnDelay = Math.max(this.parameters.minimumSpawnDelay, this.parameters.baseSpawnDelay - (this.level - 1) * this.parameters.spawnDelayLevelReduction + difficultyConfig.spawnDelayOffset);
@@ -14410,7 +14414,7 @@ Best Score: ${bestScore}${recoveredLine}` :
                 return Math.max(1, baseZaps - GAME_CONFIG.campaign.laterCycleZapReduction);
             }
 
-            // Enemy speed uses named tuning constants for sector, cycle, and Cosmic Zap pressure.
+            // Enemy speed uses named tuning constants for sector and cycle only.
             // Each completed campaign cycle raises the whole sector ladder without changing its order.
             getEnemySpeed(type) {
                 return this.BASE_SPEEDS[type] * this.getCurrentSpeedMultiplier();
@@ -14467,7 +14471,7 @@ Best Score: ${bestScore}${recoveredLine}` :
                 while (filledSquares.length > 0) filledSquares[0].remove();
             }
 
-            // Stop any scheduled enemy-spawn update so pause/restart cannot create stacked timers.
+            // Clear the retired scheduled-spawn compatibility token.
             clearUpdateGameTimer() {
                 if (this.updateGameTimer) {
                     this.scheduler.cancelTask(this.updateGameTimer);
@@ -14491,11 +14495,12 @@ Best Score: ${bestScore}${recoveredLine}` :
             }
 
             resetOvertimeState(options = {}) {
-                const preserveBankedBonuses = options.preserveBankedBonuses === true;
+                const preserveSectorRewardProgress = options.preserveSectorRewardProgress === true;
                 this.clearOvertimeEnemyTimer();
                 this.setGridlockState({ overtimeActive: false });
                 this.overtimeEnemiesAdded = 0;
-                if (!preserveBankedBonuses) {
+                this.overtimeBehaviorQueue = [];
+                if (!preserveSectorRewardProgress) {
                     this.superGridlockBonusesThisSector = 0;
                     this.superGridlockBonusPointsThisSector = 0;
                 }
@@ -14571,8 +14576,12 @@ Best Score: ${bestScore}${recoveredLine}` :
             }
 
             setGridlockState(patch = {}) {
+                const previousMaxSwarmActive = this.maxSwarmActive;
                 if (Object.prototype.hasOwnProperty.call(patch, 'maxSwarmActive')) this.maxSwarmActive = patch.maxSwarmActive;
                 if (Object.prototype.hasOwnProperty.call(patch, 'overtimeActive')) this.overtimeActive = patch.overtimeActive;
+                if (previousMaxSwarmActive !== this.maxSwarmActive && this.ui && this.ui.updateRadarColorIndicator) {
+                    this.ui.updateRadarColorIndicator();
+                }
             }
 
             setPrismRelicState(patch = {}) {
@@ -14644,7 +14653,7 @@ Best Score: ${bestScore}${recoveredLine}` :
                 this.cosmicZapsLeft = this.getCosmicZapsForCurrentCycle();
                 this.currentBlinkingCrystalCount = this.BASE_BLINKING_CRYSTAL_COUNT;
                 this.cosmicZapPressure = 0;
-                this.spawnCounter = 0;
+                this.enemySpawnElapsedMs = 0;
                 this.lastFrameTime = performance.now();
                 this.spawnedCount = { small: 0, medium: 0, large: 0 };
                 this.currentColorIndex = 0;
@@ -14846,7 +14855,6 @@ Best Score: ${bestScore}${recoveredLine}` :
                     this.crtToggleButton,
                     this.trackingSpeedDecreaseButton,
                     this.trackingSpeedIncreaseButton,
-                    this.enableShakeButton,
                     this.difficultyButton,
                     this.sectorDecreaseButton,
                     this.sectorIncreaseButton,
@@ -14920,7 +14928,6 @@ Best Score: ${bestScore}${recoveredLine}` :
                     this.updateMusicToggleLabel();
                     this.updateCrtToggleLabel();
                     this.updateTrackingSpeedLabel();
-                    this.updateShakeControlLabel();
                     this.updateSettingsSectorLabel();
                     this.updateDifficultyLabel();
                     this.updateHighScoreDisplay();
@@ -14946,64 +14953,6 @@ Best Score: ${bestScore}${recoveredLine}` :
                 this.clearMenuButtonFocus();
             }
 
-            updateShakeControlLabel() {
-                if (!this.enableShakeButton) return;
-                const state = this.motionPermissionState || 'unknown';
-                const motionStatus = this.motionInput && typeof this.motionInput.getStatus === 'function'
-                    ? this.motionInput.getStatus()
-                    : null;
-                let label = 'ENABLE SHAKE';
-                let status = 'Motion access has not been requested.';
-                let disabled = false;
-
-                if (state === 'requesting') {
-                    label = 'ENABLING...';
-                    status = 'Waiting for Safari motion permission.';
-                    disabled = true;
-                } else if (state === 'granted') {
-                    label = 'SHAKE ENABLED';
-                    status = motionStatus && motionStatus.lastSampleAt > 0
-                        ? 'Motion detected. Shake input is ready.'
-                        : 'Access granted. Move the phone to verify motion.';
-                    disabled = true;
-                } else if (state === 'denied') {
-                    label = 'RETRY SHAKE';
-                    status = 'Access denied. Safari site settings may need Motion enabled.';
-                } else if (state === 'temporary-error' || state === 'retryable') {
-                    label = 'RETRY SHAKE';
-                    const reason = motionStatus ? motionStatus.lastFailureReason : '';
-                    if (reason === 'embedded-context') {
-                        status = 'Open the game directly in Safari, then retry.';
-                    } else if (reason === 'permission-timeout') {
-                        status = 'Safari did not respond. Reopen the page directly in Safari and retry.';
-                    } else {
-                        status = 'Safari could not start motion. Tap to retry.';
-                    }
-                } else if (state === 'unsupported') {
-                    label = 'SHAKE UNAVAILABLE';
-                    status = 'Device motion is unavailable. Double tap still works.';
-                    disabled = true;
-                }
-
-                this.enableShakeButton.textContent = label;
-                this.enableShakeButton.disabled = disabled;
-                this.enableShakeButton.setAttribute('aria-label', label.toLowerCase());
-                if (this.shakeAccessStatus) this.shakeAccessStatus.textContent = status;
-            }
-
-            requestShakeAccessFromSettings() {
-                if (!this.motionInput) {
-                    this.updateShakeControlLabel();
-                    return Promise.resolve(false);
-                }
-                // Keep the protected permission call synchronous with this dedicated click.
-                const request = this.motionInput.retryAccessFromUserGesture('settings-enable-shake');
-                this.updateShakeControlLabel();
-                return Promise.resolve(request).then((granted) => {
-                    this.updateShakeControlLabel();
-                    return granted;
-                });
-            }
 
             updateSoundToggleLabel() {
                 if (!this.soundToggleButton || !this.audio) return;
@@ -15037,6 +14986,7 @@ Best Score: ${bestScore}${recoveredLine}` :
                 if (!GAME_FEATURE_FLAGS.music || !this.audio) return;
                 this.audio.setMusicMuted(!this.audio.isMusicMuted());
                 this.updateMusicToggleLabel();
+                if (this.ui && this.ui.updateRadarColorIndicator) this.ui.updateRadarColorIndicator();
                 this.stopPauseMenuReactorHum();
             }
 
@@ -16217,7 +16167,6 @@ Best Score: ${bestScore}${recoveredLine}` :
                     }
                     return;
                 }
-                if (this.motionInput) this.motionInput.handleVisibilityChange(document.visibilityState);
                 if (this.flow.isLiveAction()) {
                     this.lastFrameTime = performance.now();
                     this.requestWakeLock();
@@ -16598,11 +16547,6 @@ Best Score: ${bestScore}${recoveredLine}` :
                 if (!this.tutorialActive || !this.tutorialWindowOpen) return;
                 const phase = this.tutorialWindowPhase;
 
-                // Request motion permission from the direct gesture, but never make tutorial
-                // progression or the double-tap fallback wait for that asynchronous result.
-                if (phase === 'zap') {
-                    this.enableShakeCosmicZap('tutorial-zap-continue');
-                }
                 if (this.audio) this.audio.resume(`tutorial-${phase || 'continue'}`);
 
                 this.hideTutorialWindow();
@@ -17212,10 +17156,9 @@ Best Score: ${bestScore}${recoveredLine}` :
                     e.preventDefault();
                     e.stopPropagation();
                 }
+                // Keep the play control as a second direct Safari audio-unlock point.
+                if (this.audio) this.audio.resume('play-control');
                 if (this.tutorialActive) return;
-                // This click is the canonical gameplay permission gesture. Ask before any audio
-                // or asynchronous work so Safari keeps the request inside the trusted action.
-                if (!this.motionPermissionGranted) this.enableShakeCosmicZap('play-control');
                 // Final-completion recovery has priority over stale countdown/input locks.
                 if (this.finalCompletionActive) {
                     if (this.restartReady && !this.finalGridlockActive && !this.finalGridlockResultActive) {
@@ -17345,7 +17288,7 @@ Best Score: ${bestScore}${recoveredLine}` :
 
             // Every level uses the same red -> green -> blue collection rule.
             // Sector Maps are ordered easiest-to-hardest by movement difficulty.
-            // Difficulty can later be adjusted with enemy count, enemy speed, spawn timing, and Cosmic Zap pressure.
+            // Difficulty can later be adjusted with enemy count, enemy speed, and spawn timing.
             getLevelPatternRows(levelNumber = this.level) {
                 return GAME_DATA.sectorPatterns[Math.max(0, Math.min(GAME_DATA.sectorPatterns.length - 1, levelNumber - 1))];
             }
@@ -17617,6 +17560,7 @@ Best Score: ${bestScore}${recoveredLine}` :
                 if (this.overtimeActive) return;
                 this.setGridlockState({ overtimeActive: true });
                 this.overtimeEnemiesAdded = 0;
+                this.overtimeBehaviorQueue = [];
                 if (this.audio && this.audio.setMaxSwarmBeatIntensity) {
                     this.audio.setMaxSwarmBeatIntensity(0);
                 }
@@ -17657,20 +17601,43 @@ Best Score: ${bestScore}${recoveredLine}` :
                 return 'large';
             }
 
+            refillOvertimeBehaviorQueue() {
+                const authoredPlan = this.getSectorEnemyBehaviorPlan().slice();
+                if (authoredPlan.length === 0) authoredPlan.push(ENEMY_BEHAVIOR_TYPES.DRIFTER);
+                for (let index = authoredPlan.length - 1; index > 0; index--) {
+                    const swapIndex = Math.floor(Math.random() * (index + 1));
+                    [authoredPlan[index], authoredPlan[swapIndex]] = [authoredPlan[swapIndex], authoredPlan[index]];
+                }
+                this.overtimeBehaviorQueue = authoredPlan;
+            }
+
+            chooseOvertimeEnemyBehavior() {
+                if (!Array.isArray(this.overtimeBehaviorQueue) || this.overtimeBehaviorQueue.length === 0) {
+                    this.refillOvertimeBehaviorQueue();
+                }
+                return this.overtimeBehaviorQueue.shift() || ENEMY_BEHAVIOR_TYPES.DRIFTER;
+            }
+
             spawnOvertimeEnemy() {
                 if (!this.overtimeActive || !this.flow.isLiveAction()) return false;
-                const type = this.chooseOvertimeEnemyType();
-                return this.startEnemySpawnWarning(type, {
+                const spawnRequest = {
+                    type: this.chooseOvertimeEnemyType(),
+                    behaviorType: this.chooseOvertimeEnemyBehavior()
+                };
+                const warningStarted = this.startEnemySpawnWarning(spawnRequest, {
                     requeueOnCancel: false,
                     onSpawn: () => {
                         this.overtimeEnemiesAdded++;
-                        this.superGridlockBonusesThisSector++;
-                        const superGridlockPoints = this.superGridlockBonusesThisSector === 1
-                            ? 500
-                            : (this.superGridlockBonusesThisSector === 2 ? 750 : 1000);
-                        this.superGridlockBonusPointsThisSector += superGridlockPoints;
-                        if (this.ui && this.ui.flashSuperGridlockBonus) {
-                            this.ui.flashSuperGridlockBonus(superGridlockPoints);
+                        const rewards = GAME_CONFIG.gridlock.superGridlockRewards;
+                        if (this.superGridlockBonusesThisSector < rewards.length) {
+                            const rewardIndex = this.superGridlockBonusesThisSector;
+                            const superGridlockPoints = rewards[rewardIndex];
+                            this.superGridlockBonusesThisSector++;
+                            this.superGridlockBonusPointsThisSector += superGridlockPoints;
+                            if (this.ui && this.ui.flashSuperGridlockBonus) {
+                                this.ui.flashSuperGridlockBonus(superGridlockPoints);
+                            }
+                            this.addScore(superGridlockPoints);
                         }
                         if (this.audio && this.audio.setMaxSwarmBeatIntensity) {
                             this.audio.setMaxSwarmBeatIntensity(this.overtimeEnemiesAdded);
@@ -17681,6 +17648,8 @@ Best Score: ${bestScore}${recoveredLine}` :
                         this.scheduleOvertimeEnemy();
                     }
                 });
+                if (!warningStarted) this.overtimeBehaviorQueue.unshift(spawnRequest.behaviorType);
+                return warningStarted;
             }
 
             removePrismRelic() {
@@ -17712,7 +17681,9 @@ Best Score: ${bestScore}${recoveredLine}` :
                         this.relicsCollectedThisRun = Math.min(15, Math.max(0, this.relicsCollectedThisRun || 0) + 1);
                     }
                 }
-                // Prism Relic points are awarded only if the sector is cleared.
+                const gridlockPoints = this.parameters.gridlockBonus;
+                if (this.ui && this.ui.flashGridlockBonus) this.ui.flashGridlockBonus(gridlockPoints);
+                this.addScore(gridlockPoints);
                 this.audio.playPrismRelicCollect();
             }
 
@@ -17986,11 +17957,9 @@ Best Score: ${bestScore}${recoveredLine}` :
             }
 
 
-            buildSectorBonusLines(unusedCosmicZapBonus, gridlockBonus, superGridlockBonus, perfectSectorBonus, cycleBonus) {
+            buildSectorBonusLines(unusedCosmicZapBonus, perfectSectorBonus, cycleBonus) {
                 const lines = [];
                 if (unusedCosmicZapBonus > 0) lines.push({ label: 'COSMIC ZAPS', value: unusedCosmicZapBonus, className: 'cosmic-zaps-row' });
-                if (gridlockBonus > 0) lines.push({ label: 'GRIDLOCK BONUS', value: gridlockBonus });
-                if (superGridlockBonus > 0) lines.push({ label: 'SUPER GRIDLOCK', value: superGridlockBonus });
                 if (perfectSectorBonus > 0) lines.push({ label: 'PERFECT SECTOR', value: perfectSectorBonus, highlight: true });
                 if (cycleBonus > 0) lines.push({ label: 'GAME CYCLE', value: cycleBonus });
                 return lines;
@@ -18003,6 +17972,7 @@ Best Score: ${bestScore}${recoveredLine}` :
                 this.lastFrameTime = timestamp;
                 this.awardSurvivalTimePoints(deltaTime); // +1 point for each active gameplay second
                 this.updatePrismRelic(deltaTime); // Update optional Prism Relic timer
+                this.updateEnemySpawning(deltaTime); // Advance exact per-sector spawn timing
                 this.updateEnemies(deltaTime, timestamp); // Update enemy positions
                 if (this.vectorTrail) this.vectorTrail.update(timestamp);
                 this.checkCollisions(); // Check for collisions
@@ -18168,23 +18138,33 @@ Best Score: ${bestScore}${recoveredLine}` :
                 return true;
             }
 
-            // Periodic update for enemy spawning
+            // Enemy spawn pressure advances in active-gameplay milliseconds. The render loop owns
+            // this clock, so pauses and background interruptions cannot consume spawn time.
+            updateEnemySpawning(deltaTime) {
+                if (!this.flow.isLiveAction()) return;
+
+                const elapsed = Math.max(0, Number(deltaTime) || 0);
+                const delayMs = Math.max(0, Number(this.spawnDelay) || 0) * 1000;
+                this.enemySpawnElapsedMs = Math.min(
+                    delayMs,
+                    Math.max(0, Number(this.enemySpawnElapsedMs) || 0) + elapsed
+                );
+
+                if (this.enemySpawnElapsedMs < delayMs) return;
+                if (this.enemies.length + this.pendingSpawnWarnings.length >= this.normalSwarmSize) return;
+                if (this.spawnQueue.length <= 0) return;
+
+                const nextSpawnRequest = this.spawnQueue[0];
+                if (this.startEnemySpawnWarning(nextSpawnRequest)) {
+                    this.enemySpawnElapsedMs = 0;
+                    this.spawnQueue.shift();
+                }
+            }
+
+            // Compatibility lifecycle hook retained for existing start/resume call sites. Spawning
+            // itself is driven by updateEnemySpawning() inside the live simulation loop.
             updateGame() {
                 this.updateGameTimer = null;
-                if (!this.flow.isLiveAction()) return; // Flow state owns live simulation access.
-
-                if (this.spawnCounter >= this.spawnDelay && 
-                    this.enemies.length + this.pendingSpawnWarnings.length < this.normalSwarmSize &&
-                    this.spawnQueue.length > 0) { // Telegraph the next enemy if conditions met
-                    const nextSpawnRequest = this.spawnQueue[0];
-                    if (this.startEnemySpawnWarning(nextSpawnRequest)) {
-                        this.spawnCounter = 0; // Reset counter only when a valid telegraph was created
-                        this.spawnQueue.shift();
-                    }
-                }
-                this.spawnCounter++; // Increment spawn counter
-
-                this.updateGameTimer = this.scheduler.scheduleTimeout('gameplay', 'enemy-spawn-update', () => this.updateGame(), 1000); // Schedule next update
             }
 
             // Canonical lifecycle entry for sector completion and restoration.
@@ -18204,26 +18184,27 @@ Best Score: ${bestScore}${recoveredLine}` :
                 this.markStabilityEvent('sector-complete-start', { sector: completedLevel, transitionToken });
 
                 this.stopRunRecordActionClock();
+                if (this.ui && this.ui.clearScoreAnnouncement) this.ui.clearScoreAnnouncement();
                 this.setGameplayState({ active: false }); // Prevent repeated completion triggers before the next level starts
                 this.setGameplayState({ levelActionStarted: false });
                 this.setTransitionState({ sectorTransitionActive: true });
                 this.systems.stopSectorForCompletion();
 
                 const unusedCosmicZapBonus = this.cosmicZapsLeft * this.parameters.unusedCosmicZapBonus;
-                const gridlockBonus = this.prismRelicRecoveredThisSector ? this.parameters.gridlockBonus : 0;
-                const superGridlockBonus = this.superGridlockBonusPointsThisSector;
+                const gridlockBonusEarned = this.prismRelicRecoveredThisSector ? this.parameters.gridlockBonus : 0;
+                const superGridlockBonusEarned = this.superGridlockBonusPointsThisSector;
                 const perfectSectorBonus = this.cosmicZapPressure === 0 ? this.parameters.perfectSectorBonus : 0;
                 const cycleBonus = completedLevel >= this.MAX_LEVEL ? this.parameters.gameCycleBonus : 0;
-                const totalBonus = unusedCosmicZapBonus + gridlockBonus + superGridlockBonus + perfectSectorBonus + cycleBonus;
-                const bonusLines = this.buildSectorBonusLines(unusedCosmicZapBonus, gridlockBonus, superGridlockBonus, perfectSectorBonus, cycleBonus);
+                const totalBonus = unusedCosmicZapBonus + perfectSectorBonus + cycleBonus;
+                const bonusLines = this.buildSectorBonusLines(unusedCosmicZapBonus, perfectSectorBonus, cycleBonus);
                 this.finishTelemetrySector('completed', {
                     totalBonus,
                     unusedCosmicZapBonus,
                     survivalistBonus: 0,
-                    gridlockBonus,
-                    superGridlockBonus,
+                    gridlockBonus: gridlockBonusEarned,
+                    superGridlockBonus: superGridlockBonusEarned,
                     perfectSectorBonus,
-                    prismRelicBonus: gridlockBonus,
+                    prismRelicBonus: gridlockBonusEarned,
                     cycleBonus
                 });
                 if (completedLevel >= this.MAX_LEVEL) this.noteTelemetryCycleComplete();
@@ -18377,7 +18358,7 @@ Best Score: ${bestScore}${recoveredLine}` :
             advanceToNextLevelAfterRestore(nextLevel, transitionToken = this.levelLoadToken) {
                 this.level = nextLevel;
                 this.recordProgressUnlocks(this.level, this.cycle);
-                this.spawnCounter = 0;
+                this.enemySpawnElapsedMs = 0;
                 this.cosmicZapsLeft = this.getCosmicZapsForCurrentCycle();
                 this.currentBlinkingCrystalCount = this.BASE_BLINKING_CRYSTAL_COUNT;
                 this.survivalScoreAccumulator = 0;
@@ -18495,37 +18476,17 @@ Best Score: ${bestScore}${recoveredLine}` :
             }
 
             playCrystalCollectionEffect(crystal) {
-                if (!crystal || !this.player || !this.player.element || !this.container) return;
+                if (!crystal) return;
 
-                const effectId = ++this.visualEffectSequence;
-                const playerElement = this.player.element;
+                // Radar feedback is the single visual confirmation for crystal collection.
+                // Remove any stale Orb-side effect left by an older state, but create no new one.
+                if (this.player && this.player.element) {
+                    this.player.element.classList.remove('crystal-pickup-pop');
+                    this.player.element.querySelectorAll('.orb-crystal-pickup-fx').forEach(effect => effect.remove());
+                }
                 if (this.ui && typeof this.ui.pulseRadarCollection === 'function') {
                     this.ui.pulseRadarCollection(crystal.color);
                 }
-
-                // The Orb remains the movement/collision owner. Only this disposable child layer animates,
-                // so collection feedback cannot alter the Orb transform or force a movement-layer reflow.
-                playerElement.querySelectorAll('.orb-crystal-pickup-fx').forEach(effect => effect.remove());
-                const effectLayer = document.createElement('div');
-                effectLayer.className = 'orb-crystal-pickup-fx';
-                effectLayer.style.setProperty('--collect-orb-size', `${this.player.size * 1.15}px`);
-                effectLayer.style.setProperty('--collect-ring-size', `${this.player.size * 1.35}px`);
-                effectLayer.style.setProperty('--collect-spark-size', `${this.player.size * 1.55}px`);
-
-                const flash = document.createElement('div');
-                flash.className = 'orb-crystal-pickup-flash';
-                effectLayer.appendChild(flash);
-
-                const ring = document.createElement('div');
-                ring.className = 'orb-crystal-pickup-ring';
-                effectLayer.appendChild(ring);
-
-                const sparkle = document.createElement('div');
-                sparkle.className = 'orb-crystal-pickup-sparkle';
-                effectLayer.appendChild(sparkle);
-
-                playerElement.appendChild(effectLayer);
-                this.scheduler.scheduleTimeout('visual-effects', `crystal-pickup-fx-${effectId}`, () => effectLayer.remove(), 220);
             }
 
             collectCrystalAtIndex(index, crystal) {
@@ -18788,8 +18749,8 @@ Best Score: ${bestScore}${recoveredLine}` :
                     this.active && !this.isPaused && !this.isGameOver && !this.finalGridlockActive;
             }
 
-            // All Zap inputs converge here so simultaneous touch and motion signals can consume only one charge.
-            // Input source never changes eligibility: tutorial, touch/mouse double-tap, and shake use the same gate.
+            // All Zap inputs converge here so simultaneous signals can consume only one charge.
+            // Double tap is the official control; any dormant motion input uses the same eligibility gate.
             requestCosmicZap(source = 'unknown') {
                 if (!this.canTriggerCosmicZap()) return false;
                 const before = this.cosmicZapsLeft;
@@ -18797,12 +18758,24 @@ Best Score: ${bestScore}${recoveredLine}` :
                 return this.cosmicZapsLeft < before;
             }
 
-            // Compatibility boundary: all legacy game call sites delegate to one motion-input owner.
-            enableShakeInput(requestPermission = true, source = 'unspecified') {
-                if (!this.motionInput) return Promise.resolve(false);
-                return requestPermission
-                    ? this.motionInput.requestAccessFromUserGesture(source)
-                    : this.motionInput.initializeWithoutPrompt(source);
+            // Enable shake input. iOS requires motion permission from a tap gesture.
+            async enableShakeInput(requestPermission = true) {
+                if (!GAME_FEATURE_FLAGS.motionShake || typeof DeviceMotionEvent === 'undefined') return false;
+
+                try {
+                    if (!this.motionPermissionGranted && typeof DeviceMotionEvent.requestPermission === 'function') {
+                        if (!requestPermission) return false;
+                        const permission = await DeviceMotionEvent.requestPermission();
+                        if (permission !== 'granted') return false;
+                    }
+
+                    this.motionPermissionGranted = true;
+                    this.syncMotionListenerState();
+                    return true;
+                } catch (_) {
+                    // If permission is denied or motion is unavailable, shake features simply stay disabled.
+                    return false;
+                }
             }
 
             requireShakeNeutralReset() {
@@ -18816,30 +18789,27 @@ Best Score: ${bestScore}${recoveredLine}` :
             }
 
             shouldListenForMotion() {
-                return !!(this.motionInput && this.motionInput.isReady() && this.motionInput.listenerAttached);
+                // Once motion permission is granted, keep the listener attached globally.
+                // handleShakeMotion() owns state routing for the marquee easter egg versus Cosmic Zap.
+                return !!(GAME_FEATURE_FLAGS.motionShake && this.motionPermissionGranted);
             }
 
-            clearMotionListenerHealthCheck() {
-                // p138 keeps one stable listener; short detach/reattach health timers are intentionally retired.
-                if (this.motionListenerHealthTimer) {
-                    clearTimeout(this.motionListenerHealthTimer);
-                    this.motionListenerHealthTimer = null;
+            syncMotionListenerState() {
+                const shouldAttach = this.shouldListenForMotion();
+                if (shouldAttach && !this.motionListenerAttached) {
+                    window.addEventListener('devicemotion', this.handleDeviceMotion, { passive: true });
+                    this.motionListenerAttached = true;
+                    this.lastMotionSample = null;
+                } else if (!shouldAttach && this.motionListenerAttached) {
+                    window.removeEventListener('devicemotion', this.handleDeviceMotion);
+                    this.motionListenerAttached = false;
+                    this.lastMotionSample = null;
                 }
             }
 
-            scheduleMotionListenerHealthCheck() {
-                // Retained as a no-op compatibility method for older call sites and telemetry.
-            }
-
-            syncMotionListenerState(forceReattach = false, source = 'state-sync') {
-                if (!this.motionInput) return false;
-                return this.motionInput.ensureListener(source);
-            }
-
-            // Enable shake-to-Cosmic-Zap only from a trusted Play or tutorial Continue action.
-            enableShakeCosmicZap(source = 'player-action') {
-                if (!this.motionInput) return Promise.resolve(false);
-                return this.motionInput.requestAccessFromUserGesture(source);
+            // Enable shake-to-Cosmic-Zap from a user gesture when required by the browser.
+            async enableShakeCosmicZap() {
+                return this.enableShakeInput(true);
             }
 
             // Shake the phone for the attract-mode marquee easter egg, or to use a Cosmic Zap during active gameplay.
@@ -18885,13 +18855,7 @@ Best Score: ${bestScore}${recoveredLine}` :
                 if (delta < this.shakeThreshold) return;
 
                 if (this.isAttractModeActive()) {
-                    // During normal attract mode, one deliberate shake starts the introduction sequence.
-                    // Motion samples are ignored until the cards have fully completed or been cancelled.
-                    if (this.attractEnemyCardSequenceActive) return;
-                    if (now - this.lastAttractEnemyCardShakeTime < this.attractEnemyCardShakeCooldownMs) return;
-                    this.lastAttractEnemyCardShakeTime = now;
-                    if (this.startAttractEnemyCardSequence()) return;
-
+                    // p148: attract cards advance automatically. Shake remains reserved for the marquee easter egg.
                     if (this.isMarqueeEasterEggUnlocked() && now - this.lastMarqueeEasterEggShakeTime >= this.marqueeEasterEggShakeCooldownMs) {
                         this.lastMarqueeEasterEggShakeTime = now;
                         this.triggerMarqueeEasterEgg();
@@ -18985,7 +18949,7 @@ Best Score: ${bestScore}${recoveredLine}` :
 
                     this.cosmicZapsLeft--;
                     this.syncMotionListenerState();
-                    this.cosmicZapPressure++;
+                    this.cosmicZapPressure++; // Usage count only; no enemy-speed increase.
                     this.ui.updateCosmicZapIndicators();
                     this.audio.playCosmicZapSound();
                     this.triggerCrtEvent('zap');
@@ -19003,18 +18967,18 @@ Best Score: ${bestScore}${recoveredLine}` :
                     }
                     this.clearPendingSpawnWarnings(true);
 
-                    // Cosmic Zaps clear Overtime, cancel any uncollected Gridlock Relic attempt,
-                    // and erase pending Super Gridlock bonuses that have not yet paid out.
+                    // Cosmic Zaps clear the active Gridlock state but never remove earned points
+                    // or restart the current sector's 500 / 750 / 1000 Super Gridlock sequence.
                     this.clearMaxSwarmCueTimer();
                     this.setGridlockState({ maxSwarmActive: false });
-                    this.resetOvertimeState();
+                    this.resetOvertimeState({ preserveSectorRewardProgress: true });
                     if (this.audio) {
                         this.audio.stopBackgroundMusic();
                         this.audio.startBackgroundMusic(this.level);
                     }
 
                     this.applyLevelParameters();
-                    this.spawnCounter = Math.max(0, this.spawnDelay - 1);
+                    this.enemySpawnElapsedMs = Math.max(0, (this.spawnDelay - 1) * 1000);
                     this.scheduler.scheduleTimeout('visual-effects', 'cosmic-zap-shake', () => this.container.classList.remove('cosmicZapShake'), 300);
                     this.updateCrystalHighlight();
                 }
@@ -19489,7 +19453,9 @@ Best Score: ${bestScore}${recoveredLine}` :
                     if (this.enemyIdentityCardBehavior) this.enemyIdentityCardBehavior.textContent = '';
                     this.enemyIdentityCard.setAttribute('aria-label', 'Arkom presents.');
                 } else if (isCastIntro) {
-                    if (this.enemyIdentityCardName) this.enemyIdentityCardName.textContent = 'BLOCK\n-A-\nZOIDS';
+                    if (this.enemyIdentityCardName) {
+                        this.enemyIdentityCardName.innerHTML = '<span class="attract-title-line attract-title-block">BLOCK</span><span class="attract-title-line attract-title-a">-A-</span><span class="attract-title-line attract-title-zoids">ZOIDS</span>';
+                    }
                     if (this.enemyIdentityCardClass) this.enemyIdentityCardClass.textContent = '';
                     if (this.enemyIdentityCardPersonality) this.enemyIdentityCardPersonality.textContent = '';
                     if (this.enemyIdentityCardBehavior) this.enemyIdentityCardBehavior.textContent = '';
@@ -19524,20 +19490,13 @@ Best Score: ${bestScore}${recoveredLine}` :
                 this.suspendAttractEnemyCards();
                 const token = ++this.attractEnemyCardSequenceToken;
                 this.attractEnemyCardSequenceActive = true;
-                if (this.audio) {
-                    this.audio.resume();
-                    this.audio.playUnlockPiccoloArpeggio();
-                }
+                // Attract screens are timer-driven and intentionally silent. Never call resume()
+                // here: Safari requires the AudioContext unlock to happen inside a real player gesture.
                 const unlocked = this.getUnlockedEnemyIdentityOrder();
                 const cards = ['company', 'cast-intro', ...unlocked];
                 if (unlocked.length === ENEMY_IDENTITY_ORDER.length) cards.push('full-cast');
-                const durationFor = key => {
-                    if (key === 'company') return 1200;
-                    if (key === 'cast-intro') return 2000;
-                    if (key === 'drifter') return 3000;
-                    if (key === 'full-cast') return 4200;
-                    return 3500;
-                };
+                const transitionDurationMs = 250;
+                const cardHoldDurationMs = Math.max(0, this.attractScreenIntervalMs - transitionDurationMs);
 
                 const cancelIfUnavailable = () => {
                     if (token !== this.attractEnemyCardSequenceToken) return true;
@@ -19570,8 +19529,8 @@ Best Score: ${bestScore}${recoveredLine}` :
                             ? '#fff'
                             : getEnemyIdentity(key).color;
                         this.showAttractTransitionFrame(color, false);
-                        this.scheduler.scheduleTimeout('attract-enemy-cards', `card-${index}-transition`, () => showIndex(index + 1), 250);
-                    }, durationFor(key));
+                        this.scheduler.scheduleTimeout('attract-enemy-cards', `card-${index}-transition`, () => showIndex(index + 1), transitionDurationMs);
+                    }, cardHoldDurationMs);
                 };
 
                 this.showAttractTransitionFrame('#fff', true);
@@ -19636,7 +19595,7 @@ Best Score: ${bestScore}${recoveredLine}` :
 
                 const levelBoost = Math.max(0, this.level - 1) * this.parameters.levelSpeedBoost;
                 const cycleBoost = Math.max(0, this.cycle - 1) * this.parameters.cycleSpeedBoost;
-                const zapBoost = this.cosmicZapPressure * this.parameters.levelSpeedBoost;
+                const zapBoost = 0;
                 const difficultyMultiplier = this.getDifficultyConfig().speedMultiplier;
                 const overallMultiplier = this.getCurrentSpeedMultiplier();
                 const specialMovementMultiplier = this.getEnemyBehaviorSpeedMultiplier(enemy);
@@ -19731,6 +19690,10 @@ Best Score: ${bestScore}${recoveredLine}` :
 
                 updatePattern(); // Initial pattern
                 this.attractInterval = this.scheduler.scheduleInterval('attract-mode', 'life-grid', updatePattern, 1000); // Update every second
+                this.attractEnemyCardAutoInterval = this.scheduler.scheduleInterval('attract-mode', 'enemy-card-auto-start', () => {
+                    if (this.attractEnemyCardSequenceActive || !this.isAttractEnemyCardAllowed()) return;
+                    this.startAttractEnemyCardSequence();
+                }, this.attractScreenIntervalMs);
                 this.syncAttractModeAudio();
                 this.validateStateInvariants('returnToAttractMode');
                 return true;
@@ -19738,9 +19701,13 @@ Best Score: ${bestScore}${recoveredLine}` :
 
             // Stop attract mode and clean up
             stopAttractMode() {
+                if (this.gestures && typeof this.gestures.cancelAttractOrbHold === 'function') {
+                    this.gestures.cancelAttractOrbHold('stop-attract-mode');
+                }
                 this.suspendAttractEnemyCards();
                 this.scheduler.cancelScope('attract-mode');
                 this.attractInterval = null;
+                this.attractEnemyCardAutoInterval = null;
                 this.attractModeStartedAt = 0;
                 this.stopAttractComputerAmbience();
                 if (this.player && this.player.element) this.player.element.classList.remove('attract-orb-pulse');
@@ -22295,14 +22262,11 @@ Best Score: ${bestScore}${recoveredLine}` :
                     this.musicGain.gain.setValueAtTime(0.58, now);
                 }
 
-                if (this.backgroundMusicPlaying) {
-                    this.stopBackgroundMusic();
-                    this.startBackgroundMusic(this.currentGameplayMusicLevel || 1);
-                }
-                if (this.musicMuted && this.cycleCompleteMusicPlaying) {
-                    this.stopCycleCompleteMusic();
-                }
+                // Music: Off must silence both the normal patrol bed and the Gridlock kick variation.
+                // Music resumes through the normal gameplay/pause lifecycle when it is enabled again.
                 if (this.musicMuted) {
+                    this.stopBackgroundMusic();
+                    if (this.cycleCompleteMusicPlaying) this.stopCycleCompleteMusic();
                     this.stopAttractComputerAmbience();
                 }
             }
@@ -22333,6 +22297,10 @@ getOvertimeSwarmPitchMultiplier() {
 
 
 startMaxSwarmBeat(delaySeconds = 0) {
+                if (this.musicMuted) {
+                    this.stopMaxSwarmBeat();
+                    return;
+                }
                 this.ensureAudio();
                 if (!this.ctx || this.ctx.state === 'closed') return;
                 const firstLoopStart = this.ctx.currentTime + Math.max(0.018, delaySeconds || 0);
@@ -22344,6 +22312,10 @@ startMaxSwarmBeat(delaySeconds = 0) {
             }
 
             startOvertimeSwarmLoopAt(firstLoopStart, options = {}) {
+                if (this.musicMuted) {
+                    this.stopMaxSwarmBeat();
+                    return;
+                }
                 this.ensureAudio();
                 if (!this.ctx || this.ctx.state === 'closed') return;
                 if (this.maxSwarmBeatPlaying && !options.forceRestart) return;
@@ -22837,9 +22809,10 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 const signalStart = this.ctx.currentTime + 0.018;
                 this.setMaxSwarmBeatIntensity(0);
                 this.playMaxSwarmSignal(signalStart);
-                // Last radar ping begins at signalStart + 0.825; the first thump lands inside its decay
-                // so the player hears a continuous handoff with no timer-controlled silence gap.
-                this.startMaxSwarmBeatAt(signalStart + 0.845);
+                // Last radar ping begins at signalStart + 0.825; when Music is enabled, the first
+                // thump lands inside its decay. With Music disabled, the visual radar core supplies
+                // the continuing Gridlock warning instead.
+                if (!this.musicMuted) this.startMaxSwarmBeatAt(signalStart + 0.845);
             }
 
             // Play a short repaired-sector cue: RGB pulses into one white lock-in tone.
@@ -24161,8 +24134,18 @@ startMaxSwarmBeat(delaySeconds = 0) {
             // the AudioContext. All other sound calls use the verified shared graph.
             resume(reason = 'user-gesture') {
                 if (this.muted) return Promise.resolve(false);
-                this.audioGestureSeen = true;
-                return this.requestAudioReady(reason, true);
+
+                // A timer must never impersonate a player gesture. This was able to poison the
+                // Safari audio session when the attract presentation became automatic.
+                const userActivation = navigator.userActivation;
+                const isDirectGesture = !userActivation || userActivation.isActive;
+                if (!isDirectGesture && !this.audioGestureSeen) {
+                    this.audioRuntimeState = 'awaiting-gesture';
+                    return Promise.resolve(false);
+                }
+
+                if (isDirectGesture) this.audioGestureSeen = true;
+                return this.requestAudioReady(reason, isDirectGesture);
             }
         }
 
@@ -24257,7 +24240,7 @@ startMaxSwarmBeat(delaySeconds = 0) {
                     const totalSeconds = Math.floor(Math.max(0, this.game.finalGridlockElapsedMs) / 1000);
                     const minutes = Math.floor(totalSeconds / 60);
                     const seconds = totalSeconds % 60;
-                    this.scoreElement.classList.remove('scoreHidden', 'attractHighScore', 'highScoreFlash', 'bonusScoreCount', 'gridlockAlert', 'superGridlockAlert');
+                    this.scoreElement.classList.remove('scoreHidden', 'attractHighScore', 'highScoreFlash', 'bonusScoreCount', 'gridlockAlert', 'superGridlockAlert', 'gridlockAwardAlert');
                     this.scoreElement.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
                     return;
                 }
@@ -24282,49 +24265,121 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 this.scoreElement.textContent = `${this.game.score}`;
             }
 
+            cancelScoreAnnouncement() {
+                this.game.scheduler.cancelTask('ui-effects', 'score-alert-title');
+                this.game.scheduler.cancelTask('ui-effects', 'score-alert-award');
+                this.game.scheduler.cancelTask('visual-effects', 'live-score-pulse-cleanup');
+                this.scoreAlertTimer = null;
+            }
+
+            clearScoreAnnouncement() {
+                this.cancelScoreAnnouncement();
+                this.scoreAlertActive = false;
+                if (this.scoreHud) this.scoreHud.classList.remove('gridlock-announcement-active');
+                if (this.scoreElement) {
+                    this.scoreElement.classList.remove('gridlockAlert', 'superGridlockAlert', 'gridlockAwardAlert', 'bonusScoreCount');
+                }
+                this.updateScore();
+            }
+
+            renderStackedScoreTitle(prefixText, mainText) {
+                const stack = document.createElement('span');
+                stack.className = 'super-gridlock-stack';
+                const prefix = document.createElement('span');
+                prefix.className = 'super-gridlock-prefix';
+                prefix.textContent = prefixText;
+                const main = document.createElement('span');
+                main.className = 'super-gridlock-main';
+                main.textContent = mainText;
+                stack.append(prefix, main);
+                this.scoreElement.replaceChildren(stack);
+            }
+
+            renderSuperGridlockTitle() {
+                this.renderStackedScoreTitle('SUPER', 'GRIDLOCK');
+            }
+
+            renderPrismRelicTitle() {
+                this.renderStackedScoreTitle('PRISM', 'RELIC');
+            }
+
+            finishScoreAnnouncement(pulseLiveTotal = true) {
+                this.scoreAlertActive = false;
+                if (this.scoreHud) this.scoreHud.classList.remove('gridlock-announcement-active');
+                this.scoreElement.classList.remove('gridlockAlert', 'superGridlockAlert', 'gridlockAwardAlert');
+                this.updateScore();
+                this.updateCycleIndicator();
+                this.updateCosmicZapIndicators();
+                this.updateHighScore();
+
+                if (pulseLiveTotal) {
+                    // The score is already authoritative and may have continued rising during the
+                    // announcement. Pulse the complete live total rather than replaying stale values.
+                    this.scoreElement.classList.remove('bonusScoreCount');
+                    void this.scoreElement.offsetWidth;
+                    this.scoreElement.classList.add('bonusScoreCount');
+                    this.game.scheduler.scheduleTimeout('visual-effects', 'live-score-pulse-cleanup', () => {
+                        this.scoreElement.classList.remove('bonusScoreCount');
+                    }, 900);
+                }
+                this.scoreAlertTimer = null;
+            }
+
             flashGridlockMessage(message, options = {}) {
                 if (!this.scoreElement) return;
-                if (this.scoreAlertTimer) this.game.scheduler.cancelTask('ui-effects', 'score-alert');
+                this.cancelScoreAnnouncement();
                 const isSuperGridlock = options.superGridlock === true;
+                const isPrismRelic = options.prismRelic === true;
+                const points = Math.max(0, Number(options.points) || 0);
                 this.scoreAlertActive = true;
                 if (this.scoreHud) this.scoreHud.classList.add('gridlock-announcement-active');
-                this.scoreElement.classList.remove('scoreHidden', 'attractHighScore', 'highScoreFlash', 'bonusScoreCount', 'gridlockAlert', 'superGridlockAlert');
+                this.scoreElement.classList.remove('scoreHidden', 'attractHighScore', 'highScoreFlash', 'bonusScoreCount', 'gridlockAlert', 'superGridlockAlert', 'gridlockAwardAlert');
 
                 if (isSuperGridlock) {
-                    const stack = document.createElement('span');
-                    stack.className = 'super-gridlock-stack';
-                    const prefix = document.createElement('span');
-                    prefix.className = 'super-gridlock-prefix';
-                    prefix.textContent = 'SUPER';
-                    const main = document.createElement('span');
-                    main.className = 'super-gridlock-main';
-                    main.textContent = 'GRIDLOCK';
-                    stack.append(prefix, main);
-                    this.scoreElement.replaceChildren(stack);
+                    this.renderSuperGridlockTitle();
+                    this.scoreElement.classList.add('superGridlockAlert');
+                } else if (isPrismRelic) {
+                    this.renderPrismRelicTitle();
+                    this.scoreElement.classList.add('superGridlockAlert');
                 } else {
                     this.scoreElement.textContent = message;
+                    this.scoreElement.classList.add('gridlockAlert');
                 }
-
                 void this.scoreElement.offsetWidth;
-                this.scoreElement.classList.add(isSuperGridlock ? 'superGridlockAlert' : 'gridlockAlert');
-                this.scoreAlertTimer = this.game.scheduler.scheduleTimeout('ui-effects', 'score-alert', () => {
-                    this.scoreAlertActive = false;
-                    if (this.scoreHud) this.scoreHud.classList.remove('gridlock-announcement-active');
+
+                const titleHoldMs = points > 0 ? 900 : 2300;
+                this.scoreAlertTimer = this.game.scheduler.scheduleTimeout('ui-effects', 'score-alert-title', () => {
+                    if (points <= 0) {
+                        this.finishScoreAnnouncement(false);
+                        return;
+                    }
+
                     this.scoreElement.classList.remove('gridlockAlert', 'superGridlockAlert');
-                    this.updateScore();
-                    this.updateCycleIndicator();
-                    this.updateCosmicZapIndicators();
-                    this.updateHighScore();
-                    this.scoreAlertTimer = null;
-                }, 2300);
+                    this.scoreElement.textContent = `+${points}`;
+                    void this.scoreElement.offsetWidth;
+                    this.scoreElement.classList.add('gridlockAwardAlert');
+                    this.scoreAlertTimer = this.game.scheduler.scheduleTimeout('ui-effects', 'score-alert-award', () => {
+                        this.finishScoreAnnouncement();
+                    }, 850);
+                }, titleHoldMs);
             }
 
             flashGridlockAlert() {
                 this.flashGridlockMessage('GRIDLOCK');
             }
 
+            flashGridlockBonus(points) {
+                this.flashGridlockMessage('PRISM RELIC', {
+                    prismRelic: true,
+                    points
+                });
+            }
+
             flashSuperGridlockBonus(points) {
-                this.flashGridlockMessage('GRIDLOCK', { superGridlock: true });
+                this.flashGridlockMessage('GRIDLOCK', {
+                    superGridlock: true,
+                    points
+                });
             }
 
             // High score is separated in the Scoring menu and shown on the opening screen only after a record exists.
@@ -24380,6 +24435,7 @@ startMaxSwarmBeat(delaySeconds = 0) {
 
             // Flash the current score when the saved high score is beaten.
             flashHighScore() {
+                if (this.scoreAlertActive) return;
                 this.scoreElement.classList.remove('highScoreFlash');
                 void this.scoreElement.offsetWidth;
                 this.scoreElement.classList.add('highScoreFlash');
@@ -24523,18 +24579,24 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 const showIndicator = !this.game.finalGridlockActive && !this.game.finalGridlockResultActive &&
                     (this.game.tutorialActive || (this.game.active && this.game.levelActionStarted) ||
                      this.game.isPaused || this.game.showHudDuringSectorIntro);
-                const signature = `${showIndicator}|${tutorialNeutral}|${colorName}`;
+                const gridlockActive = !!this.game.maxSwarmActive && !this.game.finalGridlockActive;
+                const gridlockSilent = gridlockActive && !!(this.game.audio && this.game.audio.isMusicMuted && this.game.audio.isMusicMuted());
+                const signature = `${showIndicator}|${tutorialNeutral}|${colorName}|${gridlockActive}|${gridlockSilent}`;
                 if (signature === this.lastRadarColorSignature) return;
                 this.lastRadarColorSignature = signature;
 
                 indicator.style.setProperty('--radar-rgb', rgbByColor[colorName] || rgbByColor.red);
                 indicator.dataset.color = tutorialNeutral ? 'neutral' : colorName;
                 indicator.classList.toggle('tutorial-neutral', tutorialNeutral);
+                indicator.classList.toggle('gridlock-active', gridlockActive);
+                indicator.classList.toggle('gridlock-silent', gridlockSilent);
                 indicator.classList.toggle('visible', showIndicator);
                 indicator.setAttribute('aria-hidden', showIndicator ? 'false' : 'true');
                 indicator.setAttribute('aria-label', !showIndicator
                     ? ''
-                    : (tutorialNeutral ? 'Radar color activates after collecting a crystal' : `Collecting ${colorName} crystals`));
+                    : (gridlockActive
+                        ? `Gridlock active; collecting ${colorName} crystals`
+                        : (tutorialNeutral ? 'Radar color activates after collecting a crystal' : `Collecting ${colorName} crystals`)));
             }
 
             pulseRadarCollection(colorName) {
