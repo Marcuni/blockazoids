@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Trackpad Prototype p126: aligns the radar center color orb lower and expands each crystal-pickup pulse to the largest outer radar circle.
+Trackpad Prototype p127: updates attract-card copy, aligns the final challenge card typography, and fixes the end-of-sequence flash before gameplay.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="trackpad-p126">
+<html data-build-version="trackpad-p127">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -7770,8 +7770,9 @@ Font License Notices
         }
 
         #enemyIdentityCard[data-card="full-cast"] .enemy-card-name {
-            font-size: clamp(19px, 5.5vw, 32px);
-            line-height: 1;
+            font-size: clamp(40px, 11.2vw, 68px);
+            line-height: 0.94;
+            letter-spacing: clamp(2px, 0.7vw, 5px);
             white-space: nowrap;
         }
 
@@ -7791,9 +7792,9 @@ Font License Notices
         }
 
         #enemyIdentityCard[data-card="full-cast"] .enemy-card-personality {
-            font-size: clamp(19px, 5.5vw, 32px);
-            line-height: 1;
-            letter-spacing: clamp(1px, 0.55vw, 3px);
+            font-size: clamp(15px, 4.25vw, 23px);
+            line-height: 1.18;
+            letter-spacing: 1.5px;
             white-space: nowrap;
         }
 
@@ -11468,6 +11469,7 @@ Font License Notices
                 this.attractEnemyCardIndex = -1;
                 this.attractEnemyCardFrame = null;
                 this.attractEnemyCardSimulationToken = 0;
+                this.enemyIdentityCardHideCleanupTimer = null;
                 this.lastAttractEnemyCardShakeTime = 0;
                 this.attractEnemyCardShakeCooldownMs = 1200;
                 this.lastDeathCause = null;
@@ -18885,10 +18887,22 @@ Best Score: ${bestScore}${recoveredLine}` :
             hideAttractEnemyCard(options = {}) {
                 if (!this.enemyIdentityCard) return;
                 this.stopAttractEnemyCardSimulation();
+                if (this.enemyIdentityCardHideCleanupTimer) {
+                    clearTimeout(this.enemyIdentityCardHideCleanupTimer);
+                    this.enemyIdentityCardHideCleanupTimer = null;
+                }
                 this.enemyIdentityCard.classList.remove('visible', 'transition-prelude', 'transition-color', 'full-cast-brighten');
                 this.enemyIdentityCard.setAttribute('aria-hidden', 'true');
-                delete this.enemyIdentityCard.dataset.card;
-                if (!options.keepColor) this.enemyIdentityCard.style.removeProperty('--enemy-card-color');
+                this.enemyIdentityCardHideCleanupTimer = setTimeout(() => {
+                    if (!this.enemyIdentityCard || this.enemyIdentityCard.classList.contains('visible')) return;
+                    delete this.enemyIdentityCard.dataset.card;
+                    if (this.enemyIdentityCardName) this.enemyIdentityCardName.textContent = '';
+                    if (this.enemyIdentityCardClass) this.enemyIdentityCardClass.textContent = '';
+                    if (this.enemyIdentityCardPersonality) this.enemyIdentityCardPersonality.textContent = '';
+                    if (this.enemyIdentityCardBehavior) this.enemyIdentityCardBehavior.textContent = '';
+                    if (!options.keepColor) this.enemyIdentityCard.style.removeProperty('--enemy-card-color');
+                    this.enemyIdentityCardHideCleanupTimer = null;
+                }, 180);
             }
 
             suspendAttractEnemyCards() {
@@ -18902,6 +18916,10 @@ Best Score: ${bestScore}${recoveredLine}` :
             showAttractTransitionFrame(color = '#fff', prelude = false) {
                 if (!this.enemyIdentityCard) return;
                 this.stopAttractEnemyCardSimulation();
+                if (this.enemyIdentityCardHideCleanupTimer) {
+                    clearTimeout(this.enemyIdentityCardHideCleanupTimer);
+                    this.enemyIdentityCardHideCleanupTimer = null;
+                }
                 this.enemyIdentityCard.dataset.card = 'transition';
                 this.enemyIdentityCard.style.setProperty('--enemy-card-transition-color', color || '#fff');
                 this.enemyIdentityCard.setAttribute('aria-hidden', 'false');
@@ -18912,6 +18930,10 @@ Best Score: ${bestScore}${recoveredLine}` :
 
             showAttractEnemyCard(identityKey) {
                 if (!this.enemyIdentityCard) return;
+                if (this.enemyIdentityCardHideCleanupTimer) {
+                    clearTimeout(this.enemyIdentityCardHideCleanupTimer);
+                    this.enemyIdentityCardHideCleanupTimer = null;
+                }
                 const isCompany = identityKey === 'company';
                 const isCastIntro = identityKey === 'cast-intro';
                 const isFullCast = identityKey === 'full-cast';
@@ -20200,7 +20222,7 @@ Best Score: ${bestScore}${recoveredLine}` :
                 displayName: 'ZIG',
                 className: 'Drifter',
                 color: GAME_CONFIG.colors.red,
-                attractPersonality: 'ERRATIC. ALWAYS MOVING.',
+                attractPersonality: 'NEVER STOPS. NEVER SETTLES.',
                 helpDescription: 'unpredictable movement',
                 spawnSoundId: 'zig',
                 gameOverPhrase: 'OUTMANEUVERED BY'
