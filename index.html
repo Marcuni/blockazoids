@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Trackpad Prototype p147: identifies the Gridlock reward pickup as the Prism Relic before showing its immediate score award.
+Trackpad Prototype p148: advances the attract presentation automatically on a five-second screen cadence.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="trackpad-p147">
+<html data-build-version="trackpad-p148">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -10439,47 +10439,8 @@ Font License Notices
             }
 
             beginAttractOrbHold(pointer) {
-                const game = this.game;
-                if (!pointer || !this.isAttractOrbTarget(pointer.target) ||
-                    typeof game.isAttractEnemyCardAllowed !== 'function' || !game.isAttractEnemyCardAllowed() ||
-                    game.attractEnemyCardSequenceActive) return false;
-
-                this.cancelAttractOrbHold('restart');
-                this.attractOrbHoldPointerId = pointer.id;
-                pointer.attractOrbHoldActive = true;
-                pointer.attractOrbHoldCompleted = false;
-
-                game.scheduler.scheduleTimeout('attract-orb-hold', 'cue', () => {
-                    const activePointer = this.pointers.get(pointer.id);
-                    if (!activePointer || !activePointer.attractOrbHoldActive ||
-                        !game.isAttractEnemyCardAllowed() || game.attractEnemyCardSequenceActive) return;
-                    if (game.player && game.player.element) {
-                        game.player.element.classList.add('attract-orb-hold-cue');
-                    }
-                }, 400);
-
-                game.scheduler.scheduleTimeout('attract-orb-hold', 'complete', () => {
-                    const activePointer = this.pointers.get(pointer.id);
-                    if (!activePointer || !activePointer.attractOrbHoldActive ||
-                        activePointer.travel > GAME_CONFIG.input.gestureTapMaxMove ||
-                        !game.isAttractEnemyCardAllowed() || game.attractEnemyCardSequenceActive) {
-                        this.cancelAttractOrbHold('invalid-completion');
-                        return;
-                    }
-
-                    activePointer.attractOrbHoldCompleted = true;
-                    activePointer.attractOrbHoldActive = false;
-                    this.attractOrbHoldPointerId = null;
-                    game.scheduler.cancelScope('attract-orb-hold');
-                    if (game.player && game.player.element) {
-                        game.player.element.classList.remove('attract-orb-hold-cue');
-                    }
-                    this.lastGameplayTap = null;
-                    this.suppressClicksUntil = this.now() + 300;
-                    game.startAttractEnemyCardSequence();
-                }, 2000);
-
-                return true;
+                // p148: the attract presentation is timer-driven; holding the Orb no longer launches it.
+                return false;
             }
 
             cancelAttractOrbHold(reason = 'cancel') {
@@ -10540,7 +10501,6 @@ Font License Notices
 
                 if (this.pointers.size === 1) {
                     this.primaryPointerId = event.pointerId;
-                    this.beginAttractOrbHold(pointer);
                     if (this.game.flow.allowsOrbDragInput()) {
                         document.body.classList.add('gameplay-gesture-active');
                     }
@@ -11642,6 +11602,8 @@ Font License Notices
 
                 // Attract mode variables
                 this.attractInterval = null;          // Scheduler token for attract-mode pattern updates
+                this.attractEnemyCardAutoInterval = null; // Scheduler token for automatic attract-card starts
+                this.attractScreenIntervalMs = 5000;  // Every attract screen advances on a five-second cadence
                 this.lifeGrid = [];                   // 10x10 grid for Game of Life
                 this.levelLoadToken = 0;             // Cancels older intro/level-start work during test jumps
                 this.transitionGroupRevision = 0;     // Phase 3D: one authoritative cancellable transition sequence at a time
@@ -11670,8 +11632,6 @@ Font License Notices
                 this.attractEnemyCardFrame = null;
                 this.attractEnemyCardSimulationToken = 0;
                 this.enemyIdentityCardHideCleanupTimer = null;
-                this.lastAttractEnemyCardShakeTime = 0;
-                this.attractEnemyCardShakeCooldownMs = 1200;
                 this.lastDeathCause = null;
                 this.marqueePreviewLabelTimer = null;
                 this.splashIntroActive = !!this.splashScreen;
@@ -18645,7 +18605,7 @@ Best Score: ${bestScore}${recoveredLine}` :
 
             shouldListenForMotion() {
                 // Once motion permission is granted, keep the listener attached globally.
-                // handleShakeMotion() owns state routing for attract cards versus Cosmic Zap.
+                // handleShakeMotion() owns state routing for the marquee easter egg versus Cosmic Zap.
                 return !!(GAME_FEATURE_FLAGS.motionShake && this.motionPermissionGranted);
             }
 
@@ -18710,13 +18670,7 @@ Best Score: ${bestScore}${recoveredLine}` :
                 if (delta < this.shakeThreshold) return;
 
                 if (this.isAttractModeActive()) {
-                    // During normal attract mode, one deliberate shake starts the introduction sequence.
-                    // Motion samples are ignored until the cards have fully completed or been cancelled.
-                    if (this.attractEnemyCardSequenceActive) return;
-                    if (now - this.lastAttractEnemyCardShakeTime < this.attractEnemyCardShakeCooldownMs) return;
-                    this.lastAttractEnemyCardShakeTime = now;
-                    if (this.startAttractEnemyCardSequence()) return;
-
+                    // p148: attract cards advance automatically. Shake remains reserved for the marquee easter egg.
                     if (this.isMarqueeEasterEggUnlocked() && now - this.lastMarqueeEasterEggShakeTime >= this.marqueeEasterEggShakeCooldownMs) {
                         this.lastMarqueeEasterEggShakeTime = now;
                         this.triggerMarqueeEasterEgg();
@@ -19356,13 +19310,8 @@ Best Score: ${bestScore}${recoveredLine}` :
                 const unlocked = this.getUnlockedEnemyIdentityOrder();
                 const cards = ['company', 'cast-intro', ...unlocked];
                 if (unlocked.length === ENEMY_IDENTITY_ORDER.length) cards.push('full-cast');
-                const durationFor = key => {
-                    if (key === 'company') return 1200;
-                    if (key === 'cast-intro') return 2000;
-                    if (key === 'drifter') return 3000;
-                    if (key === 'full-cast') return 4200;
-                    return 3500;
-                };
+                const transitionDurationMs = 250;
+                const cardHoldDurationMs = Math.max(0, this.attractScreenIntervalMs - transitionDurationMs);
 
                 const cancelIfUnavailable = () => {
                     if (token !== this.attractEnemyCardSequenceToken) return true;
@@ -19395,8 +19344,8 @@ Best Score: ${bestScore}${recoveredLine}` :
                             ? '#fff'
                             : getEnemyIdentity(key).color;
                         this.showAttractTransitionFrame(color, false);
-                        this.scheduler.scheduleTimeout('attract-enemy-cards', `card-${index}-transition`, () => showIndex(index + 1), 250);
-                    }, durationFor(key));
+                        this.scheduler.scheduleTimeout('attract-enemy-cards', `card-${index}-transition`, () => showIndex(index + 1), transitionDurationMs);
+                    }, cardHoldDurationMs);
                 };
 
                 this.showAttractTransitionFrame('#fff', true);
@@ -19556,6 +19505,10 @@ Best Score: ${bestScore}${recoveredLine}` :
 
                 updatePattern(); // Initial pattern
                 this.attractInterval = this.scheduler.scheduleInterval('attract-mode', 'life-grid', updatePattern, 1000); // Update every second
+                this.attractEnemyCardAutoInterval = this.scheduler.scheduleInterval('attract-mode', 'enemy-card-auto-start', () => {
+                    if (this.attractEnemyCardSequenceActive || !this.isAttractEnemyCardAllowed()) return;
+                    this.startAttractEnemyCardSequence();
+                }, this.attractScreenIntervalMs);
                 this.syncAttractModeAudio();
                 this.validateStateInvariants('returnToAttractMode');
                 return true;
@@ -19569,6 +19522,7 @@ Best Score: ${bestScore}${recoveredLine}` :
                 this.suspendAttractEnemyCards();
                 this.scheduler.cancelScope('attract-mode');
                 this.attractInterval = null;
+                this.attractEnemyCardAutoInterval = null;
                 this.attractModeStartedAt = 0;
                 this.stopAttractComputerAmbience();
                 if (this.player && this.player.element) this.player.element.classList.remove('attract-orb-pulse');
