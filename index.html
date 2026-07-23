@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Trackpad Prototype p150: consolidates the automatic attract sequence, animated Block-A-Zoids title, Gridlock music guard, and radar-center Gridlock signal.
+Trackpad Prototype p151: restores Safari audio unlocking and completes the full automatic attract presentation while preserving the current gameplay and visual systems.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="trackpad-p150">
+<html data-build-version="trackpad-p151">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -19492,9 +19492,9 @@ Best Score: ${bestScore}${recoveredLine}` :
                 this.attractEnemyCardSequenceActive = true;
                 // Attract screens are timer-driven and intentionally silent. Never call resume()
                 // here: Safari requires the AudioContext unlock to happen inside a real player gesture.
-                const unlocked = this.getUnlockedEnemyIdentityOrder();
-                const cards = ['company', 'cast-intro', ...unlocked];
-                if (unlocked.length === ENEMY_IDENTITY_ORDER.length) cards.push('full-cast');
+                // The attract presentation introduces the complete cast independently of
+                // campaign unlock progress, so it never stops halfway through on a fresh save.
+                const cards = ['company', 'cast-intro', ...ENEMY_IDENTITY_ORDER, 'full-cast'];
                 const transitionDurationMs = 250;
                 const cardHoldDurationMs = Math.max(0, this.attractScreenIntervalMs - transitionDurationMs);
 
@@ -24130,22 +24130,13 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 this.backgroundMixGain = null;
             }
 
-            // Direct gestures are the only entry point that may create or hard-rebuild
-            // the AudioContext. All other sound calls use the verified shared graph.
+            // Known game input handlers are the audio-unlock boundary. Do not apply an
+            // additional navigator.userActivation gate: Safari can clear transient activation
+            // before a valid click or pointer handler reaches this method.
             resume(reason = 'user-gesture') {
                 if (this.muted) return Promise.resolve(false);
-
-                // A timer must never impersonate a player gesture. This was able to poison the
-                // Safari audio session when the attract presentation became automatic.
-                const userActivation = navigator.userActivation;
-                const isDirectGesture = !userActivation || userActivation.isActive;
-                if (!isDirectGesture && !this.audioGestureSeen) {
-                    this.audioRuntimeState = 'awaiting-gesture';
-                    return Promise.resolve(false);
-                }
-
-                if (isDirectGesture) this.audioGestureSeen = true;
-                return this.requestAudioReady(reason, isDirectGesture);
+                this.audioGestureSeen = true;
+                return this.requestAudioReady(reason, true);
             }
         }
 
