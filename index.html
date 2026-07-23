@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Trackpad Prototype p148: advances the attract presentation automatically on a five-second screen cadence.
+Trackpad Prototype p149: keeps Gridlock music muted when Music is off and adds a blinking radar-center Gridlock signal.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="trackpad-p148">
+<html data-build-version="trackpad-p149">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -8741,6 +8741,56 @@ Font License Notices
             animation: radarCenterGlow 2.4s ease-in-out infinite;
         }
 
+        /* p149: Gridlock keeps the crystal-color orb readable while a white core blinks at its center.
+           The faster silent variant replaces the missing kick-loop warning when Music is disabled. */
+        html body #radarColorIndicator .radar-gridlock-core {
+            position: absolute;
+            left: 50%;
+            top: var(--radar-center-y);
+            width: max(5px, calc(var(--skin-scale, 1) * 7px));
+            height: max(5px, calc(var(--skin-scale, 1) * 7px));
+            box-sizing: border-box;
+            border-radius: 50%;
+            background: #fff;
+            opacity: 0;
+            transform: translate(-50%, -50%) scale(0.72);
+            box-shadow:
+                0 0 calc(var(--skin-scale, 1) * 5px) #fff,
+                0 0 calc(var(--skin-scale, 1) * 12px) rgba(255, 255, 255, 0.78),
+                0 0 calc(var(--skin-scale, 1) * 22px) rgba(255, 255, 255, 0.34);
+            pointer-events: none;
+            z-index: 2;
+        }
+
+        html body #radarColorIndicator.gridlock-active .radar-gridlock-core {
+            animation: radarGridlockCoreBlink 0.82s steps(1, end) infinite;
+        }
+
+        html body #radarColorIndicator.gridlock-silent .radar-gridlock-core {
+            animation-duration: 0.58s;
+        }
+
+        html body #radarColorIndicator.gridlock-active .radar-center-orb {
+            filter: brightness(1.18) saturate(1.08);
+            box-shadow:
+                0 0 calc(var(--skin-scale, 1) * 7px) rgba(var(--radar-rgb), 1),
+                0 0 calc(var(--skin-scale, 1) * 21px) rgba(var(--radar-rgb), 0.54),
+                0 0 calc(var(--skin-scale, 1) * 34px) rgba(var(--radar-rgb), 0.24);
+        }
+
+        @keyframes radarGridlockCoreBlink {
+            0%, 42% {
+                opacity: 1;
+                transform: translate(-50%, -50%) scale(1.12);
+                filter: brightness(1.35);
+            }
+            43%, 100% {
+                opacity: 0.10;
+                transform: translate(-50%, -50%) scale(0.68);
+                filter: brightness(0.78);
+            }
+        }
+
         /* Before the first tutorial pickup, the radar center is neutral instead of implying a target color. */
         html body #radarColorIndicator.tutorial-neutral .radar-center-orb {
             box-sizing: border-box;
@@ -9162,6 +9212,7 @@ Font License Notices
 
     <div id="radarColorIndicator" aria-hidden="true">
         <span class="radar-center-orb" aria-hidden="true"></span>
+        <span class="radar-gridlock-core" aria-hidden="true"></span>
         <span class="radar-cross-pulse" aria-hidden="true"></span>
     </div>
 
@@ -14398,8 +14449,12 @@ Best Score: ${bestScore}${recoveredLine}` :
             }
 
             setGridlockState(patch = {}) {
+                const previousMaxSwarmActive = this.maxSwarmActive;
                 if (Object.prototype.hasOwnProperty.call(patch, 'maxSwarmActive')) this.maxSwarmActive = patch.maxSwarmActive;
                 if (Object.prototype.hasOwnProperty.call(patch, 'overtimeActive')) this.overtimeActive = patch.overtimeActive;
+                if (previousMaxSwarmActive !== this.maxSwarmActive && this.ui && this.ui.updateRadarColorIndicator) {
+                    this.ui.updateRadarColorIndicator();
+                }
             }
 
             setPrismRelicState(patch = {}) {
@@ -14804,6 +14859,7 @@ Best Score: ${bestScore}${recoveredLine}` :
                 if (!GAME_FEATURE_FLAGS.music || !this.audio) return;
                 this.audio.setMusicMuted(!this.audio.isMusicMuted());
                 this.updateMusicToggleLabel();
+                if (this.ui && this.ui.updateRadarColorIndicator) this.ui.updateRadarColorIndicator();
                 this.stopPauseMenuReactorHum();
             }
 
@@ -22077,14 +22133,11 @@ Best Score: ${bestScore}${recoveredLine}` :
                     this.musicGain.gain.setValueAtTime(0.58, now);
                 }
 
-                if (this.backgroundMusicPlaying) {
-                    this.stopBackgroundMusic();
-                    this.startBackgroundMusic(this.currentGameplayMusicLevel || 1);
-                }
-                if (this.musicMuted && this.cycleCompleteMusicPlaying) {
-                    this.stopCycleCompleteMusic();
-                }
+                // Music: Off must silence both the normal patrol bed and the Gridlock kick variation.
+                // Music resumes through the normal gameplay/pause lifecycle when it is enabled again.
                 if (this.musicMuted) {
+                    this.stopBackgroundMusic();
+                    if (this.cycleCompleteMusicPlaying) this.stopCycleCompleteMusic();
                     this.stopAttractComputerAmbience();
                 }
             }
@@ -22115,6 +22168,10 @@ getOvertimeSwarmPitchMultiplier() {
 
 
 startMaxSwarmBeat(delaySeconds = 0) {
+                if (this.musicMuted) {
+                    this.stopMaxSwarmBeat();
+                    return;
+                }
                 this.ensureAudio();
                 if (!this.ctx || this.ctx.state === 'closed') return;
                 const firstLoopStart = this.ctx.currentTime + Math.max(0.018, delaySeconds || 0);
@@ -22126,6 +22183,10 @@ startMaxSwarmBeat(delaySeconds = 0) {
             }
 
             startOvertimeSwarmLoopAt(firstLoopStart, options = {}) {
+                if (this.musicMuted) {
+                    this.stopMaxSwarmBeat();
+                    return;
+                }
                 this.ensureAudio();
                 if (!this.ctx || this.ctx.state === 'closed') return;
                 if (this.maxSwarmBeatPlaying && !options.forceRestart) return;
@@ -22619,9 +22680,10 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 const signalStart = this.ctx.currentTime + 0.018;
                 this.setMaxSwarmBeatIntensity(0);
                 this.playMaxSwarmSignal(signalStart);
-                // Last radar ping begins at signalStart + 0.825; the first thump lands inside its decay
-                // so the player hears a continuous handoff with no timer-controlled silence gap.
-                this.startMaxSwarmBeatAt(signalStart + 0.845);
+                // Last radar ping begins at signalStart + 0.825; when Music is enabled, the first
+                // thump lands inside its decay. With Music disabled, the visual radar core supplies
+                // the continuing Gridlock warning instead.
+                if (!this.musicMuted) this.startMaxSwarmBeatAt(signalStart + 0.845);
             }
 
             // Play a short repaired-sector cue: RGB pulses into one white lock-in tone.
@@ -24378,18 +24440,24 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 const showIndicator = !this.game.finalGridlockActive && !this.game.finalGridlockResultActive &&
                     (this.game.tutorialActive || (this.game.active && this.game.levelActionStarted) ||
                      this.game.isPaused || this.game.showHudDuringSectorIntro);
-                const signature = `${showIndicator}|${tutorialNeutral}|${colorName}`;
+                const gridlockActive = !!this.game.maxSwarmActive && !this.game.finalGridlockActive;
+                const gridlockSilent = gridlockActive && !!(this.game.audio && this.game.audio.isMusicMuted && this.game.audio.isMusicMuted());
+                const signature = `${showIndicator}|${tutorialNeutral}|${colorName}|${gridlockActive}|${gridlockSilent}`;
                 if (signature === this.lastRadarColorSignature) return;
                 this.lastRadarColorSignature = signature;
 
                 indicator.style.setProperty('--radar-rgb', rgbByColor[colorName] || rgbByColor.red);
                 indicator.dataset.color = tutorialNeutral ? 'neutral' : colorName;
                 indicator.classList.toggle('tutorial-neutral', tutorialNeutral);
+                indicator.classList.toggle('gridlock-active', gridlockActive);
+                indicator.classList.toggle('gridlock-silent', gridlockSilent);
                 indicator.classList.toggle('visible', showIndicator);
                 indicator.setAttribute('aria-hidden', showIndicator ? 'false' : 'true');
                 indicator.setAttribute('aria-label', !showIndicator
                     ? ''
-                    : (tutorialNeutral ? 'Radar color activates after collecting a crystal' : `Collecting ${colorName} crystals`));
+                    : (gridlockActive
+                        ? `Gridlock active; collecting ${colorName} crystals`
+                        : (tutorialNeutral ? 'Radar color activates after collecting a crystal' : `Collecting ${colorName} crystals`)));
             }
 
             pulseRadarCollection(colorName) {
