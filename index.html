@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Trackpad Prototype p124: fixes Developer END-to-Final-Gridlock, restores Help/Launch to the correct corner cells, lowers the actual Scoring-page details, and adds an active crystal-color radar glow.
+Trackpad Prototype p125: redesigns the lower radar feedback so the active crystal color glows from the center orb and crystal pickups trigger a center cross-burst plus ripple.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="trackpad-p124">
+<html data-build-version="trackpad-p125">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -8577,8 +8577,8 @@ Font License Notices
             transform: translate(-50%, -50%) !important;
         }
 
-        /* p124: active crystal-color status on the pre-rendered lower radar. Percentages follow
-           the 887 x 1774 cabinet artwork so the glow remains aligned on every viewport. */
+        /* p125: the lower radar now shows the active crystal color on the center orb.
+           Crystal collection triggers a center cross-burst and short ring ripple. */
         html body #radarColorIndicator {
             --radar-rgb: 255, 0, 0;
             --radar-pulse-rgb: 255, 0, 0;
@@ -8597,58 +8597,101 @@ Font License Notices
             opacity: 1;
         }
 
-        html body #radarColorIndicator::before {
-            content: "";
-            position: absolute;
-            inset: 0;
-            box-sizing: border-box;
-            border: 1px solid rgba(var(--radar-rgb), 0.16);
-            border-radius: 50%;
-            box-shadow:
-                0 0 calc(var(--skin-scale, 1) * 10px) rgba(var(--radar-rgb), 0.13),
-                0 0 calc(var(--skin-scale, 1) * 22px) rgba(var(--radar-rgb), 0.07),
-                inset 0 0 calc(var(--skin-scale, 1) * 16px) rgba(var(--radar-rgb), 0.08);
-            animation: radarColorBreathe 2.8s ease-in-out infinite;
-        }
-
         html body #radarColorIndicator::after {
             content: "";
             position: absolute;
-            inset: -1.2%;
-            box-sizing: border-box;
-            border: max(1px, calc(var(--skin-scale, 1) * 1.4px)) solid rgba(var(--radar-pulse-rgb), 0.72);
+            left: 50%;
+            top: 50%;
+            width: max(18px, calc(var(--skin-scale, 1) * 28px));
+            height: max(18px, calc(var(--skin-scale, 1) * 28px));
+            border: max(1px, calc(var(--skin-scale, 1) * 1.5px)) solid rgba(var(--radar-pulse-rgb), 0.78);
             border-radius: 50%;
             opacity: 0;
-            transform: scale(0.98);
+            transform: translate(-50%, -50%) scale(0.35);
             pointer-events: none;
         }
 
         html body #radarColorIndicator.radar-collect-pulse::after {
-            animation: radarCollectionRipple 400ms ease-out 1;
+            animation: radarCollectionRipple 420ms ease-out 1;
         }
 
-        html body #radarColorIndicator .radar-color-marker {
+        html body #radarColorIndicator .radar-center-orb {
             position: absolute;
             left: 50%;
-            top: 0;
-            width: max(6px, calc(var(--skin-scale, 1) * 10px));
-            height: max(6px, calc(var(--skin-scale, 1) * 10px));
+            top: 50%;
+            width: max(12px, calc(var(--skin-scale, 1) * 18px));
+            height: max(12px, calc(var(--skin-scale, 1) * 18px));
             border-radius: 50%;
             background: rgb(var(--radar-rgb));
-            box-shadow:
-                0 0 calc(var(--skin-scale, 1) * 5px) rgba(var(--radar-rgb), 0.92),
-                0 0 calc(var(--skin-scale, 1) * 12px) rgba(var(--radar-rgb), 0.48);
             transform: translate(-50%, -50%);
+            box-shadow:
+                0 0 calc(var(--skin-scale, 1) * 6px) rgba(var(--radar-rgb), 0.95),
+                0 0 calc(var(--skin-scale, 1) * 18px) rgba(var(--radar-rgb), 0.42),
+                0 0 calc(var(--skin-scale, 1) * 28px) rgba(var(--radar-rgb), 0.18);
+            animation: radarCenterGlow 2.4s ease-in-out infinite;
         }
 
-        @keyframes radarColorBreathe {
-            0%, 100% { opacity: 0.62; }
-            50% { opacity: 0.92; }
+        html body #radarColorIndicator .radar-cross-pulse {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            width: max(70px, calc(var(--skin-scale, 1) * 116px));
+            height: max(70px, calc(var(--skin-scale, 1) * 116px));
+            transform: translate(-50%, -50%);
+            opacity: 0;
+        }
+
+        html body #radarColorIndicator .radar-cross-pulse::before,
+        html body #radarColorIndicator .radar-cross-pulse::after {
+            content: "";
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            border-radius: 999px;
+            background: linear-gradient(90deg,
+                rgba(var(--radar-pulse-rgb), 0) 0%,
+                rgba(var(--radar-pulse-rgb), 0.58) 20%,
+                rgba(var(--radar-pulse-rgb), 0.96) 50%,
+                rgba(var(--radar-pulse-rgb), 0.58) 80%,
+                rgba(var(--radar-pulse-rgb), 0) 100%);
+            box-shadow: 0 0 calc(var(--skin-scale, 1) * 10px) rgba(var(--radar-pulse-rgb), 0.34);
+        }
+
+        html body #radarColorIndicator .radar-cross-pulse::before {
+            width: 100%;
+            height: max(2px, calc(var(--skin-scale, 1) * 3.2px));
+        }
+
+        html body #radarColorIndicator .radar-cross-pulse::after {
+            width: max(2px, calc(var(--skin-scale, 1) * 3.2px));
+            height: 100%;
+            background: linear-gradient(180deg,
+                rgba(var(--radar-pulse-rgb), 0) 0%,
+                rgba(var(--radar-pulse-rgb), 0.58) 20%,
+                rgba(var(--radar-pulse-rgb), 0.96) 50%,
+                rgba(var(--radar-pulse-rgb), 0.58) 80%,
+                rgba(var(--radar-pulse-rgb), 0) 100%);
+        }
+
+        html body #radarColorIndicator.radar-collect-pulse .radar-cross-pulse {
+            animation: radarCrossBurst 260ms ease-out 1;
+        }
+
+        @keyframes radarCenterGlow {
+            0%, 100% { opacity: 0.72; filter: saturate(0.96); }
+            50% { opacity: 1; filter: saturate(1.08); }
+        }
+
+        @keyframes radarCrossBurst {
+            0% { opacity: 0; transform: translate(-50%, -50%) scale(0.55); }
+            18% { opacity: 1; }
+            100% { opacity: 0; transform: translate(-50%, -50%) scale(1.08); }
         }
 
         @keyframes radarCollectionRipple {
-            0% { opacity: 0.68; transform: scale(0.98); }
-            100% { opacity: 0; transform: scale(1.075); }
+            0% { opacity: 0.9; transform: translate(-50%, -50%) scale(0.35); }
+            100% { opacity: 0; transform: translate(-50%, -50%) scale(1.9); }
         }
 
     </style>
@@ -8983,7 +9026,8 @@ Font License Notices
     </div>
 
     <div id="radarColorIndicator" aria-hidden="true">
-        <span class="radar-color-marker" aria-hidden="true"></span>
+        <span class="radar-center-orb" aria-hidden="true"></span>
+        <span class="radar-cross-pulse" aria-hidden="true"></span>
     </div>
 
     <!-- Full-surface gestures and the cabinet play/pause control share this canonical lifecycle command. -->
