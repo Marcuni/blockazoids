@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Trackpad Prototype p151: restores Safari audio unlocking and completes the full automatic attract presentation while preserving the current gameplay and visual systems.
+Block-A-Zoids p152: extends attract screens to eight seconds, reduces the full-cast lead line, and strengthens Safari/iPhone audio-session recovery.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="trackpad-p151">
+<html data-build-version="p152">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -7997,7 +7997,7 @@ Font License Notices
         }
 
         #enemyIdentityCard[data-card="full-cast"] .enemy-card-name {
-            font-size: clamp(24px, 7vw, 40px);
+            font-size: clamp(18px, 5.2vw, 30px);
             line-height: 0.96;
             letter-spacing: clamp(0px, 0.2vw, 2px);
             white-space: nowrap;
@@ -11777,7 +11777,7 @@ Font License Notices
                 // Attract mode variables
                 this.attractInterval = null;          // Scheduler token for attract-mode pattern updates
                 this.attractEnemyCardAutoInterval = null; // Scheduler token for automatic attract-card starts
-                this.attractScreenIntervalMs = 5000;  // Every attract screen advances on a five-second cadence
+                this.attractScreenIntervalMs = 8000;  // Every attract screen advances on an eight-second cadence
                 this.lifeGrid = [];                   // 10x10 grid for Game of Life
                 this.levelLoadToken = 0;             // Cancels older intro/level-start work during test jumps
                 this.transitionGroupRevision = 0;     // Phase 3D: one authoritative cancellable transition sequence at a time
@@ -19517,6 +19517,11 @@ Best Score: ${bestScore}${recoveredLine}` :
                             this.container.classList.add('attract-grid-rebuild');
                             this.scheduler.scheduleTimeout('attract-enemy-cards', 'grid-rebuild-clear', () => this.container && this.container.classList.remove('attract-grid-rebuild'), 500);
                         }
+                        this.attractEnemyCardAutoInterval = this.scheduler.scheduleTimeout('attract-mode', 'enemy-card-auto-restart', () => {
+                            this.attractEnemyCardAutoInterval = null;
+                            if (this.attractEnemyCardSequenceActive || !this.isAttractEnemyCardAllowed()) return;
+                            this.startAttractEnemyCardSequence();
+                        }, this.attractScreenIntervalMs);
                         return;
                     }
 
@@ -19690,7 +19695,8 @@ Best Score: ${bestScore}${recoveredLine}` :
 
                 updatePattern(); // Initial pattern
                 this.attractInterval = this.scheduler.scheduleInterval('attract-mode', 'life-grid', updatePattern, 1000); // Update every second
-                this.attractEnemyCardAutoInterval = this.scheduler.scheduleInterval('attract-mode', 'enemy-card-auto-start', () => {
+                this.attractEnemyCardAutoInterval = this.scheduler.scheduleTimeout('attract-mode', 'enemy-card-auto-start', () => {
+                    this.attractEnemyCardAutoInterval = null;
                     if (this.attractEnemyCardSequenceActive || !this.isAttractEnemyCardAllowed()) return;
                     this.startAttractEnemyCardSequence();
                 }, this.attractScreenIntervalMs);
@@ -21652,6 +21658,9 @@ Best Score: ${bestScore}${recoveredLine}` :
                 this.audioKeyGestureHandler = null;
                 this.audioVisibilityHandler = null;
                 this.audioPageShowHandler = null;
+                this.audioFocusHandler = null;
+                this.audioSessionPlaybackEnabled = false;
+                this.configureAudioSession();
                 this.installAudioLifecycleHandlers();
             }
 
@@ -21807,6 +21816,22 @@ Best Score: ${bestScore}${recoveredLine}` :
                 this.audioCleanupTimers.add(scope.cleanupTimer);
             }
 
+            configureAudioSession() {
+                try {
+                    const session = typeof navigator !== 'undefined' ? navigator.audioSession : null;
+                    if (!session) {
+                        this.audioSessionPlaybackEnabled = false;
+                        return false;
+                    }
+                    if (session.type !== 'playback') session.type = 'playback';
+                    this.audioSessionPlaybackEnabled = session.type === 'playback';
+                    return this.audioSessionPlaybackEnabled;
+                } catch (_) {
+                    this.audioSessionPlaybackEnabled = false;
+                    return false;
+                }
+            }
+
             installAudioLifecycleHandlers() {
                 if (this.audioLifecycleHandlersInstalled) return;
                 this.audioLifecycleHandlersInstalled = true;
@@ -21826,21 +21851,37 @@ Best Score: ${bestScore}${recoveredLine}` :
                         if (!this.muted && this.ctx) this.audioRuntimeState = 'suspended';
                         return;
                     }
+                    this.configureAudioSession();
                     if (!this.muted && this.ctx && this.ctx.state !== 'running') {
                         this.audioRuntimeState = 'suspended';
+                    }
+                    if (!this.muted && this.audioGestureSeen && this.ctx) {
+                        this.requestAudioReady('visibility-return', false);
                     }
                 };
                 this.audioPageShowHandler = event => {
                     this.audioHealthCheckRequired = true;
+                    this.configureAudioSession();
                     if (event && event.persisted && this.ctx && this.ctx.state === 'closed') {
                         this.audioNeedsRebuild = true;
                         this.audioRuntimeState = 'recovering';
+                    }
+                    if (!this.muted && this.audioGestureSeen && this.ctx) {
+                        this.requestAudioReady('pageshow', false);
+                    }
+                };
+                this.audioFocusHandler = () => {
+                    this.audioHealthCheckRequired = true;
+                    this.configureAudioSession();
+                    if (!this.muted && this.audioGestureSeen && this.ctx) {
+                        this.requestAudioReady('window-focus', false);
                     }
                 };
 
                 document.addEventListener('keydown', this.audioKeyGestureHandler, { capture: true, passive: true });
                 document.addEventListener('visibilitychange', this.audioVisibilityHandler, { passive: true });
                 window.addEventListener('pageshow', this.audioPageShowHandler, { passive: true });
+                window.addEventListener('focus', this.audioFocusHandler, { passive: true });
             }
 
             captureAudioPlaybackIntent() {
@@ -21930,6 +21971,7 @@ Best Score: ${bestScore}${recoveredLine}` :
 
             requestAudioReady(reason = 'ensure', fromGesture = false) {
                 if (this.muted || !GAME_FEATURE_FLAGS.audio) return Promise.resolve(false);
+                this.configureAudioSession();
                 if (fromGesture) this.audioGestureSeen = true;
 
                 if (this.audioNeedsRebuild) {
@@ -22015,6 +22057,7 @@ Best Score: ${bestScore}${recoveredLine}` :
 
             createAudioContext() {
                 if (!GAME_FEATURE_FLAGS.audio || this.muted || !this.audioGestureSeen) return false;
+                this.configureAudioSession();
                 if (this.ctx && this.ctx.state !== 'closed') return true;
 
                 const AudioContextClass = window.AudioContext || window.webkitAudioContext;
@@ -24135,6 +24178,7 @@ startMaxSwarmBeat(delaySeconds = 0) {
             // before a valid click or pointer handler reaches this method.
             resume(reason = 'user-gesture') {
                 if (this.muted) return Promise.resolve(false);
+                this.configureAudioSession();
                 this.audioGestureSeen = true;
                 return this.requestAudioReady(reason, true);
             }
