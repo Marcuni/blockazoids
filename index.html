@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Trackpad Prototype p143: adds a two-second press-and-hold secret trigger on the attract-mode Orb.
+Trackpad Prototype p145: lowers the High Score menu value and removes duplicate Orb-side crystal pickup effects.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="trackpad-p143">
+<html data-build-version="trackpad-p145">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -2712,6 +2712,37 @@ Font License Notices
             letter-spacing: 2px;
             text-align: center;
             transform: translateY(2px);
+        }
+
+        #score.superGridlockAlert .super-gridlock-award {
+            display: block;
+            margin-top: clamp(2px, 0.8vw, 5px);
+            font-size: clamp(11px, 3.2vw, 18px);
+            font-weight: 800;
+            line-height: 1;
+            letter-spacing: clamp(1px, 0.55vw, 3px);
+            white-space: nowrap;
+        }
+
+        #score.superGridlockAlert .super-gridlock-status {
+            display: block;
+            margin-top: 2px;
+            font-size: clamp(6px, 1.85vw, 10px);
+            font-weight: 600;
+            line-height: 1;
+            letter-spacing: clamp(1px, 0.45vw, 2px);
+            opacity: 0.72;
+            white-space: nowrap;
+        }
+
+        #score.superGridlockAlert .super-gridlock-stack.is-forfeit .super-gridlock-prefix,
+        #score.superGridlockAlert .super-gridlock-stack.is-loss .super-gridlock-prefix {
+            font-size: clamp(6px, 1.8vw, 10px);
+        }
+
+        #score.superGridlockAlert .super-gridlock-stack.is-forfeit .super-gridlock-main {
+            font-size: clamp(14px, 4.25vw, 24px);
+            letter-spacing: clamp(1px, 0.55vw, 3px);
         }
 
         @keyframes superGridlockBurst {
@@ -6877,6 +6908,31 @@ Font License Notices
             line-height: 1;
         }
 
+        #score.pendingSuperGridlock {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            line-height: 0.88;
+        }
+
+        #score.pendingSuperGridlock .score-main-value {
+            display: block;
+            line-height: 0.88;
+        }
+
+        #score.pendingSuperGridlock .score-pending-value {
+            display: block;
+            margin-top: calc(var(--skin-scale, 1) * 5px);
+            font-size: clamp(7px, 2.15vw, 12px);
+            font-weight: 600;
+            line-height: 1;
+            letter-spacing: clamp(1px, 0.45vw, 2px);
+            opacity: 0.68;
+            text-shadow: 0 0 calc(var(--default-glow) * 0.45px) rgba(255,255,255,0.68);
+            white-space: nowrap;
+        }
+
         /* Top right Zap window. */
         #skinShell > #cosmicZapHud {
             left: 76.318875%;
@@ -8779,7 +8835,14 @@ Font License Notices
             100% { opacity: 0; transform: translate(-50%, -50%) scale(1); }
         }
 
-    </style>
+    
+
+        /* p145: lower only the large High Score value; title and detail rows stay fixed. */
+        html body #highScorePanel #highScorePanelValue {
+            position: relative !important;
+            top: clamp(6px, 1.8vw, 10px) !important;
+        }
+</style>
 </head>
 <body class="crt-phosphor-calibration">
 
@@ -8934,7 +8997,12 @@ Font License Notices
 
                         <div class="scoring-section-title">EXTRA</div>
                         <div class="scoring-row"><span>Gridlock Relic <span class="scoring-label-note">(banked)</span></span><span>300</span></div>
-                        <div class="scoring-row"><span>Super Gridlock <span class="scoring-label-note">(banked)</span></span><span>500/750/1000</span></div>
+                        <div class="scoring-row"><span>Super Gridlock <span class="scoring-label-note">(secured on sector clear)</span></span><span>500/750/1000</span></div>
+                        <div class="scoring-row"><span>Super Gridlock maximum</span><span>2,250</span></div>
+                        <ul class="scoring-rules-list">
+                            <li>Super Gridlock points remain pending until the sector is cleared.</li>
+                            <li>Pending points are lost on death or forfeited by a Cosmic Zap.</li>
+                        </ul>
                         <div class="scoring-row"><span>Unused Cosmic Zap</span><span>50/ea</span></div>
                         <div class="scoring-row"><span>Perfect Sector <span class="scoring-label-note">(no Zap)</span></span><span>100</span></div>
                     </section>
@@ -9311,7 +9379,9 @@ Font License Notices
             }),
             gridlock: Object.freeze({
                 activationCueDelayMs: 1000,
-                initialRelicCueDelayMs: 1000
+                initialRelicCueDelayMs: 1000,
+                superGridlockRewards: Object.freeze([500, 750, 1000]),
+                superGridlockMaximum: 2250
             }),
             transitions: Object.freeze({
                 countdownStepMs: 1000,
@@ -10303,6 +10373,7 @@ Font License Notices
                     }
                 });
                 game.finishTelemetryRun('death');
+                game.resetOvertimeState();
                 game.saveRunRecordIfCurrentHighScore();
                 game.container.classList.remove('cycleCelebrationSequence', 'cycleRestoredIdle');
                 game.removeCycleRebootCells();
@@ -11054,6 +11125,7 @@ Font License Notices
                 this.overtimeActive = false;       // Overtime starts after Gridlock and lasts until sector end/death/restart
                 this.overtimeEnemyTimer = null;    // Adds extra Block-A-Zoids during Overtime
                 this.overtimeEnemiesAdded = 0;     // Raises the Gridlock beat tempo/pitch as Overtime escalates
+                this.overtimeBehaviorQueue = [];     // Shuffled copy of the current sector's authored enemy mixture
                 this.superGridlockBonusesThisSector = 0;
                 this.superGridlockBonusPointsThisSector = 0;
                 this.prismRelicCueTimer = null;       // Delays the actual Prism Relic trigger so it does not overlap an enemy spawn sound
@@ -14311,6 +14383,7 @@ Best Score: ${bestScore}${recoveredLine}` :
                 this.clearOvertimeEnemyTimer();
                 this.setGridlockState({ overtimeActive: false });
                 this.overtimeEnemiesAdded = 0;
+                this.overtimeBehaviorQueue = [];
                 if (!preserveBankedBonuses) {
                     this.superGridlockBonusesThisSector = 0;
                     this.superGridlockBonusPointsThisSector = 0;
@@ -17364,6 +17437,7 @@ Best Score: ${bestScore}${recoveredLine}` :
                 if (this.overtimeActive) return;
                 this.setGridlockState({ overtimeActive: true });
                 this.overtimeEnemiesAdded = 0;
+                this.overtimeBehaviorQueue = [];
                 if (this.audio && this.audio.setMaxSwarmBeatIntensity) {
                     this.audio.setMaxSwarmBeatIntensity(0);
                 }
@@ -17404,20 +17478,44 @@ Best Score: ${bestScore}${recoveredLine}` :
                 return 'large';
             }
 
+            refillOvertimeBehaviorQueue() {
+                const authoredPlan = this.getSectorEnemyBehaviorPlan().slice();
+                if (authoredPlan.length === 0) authoredPlan.push(ENEMY_BEHAVIOR_TYPES.DRIFTER);
+                for (let index = authoredPlan.length - 1; index > 0; index--) {
+                    const swapIndex = Math.floor(Math.random() * (index + 1));
+                    [authoredPlan[index], authoredPlan[swapIndex]] = [authoredPlan[swapIndex], authoredPlan[index]];
+                }
+                this.overtimeBehaviorQueue = authoredPlan;
+            }
+
+            chooseOvertimeEnemyBehavior() {
+                if (!Array.isArray(this.overtimeBehaviorQueue) || this.overtimeBehaviorQueue.length === 0) {
+                    this.refillOvertimeBehaviorQueue();
+                }
+                return this.overtimeBehaviorQueue.shift() || ENEMY_BEHAVIOR_TYPES.DRIFTER;
+            }
+
             spawnOvertimeEnemy() {
                 if (!this.overtimeActive || !this.flow.isLiveAction()) return false;
-                const type = this.chooseOvertimeEnemyType();
-                return this.startEnemySpawnWarning(type, {
+                const spawnRequest = {
+                    type: this.chooseOvertimeEnemyType(),
+                    behaviorType: this.chooseOvertimeEnemyBehavior()
+                };
+                const warningStarted = this.startEnemySpawnWarning(spawnRequest, {
                     requeueOnCancel: false,
                     onSpawn: () => {
                         this.overtimeEnemiesAdded++;
-                        this.superGridlockBonusesThisSector++;
-                        const superGridlockPoints = this.superGridlockBonusesThisSector === 1
-                            ? 500
-                            : (this.superGridlockBonusesThisSector === 2 ? 750 : 1000);
-                        this.superGridlockBonusPointsThisSector += superGridlockPoints;
-                        if (this.ui && this.ui.flashSuperGridlockBonus) {
-                            this.ui.flashSuperGridlockBonus(superGridlockPoints);
+                        const rewards = GAME_CONFIG.gridlock.superGridlockRewards;
+                        if (this.superGridlockBonusesThisSector < rewards.length) {
+                            const rewardIndex = this.superGridlockBonusesThisSector;
+                            const superGridlockPoints = rewards[rewardIndex];
+                            this.superGridlockBonusesThisSector++;
+                            this.superGridlockBonusPointsThisSector += superGridlockPoints;
+                            if (this.ui && this.ui.flashSuperGridlockBonus) {
+                                this.ui.flashSuperGridlockBonus(superGridlockPoints, {
+                                    maxed: this.superGridlockBonusesThisSector >= rewards.length
+                                });
+                            }
                         }
                         if (this.audio && this.audio.setMaxSwarmBeatIntensity) {
                             this.audio.setMaxSwarmBeatIntensity(this.overtimeEnemiesAdded);
@@ -17428,6 +17526,8 @@ Best Score: ${bestScore}${recoveredLine}` :
                         this.scheduleOvertimeEnemy();
                     }
                 });
+                if (!warningStarted) this.overtimeBehaviorQueue.unshift(spawnRequest.behaviorType);
+                return warningStarted;
             }
 
             removePrismRelic() {
@@ -18253,37 +18353,17 @@ Best Score: ${bestScore}${recoveredLine}` :
             }
 
             playCrystalCollectionEffect(crystal) {
-                if (!crystal || !this.player || !this.player.element || !this.container) return;
+                if (!crystal) return;
 
-                const effectId = ++this.visualEffectSequence;
-                const playerElement = this.player.element;
+                // Radar feedback is the single visual confirmation for crystal collection.
+                // Remove any stale Orb-side effect left by an older state, but create no new one.
+                if (this.player && this.player.element) {
+                    this.player.element.classList.remove('crystal-pickup-pop');
+                    this.player.element.querySelectorAll('.orb-crystal-pickup-fx').forEach(effect => effect.remove());
+                }
                 if (this.ui && typeof this.ui.pulseRadarCollection === 'function') {
                     this.ui.pulseRadarCollection(crystal.color);
                 }
-
-                // The Orb remains the movement/collision owner. Only this disposable child layer animates,
-                // so collection feedback cannot alter the Orb transform or force a movement-layer reflow.
-                playerElement.querySelectorAll('.orb-crystal-pickup-fx').forEach(effect => effect.remove());
-                const effectLayer = document.createElement('div');
-                effectLayer.className = 'orb-crystal-pickup-fx';
-                effectLayer.style.setProperty('--collect-orb-size', `${this.player.size * 1.15}px`);
-                effectLayer.style.setProperty('--collect-ring-size', `${this.player.size * 1.35}px`);
-                effectLayer.style.setProperty('--collect-spark-size', `${this.player.size * 1.55}px`);
-
-                const flash = document.createElement('div');
-                flash.className = 'orb-crystal-pickup-flash';
-                effectLayer.appendChild(flash);
-
-                const ring = document.createElement('div');
-                ring.className = 'orb-crystal-pickup-ring';
-                effectLayer.appendChild(ring);
-
-                const sparkle = document.createElement('div');
-                sparkle.className = 'orb-crystal-pickup-sparkle';
-                effectLayer.appendChild(sparkle);
-
-                playerElement.appendChild(effectLayer);
-                this.scheduler.scheduleTimeout('visual-effects', `crystal-pickup-fx-${effectId}`, () => effectLayer.remove(), 220);
             }
 
             collectCrystalAtIndex(index, crystal) {
@@ -18772,9 +18852,13 @@ Best Score: ${bestScore}${recoveredLine}` :
 
                     // Cosmic Zaps clear Overtime, cancel any uncollected Gridlock Relic attempt,
                     // and erase pending Super Gridlock bonuses that have not yet paid out.
+                    const forfeitedSuperGridlockPoints = this.superGridlockBonusPointsThisSector;
                     this.clearMaxSwarmCueTimer();
                     this.setGridlockState({ maxSwarmActive: false });
                     this.resetOvertimeState();
+                    if (forfeitedSuperGridlockPoints > 0 && this.ui && this.ui.flashSuperGridlockForfeit) {
+                        this.ui.flashSuperGridlockForfeit(forfeitedSuperGridlockPoints, 'zap');
+                    }
                     if (this.audio) {
                         this.audio.stopBackgroundMusic();
                         this.audio.startBackgroundMusic(this.level);
@@ -19941,9 +20025,13 @@ Best Score: ${bestScore}${recoveredLine}` :
                     'run-not-endable'
                 )) return false;
                 const transitionToken = ++this.levelLoadToken;
+                const lostPendingSuperGridlockPoints = Math.max(0, Number(this.superGridlockBonusPointsThisSector) || 0);
                 if (this.vectorTrail) this.vectorTrail.clear();
                 this.beginTransitionGroup('game-over', transitionToken);
                 const endedInFinalGridlock = this.systems.prepareRunEnd(deathDetails);
+                if (lostPendingSuperGridlockPoints > 0 && this.ui && this.ui.flashSuperGridlockForfeit) {
+                    this.ui.flashSuperGridlockForfeit(lostPendingSuperGridlockPoints, 'death');
+                }
                 this.saveCurrentRunPaceProfileIfRecord();
                 this.validateStateInvariants('endRun');
 
@@ -24027,7 +24115,7 @@ startMaxSwarmBeat(delaySeconds = 0) {
                     const totalSeconds = Math.floor(Math.max(0, this.game.finalGridlockElapsedMs) / 1000);
                     const minutes = Math.floor(totalSeconds / 60);
                     const seconds = totalSeconds % 60;
-                    this.scoreElement.classList.remove('scoreHidden', 'attractHighScore', 'highScoreFlash', 'bonusScoreCount', 'gridlockAlert', 'superGridlockAlert');
+                    this.scoreElement.classList.remove('scoreHidden', 'attractHighScore', 'highScoreFlash', 'bonusScoreCount', 'gridlockAlert', 'superGridlockAlert', 'pendingSuperGridlock');
                     this.scoreElement.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
                     return;
                 }
@@ -24036,6 +24124,7 @@ startMaxSwarmBeat(delaySeconds = 0) {
                                   this.game.showHudDuringSectorIntro ||
                                   this.game.isGameOver;
                 if (!showScore) {
+                    this.scoreElement.classList.remove('pendingSuperGridlock');
                     if (this.game.highScore > 0) {
                         this.scoreElement.textContent = `${this.game.highScore}`;
                         this.scoreElement.classList.remove('scoreHidden');
@@ -24048,8 +24137,20 @@ startMaxSwarmBeat(delaySeconds = 0) {
                     return;
                 }
 
-                this.scoreElement.classList.remove('scoreHidden', 'attractHighScore');
-                this.scoreElement.textContent = `${this.game.score}`;
+                this.scoreElement.classList.remove('scoreHidden', 'attractHighScore', 'pendingSuperGridlock');
+                const pendingPoints = Math.max(0, Number(this.game.superGridlockBonusPointsThisSector) || 0);
+                if (pendingPoints > 0 && !this.game.isGameOver) {
+                    const scoreMain = document.createElement('span');
+                    scoreMain.className = 'score-main-value';
+                    scoreMain.textContent = `${this.game.score}`;
+                    const pending = document.createElement('span');
+                    pending.className = 'score-pending-value';
+                    pending.textContent = `PENDING +${pendingPoints}`;
+                    this.scoreElement.replaceChildren(scoreMain, pending);
+                    this.scoreElement.classList.add('pendingSuperGridlock');
+                } else {
+                    this.scoreElement.textContent = `${this.game.score}`;
+                }
             }
 
             flashGridlockMessage(message, options = {}) {
@@ -24058,18 +24159,33 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 const isSuperGridlock = options.superGridlock === true;
                 this.scoreAlertActive = true;
                 if (this.scoreHud) this.scoreHud.classList.add('gridlock-announcement-active');
-                this.scoreElement.classList.remove('scoreHidden', 'attractHighScore', 'highScoreFlash', 'bonusScoreCount', 'gridlockAlert', 'superGridlockAlert');
+                this.scoreElement.classList.remove('scoreHidden', 'attractHighScore', 'highScoreFlash', 'bonusScoreCount', 'gridlockAlert', 'superGridlockAlert', 'pendingSuperGridlock');
 
                 if (isSuperGridlock) {
+                    const points = Math.max(0, Number(options.points) || 0);
+                    const forfeited = options.forfeited === true;
+                    const lost = options.lost === true;
                     const stack = document.createElement('span');
-                    stack.className = 'super-gridlock-stack';
+                    stack.className = `super-gridlock-stack${forfeited ? ' is-forfeit' : ''}${lost ? ' is-loss' : ''}`;
                     const prefix = document.createElement('span');
                     prefix.className = 'super-gridlock-prefix';
-                    prefix.textContent = 'SUPER';
+                    prefix.textContent = forfeited ? 'SUPER GRIDLOCK' : (lost ? 'PENDING BONUS' : 'SUPER');
                     const main = document.createElement('span');
                     main.className = 'super-gridlock-main';
-                    main.textContent = 'GRIDLOCK';
+                    main.textContent = forfeited ? 'FORFEITED' : (lost ? 'LOST' : 'GRIDLOCK');
                     stack.append(prefix, main);
+                    if (points > 0) {
+                        const award = document.createElement('span');
+                        award.className = 'super-gridlock-award';
+                        award.textContent = `${forfeited || lost ? '−' : '+'}${points}`;
+                        stack.appendChild(award);
+                    }
+                    if (options.maxed === true) {
+                        const status = document.createElement('span');
+                        status.className = 'super-gridlock-status';
+                        status.textContent = `MAX ${GAME_CONFIG.gridlock.superGridlockMaximum}`;
+                        stack.appendChild(status);
+                    }
                     this.scoreElement.replaceChildren(stack);
                 } else {
                     this.scoreElement.textContent = message;
@@ -24093,8 +24209,22 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 this.flashGridlockMessage('GRIDLOCK');
             }
 
-            flashSuperGridlockBonus(points) {
-                this.flashGridlockMessage('GRIDLOCK', { superGridlock: true });
+            flashSuperGridlockBonus(points, options = {}) {
+                this.flashGridlockMessage('GRIDLOCK', {
+                    superGridlock: true,
+                    points,
+                    maxed: options.maxed === true
+                });
+            }
+
+            flashSuperGridlockForfeit(points, reason = 'zap') {
+                if (!points || points <= 0) return;
+                this.flashGridlockMessage('GRIDLOCK', {
+                    superGridlock: true,
+                    points,
+                    forfeited: reason === 'zap',
+                    lost: reason === 'death'
+                });
             }
 
             // High score is separated in the Scoring menu and shown on the opening screen only after a record exists.
