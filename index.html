@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Trackpad Prototype p121: improves global shake reliability, tunes attract-card finale spacing, lowers High Score details, and precisely centers Help/Launch shortcuts.
+Trackpad Prototype p122: repairs the final campaign-to-Gridlock handoff, visibly lowers High Score details, and geometrically centers the Help/Launch controls.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="trackpad-p121">
+<html data-build-version="trackpad-p122">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -8361,6 +8361,62 @@ Font License Notices
             line-height: 1 !important;
         }
 
+
+        /* p122: visibly lower the High Score detail block without allowing flex to absorb the move. */
+        html body #highScorePanel #highScorePanelDetails {
+            position: relative !important;
+            top: clamp(34px, 8vw, 52px) !important;
+            transform: none !important;
+        }
+
+        /* p122: right-column controls occupy the exact rightmost grid cells. */
+        html body #gameContainer > #pauseGridMenu #pauseHowToButton,
+        html body #gameContainer > #pauseGridMenu #pauseLaunchSetupButton {
+            position: absolute !important;
+            left: auto !important;
+            right: 0 !important;
+            width: var(--playfield-grid-size, 60px) !important;
+            height: var(--playfield-grid-size, 60px) !important;
+            min-width: var(--playfield-grid-size, 60px) !important;
+            min-height: var(--playfield-grid-size, 60px) !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            transform: none !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            box-sizing: border-box !important;
+        }
+
+        html body #gameContainer > #pauseGridMenu #pauseHowToButton {
+            top: 0 !important;
+            bottom: auto !important;
+        }
+
+        html body #gameContainer > #pauseGridMenu #pauseLaunchSetupButton {
+            top: auto !important;
+            bottom: 0 !important;
+        }
+
+        html body #gameContainer > #pauseGridMenu #pauseHowToButton .pause-grid-symbol,
+        html body #gameContainer > #pauseGridMenu #pauseLaunchSetupButton .launch-cycle-grid-icon {
+            position: static !important;
+            left: auto !important;
+            top: auto !important;
+            right: auto !important;
+            bottom: auto !important;
+            margin: 0 !important;
+            transform: none !important;
+            flex: 0 0 auto !important;
+        }
+
+        html body #gameContainer > #pauseGridMenu #pauseHowToButton .pause-grid-symbol {
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            line-height: 1 !important;
+        }
+
     </style>
 </head>
 <body class="crt-phosphor-calibration">
@@ -9775,6 +9831,7 @@ Font License Notices
                 game.setTerminalState({ isGameOver: false });
                 game.setTerminalState({ restartReady: false });
                 game.setTransitionState({ cycleTransitionActive: false });
+                game.setTransitionState({ sectorTransitionActive: false });
                 game.setGameplayState({ active: false });
                 game.setGameplayState({ levelActionStarted: false });
                 game.setGameplayState({ isPaused: false });
@@ -16441,7 +16498,14 @@ Best Score: ${bestScore}${recoveredLine}` :
                     this.beginNewRun();
                     return;
                 }
-                if (this.finalCompletionActive) return;
+                if (this.finalCompletionActive) {
+                    if (this.restartReady && this.flow.is(GAME_FLOW_STATES.FINAL_COMPLETE) && !this.cycleTransitionActive) {
+                        this.playUiClick();
+                        this.enableShakeCosmicZap();
+                        void this.requestFinalGridlockHandoff('play-control');
+                    }
+                    return;
+                }
                 if (this.isGameOver && !this.restartReady) return;
                 if (this.cycleTransitionActive) {
                     if (this.pendingCycleContinueToken) {
@@ -19018,9 +19082,33 @@ Best Score: ${bestScore}${recoveredLine}` :
                 this.updateDifficultyLabel();
                 this.ui.updateAll();
 
-                if (!await this.wait(GAME_CONFIG.transitions.finalGridlockHandoffMs, transitionToken, 'final-gridlock-handoff')) return;
-                if (transitionToken !== this.levelLoadToken || !this.finalCompletionActive) return;
-                await this.beginFinalGridlock();
+                const handoffDelayCompleted = await this.wait(
+                    GAME_CONFIG.transitions.finalGridlockHandoffMs,
+                    transitionToken,
+                    'final-gridlock-handoff'
+                );
+
+                // A cancelled transition timer must never strand the completed campaign.
+                // The state gate below is the source of truth, and Play uses the same request.
+                if (transitionToken === this.levelLoadToken && this.finalCompletionActive && this.restartReady) {
+                    await this.requestFinalGridlockHandoff(handoffDelayCompleted ? 'automatic' : 'automatic-recovery');
+                }
+            }
+
+            async requestFinalGridlockHandoff(source = 'unknown') {
+                if (this.finalGridlockActive) return true;
+                if (this.finalGridlockResultActive) return false;
+                if (!this.finalCompletionActive || !this.restartReady) return false;
+                if (!this.flow.is(GAME_FLOW_STATES.FINAL_COMPLETE)) return false;
+                if (this.cycleTransitionActive) return false;
+
+                this.markStabilityEvent('final-gridlock-handoff-request', {
+                    source,
+                    cycle: this.cycle,
+                    sector: this.level,
+                    loadToken: this.levelLoadToken
+                });
+                return await this.beginFinalGridlock();
             }
 
             buildFinalGridlockGrid() {
@@ -19084,7 +19172,7 @@ Best Score: ${bestScore}${recoveredLine}` :
                     'beginFinalGridlock',
                     this.flow.is(GAME_FLOW_STATES.FINAL_COMPLETE) && this.finalCompletionActive && this.isGameOver &&
                         this.restartReady && !this.finalGridlockActive && !this.finalGridlockResultActive &&
-                        !this.cycleTransitionActive && this.cycle >= this.MAX_CYCLES && this.level === this.MAX_LEVEL,
+                        !this.cycleTransitionActive && this.cycle >= this.MAX_CYCLES && this.level >= this.MAX_LEVEL,
                     'final-gridlock-not-ready'
                 )) return false;
 
