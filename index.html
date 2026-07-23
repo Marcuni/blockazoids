@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Trackpad Prototype p138: centralizes motion permission, listener ownership, and shake delivery in one stable motion-input controller.
+Trackpad Prototype p139: adds an explicit shake-permission control, clears pending Super Gridlock bonuses on Cosmic Zap, and renames High Score Pace.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="trackpad-p138">
+<html data-build-version="trackpad-p139">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -7401,9 +7401,9 @@ Font License Notices
             margin-top: 0;
         }
 
-        /* Match the primary-row separation below the tracking control before Reset High Score. */
+        /* Keep the lower Settings actions compact after the shake-permission control. */
         #settingsPanel #resetHighScoreButton {
-            margin-top: clamp(16px, 4.5vw, 26px);
+            margin-top: clamp(10px, 2.8vw, 16px);
         }
 
         /* Give the main record number additional breathing room before its detail rows. */
@@ -7635,6 +7635,22 @@ Font License Notices
 
         #settingsPanel #resetTutorialButton {
             margin-top: clamp(8px, 2.2vw, 12px);
+        }
+
+        #settingsPanel #enableShakeButton {
+            margin-top: clamp(10px, 2.8vw, 16px);
+        }
+
+        .shake-access-status {
+            min-height: 14px;
+            margin: 5px auto 0;
+            width: min(270px, 92%);
+            color: rgba(255, 255, 255, 0.74);
+            font-family: "Orbitron";
+            font-size: clamp(9px, 2.7vw, 12px);
+            line-height: 1.25;
+            letter-spacing: 0.4px;
+            text-align: center;
         }
 
         #highScorePanel > .menu-panel-title {
@@ -8997,6 +9013,8 @@ Font License Notices
                         <button id="trackingSpeedIncreaseButton" class="settings-stepper-arrow" type="button" aria-label="Increase tracking speed">▶</button>
                     </div>
                 </div>
+                <button id="enableShakeButton" class="menu-button settings-toggle" type="button">Enable Shake</button>
+                <div id="shakeAccessStatus" class="shake-access-status" aria-live="polite">Motion access has not been requested.</div>
                 <button id="resetHighScoreButton" class="menu-button settings-toggle">Reset High Score</button>
                 <button id="resetTutorialButton" class="menu-button settings-toggle" type="button">Reset Tutorial</button>
                 <div id="telemetryPanel" class="developer-settings-section" aria-hidden="true">
@@ -10557,8 +10575,10 @@ Font License Notices
                 this.lastSampleAt = 0;
                 this.lastRequestSource = '';
                 this.handleDeviceMotion = (event) => {
+                    const firstSample = this.lastSampleAt <= 0;
                     this.lastSampleAt = performance.now();
                     this.game.motionSampleSeenSinceAttach = true;
+                    if (firstSample) this.publishState();
                     this.game.handleShakeMotion(event);
                 };
                 this.publishState();
@@ -10582,6 +10602,7 @@ Font License Notices
                 game.motionPermissionState = this.state === 'unavailable' ? 'unsupported' : this.state;
                 game.motionPermissionPromise = this.requestPromise;
                 game.motionListenerAttached = this.listenerAttached;
+                if (typeof game.updateShakeControlLabel === 'function') game.updateShakeControlLabel();
             }
 
             initializeWithoutPrompt(source = 'startup') {
@@ -10605,7 +10626,7 @@ Font License Notices
                 return Promise.resolve(true);
             }
 
-            requestAccessFromUserGesture(source = 'player-action') {
+            requestAccessFromUserGesture(source = 'player-action', options = {}) {
                 if (!this.isFeatureAvailable()) {
                     this.state = 'unavailable';
                     this.publishState();
@@ -10615,8 +10636,12 @@ Font License Notices
                     this.ensureListener(source);
                     return Promise.resolve(true);
                 }
-                if (this.state === 'denied' || this.state === 'unavailable') {
-                    return Promise.resolve(false);
+                const allowDeniedRetry = options.allowDeniedRetry === true;
+                if (this.state === 'unavailable') return Promise.resolve(false);
+                if (this.state === 'denied' && !allowDeniedRetry) return Promise.resolve(false);
+                if (this.state === 'denied' && allowDeniedRetry) {
+                    this.state = 'unknown';
+                    this.publishState();
                 }
                 if (this.requestPromise) return this.requestPromise;
 
@@ -10669,6 +10694,10 @@ Font License Notices
                 this.requestPromise = request;
                 this.publishState();
                 return request;
+            }
+
+            retryAccessFromUserGesture(source = 'settings-enable-shake') {
+                return this.requestAccessFromUserGesture(source, { allowDeniedRetry: true });
             }
 
             attachListener(source = 'attach') {
@@ -10822,6 +10851,8 @@ Font License Notices
                 this.trackingSpeedDecreaseButton = document.getElementById('trackingSpeedDecreaseButton');
                 this.trackingSpeedIncreaseButton = document.getElementById('trackingSpeedIncreaseButton');
                 this.settingsTrackingSpeedValue = document.getElementById('settingsTrackingSpeedValue');
+                this.enableShakeButton = document.getElementById('enableShakeButton');
+                this.shakeAccessStatus = document.getElementById('shakeAccessStatus');
                 this.trackingSpeedStorageKey = 'blockazoidsTrackingSpeedV1';
                 this.trackingSpeed = this.loadTrackingSpeed();
                 this.tutorialPrompt = document.getElementById('tutorialPrompt');
@@ -11430,6 +11461,13 @@ Font License Notices
                         e.stopPropagation();
                         this.playUiClick();
                         this.toggleCrtSetting();
+                    });
+                }
+                if (this.enableShakeButton) {
+                    this.enableShakeButton.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        this.requestShakeAccessFromSettings();
                     });
                 }
                 if (this.trackingSpeedDecreaseButton) {
@@ -14739,6 +14777,7 @@ Best Score: ${bestScore}${recoveredLine}` :
                     this.crtToggleButton,
                     this.trackingSpeedDecreaseButton,
                     this.trackingSpeedIncreaseButton,
+                    this.enableShakeButton,
                     this.difficultyButton,
                     this.sectorDecreaseButton,
                     this.sectorIncreaseButton,
@@ -14812,6 +14851,7 @@ Best Score: ${bestScore}${recoveredLine}` :
                     this.updateMusicToggleLabel();
                     this.updateCrtToggleLabel();
                     this.updateTrackingSpeedLabel();
+                    this.updateShakeControlLabel();
                     this.updateSettingsSectorLabel();
                     this.updateDifficultyLabel();
                     this.updateHighScoreDisplay();
@@ -14835,6 +14875,58 @@ Best Score: ${bestScore}${recoveredLine}` :
                 this.updateContextButtons();
                 this.updatePauseGridMenu();
                 this.clearMenuButtonFocus();
+            }
+
+            updateShakeControlLabel() {
+                if (!this.enableShakeButton) return;
+                const state = this.motionPermissionState || 'unknown';
+                const motionStatus = this.motionInput && typeof this.motionInput.getStatus === 'function'
+                    ? this.motionInput.getStatus()
+                    : null;
+                let label = 'ENABLE SHAKE';
+                let status = 'Motion access has not been requested.';
+                let disabled = false;
+
+                if (state === 'requesting') {
+                    label = 'ENABLING...';
+                    status = 'Waiting for Safari motion permission.';
+                    disabled = true;
+                } else if (state === 'granted') {
+                    label = 'SHAKE ENABLED';
+                    status = motionStatus && motionStatus.lastSampleAt > 0
+                        ? 'Motion detected. Shake input is ready.'
+                        : 'Access granted. Move the phone to verify motion.';
+                    disabled = true;
+                } else if (state === 'denied') {
+                    label = 'RETRY SHAKE';
+                    status = 'Access denied. Safari site settings may need Motion enabled.';
+                } else if (state === 'temporary-error' || state === 'retryable') {
+                    label = 'RETRY SHAKE';
+                    status = 'Safari could not start motion. Tap to retry.';
+                } else if (state === 'unsupported') {
+                    label = 'SHAKE UNAVAILABLE';
+                    status = 'Device motion is unavailable. Double tap still works.';
+                    disabled = true;
+                }
+
+                this.enableShakeButton.textContent = label;
+                this.enableShakeButton.disabled = disabled;
+                this.enableShakeButton.setAttribute('aria-label', label.toLowerCase());
+                if (this.shakeAccessStatus) this.shakeAccessStatus.textContent = status;
+            }
+
+            requestShakeAccessFromSettings() {
+                if (!this.motionInput) {
+                    this.updateShakeControlLabel();
+                    return Promise.resolve(false);
+                }
+                // Keep the protected permission call synchronous with this dedicated click.
+                const request = this.motionInput.retryAccessFromUserGesture('settings-enable-shake');
+                this.updateShakeControlLabel();
+                return Promise.resolve(request).then((granted) => {
+                    this.updateShakeControlLabel();
+                    return granted;
+                });
             }
 
             updateSoundToggleLabel() {
@@ -18165,7 +18257,7 @@ Best Score: ${bestScore}${recoveredLine}` :
                 if (stillCurrent) {
                     const paceResult = this.captureSectorRecordPace(completedLevel);
                     const paceMarkup = paceResult.hasTarget
-                        ? `<div class="bonus-score-row record-pace-row"><span>RECORD PACE</span><span>${this.formatRecordPaceDelta(paceResult.delta)}</span></div>`
+                        ? `<div class="bonus-score-row record-pace-row"><span>HIGH SCORE PACE</span><span>${this.formatRecordPaceDelta(paceResult.delta)}</span></div>`
                         : `<div class="bonus-score-row record-pace-row pace-established"><span>PACE ESTABLISHED</span></div>`;
                     this.bonusTextElement.insertAdjacentHTML(
                         'beforeend',
@@ -18835,10 +18927,11 @@ Best Score: ${bestScore}${recoveredLine}` :
                     }
                     this.clearPendingSpawnWarnings(true);
 
-                    // Cosmic Zaps clear Overtime and cancel any uncollected Gridlock Relic attempt.
+                    // Cosmic Zaps clear Overtime, cancel any uncollected Gridlock Relic attempt,
+                    // and erase pending Super Gridlock bonuses that have not yet paid out.
                     this.clearMaxSwarmCueTimer();
                     this.setGridlockState({ maxSwarmActive: false });
-                    this.resetOvertimeState({ preserveBankedBonuses: true });
+                    this.resetOvertimeState();
                     if (this.audio) {
                         this.audio.stopBackgroundMusic();
                         this.audio.startBackgroundMusic(this.level);
