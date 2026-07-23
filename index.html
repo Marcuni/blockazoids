@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Trackpad Prototype p129: tightens attract-card messaging, adds a hidden-discovery melody, and raises only the Sector/Cycle values slightly.
+Trackpad Prototype p130: authors each crystal choice set around near, medium, and far distances while preserving declined choices after pickups.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="trackpad-p129">
+<html data-build-version="trackpad-p130">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -17309,7 +17309,84 @@ Best Score: ${bestScore}${recoveredLine}` :
                 };
             }
 
-            // Pick one new random blinking crystal from the current color, excluding crystals already blinking.
+            // Divide the current color into player-relative near, medium, and far distance bands.
+            // The middle half of each band is preferred so choices do not sit on ambiguous boundaries.
+            getCrystalChoiceDistanceBands(currentColorCrystals) {
+                const activeColor = this.colorOrder[this.currentColorIndex];
+                const sorted = currentColorCrystals
+                    .filter(crystal => crystal.color === activeColor && this.crystals.includes(crystal))
+                    .map(crystal => ({ crystal, distance: this.getCrystalDistanceFromPlayer(crystal) }))
+                    .sort((a, b) => {
+                        const distanceDifference = a.distance - b.distance;
+                        if (Math.abs(distanceDifference) > 0.000001) return distanceDifference;
+                        if (a.crystal.y !== b.crystal.y) return a.crystal.y - b.crystal.y;
+                        return a.crystal.x - b.crystal.x;
+                    });
+
+                const bands = [[], [], []];
+                const tierByCrystal = new Map();
+                sorted.forEach(({ crystal }, index) => {
+                    const tier = Math.min(2, Math.floor(index * 3 / Math.max(1, sorted.length)));
+                    bands[tier].push(crystal);
+                    tierByCrystal.set(crystal, tier);
+                });
+
+                return { sorted, bands, tierByCrystal };
+            }
+
+            chooseRepresentativeCrystalFromBand(band, excluded = new Set()) {
+                const available = band.filter(crystal => !excluded.has(crystal));
+                if (available.length === 0) return null;
+                const inset = Math.floor(available.length * 0.25);
+                const end = Math.max(inset + 1, Math.ceil(available.length * 0.75));
+                const representativePool = available.slice(inset, end);
+                return representativePool[Math.floor(Math.random() * representativePool.length)] || available[0];
+            }
+
+            // Create the first decision set intentionally: one near, one medium, and one far choice.
+            chooseSpreadBlinkingCrystals(currentColorCrystals, desiredCount) {
+                const count = Math.max(0, Math.min(desiredCount, currentColorCrystals.length));
+                if (count === 0) return [];
+
+                const { sorted, bands } = this.getCrystalChoiceDistanceBands(currentColorCrystals);
+                const selected = [];
+                const selectedSet = new Set();
+                const preferredTiers = count >= 3 ? [0, 1, 2] : count === 2 ? [0, 2] : [1];
+
+                preferredTiers.forEach(tier => {
+                    if (selected.length >= count) return;
+                    const crystal = this.chooseRepresentativeCrystalFromBand(bands[tier], selectedSet);
+                    if (!crystal) return;
+                    selected.push(crystal);
+                    selectedSet.add(crystal);
+                });
+
+                // Defensive fallback for the final few crystals of a color, when a band may be empty.
+                while (selected.length < count) {
+                    const remaining = sorted
+                        .map(entry => entry.crystal)
+                        .filter(crystal => !selectedSet.has(crystal));
+                    if (remaining.length === 0) break;
+
+                    const next = remaining
+                        .map(crystal => {
+                            const distance = this.getCrystalDistanceFromPlayer(crystal);
+                            const separation = selected.length === 0
+                                ? 0
+                                : Math.min(...selected.map(choice => Math.abs(distance - this.getCrystalDistanceFromPlayer(choice))));
+                            return { crystal, separation };
+                        })
+                        .sort((a, b) => b.separation - a.separation)[0].crystal;
+
+                    selected.push(next);
+                    selectedSet.add(next);
+                }
+
+                return selected;
+            }
+
+            // Preserve the declined choices after a pickup, then deliberately fill the distance band
+            // that is missing. If movement pushed both survivors into one band, maximize separation.
             chooseOneNewBlinkingCrystal(currentColorCrystals) {
                 const activeColor = this.colorOrder[this.currentColorIndex];
                 const currentBlinking = new Set(this.activeBlinkingCrystals);
@@ -17319,7 +17396,42 @@ Best Score: ${bestScore}${recoveredLine}` :
 
                 if (options.length === 0) return null;
 
-                return options[Math.floor(Math.random() * options.length)];
+                const { bands, tierByCrystal } = this.getCrystalChoiceDistanceBands(currentColorCrystals);
+                const occupiedTiers = new Set(
+                    this.activeBlinkingCrystals
+                        .map(crystal => tierByCrystal.get(crystal))
+                        .filter(tier => Number.isInteger(tier))
+                );
+                const missingTiers = [0, 1, 2].filter(tier => !occupiedTiers.has(tier));
+                const missingTierSet = new Set(missingTiers);
+                const tierCandidates = options.filter(crystal => missingTierSet.has(tierByCrystal.get(crystal)));
+                const candidates = tierCandidates.length > 0 ? tierCandidates : options;
+
+                const ranked = candidates.map(crystal => {
+                    const choices = [...this.activeBlinkingCrystals, crystal];
+                    const distances = choices
+                        .map(choice => this.getCrystalDistanceFromPlayer(choice))
+                        .sort((a, b) => a - b);
+                    const gaps = [];
+                    for (let i = 1; i < distances.length; i++) gaps.push(distances[i] - distances[i - 1]);
+                    const minGap = gaps.length > 0 ? Math.min(...gaps) : 0;
+                    const totalSpread = distances.length > 1 ? distances[distances.length - 1] - distances[0] : 0;
+                    const tierDiversity = new Set(choices.map(choice => tierByCrystal.get(choice))).size;
+                    return { crystal, tierDiversity, minGap, totalSpread };
+                }).sort((a, b) =>
+                    b.tierDiversity - a.tierDiversity ||
+                    b.minGap - a.minGap ||
+                    b.totalSpread - a.totalSpread
+                );
+
+                const best = ranked[0];
+                const nearBest = ranked.filter(candidate =>
+                    candidate.tierDiversity === best.tierDiversity &&
+                    candidate.minGap >= best.minGap * 0.92 &&
+                    candidate.totalSpread >= best.totalSpread * 0.90
+                );
+
+                return nearBest[Math.floor(Math.random() * nearBest.length)].crystal;
             }
 
             getCrystalPointValue(valueRank = 1) {
@@ -17397,11 +17509,16 @@ Best Score: ${bestScore}${recoveredLine}` :
                     this.activeBlinkingCrystals.pop();
                 }
 
-                // Top up only the missing slot instead of rerolling the two choices the player declined.
-                while (this.activeBlinkingCrystals.length < desiredBlinkingCount) {
-                    const nextCrystal = this.chooseOneNewBlinkingCrystal(currentColorCrystals);
-                    if (!nextCrystal) break;
-                    this.activeBlinkingCrystals.push(nextCrystal);
+                // Author a fresh near/medium/far set at color start. After a pickup, preserve the
+                // declined choices and add only the crystal that best restores the distance spread.
+                if (this.activeBlinkingCrystals.length === 0 && desiredBlinkingCount > 0) {
+                    this.activeBlinkingCrystals = this.chooseSpreadBlinkingCrystals(currentColorCrystals, desiredBlinkingCount);
+                } else {
+                    while (this.activeBlinkingCrystals.length < desiredBlinkingCount) {
+                        const nextCrystal = this.chooseOneNewBlinkingCrystal(currentColorCrystals);
+                        if (!nextCrystal) break;
+                        this.activeBlinkingCrystals.push(nextCrystal);
+                    }
                 }
 
                 if (this.activeBlinkingCrystals.length > 0) {
