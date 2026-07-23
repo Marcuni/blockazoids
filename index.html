@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Trackpad Prototype p122: repairs the final campaign-to-Gridlock handoff, visibly lowers High Score details, and geometrically centers the Help/Launch controls.
+Trackpad Prototype p123: repairs the final campaign-to-Gridlock handoff, visibly lowers High Score details, and geometrically centers the Help/Launch controls.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="trackpad-p122">
+<html data-build-version="trackpad-p123">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -8417,6 +8417,111 @@ Font License Notices
             line-height: 1 !important;
         }
 
+
+        /* p123: collection feedback animates a disposable child layer, never the moving Orb. */
+        #player.crystal-pickup-pop {
+            animation: none !important;
+        }
+
+        .orb-crystal-pickup-fx {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            width: 0;
+            height: 0;
+            pointer-events: none;
+            z-index: 12;
+            contain: layout style paint;
+        }
+
+        .orb-crystal-pickup-flash {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: var(--collect-orb-size, 32px);
+            height: var(--collect-orb-size, 32px);
+            box-sizing: border-box;
+            border-radius: 50%;
+            background: #fff;
+            box-shadow: 0 0 8px #fff, 0 0 20px #fff, 0 0 36px rgba(255,255,255,0.82);
+            opacity: 0;
+            transform: translate(-50%, -50%) scale(0.92);
+            animation: orbCrystalPickupFlashLayer 170ms ease-out 1;
+        }
+
+        .orb-crystal-pickup-fx .orb-crystal-pickup-ring,
+        .orb-crystal-pickup-fx .orb-crystal-pickup-sparkle {
+            left: 0 !important;
+            top: 0 !important;
+        }
+
+        @keyframes orbCrystalPickupFlashLayer {
+            0% { opacity: 0; transform: translate(-50%, -50%) scale(0.92); }
+            26% { opacity: 0.96; transform: translate(-50%, -50%) scale(1.04); }
+            100% { opacity: 0; transform: translate(-50%, -50%) scale(1.16); }
+        }
+
+        /* p123: own the High Score details with an absolute, visibly lower page position. */
+        html body #highScorePanel {
+            position: absolute !important;
+        }
+
+        html body #highScorePanel #highScorePanelDetails {
+            position: absolute !important;
+            left: 50% !important;
+            right: auto !important;
+            top: 48% !important;
+            bottom: auto !important;
+            width: calc(100% - clamp(32px, 9vw, 60px)) !important;
+            max-width: 520px !important;
+            margin: 0 !important;
+            transform: translateX(-50%) !important;
+        }
+
+        /* p123: restore the authored internal grid cells for the right-side Help/Launch controls. */
+        html body #gameContainer > #pauseGridMenu #pauseHowToButton,
+        html body #gameContainer > #pauseGridMenu #pauseLaunchSetupButton {
+            position: absolute !important;
+            right: auto !important;
+            bottom: auto !important;
+            width: var(--grid-size, 60px) !important;
+            height: var(--grid-size, 60px) !important;
+            min-width: var(--grid-size, 60px) !important;
+            min-height: var(--grid-size, 60px) !important;
+            margin: 0 !important;
+            padding: calc(var(--grid-size, 60px) * 0.16) !important;
+            transform: none !important;
+            box-sizing: border-box !important;
+        }
+
+        html body #gameContainer > #pauseGridMenu #pauseHowToButton {
+            left: calc(var(--playfield-grid-size, 60px) * 6.5 - var(--grid-size, 60px) * 0.5) !important;
+            top: calc(var(--playfield-grid-size, 60px) * 3.5 - var(--grid-size, 60px) * 0.5) !important;
+        }
+
+        html body #gameContainer > #pauseGridMenu #pauseLaunchSetupButton {
+            left: calc(var(--playfield-grid-size, 60px) * 6.5 - var(--grid-size, 60px) * 0.5) !important;
+            top: calc(var(--playfield-grid-size, 60px) * 6.5 - var(--grid-size, 60px) * 0.5) !important;
+        }
+
+        html body #gameContainer > #pauseGridMenu #pauseHowToButton .pause-grid-symbol,
+        html body #gameContainer > #pauseGridMenu #pauseLaunchSetupButton .launch-cycle-grid-icon {
+            position: absolute !important;
+            left: 50% !important;
+            top: 50% !important;
+            right: auto !important;
+            bottom: auto !important;
+            margin: 0 !important;
+        }
+
+        html body #gameContainer > #pauseGridMenu #pauseHowToButton .pause-grid-symbol {
+            transform: translate(-50%, -53%) !important;
+        }
+
+        html body #gameContainer > #pauseGridMenu #pauseLaunchSetupButton .launch-cycle-grid-icon {
+            transform: translate(-50%, -50%) !important;
+        }
+
     </style>
 </head>
 <body class="crt-phosphor-calibration">
@@ -10598,6 +10703,7 @@ Font License Notices
                 this.finalGridlockActive = false;        // Endless no-crystal survival after the campaign
                 this.finalGridlockResultActive = false;  // Persistent Final Gridlock GAME OVER statistics screen
                 this.finalGridlockElapsedMs = 0;         // Active survival time inside Final Gridlock only
+                this.finalGridlockHandoffPromise = null; // Single canonical completion-to-survival transition owner
                 this.spawnCounter = 0;                // Counter for enemy spawn delay
                 this.lastFrameTime = performance.now(); // Last frame timestamp
                 this.currentColorIndex = 0;           // Index of current crystal color
@@ -16488,6 +16594,15 @@ Best Score: ${bestScore}${recoveredLine}` :
                     e.stopPropagation();
                 }
                 if (this.tutorialActive) return;
+                // Final-completion recovery has priority over stale countdown/input locks.
+                if (this.finalCompletionActive) {
+                    if (this.restartReady && !this.finalGridlockActive && !this.finalGridlockResultActive) {
+                        this.playUiClick();
+                        this.enableShakeCosmicZap();
+                        void this.requestFinalGridlockHandoff('play-control');
+                    }
+                    return;
+                }
                 if (this.showHudDuringSectorIntro || this.resumeCountdownActive || this.startInputLocked) return;
                 if (this.finalGridlockResultActive) {
                     this.playUiClick();
@@ -16496,14 +16611,6 @@ Best Score: ${bestScore}${recoveredLine}` :
                     this.selectedStartCycle = 1;
                     this.closeBottomPanelOverlay();
                     this.beginNewRun();
-                    return;
-                }
-                if (this.finalCompletionActive) {
-                    if (this.restartReady && this.flow.is(GAME_FLOW_STATES.FINAL_COMPLETE) && !this.cycleTransitionActive) {
-                        this.playUiClick();
-                        this.enableShakeCosmicZap();
-                        void this.requestFinalGridlockHandoff('play-control');
-                    }
                     return;
                 }
                 if (this.isGameOver && !this.restartReady) return;
@@ -17657,25 +17764,29 @@ Best Score: ${bestScore}${recoveredLine}` :
                 const effectId = ++this.visualEffectSequence;
                 const playerElement = this.player.element;
 
-                // Restart the Orb flash/pop cleanly even during rapid pickup chains.
-                playerElement.classList.remove('crystal-pickup-pop');
-                void playerElement.offsetWidth;
-                playerElement.classList.add('crystal-pickup-pop');
-                this.scheduler.scheduleTimeout('visual-effects', 'crystal-pickup-pop', () => {
-                    if (playerElement) playerElement.classList.remove('crystal-pickup-pop');
-                }, 190);
+                // The Orb remains the movement/collision owner. Only this disposable child layer animates,
+                // so collection feedback cannot alter the Orb transform or force a movement-layer reflow.
+                playerElement.querySelectorAll('.orb-crystal-pickup-fx').forEach(effect => effect.remove());
+                const effectLayer = document.createElement('div');
+                effectLayer.className = 'orb-crystal-pickup-fx';
+                effectLayer.style.setProperty('--collect-orb-size', `${this.player.size * 1.15}px`);
+                effectLayer.style.setProperty('--collect-ring-size', `${this.player.size * 1.35}px`);
+                effectLayer.style.setProperty('--collect-spark-size', `${this.player.size * 1.55}px`);
+
+                const flash = document.createElement('div');
+                flash.className = 'orb-crystal-pickup-flash';
+                effectLayer.appendChild(flash);
 
                 const ring = document.createElement('div');
                 ring.className = 'orb-crystal-pickup-ring';
-                ring.style.setProperty('--collect-ring-size', `${this.player.size * 1.35}px`);
-                playerElement.appendChild(ring);
-                this.scheduler.scheduleTimeout('visual-effects', `crystal-pickup-ring-${effectId}`, () => ring.remove(), 210);
+                effectLayer.appendChild(ring);
 
                 const sparkle = document.createElement('div');
                 sparkle.className = 'orb-crystal-pickup-sparkle';
-                sparkle.style.setProperty('--collect-spark-size', `${this.player.size * 1.55}px`);
-                playerElement.appendChild(sparkle);
-                this.scheduler.scheduleTimeout('visual-effects', `crystal-pickup-sparkle-${effectId}`, () => sparkle.remove(), 175);
+                effectLayer.appendChild(sparkle);
+
+                playerElement.appendChild(effectLayer);
+                this.scheduler.scheduleTimeout('visual-effects', `crystal-pickup-fx-${effectId}`, () => effectLayer.remove(), 220);
             }
 
             collectCrystalAtIndex(index, crystal) {
@@ -19078,29 +19189,39 @@ Best Score: ${bestScore}${recoveredLine}` :
                 this.bonusTextElement.style.opacity = '0';
                 this.setTerminalState({ restartReady: true });
                 this.setTransitionState({ cycleTransitionActive: false });
+                this.setTransitionState({ startInputLocked: false });
+                this.setTransitionState({ showHudDuringSectorIntro: false });
+                this.setGameplayState({ resumeCountdownActive: false });
                 this.updateSettingsSectorLabel();
                 this.updateDifficultyLabel();
                 this.ui.updateAll();
 
-                const handoffDelayCompleted = await this.wait(
-                    GAME_CONFIG.transitions.finalGridlockHandoffMs,
-                    transitionToken,
-                    'final-gridlock-handoff'
-                );
-
-                // A cancelled transition timer must never strand the completed campaign.
-                // The state gate below is the source of truth, and Play uses the same request.
+                // The completed campaign now enters Final Gridlock directly. Play calls this same
+                // idempotent command as a recovery path if a browser lifecycle interruption occurs.
                 if (transitionToken === this.levelLoadToken && this.finalCompletionActive && this.restartReady) {
-                    await this.requestFinalGridlockHandoff(handoffDelayCompleted ? 'automatic' : 'automatic-recovery');
+                    await this.requestFinalGridlockHandoff('automatic');
                 }
             }
 
             async requestFinalGridlockHandoff(source = 'unknown') {
                 if (this.finalGridlockActive) return true;
                 if (this.finalGridlockResultActive) return false;
-                if (!this.finalCompletionActive || !this.restartReady) return false;
-                if (!this.flow.is(GAME_FLOW_STATES.FINAL_COMPLETE)) return false;
-                if (this.cycleTransitionActive) return false;
+                if (this.finalGridlockHandoffPromise) return this.finalGridlockHandoffPromise;
+
+                const campaignComplete = this.cycle >= this.MAX_CYCLES && this.level >= this.MAX_LEVEL;
+                if (!campaignComplete || !this.finalCompletionActive || !this.restartReady) return false;
+
+                // Normalize any stale UI/flow locks left by the completion presentation.
+                this.setTransitionState({ cycleTransitionActive: false });
+                this.setTransitionState({ sectorTransitionActive: false });
+                this.setTransitionState({ startInputLocked: false });
+                this.setTransitionState({ showHudDuringSectorIntro: false });
+                this.setGameplayState({ resumeCountdownActive: false });
+                this.setGameplayState({ isPaused: false });
+                if (!this.flow.is(GAME_FLOW_STATES.FINAL_COMPLETE)) {
+                    this.flow.enter(GAME_FLOW_STATES.FINAL_COMPLETE, 'final-gridlock-handoff-recovery');
+                }
+                this.closeBottomPanelOverlay();
 
                 this.markStabilityEvent('final-gridlock-handoff-request', {
                     source,
@@ -19108,7 +19229,14 @@ Best Score: ${bestScore}${recoveredLine}` :
                     sector: this.level,
                     loadToken: this.levelLoadToken
                 });
-                return await this.beginFinalGridlock();
+
+                const handoff = this.beginFinalGridlock(source);
+                this.finalGridlockHandoffPromise = handoff;
+                try {
+                    return await handoff;
+                } finally {
+                    if (this.finalGridlockHandoffPromise === handoff) this.finalGridlockHandoffPromise = null;
+                }
             }
 
             buildFinalGridlockGrid() {
@@ -19167,21 +19295,28 @@ Best Score: ${bestScore}${recoveredLine}` :
             }
 
             // Canonical lifecycle entry from final campaign completion into endless survival.
-            async beginFinalGridlock() {
-                if (!this.requireLifecycleAction(
-                    'beginFinalGridlock',
-                    this.flow.is(GAME_FLOW_STATES.FINAL_COMPLETE) && this.finalCompletionActive && this.isGameOver &&
-                        this.restartReady && !this.finalGridlockActive && !this.finalGridlockResultActive &&
-                        !this.cycleTransitionActive && this.cycle >= this.MAX_CYCLES && this.level >= this.MAX_LEVEL,
-                    'final-gridlock-not-ready'
-                )) return false;
+            async beginFinalGridlock(source = 'unknown') {
+                const ready = this.finalCompletionActive && this.restartReady && !this.finalGridlockActive &&
+                    !this.finalGridlockResultActive && this.cycle >= this.MAX_CYCLES && this.level >= this.MAX_LEVEL;
+                if (!this.requireLifecycleAction('beginFinalGridlock', ready, 'final-gridlock-not-ready', { source })) return false;
 
                 this.flow.enter(GAME_FLOW_STATES.FINAL_GRIDLOCK, 'start-final-gridlock');
                 const loadToken = ++this.levelLoadToken;
                 this.beginTransitionGroup('final-gridlock-start', loadToken);
                 this.systems.prepareFinalGridlock();
+
                 const countdownCompleted = await this.runFinalGridlockCountdown(loadToken);
-                if (!countdownCompleted || loadToken !== this.levelLoadToken || !this.finalGridlockActive) return;
+                if (loadToken !== this.levelLoadToken || !this.finalGridlockActive) return false;
+
+                // A cancelled countdown task must not leave the campaign in a dead-end state.
+                if (!countdownCompleted) {
+                    this.markStabilityEvent('final-gridlock-countdown-recovered', { source, loadToken });
+                    this.bonusTextElement.classList.remove('countdownText', 'final-gridlock-intro-flash');
+                    this.bonusTextElement.style.opacity = '0';
+                    this.bonusTextElement.textContent = '';
+                    this.setTransitionState({ showHudDuringSectorIntro: false });
+                }
+
                 this.setGameplayState({ active: true });
                 this.setGameplayState({ levelActionStarted: true });
                 this.completeTransitionGroup('final-gridlock-live-action');
