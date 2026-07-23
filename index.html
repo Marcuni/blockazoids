@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Trackpad Prototype p141: restores the known-working direct-gesture shake input and converts enemy spawn progression to exact millisecond timing.
+Trackpad Prototype p142: makes double tap the official Cosmic Zap control and removes the permanent enemy-speed increase after Zap use.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="trackpad-p141">
+<html data-build-version="trackpad-p142">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -8874,7 +8874,7 @@ Font License Notices
                             <li>Swipe anywhere to move.</li>
                             <li>Collect blinking crystals.</li>
                             <li>Avoid Block-A-Zoids.</li>
-                            <li>Shake to Cosmic Zap.</li>
+                            <li>Double tap to Cosmic Zap.</li>
                         </ul>
                         <p class="how-to-curiosity-note">This is all you need to know.<br><br>Curiosity, however, has poor impulse control. Keep scrolling for information you absolutely do not need to survive.</p>
                     </section>
@@ -9370,7 +9370,7 @@ Font License Notices
                 movement: 'SWIPE ANYWHERE TO MOVE',
                 crystal: 'COLLECT BLINKING CRYSTALS',
                 enemy: 'AVOID\nBLOCK-A-ZOIDS',
-                zap: 'SHAKE TO COSMIC ZAP',
+                zap: 'DOUBLE TAP TO COSMIC ZAP',
                 complete: 'STARTING GAME'
             }),
             sectorNames: Object.freeze(
@@ -10876,7 +10876,7 @@ Font License Notices
                 this.runRecordHighestSector = 1;
                 this.runRecordHighestCycle = this.cycle;
                 this.cosmicZapsLeft = this.getCosmicZapsForCurrentCycle(); // Remaining Cosmic Zaps
-                this.cosmicZapPressure = 0;                // Extra danger added by Cosmic Zap use during the current level
+                this.cosmicZapPressure = 0;                // Counts Zap use for no-Zap bonuses and telemetry; it no longer affects enemy speed
                 this.active = false;                  // Game active state
                 this.levelActionStarted = false;      // Enemy spawning/game loop has started for the current level
                 this.showHudDuringSectorIntro = false; // Keep the top score/Zap HUD visible during sector introductions
@@ -12586,8 +12586,7 @@ Font License Notices
             getCurrentSpeedMultiplier() {
                 const levelBoost = (this.level - 1) * this.parameters.levelSpeedBoost;
                 const cycleBoost = Math.max(0, this.cycle - 1) * this.parameters.cycleSpeedBoost;
-                const zapBoost = this.cosmicZapPressure * this.parameters.levelSpeedBoost;
-                return (1 + levelBoost + cycleBoost + zapBoost) * this.getDifficultyConfig().speedMultiplier;
+                return (1 + levelBoost + cycleBoost) * this.getDifficultyConfig().speedMultiplier;
             }
 
             getEffectiveEnemySpeedsSnapshot() {
@@ -14034,7 +14033,7 @@ Best Score: ${bestScore}${recoveredLine}` :
                 return plan;
             }
 
-            // Adjust spawn delay by level; enemy count stays capped at a constant value. Cosmic Zap pressure only affects speed.
+            // Adjust spawn delay by level; enemy count stays capped at a constant value. Cosmic Zap use does not affect speed.
             applyLevelParameters() {
                 const difficultyConfig = this.getDifficultyConfig();
                 this.spawnDelay = Math.max(this.parameters.minimumSpawnDelay, this.parameters.baseSpawnDelay - (this.level - 1) * this.parameters.spawnDelayLevelReduction + difficultyConfig.spawnDelayOffset);
@@ -14123,7 +14122,7 @@ Best Score: ${bestScore}${recoveredLine}` :
                 return Math.max(1, baseZaps - GAME_CONFIG.campaign.laterCycleZapReduction);
             }
 
-            // Enemy speed uses named tuning constants for sector, cycle, and Cosmic Zap pressure.
+            // Enemy speed uses named tuning constants for sector and cycle only.
             // Each completed campaign cycle raises the whole sector ladder without changing its order.
             getEnemySpeed(type) {
                 return this.BASE_SPEEDS[type] * this.getCurrentSpeedMultiplier();
@@ -16989,7 +16988,7 @@ Best Score: ${bestScore}${recoveredLine}` :
 
             // Every level uses the same red -> green -> blue collection rule.
             // Sector Maps are ordered easiest-to-hardest by movement difficulty.
-            // Difficulty can later be adjusted with enemy count, enemy speed, spawn timing, and Cosmic Zap pressure.
+            // Difficulty can later be adjusted with enemy count, enemy speed, and spawn timing.
             getLevelPatternRows(levelNumber = this.level) {
                 return GAME_DATA.sectorPatterns[Math.max(0, Math.min(GAME_DATA.sectorPatterns.length - 1, levelNumber - 1))];
             }
@@ -18443,8 +18442,8 @@ Best Score: ${bestScore}${recoveredLine}` :
                     this.active && !this.isPaused && !this.isGameOver && !this.finalGridlockActive;
             }
 
-            // All Zap inputs converge here so simultaneous touch and motion signals can consume only one charge.
-            // Input source never changes eligibility: tutorial, touch/mouse double-tap, and shake use the same gate.
+            // All Zap inputs converge here so simultaneous signals can consume only one charge.
+            // Double tap is the official control; any dormant motion input uses the same eligibility gate.
             requestCosmicZap(source = 'unknown') {
                 if (!this.canTriggerCosmicZap()) return false;
                 const before = this.cosmicZapsLeft;
@@ -18649,7 +18648,7 @@ Best Score: ${bestScore}${recoveredLine}` :
 
                     this.cosmicZapsLeft--;
                     this.syncMotionListenerState();
-                    this.cosmicZapPressure++;
+                    this.cosmicZapPressure++; // Usage count only; no enemy-speed increase.
                     this.ui.updateCosmicZapIndicators();
                     this.audio.playCosmicZapSound();
                     this.triggerCrtEvent('zap');
@@ -19300,7 +19299,7 @@ Best Score: ${bestScore}${recoveredLine}` :
 
                 const levelBoost = Math.max(0, this.level - 1) * this.parameters.levelSpeedBoost;
                 const cycleBoost = Math.max(0, this.cycle - 1) * this.parameters.cycleSpeedBoost;
-                const zapBoost = this.cosmicZapPressure * this.parameters.levelSpeedBoost;
+                const zapBoost = 0;
                 const difficultyMultiplier = this.getDifficultyConfig().speedMultiplier;
                 const overallMultiplier = this.getCurrentSpeedMultiplier();
                 const specialMovementMultiplier = this.getEnemyBehaviorSpeedMultiplier(enemy);
