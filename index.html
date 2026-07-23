@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Trackpad Prototype p133: tones down selectable-crystal value differences while preserving a readable near, medium, and far hierarchy.
+Trackpad Prototype p134: adds centralized iPhone Safari audio readiness, health verification, and gesture-driven context recovery.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="trackpad-p133">
+<html data-build-version="trackpad-p134">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -11821,7 +11821,11 @@ Font License Notices
                     backgroundMusicPlaying: !!audio.backgroundMusicPlaying,
                     backgroundMusicSources: Array.isArray(audio.backgroundOscillators) ? audio.backgroundOscillators.length : 0,
                     audioContextState: audio.ctx ? audio.ctx.state : 'off',
+                    audioRuntimeState: audio.audioRuntimeState || 'unknown',
                     audioContextGeneration: Number(audio.audioContextGeneration) || 0,
+                    audioRecoveryCount: Number(audio.audioRecoveryCount) || 0,
+                    audioNeedsRebuild: !!audio.audioNeedsRebuild,
+                    audioLastHealthReason: audio.audioLastHealthReason || 'unknown',
                     audioNodesCreatedThisContext: Number(audio.audioNodesCreatedThisContext) || 0,
                     audioNodesCreatedTotal: Number(audio.audioNodesCreatedTotal) || 0,
                     audioSourcesActive: Number(audio.audioSourcesActive) || 0,
@@ -12063,8 +12067,8 @@ Font License Notices
                     `Last state: ${String(report.phase || 'unknown').toUpperCase()} · Sector ${report.sector || '?'} · Cycle ${report.cycle || '?'}`,
                     `Last event: ${report.lastEvent || 'heartbeat'}${eventDetails ? ` · ${eventDetails}` : ''}`,
                     `Objects: ${report.enemies || 0} enemies · ${report.warnings || 0} warnings · ${report.transientEffects || 0} effects · ${report.documentNodes || 0} DOM nodes`,
-                    `Audio: ${report.soundMuted ? 'OFF' : 'ON'} · context ${report.audioContextState || 'unknown'} #${report.audioContextGeneration || 0} · nodes ${report.audioNodesCreatedThisContext || 0}/${report.audioNodesCreatedTotal || 0} · tracked ${report.audioTrackedNodes || 0} · active sources ${report.audioSourcesActive || 0}`,
-                    `Audio cleanup: ${report.audioLastCleanupReason || 'unknown'} · transitions ${report.audioTransitionCleanupCount || 0} · timers ${report.audioManagedTimers || 0} · limit trips ${report.audioSourceLimitTrips || 0}`,
+                    `Audio: ${report.soundMuted ? 'OFF' : 'ON'} · ${report.audioRuntimeState || 'unknown'} · context ${report.audioContextState || 'unknown'} #${report.audioContextGeneration || 0} · recoveries ${report.audioRecoveryCount || 0} · nodes ${report.audioNodesCreatedThisContext || 0}/${report.audioNodesCreatedTotal || 0} · active sources ${report.audioSourcesActive || 0}`,
+                    `Audio health: ${report.audioLastHealthReason || 'unknown'}${report.audioNeedsRebuild ? ' · rebuild pending' : ''} · cleanup ${report.audioLastCleanupReason || 'unknown'} · timers ${report.audioManagedTimers || 0} · limit trips ${report.audioSourceLimitTrips || 0}`,
                     `Gameplay music: isolated path · sources ${report.backgroundMusicSources || 0}`,
                     `Viewport: ${report.viewport || '?'} · Board ${report.boardSize || '?'} · Saved ${Math.max(0, Math.round((Date.now() - (report.savedAt || Date.now())) / 1000))}s before reload`
                 ];
@@ -21322,7 +21326,26 @@ Best Score: ${bestScore}${recoveredLine}` :
                 this.enemyAudioEventTimes = new Map();
                 this.enemyAudioPriorityUntil = 0;
                 this.enemyAudioPriorityLevel = 0;
-                if (!this.muted) this.createAudioContext();
+
+                // Audio contexts are created only from a direct player gesture. This avoids
+                // Safari keeping a pre-created context alive but inaudible after the page loads.
+                this.audioRuntimeState = this.muted ? 'muted' : 'awaiting-gesture';
+                this.audioGestureSeen = false;
+                this.audioReadyPromise = null;
+                this.audioNeedsRebuild = false;
+                this.audioHealthCheckRequired = true;
+                this.audioHealthCheckSequence = 0;
+                this.audioRecoveryCount = 0;
+                this.audioLastHealthReason = 'boot';
+                this.audioLastHealthyAt = 0;
+                this.audioPendingRestoreIntent = null;
+                this.audioContextStateHandler = null;
+                this.audioLifecycleHandlersInstalled = false;
+                this.audioGestureHandler = null;
+                this.audioKeyGestureHandler = null;
+                this.audioVisibilityHandler = null;
+                this.audioPageShowHandler = null;
+                this.installAudioLifecycleHandlers();
             }
 
             pruneOneShotAudioForSourceLimit() {
@@ -21477,20 +21500,259 @@ Best Score: ${bestScore}${recoveredLine}` :
                 this.audioCleanupTimers.add(scope.cleanupTimer);
             }
 
+            installAudioLifecycleHandlers() {
+                if (this.audioLifecycleHandlersInstalled) return;
+                this.audioLifecycleHandlersInstalled = true;
+
+                // Capture the gesture before game click handlers request their first sound.
+                this.audioGestureHandler = () => {
+                    if (!this.muted) this.resume('pointer-gesture');
+                };
+                this.audioKeyGestureHandler = event => {
+                    if (this.muted || !event) return;
+                    if (event.key === 'Enter' || event.key === ' ' || event.key === 'ArrowUp' || event.key === 'ArrowDown' || event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+                        this.resume('keyboard-gesture');
+                    }
+                };
+                this.audioVisibilityHandler = () => {
+                    this.audioHealthCheckRequired = true;
+                    if (document.hidden) {
+                        if (!this.muted && this.ctx) this.audioRuntimeState = 'suspended';
+                        return;
+                    }
+                    if (!this.muted && this.ctx && this.ctx.state !== 'running') {
+                        this.audioRuntimeState = 'suspended';
+                    }
+                };
+                this.audioPageShowHandler = event => {
+                    this.audioHealthCheckRequired = true;
+                    if (event && event.persisted && this.ctx && this.ctx.state === 'closed') {
+                        this.audioNeedsRebuild = true;
+                        this.audioRuntimeState = 'recovering';
+                    }
+                };
+
+                document.addEventListener('pointerdown', this.audioGestureHandler, { capture: true, passive: true });
+                if (!window.PointerEvent) {
+                    document.addEventListener('touchend', this.audioGestureHandler, { capture: true, passive: true });
+                }
+                document.addEventListener('keydown', this.audioKeyGestureHandler, { capture: true, passive: true });
+                document.addEventListener('visibilitychange', this.audioVisibilityHandler, { passive: true });
+                window.addEventListener('pageshow', this.audioPageShowHandler, { passive: true });
+            }
+
+            captureAudioPlaybackIntent() {
+                return {
+                    backgroundMusicPlaying: !!this.backgroundMusicPlaying,
+                    currentGameplayMusicLevel: Math.max(1, parseInt(this.currentGameplayMusicLevel, 10) || 1),
+                    maxSwarmBeatPlaying: !!this.maxSwarmBeatPlaying,
+                    maxSwarmBeatIntensity: Math.max(0, parseInt(this.maxSwarmBeatIntensity, 10) || 0),
+                    cycleCompleteMusicPlaying: !!this.cycleCompleteMusicPlaying,
+                    prismRelicHumPlaying: !!this.prismRelicHumPlaying,
+                    pauseMenuReactorPlaying: !!this.pauseMenuReactorPlaying,
+                    attractComputerAmbiencePlaying: !!this.attractComputerAmbiencePlaying
+                };
+            }
+
+            restoreAudioPlaybackIntent(intent) {
+                if (!intent || this.muted || !this.ctx || this.ctx.state === 'closed') return;
+
+                // Restore one authoritative music mode, then any independent sustained cue.
+                if (intent.cycleCompleteMusicPlaying && !this.musicMuted) {
+                    this.startCycleCompleteMusic();
+                } else if (intent.maxSwarmBeatPlaying) {
+                    this.setMaxSwarmBeatIntensity(intent.maxSwarmBeatIntensity);
+                    this.startMaxSwarmBeat(0.035);
+                } else if (intent.backgroundMusicPlaying) {
+                    this.startBackgroundMusic(intent.currentGameplayMusicLevel);
+                }
+
+                if (intent.prismRelicHumPlaying) this.startPrismRelicHum();
+                if (intent.pauseMenuReactorPlaying) this.startPauseMenuReactorHum();
+                if (intent.attractComputerAmbiencePlaying) this.startAttractComputerAmbience();
+            }
+
+            primeAudioOutput(context = this.ctx) {
+                if (!context || context.state === 'closed') return;
+                try {
+                    const oscillator = context.createOscillator();
+                    const gain = context.createGain();
+                    const now = context.currentTime;
+                    oscillator.type = 'sine';
+                    oscillator.frequency.setValueAtTime(440, now);
+                    gain.gain.setValueAtTime(0.000001, now);
+                    oscillator.connect(gain);
+                    gain.connect(this.masterGain || context.destination);
+                    oscillator.addEventListener('ended', () => {
+                        try { oscillator.disconnect(); } catch (_) {}
+                        try { gain.disconnect(); } catch (_) {}
+                    }, { once: true });
+                    oscillator.start(now);
+                    oscillator.stop(now + 0.025);
+                } catch (_) {
+                    // The real readiness check below remains authoritative.
+                }
+            }
+
+            verifyAudioClock(context, generation, sequence) {
+                if (!context || context !== this.ctx || generation !== this.audioContextGeneration || context.state !== 'running') {
+                    return Promise.resolve(false);
+                }
+
+                const startTime = context.currentTime;
+                return new Promise(resolve => {
+                    window.setTimeout(() => {
+                        const healthy = !!(
+                            context === this.ctx &&
+                            generation === this.audioContextGeneration &&
+                            sequence === this.audioHealthCheckSequence &&
+                            context.state === 'running' &&
+                            context.currentTime > startTime + 0.002
+                        );
+                        resolve(healthy);
+                    }, 90);
+                });
+            }
+
+            rebuildAudioContextFromGesture(reason = 'recovery') {
+                if (this.muted || !this.audioGestureSeen) return false;
+                const playbackIntent = this.captureAudioPlaybackIntent();
+                this.audioRecoveryCount++;
+                this.disposeAudioContext(`audio-recovery:${reason}`);
+                this.audioPendingRestoreIntent = playbackIntent;
+                this.audioNeedsRebuild = false;
+                this.audioHealthCheckRequired = true;
+                this.audioRuntimeState = 'recovering';
+                return this.createAudioContext();
+            }
+
+            requestAudioReady(reason = 'ensure', fromGesture = false) {
+                if (this.muted || !GAME_FEATURE_FLAGS.audio) return Promise.resolve(false);
+                if (fromGesture) this.audioGestureSeen = true;
+
+                if (this.audioNeedsRebuild) {
+                    if (!fromGesture || !this.rebuildAudioContextFromGesture(reason)) {
+                        this.audioRuntimeState = 'recovering';
+                        return Promise.resolve(false);
+                    }
+                }
+
+                if (!this.ctx || this.ctx.state === 'closed') {
+                    if (!this.audioGestureSeen || !this.createAudioContext()) {
+                        this.audioRuntimeState = this.audioGestureSeen ? 'failed' : 'awaiting-gesture';
+                        return Promise.resolve(false);
+                    }
+                }
+
+                if (
+                    this.audioRuntimeState === 'ready' &&
+                    this.ctx.state === 'running' &&
+                    !this.audioHealthCheckRequired
+                ) {
+                    return Promise.resolve(true);
+                }
+
+                if (this.audioReadyPromise) return this.audioReadyPromise;
+
+                const context = this.ctx;
+                const generation = this.audioContextGeneration;
+                const sequence = ++this.audioHealthCheckSequence;
+                this.audioRuntimeState = context.state === 'running' ? 'checking' : 'unlocking';
+                this.audioLastHealthReason = String(reason || 'ensure');
+
+                // Both calls happen synchronously inside the gesture handler when possible.
+                this.primeAudioOutput(context);
+                let resumeResult = null;
+                try {
+                    resumeResult = context.resume();
+                } catch (_) {
+                    this.audioNeedsRebuild = true;
+                    this.audioRuntimeState = 'recovering';
+                    return Promise.resolve(false);
+                }
+
+                const readiness = Promise.resolve(resumeResult)
+                    .then(() => this.verifyAudioClock(context, generation, sequence))
+                    .then(healthy => {
+                        if (context !== this.ctx || generation !== this.audioContextGeneration) return false;
+                        if (!healthy) {
+                            this.audioNeedsRebuild = true;
+                            this.audioHealthCheckRequired = true;
+                            this.audioRuntimeState = 'recovering';
+                            this.audioLastHealthReason = `${reason}:clock-stalled`;
+                            return false;
+                        }
+
+                        this.audioNeedsRebuild = false;
+                        this.audioHealthCheckRequired = false;
+                        this.audioRuntimeState = 'ready';
+                        this.audioLastHealthyAt = Date.now();
+                        this.audioLastHealthReason = String(reason || 'ready');
+
+                        const restoreIntent = this.audioPendingRestoreIntent;
+                        this.audioPendingRestoreIntent = null;
+                        if (restoreIntent) this.restoreAudioPlaybackIntent(restoreIntent);
+                        return true;
+                    })
+                    .catch(() => {
+                        if (context === this.ctx && generation === this.audioContextGeneration) {
+                            this.audioNeedsRebuild = true;
+                            this.audioHealthCheckRequired = true;
+                            this.audioRuntimeState = 'recovering';
+                            this.audioLastHealthReason = `${reason}:resume-failed`;
+                        }
+                        return false;
+                    })
+                    .finally(() => {
+                        if (this.audioReadyPromise === readiness) this.audioReadyPromise = null;
+                    });
+
+                this.audioReadyPromise = readiness;
+                return readiness;
+            }
+
             createAudioContext() {
-                if (!GAME_FEATURE_FLAGS.audio || this.muted) return false;
+                if (!GAME_FEATURE_FLAGS.audio || this.muted || !this.audioGestureSeen) return false;
                 if (this.ctx && this.ctx.state !== 'closed') return true;
 
                 const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-                if (!AudioContextClass) return false;
+                if (!AudioContextClass) {
+                    this.audioRuntimeState = 'failed';
+                    return false;
+                }
 
-                this.ctx = new AudioContextClass();
+                try {
+                    this.ctx = new AudioContextClass();
+                } catch (_) {
+                    this.ctx = null;
+                    this.audioRuntimeState = 'failed';
+                    return false;
+                }
+
                 this.audioContextGeneration++;
                 this.audioNodesCreatedThisContext = 0;
                 this.audioLiveSources.clear();
                 this.audioTrackedNodes.clear();
                 this.audioSourcesActive = 0;
                 this.audioPersistentNodes = new Set();
+                this.audioRuntimeState = 'unlocking';
+                this.audioHealthCheckRequired = true;
+
+                const context = this.ctx;
+                this.audioContextStateHandler = () => {
+                    if (this.ctx !== context) return;
+                    if (context.state === 'closed') {
+                        this.audioNeedsRebuild = true;
+                        this.audioHealthCheckRequired = true;
+                        this.audioRuntimeState = 'recovering';
+                    } else if (context.state === 'running') {
+                        if (this.audioRuntimeState !== 'ready') this.audioRuntimeState = 'checking';
+                    } else {
+                        this.audioHealthCheckRequired = true;
+                        this.audioRuntimeState = 'suspended';
+                    }
+                };
+                try { context.addEventListener('statechange', this.audioContextStateHandler); } catch (_) {}
 
                 // Route every sound through one controlled output chain to prevent random volume spikes.
                 this.masterGain = this.createAudioNode('createGain');
@@ -21585,38 +21847,56 @@ Best Score: ${bestScore}${recoveredLine}` :
                 this.audioTrackedNodes.clear();
 
                 const oldContext = this.ctx;
+                const oldStateHandler = this.audioContextStateHandler;
                 this.ctx = null;
                 this.masterGain = null;
                 this.musicGain = null;
                 this.limiter = null;
+                this.audioContextStateHandler = null;
+                this.audioReadyPromise = null;
                 this.consistentPatrolLoopBuffer = null;
                 this.overtimeClickKickLoopBuffer = null;
+                if (oldContext && oldStateHandler) {
+                    try { oldContext.removeEventListener('statechange', oldStateHandler); } catch (_) {}
+                }
                 if (oldContext && oldContext.state !== 'closed') {
                     try {
                         const closePromise = oldContext.close();
                         if (closePromise && closePromise.catch) closePromise.catch(() => {});
                     } catch (_) {}
                 }
+                this.audioRuntimeState = this.muted ? 'muted' : 'awaiting-gesture';
+                this.audioHealthCheckRequired = true;
             }
 
             resetForSectorTransition() {
                 if (this.muted) return;
                 this.cleanupTransientAudio('sector-transition');
-                // Keep one AudioContext for the entire webpage session. Recreate only if iOS closed it.
-                if (!this.ctx || this.ctx.state === 'closed') this.createAudioContext();
+                // Preserve the verified session context; closed or unhealthy contexts recover on the next gesture.
+                if (this.audioGestureSeen && (!this.ctx || this.ctx.state === 'closed')) this.createAudioContext();
             }
 
-            // Safari can suspend or interrupt audio after page/game restarts.
-            // Reopen the graph if needed, then request resume whenever a sound is about to play.
+            // Synchronous callers receive a usable graph immediately after the gesture starts.
+            // Readiness and clock health are verified centrally without spreading Safari fixes
+            // through gameplay, tutorial, and menu handlers.
             ensureAudio() {
-                if (this.muted) return false;
-                if (!this.ctx || this.ctx.state === 'closed') {
-                    this.createAudioContext();
+                if (this.muted || !GAME_FEATURE_FLAGS.audio) return false;
+                if (!this.audioGestureSeen) {
+                    this.audioRuntimeState = 'awaiting-gesture';
+                    return false;
                 }
 
-                if (this.ctx && (this.ctx.state === 'suspended' || this.ctx.state === 'interrupted')) {
-                    const resumePromise = this.ctx.resume();
-                    if (resumePromise && resumePromise.catch) resumePromise.catch(() => {});
+                if (!this.ctx || this.ctx.state === 'closed') {
+                    if (!this.createAudioContext()) return false;
+                }
+
+                if (
+                    this.audioNeedsRebuild ||
+                    this.audioHealthCheckRequired ||
+                    this.audioRuntimeState !== 'ready' ||
+                    this.ctx.state !== 'running'
+                ) {
+                    this.requestAudioReady('sound-request', false);
                 }
                 return !!this.ctx;
             }
@@ -21654,12 +21934,13 @@ Best Score: ${bestScore}${recoveredLine}` :
                 if (nextMuted === this.muted) return;
 
                 if (nextMuted) {
-                        this.disposeAudioContext();
                     this.muted = true;
+                    this.disposeAudioContext('muted');
+                    this.audioRuntimeState = 'muted';
                 } else {
                     this.muted = false;
-                    this.createAudioContext();
-                    this.ensureAudio();
+                    this.audioRuntimeState = 'awaiting-gesture';
+                    this.resume('unmute');
                 }
 
                 try {
@@ -23541,10 +23822,12 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 this.backgroundMixGain = null;
             }
 
-            // Resume audio context after user gestures and after Safari/iOS interruptions.
-            resume() {
-                if (this.muted) return false;
-                return this.ensureAudio();
+            // Direct gestures are the only entry point that may create or hard-rebuild
+            // the AudioContext. All other sound calls use the verified shared graph.
+            resume(reason = 'user-gesture') {
+                if (this.muted) return Promise.resolve(false);
+                this.audioGestureSeen = true;
+                return this.requestAudioReady(reason, true);
             }
         }
 
@@ -23578,7 +23861,7 @@ startMaxSwarmBeat(delaySeconds = 0) {
             const original = AudioManager.prototype[methodName];
             if (typeof original !== 'function') return;
             AudioManager.prototype[methodName] = function(...args) {
-                if (this.muted) return undefined;
+                if (this.muted || !this.ensureAudio()) return undefined;
                 const scope = this.beginAudioScope(methodName);
                 try {
                     return original.apply(this, args);
@@ -23603,7 +23886,7 @@ startMaxSwarmBeat(delaySeconds = 0) {
             const original = AudioManager.prototype[methodName];
             if (typeof original !== 'function') return;
             AudioManager.prototype[methodName] = function(...args) {
-                if (this.muted) return undefined;
+                if (this.muted || !this.ensureAudio()) return undefined;
                 return original.apply(this, args);
             };
         });
