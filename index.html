@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Trackpad Prototype p111: lowers the playfield and lower HUD readouts, restores the original CRT contour at a uniform larger scale, and masks exposed grid endpoints at the playfield perimeter.
+Trackpad Prototype p112: restores the original CRT path and scales its complete layer uniformly, clips only the grid inside the perimeter, lowers Sector/Cycle, and keeps the playfield border visible in menu mode.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="trackpad-p111">
+<html data-build-version="trackpad-p112">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -6909,7 +6909,7 @@ Font License Notices
         .skin-status-box {
             position: absolute;
             left: var(--slot-center-x);
-            top: 70.450000%;
+            top: 71.500000%;
             width: 14.067995%;
             aspect-ratio: 1;
             height: auto;
@@ -8201,15 +8201,74 @@ Font License Notices
         }
 
 
-        /* p111: preserve the original CRT geometry, scaled uniformly to the playfield width. */
-        html body #gameContainer.crt-enabled::before {
-            content: "";
+        /* p112: the grid is its own inset layer, so its endpoints cannot peek through the perimeter. */
+        html body #gameContainer {
+            background-image: none !important;
+        }
+
+        html body #gameContainer > .playfield-grid-layer {
             position: absolute;
-            inset: 0;
-            box-sizing: border-box;
+            inset: 2px;
+            z-index: 0;
             pointer-events: none;
-            z-index: 23;
-            box-shadow: inset 0 0 0 max(1px, calc(var(--skin-scale, 1) * 2px)) #000;
+            overflow: hidden;
+            background-color: #000;
+            background-image:
+                linear-gradient(rgba(255, 255, 255, 0.5) 0.67px, transparent 0.67px),
+                linear-gradient(90deg, rgba(255, 255, 255, 0.5) 0.67px, transparent 0.67px);
+            background-size: var(--grid-size, 60px) var(--grid-size, 60px);
+            background-position: -2px -2px;
+        }
+
+        html body #gameContainer.crt-enabled.crt-fx-grid-rgb.crt-grid-rgb-low:not(.crt-ui-suspended) > .playfield-grid-layer {
+            background-color: #000609;
+            background-image:
+                linear-gradient(rgba(255,0,0,0.08) 0.8px, transparent 0.8px), linear-gradient(90deg, rgba(255,0,0,0.08) 0.8px, transparent 0.8px),
+                linear-gradient(rgba(0,120,255,0.09) 0.8px, transparent 0.8px), linear-gradient(90deg, rgba(0,120,255,0.09) 0.8px, transparent 0.8px),
+                linear-gradient(rgba(255,255,255,0.52) 0.7px, transparent 0.7px), linear-gradient(90deg, rgba(255,255,255,0.52) 0.7px, transparent 0.7px);
+            background-size: var(--grid-size,60px) var(--grid-size,60px);
+            background-position: -2px -3px, -3px -2px, -2px -1px, -1px -2px, -2px -2px, -2px -2px;
+        }
+
+        html body #gameContainer.crt-enabled.crt-fx-grid-rgb.crt-grid-rgb-medium:not(.crt-ui-suspended) > .playfield-grid-layer {
+            background-color: #000609;
+            background-image:
+                linear-gradient(rgba(255,0,0,0.08) 0.8px, transparent 0.8px), linear-gradient(90deg, rgba(255,0,0,0.08) 0.8px, transparent 0.8px),
+                linear-gradient(rgba(0,120,255,0.09) 0.8px, transparent 0.8px), linear-gradient(90deg, rgba(0,120,255,0.09) 0.8px, transparent 0.8px),
+                linear-gradient(rgba(255,255,255,0.52) 0.7px, transparent 0.7px), linear-gradient(90deg, rgba(255,255,255,0.52) 0.7px, transparent 0.7px);
+            background-size: var(--grid-size,60px) var(--grid-size,60px);
+            background-position: -2px -3px, -3px -2px, -2px -1px, -1px -2px, -2px -2px, -2px -2px;
+        }
+
+        html body #gameContainer.crt-enabled.crt-fx-grid-rgb.crt-grid-rgb-high:not(.crt-ui-suspended) > .playfield-grid-layer {
+            background-color: #000b10;
+            background-image:
+                linear-gradient(rgba(255,0,0,0.18) 1px, transparent 1px), linear-gradient(90deg, rgba(255,0,0,0.18) 1px, transparent 1px),
+                linear-gradient(rgba(0,120,255,0.20) 1px, transparent 1px), linear-gradient(90deg, rgba(0,120,255,0.20) 1px, transparent 1px),
+                linear-gradient(rgba(255,255,255,0.58) 0.8px, transparent 0.8px), linear-gradient(90deg, rgba(255,255,255,0.58) 0.8px, transparent 0.8px);
+            background-size: var(--grid-size,60px) var(--grid-size,60px);
+            background-position: -2px -4px, -4px -2px, -2px 0, 0 -2px, -2px -2px, -2px -2px;
+        }
+
+        /* The exact original path is untouched; the complete CRT artwork scales as one centered layer. */
+        html body #gameContainer.crt-enabled:not(.crt-ui-suspended) .playfield-crt-curvature,
+        html body #gameContainer.crt-enabled:not(.crt-ui-suspended) .playfield-crt-outline,
+        html body #gameContainer.crt-enabled:not(.crt-ui-suspended) .playfield-crt-tube-glow,
+        html body #gameContainer.crt-enabled:not(.crt-ui-suspended) .playfield-crt-outer-glow {
+            transform: scale(1.013513514);
+            transform-origin: 50% 50%;
+        }
+
+        /* Menu presentation always retains the standard square playfield border. */
+        html body #skinShell:has(#pauseGridMenu.visible) #playfieldShell::before {
+            opacity: 1 !important;
+            box-shadow: 0 0 6px rgba(255,255,255,0.62) !important;
+            animation: none !important;
+        }
+
+        html body #skinShell:has(#pauseGridMenu.visible) #playfieldShell > #gameContainer {
+            border-color: rgba(255,255,255,0.92) !important;
+            box-shadow: 0 0 calc(var(--skin-scale, 1) * 8px) rgba(255,255,255,0.42) !important;
         }
 
     </style>
@@ -8249,6 +8308,7 @@ Font License Notices
     <!-- Main game container -->
     <div id="playfieldShell">
         <div id="gameContainer">
+        <div class="playfield-grid-layer" aria-hidden="true"></div>
         <div class="playfield-crt-layer playfield-crt-tint" aria-hidden="true"></div>
         <div class="playfield-crt-layer playfield-crt-scanlines" aria-hidden="true"></div>
         <div class="playfield-crt-layer playfield-crt-vignette" aria-hidden="true"></div>
@@ -8256,11 +8316,11 @@ Font License Notices
             <defs>
                 <mask id="crtTubeOpeningMask" maskUnits="userSpaceOnUse" x="0" y="0" width="600" height="600">
                     <rect x="0" y="0" width="600" height="600" fill="#fff"></rect>
-                    <path d="M 54 28 C 180 12 420 12 546 28 C 574 32 586 52 588 82 C 596 210 596 390 588 518 C 586 548 574 568 546 572 C 420 588 180 588 54 572 C 26 568 14 548 12 518 C 4 390 4 210 12 82 C 14 52 26 32 54 28 Z" transform="translate(300 300) scale(1.013513514) translate(-300 -300)" fill="#000"></path>
+                    <path d="M 54 28 C 180 12 420 12 546 28 C 574 32 586 52 588 82 C 596 210 596 390 588 518 C 586 548 574 568 546 572 C 420 588 180 588 54 572 C 26 568 14 548 12 518 C 4 390 4 210 12 82 C 14 52 26 32 54 28 Z" fill="#000"></path>
                 </mask>
             </defs>
             <rect class="crt-bezel-fill" x="0" y="0" width="600" height="600" mask="url(#crtTubeOpeningMask)"></rect>
-            <path class="crt-bezel-line" d="M 54 28 C 180 12 420 12 546 28 C 574 32 586 52 588 82 C 596 210 596 390 588 518 C 586 548 574 568 546 572 C 420 588 180 588 54 572 C 26 568 14 548 12 518 C 4 390 4 210 12 82 C 14 52 26 32 54 28 Z" transform="translate(300 300) scale(1.013513514) translate(-300 -300)"></path>
+            <path class="crt-bezel-line" d="M 54 28 C 180 12 420 12 546 28 C 574 32 586 52 588 82 C 596 210 596 390 588 518 C 586 548 574 568 546 572 C 420 588 180 588 54 572 C 26 568 14 548 12 518 C 4 390 4 210 12 82 C 14 52 26 32 54 28 Z"></path>
         </svg>
         <svg id="crtOuterGlow" class="playfield-crt-layer playfield-crt-outer-glow" viewBox="0 0 600 600" preserveAspectRatio="none" aria-hidden="true" focusable="false">
             <defs>
@@ -8269,20 +8329,20 @@ Font License Notices
                 <filter id="crtOuterGlowNearBlur" x="-8%" y="-8%" width="116%" height="116%"><feGaussianBlur stdDeviation="1.6"></feGaussianBlur></filter>
                 <mask id="crtOuterGlowOutsideMask" maskUnits="userSpaceOnUse" x="0" y="0" width="600" height="600">
                     <rect x="0" y="0" width="600" height="600" fill="#fff"></rect>
-                    <path d="M 54 28 C 180 12 420 12 546 28 C 574 32 586 52 588 82 C 596 210 596 390 588 518 C 586 548 574 568 546 572 C 420 588 180 588 54 572 C 26 568 14 548 12 518 C 4 390 4 210 12 82 C 14 52 26 32 54 28 Z" transform="translate(300 300) scale(1.013513514) translate(-300 -300)" fill="#000"></path>
+                    <path d="M 54 28 C 180 12 420 12 546 28 C 574 32 586 52 588 82 C 596 210 596 390 588 518 C 586 548 574 568 546 572 C 420 588 180 588 54 572 C 26 568 14 548 12 518 C 4 390 4 210 12 82 C 14 52 26 32 54 28 Z" fill="#000"></path>
                 </mask>
             </defs>
             <g mask="url(#crtOuterGlowOutsideMask)">
-                <path class="crt-outer-glow-path glow-single" d="M 54 28 C 180 12 420 12 546 28 C 574 32 586 52 588 82 C 596 210 596 390 588 518 C 586 548 574 568 546 572 C 420 588 180 588 54 572 C 26 568 14 548 12 518 C 4 390 4 210 12 82 C 14 52 26 32 54 28 Z" transform="translate(300 300) scale(1.013513514) translate(-300 -300)"></path>
+                <path class="crt-outer-glow-path glow-single" d="M 54 28 C 180 12 420 12 546 28 C 574 32 586 52 588 82 C 596 210 596 390 588 518 C 586 548 574 568 546 572 C 420 588 180 588 54 572 C 26 568 14 548 12 518 C 4 390 4 210 12 82 C 14 52 26 32 54 28 Z"></path>
             </g>
-            <path class="crt-outer-glow-outline" d="M 54 28 C 180 12 420 12 546 28 C 574 32 586 52 588 82 C 596 210 596 390 588 518 C 586 548 574 568 546 572 C 420 588 180 588 54 572 C 26 568 14 548 12 518 C 4 390 4 210 12 82 C 14 52 26 32 54 28 Z" transform="translate(300 300) scale(1.013513514) translate(-300 -300)"></path>
+            <path class="crt-outer-glow-outline" d="M 54 28 C 180 12 420 12 546 28 C 574 32 586 52 588 82 C 596 210 596 390 588 518 C 586 548 574 568 546 572 C 420 588 180 588 54 572 C 26 568 14 548 12 518 C 4 390 4 210 12 82 C 14 52 26 32 54 28 Z"></path>
         </svg>
 
         <svg class="playfield-crt-layer playfield-crt-outline" viewBox="0 0 600 600" preserveAspectRatio="none" aria-hidden="true" focusable="false">
-            <path class="crt-outline-line" d="M 54 28 C 180 12 420 12 546 28 C 574 32 586 52 588 82 C 596 210 596 390 588 518 C 586 548 574 568 546 572 C 420 588 180 588 54 572 C 26 568 14 548 12 518 C 4 390 4 210 12 82 C 14 52 26 32 54 28 Z" transform="translate(300 300) scale(1.013513514) translate(-300 -300)"></path>
+            <path class="crt-outline-line" d="M 54 28 C 180 12 420 12 546 28 C 574 32 586 52 588 82 C 596 210 596 390 588 518 C 586 548 574 568 546 572 C 420 588 180 588 54 572 C 26 568 14 548 12 518 C 4 390 4 210 12 82 C 14 52 26 32 54 28 Z"></path>
         </svg>
         <svg class="playfield-crt-layer playfield-crt-tube-glow" viewBox="0 0 600 600" preserveAspectRatio="none" aria-hidden="true" focusable="false">
-            <path class="crt-tube-glow-path" d="M 54 28 C 180 12 420 12 546 28 C 574 32 586 52 588 82 C 596 210 596 390 588 518 C 586 548 574 568 546 572 C 420 588 180 588 54 572 C 26 568 14 548 12 518 C 4 390 4 210 12 82 C 14 52 26 32 54 28 Z" transform="translate(300 300) scale(1.013513514) translate(-300 -300)"></path>
+            <path class="crt-tube-glow-path" d="M 54 28 C 180 12 420 12 546 28 C 574 32 586 52 588 82 C 596 210 596 390 588 518 C 586 548 574 568 546 572 C 420 588 180 588 54 572 C 26 568 14 548 12 518 C 4 390 4 210 12 82 C 14 52 26 32 54 28 Z"></path>
         </svg>
         <div class="playfield-crt-layer playfield-crt-reflection" aria-hidden="true"></div>
         <div class="playfield-crt-layer playfield-crt-sweep" aria-hidden="true"></div>
