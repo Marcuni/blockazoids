@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Trackpad Prototype p149: keeps Gridlock music muted when Music is off and adds a blinking radar-center Gridlock signal.
+Trackpad Prototype p146: awards Gridlock and Super Gridlock points immediately with live-score HUD feedback.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="trackpad-p149">
+<html data-build-version="trackpad-p146">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -8741,56 +8741,6 @@ Font License Notices
             animation: radarCenterGlow 2.4s ease-in-out infinite;
         }
 
-        /* p149: Gridlock keeps the crystal-color orb readable while a white core blinks at its center.
-           The faster silent variant replaces the missing kick-loop warning when Music is disabled. */
-        html body #radarColorIndicator .radar-gridlock-core {
-            position: absolute;
-            left: 50%;
-            top: var(--radar-center-y);
-            width: max(5px, calc(var(--skin-scale, 1) * 7px));
-            height: max(5px, calc(var(--skin-scale, 1) * 7px));
-            box-sizing: border-box;
-            border-radius: 50%;
-            background: #fff;
-            opacity: 0;
-            transform: translate(-50%, -50%) scale(0.72);
-            box-shadow:
-                0 0 calc(var(--skin-scale, 1) * 5px) #fff,
-                0 0 calc(var(--skin-scale, 1) * 12px) rgba(255, 255, 255, 0.78),
-                0 0 calc(var(--skin-scale, 1) * 22px) rgba(255, 255, 255, 0.34);
-            pointer-events: none;
-            z-index: 2;
-        }
-
-        html body #radarColorIndicator.gridlock-active .radar-gridlock-core {
-            animation: radarGridlockCoreBlink 0.82s steps(1, end) infinite;
-        }
-
-        html body #radarColorIndicator.gridlock-silent .radar-gridlock-core {
-            animation-duration: 0.58s;
-        }
-
-        html body #radarColorIndicator.gridlock-active .radar-center-orb {
-            filter: brightness(1.18) saturate(1.08);
-            box-shadow:
-                0 0 calc(var(--skin-scale, 1) * 7px) rgba(var(--radar-rgb), 1),
-                0 0 calc(var(--skin-scale, 1) * 21px) rgba(var(--radar-rgb), 0.54),
-                0 0 calc(var(--skin-scale, 1) * 34px) rgba(var(--radar-rgb), 0.24);
-        }
-
-        @keyframes radarGridlockCoreBlink {
-            0%, 42% {
-                opacity: 1;
-                transform: translate(-50%, -50%) scale(1.12);
-                filter: brightness(1.35);
-            }
-            43%, 100% {
-                opacity: 0.10;
-                transform: translate(-50%, -50%) scale(0.68);
-                filter: brightness(0.78);
-            }
-        }
-
         /* Before the first tutorial pickup, the radar center is neutral instead of implying a target color. */
         html body #radarColorIndicator.tutorial-neutral .radar-center-orb {
             box-sizing: border-box;
@@ -9212,7 +9162,6 @@ Font License Notices
 
     <div id="radarColorIndicator" aria-hidden="true">
         <span class="radar-center-orb" aria-hidden="true"></span>
-        <span class="radar-gridlock-core" aria-hidden="true"></span>
         <span class="radar-cross-pulse" aria-hidden="true"></span>
     </div>
 
@@ -10490,8 +10439,47 @@ Font License Notices
             }
 
             beginAttractOrbHold(pointer) {
-                // p148: the attract presentation is timer-driven; holding the Orb no longer launches it.
-                return false;
+                const game = this.game;
+                if (!pointer || !this.isAttractOrbTarget(pointer.target) ||
+                    typeof game.isAttractEnemyCardAllowed !== 'function' || !game.isAttractEnemyCardAllowed() ||
+                    game.attractEnemyCardSequenceActive) return false;
+
+                this.cancelAttractOrbHold('restart');
+                this.attractOrbHoldPointerId = pointer.id;
+                pointer.attractOrbHoldActive = true;
+                pointer.attractOrbHoldCompleted = false;
+
+                game.scheduler.scheduleTimeout('attract-orb-hold', 'cue', () => {
+                    const activePointer = this.pointers.get(pointer.id);
+                    if (!activePointer || !activePointer.attractOrbHoldActive ||
+                        !game.isAttractEnemyCardAllowed() || game.attractEnemyCardSequenceActive) return;
+                    if (game.player && game.player.element) {
+                        game.player.element.classList.add('attract-orb-hold-cue');
+                    }
+                }, 400);
+
+                game.scheduler.scheduleTimeout('attract-orb-hold', 'complete', () => {
+                    const activePointer = this.pointers.get(pointer.id);
+                    if (!activePointer || !activePointer.attractOrbHoldActive ||
+                        activePointer.travel > GAME_CONFIG.input.gestureTapMaxMove ||
+                        !game.isAttractEnemyCardAllowed() || game.attractEnemyCardSequenceActive) {
+                        this.cancelAttractOrbHold('invalid-completion');
+                        return;
+                    }
+
+                    activePointer.attractOrbHoldCompleted = true;
+                    activePointer.attractOrbHoldActive = false;
+                    this.attractOrbHoldPointerId = null;
+                    game.scheduler.cancelScope('attract-orb-hold');
+                    if (game.player && game.player.element) {
+                        game.player.element.classList.remove('attract-orb-hold-cue');
+                    }
+                    this.lastGameplayTap = null;
+                    this.suppressClicksUntil = this.now() + 300;
+                    game.startAttractEnemyCardSequence();
+                }, 2000);
+
+                return true;
             }
 
             cancelAttractOrbHold(reason = 'cancel') {
@@ -10552,6 +10540,7 @@ Font License Notices
 
                 if (this.pointers.size === 1) {
                     this.primaryPointerId = event.pointerId;
+                    this.beginAttractOrbHold(pointer);
                     if (this.game.flow.allowsOrbDragInput()) {
                         document.body.classList.add('gameplay-gesture-active');
                     }
@@ -11653,8 +11642,6 @@ Font License Notices
 
                 // Attract mode variables
                 this.attractInterval = null;          // Scheduler token for attract-mode pattern updates
-                this.attractEnemyCardAutoInterval = null; // Scheduler token for automatic attract-card starts
-                this.attractScreenIntervalMs = 5000;  // Every attract screen advances on a five-second cadence
                 this.lifeGrid = [];                   // 10x10 grid for Game of Life
                 this.levelLoadToken = 0;             // Cancels older intro/level-start work during test jumps
                 this.transitionGroupRevision = 0;     // Phase 3D: one authoritative cancellable transition sequence at a time
@@ -11683,6 +11670,8 @@ Font License Notices
                 this.attractEnemyCardFrame = null;
                 this.attractEnemyCardSimulationToken = 0;
                 this.enemyIdentityCardHideCleanupTimer = null;
+                this.lastAttractEnemyCardShakeTime = 0;
+                this.attractEnemyCardShakeCooldownMs = 1200;
                 this.lastDeathCause = null;
                 this.marqueePreviewLabelTimer = null;
                 this.splashIntroActive = !!this.splashScreen;
@@ -14449,12 +14438,8 @@ Best Score: ${bestScore}${recoveredLine}` :
             }
 
             setGridlockState(patch = {}) {
-                const previousMaxSwarmActive = this.maxSwarmActive;
                 if (Object.prototype.hasOwnProperty.call(patch, 'maxSwarmActive')) this.maxSwarmActive = patch.maxSwarmActive;
                 if (Object.prototype.hasOwnProperty.call(patch, 'overtimeActive')) this.overtimeActive = patch.overtimeActive;
-                if (previousMaxSwarmActive !== this.maxSwarmActive && this.ui && this.ui.updateRadarColorIndicator) {
-                    this.ui.updateRadarColorIndicator();
-                }
             }
 
             setPrismRelicState(patch = {}) {
@@ -14859,7 +14844,6 @@ Best Score: ${bestScore}${recoveredLine}` :
                 if (!GAME_FEATURE_FLAGS.music || !this.audio) return;
                 this.audio.setMusicMuted(!this.audio.isMusicMuted());
                 this.updateMusicToggleLabel();
-                if (this.ui && this.ui.updateRadarColorIndicator) this.ui.updateRadarColorIndicator();
                 this.stopPauseMenuReactorHum();
             }
 
@@ -18661,7 +18645,7 @@ Best Score: ${bestScore}${recoveredLine}` :
 
             shouldListenForMotion() {
                 // Once motion permission is granted, keep the listener attached globally.
-                // handleShakeMotion() owns state routing for the marquee easter egg versus Cosmic Zap.
+                // handleShakeMotion() owns state routing for attract cards versus Cosmic Zap.
                 return !!(GAME_FEATURE_FLAGS.motionShake && this.motionPermissionGranted);
             }
 
@@ -18726,7 +18710,13 @@ Best Score: ${bestScore}${recoveredLine}` :
                 if (delta < this.shakeThreshold) return;
 
                 if (this.isAttractModeActive()) {
-                    // p148: attract cards advance automatically. Shake remains reserved for the marquee easter egg.
+                    // During normal attract mode, one deliberate shake starts the introduction sequence.
+                    // Motion samples are ignored until the cards have fully completed or been cancelled.
+                    if (this.attractEnemyCardSequenceActive) return;
+                    if (now - this.lastAttractEnemyCardShakeTime < this.attractEnemyCardShakeCooldownMs) return;
+                    this.lastAttractEnemyCardShakeTime = now;
+                    if (this.startAttractEnemyCardSequence()) return;
+
                     if (this.isMarqueeEasterEggUnlocked() && now - this.lastMarqueeEasterEggShakeTime >= this.marqueeEasterEggShakeCooldownMs) {
                         this.lastMarqueeEasterEggShakeTime = now;
                         this.triggerMarqueeEasterEgg();
@@ -19366,8 +19356,13 @@ Best Score: ${bestScore}${recoveredLine}` :
                 const unlocked = this.getUnlockedEnemyIdentityOrder();
                 const cards = ['company', 'cast-intro', ...unlocked];
                 if (unlocked.length === ENEMY_IDENTITY_ORDER.length) cards.push('full-cast');
-                const transitionDurationMs = 250;
-                const cardHoldDurationMs = Math.max(0, this.attractScreenIntervalMs - transitionDurationMs);
+                const durationFor = key => {
+                    if (key === 'company') return 1200;
+                    if (key === 'cast-intro') return 2000;
+                    if (key === 'drifter') return 3000;
+                    if (key === 'full-cast') return 4200;
+                    return 3500;
+                };
 
                 const cancelIfUnavailable = () => {
                     if (token !== this.attractEnemyCardSequenceToken) return true;
@@ -19400,8 +19395,8 @@ Best Score: ${bestScore}${recoveredLine}` :
                             ? '#fff'
                             : getEnemyIdentity(key).color;
                         this.showAttractTransitionFrame(color, false);
-                        this.scheduler.scheduleTimeout('attract-enemy-cards', `card-${index}-transition`, () => showIndex(index + 1), transitionDurationMs);
-                    }, cardHoldDurationMs);
+                        this.scheduler.scheduleTimeout('attract-enemy-cards', `card-${index}-transition`, () => showIndex(index + 1), 250);
+                    }, durationFor(key));
                 };
 
                 this.showAttractTransitionFrame('#fff', true);
@@ -19561,10 +19556,6 @@ Best Score: ${bestScore}${recoveredLine}` :
 
                 updatePattern(); // Initial pattern
                 this.attractInterval = this.scheduler.scheduleInterval('attract-mode', 'life-grid', updatePattern, 1000); // Update every second
-                this.attractEnemyCardAutoInterval = this.scheduler.scheduleInterval('attract-mode', 'enemy-card-auto-start', () => {
-                    if (this.attractEnemyCardSequenceActive || !this.isAttractEnemyCardAllowed()) return;
-                    this.startAttractEnemyCardSequence();
-                }, this.attractScreenIntervalMs);
                 this.syncAttractModeAudio();
                 this.validateStateInvariants('returnToAttractMode');
                 return true;
@@ -19578,7 +19569,6 @@ Best Score: ${bestScore}${recoveredLine}` :
                 this.suspendAttractEnemyCards();
                 this.scheduler.cancelScope('attract-mode');
                 this.attractInterval = null;
-                this.attractEnemyCardAutoInterval = null;
                 this.attractModeStartedAt = 0;
                 this.stopAttractComputerAmbience();
                 if (this.player && this.player.element) this.player.element.classList.remove('attract-orb-pulse');
@@ -22133,11 +22123,14 @@ Best Score: ${bestScore}${recoveredLine}` :
                     this.musicGain.gain.setValueAtTime(0.58, now);
                 }
 
-                // Music: Off must silence both the normal patrol bed and the Gridlock kick variation.
-                // Music resumes through the normal gameplay/pause lifecycle when it is enabled again.
-                if (this.musicMuted) {
+                if (this.backgroundMusicPlaying) {
                     this.stopBackgroundMusic();
-                    if (this.cycleCompleteMusicPlaying) this.stopCycleCompleteMusic();
+                    this.startBackgroundMusic(this.currentGameplayMusicLevel || 1);
+                }
+                if (this.musicMuted && this.cycleCompleteMusicPlaying) {
+                    this.stopCycleCompleteMusic();
+                }
+                if (this.musicMuted) {
                     this.stopAttractComputerAmbience();
                 }
             }
@@ -22168,10 +22161,6 @@ getOvertimeSwarmPitchMultiplier() {
 
 
 startMaxSwarmBeat(delaySeconds = 0) {
-                if (this.musicMuted) {
-                    this.stopMaxSwarmBeat();
-                    return;
-                }
                 this.ensureAudio();
                 if (!this.ctx || this.ctx.state === 'closed') return;
                 const firstLoopStart = this.ctx.currentTime + Math.max(0.018, delaySeconds || 0);
@@ -22183,10 +22172,6 @@ startMaxSwarmBeat(delaySeconds = 0) {
             }
 
             startOvertimeSwarmLoopAt(firstLoopStart, options = {}) {
-                if (this.musicMuted) {
-                    this.stopMaxSwarmBeat();
-                    return;
-                }
                 this.ensureAudio();
                 if (!this.ctx || this.ctx.state === 'closed') return;
                 if (this.maxSwarmBeatPlaying && !options.forceRestart) return;
@@ -22680,10 +22665,9 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 const signalStart = this.ctx.currentTime + 0.018;
                 this.setMaxSwarmBeatIntensity(0);
                 this.playMaxSwarmSignal(signalStart);
-                // Last radar ping begins at signalStart + 0.825; when Music is enabled, the first
-                // thump lands inside its decay. With Music disabled, the visual radar core supplies
-                // the continuing Gridlock warning instead.
-                if (!this.musicMuted) this.startMaxSwarmBeatAt(signalStart + 0.845);
+                // Last radar ping begins at signalStart + 0.825; the first thump lands inside its decay
+                // so the player hears a continuous handoff with no timer-controlled silence gap.
+                this.startMaxSwarmBeatAt(signalStart + 0.845);
             }
 
             // Play a short repaired-sector cue: RGB pulses into one white lock-in tone.
@@ -24143,25 +24127,17 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 this.updateScore();
             }
 
-            renderStackedScoreTitle(prefixText, mainText) {
+            renderSuperGridlockTitle() {
                 const stack = document.createElement('span');
                 stack.className = 'super-gridlock-stack';
                 const prefix = document.createElement('span');
                 prefix.className = 'super-gridlock-prefix';
-                prefix.textContent = prefixText;
+                prefix.textContent = 'SUPER';
                 const main = document.createElement('span');
                 main.className = 'super-gridlock-main';
-                main.textContent = mainText;
+                main.textContent = 'GRIDLOCK';
                 stack.append(prefix, main);
                 this.scoreElement.replaceChildren(stack);
-            }
-
-            renderSuperGridlockTitle() {
-                this.renderStackedScoreTitle('SUPER', 'GRIDLOCK');
-            }
-
-            renderPrismRelicTitle() {
-                this.renderStackedScoreTitle('PRISM', 'RELIC');
             }
 
             finishScoreAnnouncement(pulseLiveTotal = true) {
@@ -24190,7 +24166,6 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 if (!this.scoreElement) return;
                 this.cancelScoreAnnouncement();
                 const isSuperGridlock = options.superGridlock === true;
-                const isPrismRelic = options.prismRelic === true;
                 const points = Math.max(0, Number(options.points) || 0);
                 this.scoreAlertActive = true;
                 if (this.scoreHud) this.scoreHud.classList.add('gridlock-announcement-active');
@@ -24198,9 +24173,6 @@ startMaxSwarmBeat(delaySeconds = 0) {
 
                 if (isSuperGridlock) {
                     this.renderSuperGridlockTitle();
-                    this.scoreElement.classList.add('superGridlockAlert');
-                } else if (isPrismRelic) {
-                    this.renderPrismRelicTitle();
                     this.scoreElement.classList.add('superGridlockAlert');
                 } else {
                     this.scoreElement.textContent = message;
@@ -24230,10 +24202,7 @@ startMaxSwarmBeat(delaySeconds = 0) {
             }
 
             flashGridlockBonus(points) {
-                this.flashGridlockMessage('PRISM RELIC', {
-                    prismRelic: true,
-                    points
-                });
+                this.flashGridlockMessage('GRIDLOCK', { points });
             }
 
             flashSuperGridlockBonus(points) {
@@ -24440,24 +24409,18 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 const showIndicator = !this.game.finalGridlockActive && !this.game.finalGridlockResultActive &&
                     (this.game.tutorialActive || (this.game.active && this.game.levelActionStarted) ||
                      this.game.isPaused || this.game.showHudDuringSectorIntro);
-                const gridlockActive = !!this.game.maxSwarmActive && !this.game.finalGridlockActive;
-                const gridlockSilent = gridlockActive && !!(this.game.audio && this.game.audio.isMusicMuted && this.game.audio.isMusicMuted());
-                const signature = `${showIndicator}|${tutorialNeutral}|${colorName}|${gridlockActive}|${gridlockSilent}`;
+                const signature = `${showIndicator}|${tutorialNeutral}|${colorName}`;
                 if (signature === this.lastRadarColorSignature) return;
                 this.lastRadarColorSignature = signature;
 
                 indicator.style.setProperty('--radar-rgb', rgbByColor[colorName] || rgbByColor.red);
                 indicator.dataset.color = tutorialNeutral ? 'neutral' : colorName;
                 indicator.classList.toggle('tutorial-neutral', tutorialNeutral);
-                indicator.classList.toggle('gridlock-active', gridlockActive);
-                indicator.classList.toggle('gridlock-silent', gridlockSilent);
                 indicator.classList.toggle('visible', showIndicator);
                 indicator.setAttribute('aria-hidden', showIndicator ? 'false' : 'true');
                 indicator.setAttribute('aria-label', !showIndicator
                     ? ''
-                    : (gridlockActive
-                        ? `Gridlock active; collecting ${colorName} crystals`
-                        : (tutorialNeutral ? 'Radar color activates after collecting a crystal' : `Collecting ${colorName} crystals`)));
+                    : (tutorialNeutral ? 'Radar color activates after collecting a crystal' : `Collecting ${colorName} crystals`));
             }
 
             pulseRadarCollection(colorName) {
