@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Trackpad Prototype p116: raises Sector/Cycle readouts, renames the help page to Game Rules, and visibly separates High Score details from the record number.
+Trackpad Prototype p121: improves global shake reliability, tunes attract-card finale spacing, lowers High Score details, and precisely centers Help/Launch shortcuts.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="trackpad-p120">
+<html data-build-version="trackpad-p121">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -7764,13 +7764,13 @@ Font License Notices
 
         /* p090: the finale challenge frames the moving trio instead of stacking both sentences together. */
         #enemyIdentityCard[data-card="full-cast"] .enemy-card-heading {
-            top: clamp(28px, 6.5%, 44px);
+            top: clamp(38px, 10%, 60px);
             left: 3%;
             width: 94%;
         }
 
         #enemyIdentityCard[data-card="full-cast"] .enemy-card-name {
-            font-size: clamp(21px, 6.1vw, 35px);
+            font-size: clamp(19px, 5.5vw, 32px);
             line-height: 1;
             white-space: nowrap;
         }
@@ -7786,12 +7786,12 @@ Font License Notices
 
         #enemyIdentityCard[data-card="full-cast"] .enemy-card-copy {
             left: 3%;
-            bottom: clamp(28px, 6.5%, 44px);
+            bottom: clamp(38px, 10%, 60px);
             width: 94%;
         }
 
         #enemyIdentityCard[data-card="full-cast"] .enemy-card-personality {
-            font-size: clamp(21px, 6.1vw, 35px);
+            font-size: clamp(19px, 5.5vw, 32px);
             line-height: 1;
             letter-spacing: clamp(1px, 0.55vw, 3px);
             white-space: nowrap;
@@ -8320,7 +8320,45 @@ Font License Notices
         }
 
         #highScorePanel #highScorePanelDetails {
-            margin-top: clamp(34px, 8.5vw, 54px) !important;
+            margin-top: clamp(52px, 12vw, 76px) !important;
+        }
+
+
+        /* p121: exact right-column menu-cell centering for Help and Launch. */
+        html body #gameContainer > #pauseGridMenu #pauseHowToButton,
+        html body #gameContainer > #pauseGridMenu #pauseLaunchSetupButton {
+            right: auto !important;
+            left: calc(100% - var(--grid-size, 60px)) !important;
+            width: var(--grid-size, 60px) !important;
+            height: var(--grid-size, 60px) !important;
+            padding: 0 !important;
+            display: grid !important;
+            place-items: center !important;
+        }
+
+        html body #gameContainer > #pauseGridMenu #pauseHowToButton {
+            top: 0 !important;
+            bottom: auto !important;
+        }
+
+        html body #gameContainer > #pauseGridMenu #pauseLaunchSetupButton {
+            top: auto !important;
+            bottom: 0 !important;
+        }
+
+        html body #pauseHowToButton .pause-grid-symbol,
+        html body #pauseLaunchSetupButton .launch-cycle-grid-icon {
+            position: absolute !important;
+            left: 50% !important;
+            top: 50% !important;
+            margin: 0 !important;
+            transform: translate(-50%, -50%) !important;
+        }
+
+        html body #pauseHowToButton .pause-grid-symbol {
+            display: grid !important;
+            place-items: center !important;
+            line-height: 1 !important;
         }
 
     </style>
@@ -8844,7 +8882,7 @@ Font License Notices
                 gestureDoubleTapWindowMs: 500,
                 gestureDoubleTapMaxSeparation: 48,
                 shakeCooldownMs: 1200,
-                shakeThreshold: 32,
+                shakeThreshold: 24,
                 shakeNeutralHoldMs: 350,
                 shakeNeutralDeltaRatio: 0.25
             }),
@@ -17876,9 +17914,9 @@ Best Score: ${bestScore}${recoveredLine}` :
             }
 
             shouldListenForMotion() {
-                if (!GAME_FEATURE_FLAGS.motionShake || !this.motionPermissionGranted || this.splashIntroActive) return false;
-                if (this.isAttractModeActive()) return true;
-                return this.canTriggerCosmicZap();
+                // Once motion permission is granted, keep the listener attached globally.
+                // handleShakeMotion() owns state routing for attract cards versus Cosmic Zap.
+                return !!(GAME_FEATURE_FLAGS.motionShake && this.motionPermissionGranted);
             }
 
             syncMotionListenerState() {
