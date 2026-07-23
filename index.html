@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Trackpad Prototype p146: awards Gridlock and Super Gridlock points immediately with live-score HUD feedback.
+Trackpad Prototype p147: identifies the Gridlock reward pickup as the Prism Relic before showing its immediate score award.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="trackpad-p146">
+<html data-build-version="trackpad-p147">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -24127,17 +24127,25 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 this.updateScore();
             }
 
-            renderSuperGridlockTitle() {
+            renderStackedScoreTitle(prefixText, mainText) {
                 const stack = document.createElement('span');
                 stack.className = 'super-gridlock-stack';
                 const prefix = document.createElement('span');
                 prefix.className = 'super-gridlock-prefix';
-                prefix.textContent = 'SUPER';
+                prefix.textContent = prefixText;
                 const main = document.createElement('span');
                 main.className = 'super-gridlock-main';
-                main.textContent = 'GRIDLOCK';
+                main.textContent = mainText;
                 stack.append(prefix, main);
                 this.scoreElement.replaceChildren(stack);
+            }
+
+            renderSuperGridlockTitle() {
+                this.renderStackedScoreTitle('SUPER', 'GRIDLOCK');
+            }
+
+            renderPrismRelicTitle() {
+                this.renderStackedScoreTitle('PRISM', 'RELIC');
             }
 
             finishScoreAnnouncement(pulseLiveTotal = true) {
@@ -24166,6 +24174,7 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 if (!this.scoreElement) return;
                 this.cancelScoreAnnouncement();
                 const isSuperGridlock = options.superGridlock === true;
+                const isPrismRelic = options.prismRelic === true;
                 const points = Math.max(0, Number(options.points) || 0);
                 this.scoreAlertActive = true;
                 if (this.scoreHud) this.scoreHud.classList.add('gridlock-announcement-active');
@@ -24173,6 +24182,9 @@ startMaxSwarmBeat(delaySeconds = 0) {
 
                 if (isSuperGridlock) {
                     this.renderSuperGridlockTitle();
+                    this.scoreElement.classList.add('superGridlockAlert');
+                } else if (isPrismRelic) {
+                    this.renderPrismRelicTitle();
                     this.scoreElement.classList.add('superGridlockAlert');
                 } else {
                     this.scoreElement.textContent = message;
@@ -24202,7 +24214,10 @@ startMaxSwarmBeat(delaySeconds = 0) {
             }
 
             flashGridlockBonus(points) {
-                this.flashGridlockMessage('GRIDLOCK', { points });
+                this.flashGridlockMessage('PRISM RELIC', {
+                    prismRelic: true,
+                    points
+                });
             }
 
             flashSuperGridlockBonus(points) {
