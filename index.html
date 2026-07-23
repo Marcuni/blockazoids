@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Trackpad Prototype p142: makes double tap the official Cosmic Zap control and removes the permanent enemy-speed increase after Zap use.
+Trackpad Prototype p143: adds a two-second press-and-hold secret trigger on the attract-mode Orb.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="trackpad-p142">
+<html data-build-version="trackpad-p143">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -442,10 +442,42 @@ Font License Notices
             animation: attractOrbPulse 1.05s ease-in-out infinite;
         }
 
+        /* Secret attract-card trigger: after a short confirmation delay, a tightening ring
+           shows that the two-second Orb hold is being recognized. */
+        #player.attract-orb-hold-cue::after {
+            content: "";
+            position: absolute;
+            inset: -10px;
+            border: 2px solid #fff;
+            border-radius: 50%;
+            opacity: 0;
+            pointer-events: none;
+            transform: scale(1.55);
+            box-shadow: 0 0 8px rgba(255,255,255,0.72), inset 0 0 8px rgba(255,255,255,0.28);
+            animation: attractOrbHoldCue 1.6s linear forwards;
+        }
+
         @keyframes attractOrbPulse {
             0% { transform: scale(1); box-shadow: 0 0 8px #fff, 0 0 16px rgba(255,255,255,0.72); }
             50% { transform: scale(1.12); box-shadow: 0 0 16px #fff, 0 0 36px rgba(255,255,255,0.95), 0 0 64px rgba(255,255,255,0.45); }
             100% { transform: scale(1); box-shadow: 0 0 8px #fff, 0 0 16px rgba(255,255,255,0.72); }
+        }
+
+        @keyframes attractOrbHoldCue {
+            0% {
+                opacity: 0.28;
+                transform: scale(1.55);
+                box-shadow: 0 0 6px rgba(255,255,255,0.44), inset 0 0 5px rgba(255,255,255,0.18);
+            }
+            72% {
+                opacity: 0.76;
+                transform: scale(1.12);
+            }
+            100% {
+                opacity: 1;
+                transform: scale(1);
+                box-shadow: 0 0 15px #fff, 0 0 34px rgba(255,255,255,0.82), inset 0 0 10px rgba(255,255,255,0.52);
+            }
         }
         
         /* Enemy styling with dynamic color and glow */
@@ -10312,6 +10344,7 @@ Font License Notices
                 this.suppressClicksUntil = 0;
                 this.attached = false;
                 this.sequence = 0;
+                this.attractOrbHoldPointerId = null;
 
                 this.onPointerDown = (event) => this.handlePointerDown(event);
                 this.onPointerMove = (event) => this.handlePointerMove(event);
@@ -10332,6 +10365,7 @@ Font License Notices
             }
 
             reset(reason = 'reset', options = {}) {
+                this.cancelAttractOrbHold(reason);
                 this.pointers.clear();
                 this.primaryPointerId = null;
                 this.multitouchBlocked = false;
@@ -10351,6 +10385,66 @@ Font License Notices
                 return !!(target && target.closest && target.closest('#splashScreen'));
             }
 
+            isAttractOrbTarget(target) {
+                return !!(target && target.closest && target.closest('#player'));
+            }
+
+            beginAttractOrbHold(pointer) {
+                const game = this.game;
+                if (!pointer || !this.isAttractOrbTarget(pointer.target) ||
+                    typeof game.isAttractEnemyCardAllowed !== 'function' || !game.isAttractEnemyCardAllowed() ||
+                    game.attractEnemyCardSequenceActive) return false;
+
+                this.cancelAttractOrbHold('restart');
+                this.attractOrbHoldPointerId = pointer.id;
+                pointer.attractOrbHoldActive = true;
+                pointer.attractOrbHoldCompleted = false;
+
+                game.scheduler.scheduleTimeout('attract-orb-hold', 'cue', () => {
+                    const activePointer = this.pointers.get(pointer.id);
+                    if (!activePointer || !activePointer.attractOrbHoldActive ||
+                        !game.isAttractEnemyCardAllowed() || game.attractEnemyCardSequenceActive) return;
+                    if (game.player && game.player.element) {
+                        game.player.element.classList.add('attract-orb-hold-cue');
+                    }
+                }, 400);
+
+                game.scheduler.scheduleTimeout('attract-orb-hold', 'complete', () => {
+                    const activePointer = this.pointers.get(pointer.id);
+                    if (!activePointer || !activePointer.attractOrbHoldActive ||
+                        activePointer.travel > GAME_CONFIG.input.gestureTapMaxMove ||
+                        !game.isAttractEnemyCardAllowed() || game.attractEnemyCardSequenceActive) {
+                        this.cancelAttractOrbHold('invalid-completion');
+                        return;
+                    }
+
+                    activePointer.attractOrbHoldCompleted = true;
+                    activePointer.attractOrbHoldActive = false;
+                    this.attractOrbHoldPointerId = null;
+                    game.scheduler.cancelScope('attract-orb-hold');
+                    if (game.player && game.player.element) {
+                        game.player.element.classList.remove('attract-orb-hold-cue');
+                    }
+                    this.lastGameplayTap = null;
+                    this.suppressClicksUntil = this.now() + 300;
+                    game.startAttractEnemyCardSequence();
+                }, 2000);
+
+                return true;
+            }
+
+            cancelAttractOrbHold(reason = 'cancel') {
+                const pointerId = this.attractOrbHoldPointerId;
+                if (pointerId !== null) {
+                    const pointer = this.pointers.get(pointerId);
+                    if (pointer) pointer.attractOrbHoldActive = false;
+                }
+                this.attractOrbHoldPointerId = null;
+                if (this.game && this.game.scheduler) this.game.scheduler.cancelScope('attract-orb-hold');
+                if (this.game && this.game.player && this.game.player.element) {
+                    this.game.player.element.classList.remove('attract-orb-hold-cue');
+                }
+            }
 
             isInteractiveTarget(target) {
                 return !!(target && target.closest && target.closest(
@@ -10397,6 +10491,7 @@ Font License Notices
 
                 if (this.pointers.size === 1) {
                     this.primaryPointerId = event.pointerId;
+                    this.beginAttractOrbHold(pointer);
                     if (this.game.flow.allowsOrbDragInput()) {
                         document.body.classList.add('gameplay-gesture-active');
                     }
@@ -10407,6 +10502,7 @@ Font License Notices
                 // contact arrives, reject the whole chord until every pointer is lifted. This keeps
                 // secondary fingers from moving the Orb, completing a Zap tap, or clicking a menu.
                 this.lastGameplayTap = null;
+                this.cancelAttractOrbHold('multitouch');
                 this.multitouchBlocked = true;
                 this.pointers.forEach(activePointer => { activePointer.multitouchSeen = true; });
                 this.suppressClicksUntil = this.now() + 600;
@@ -10440,6 +10536,9 @@ Font License Notices
 
                 for (const sample of events) {
                     const movement = this.updatePointer(pointer, sample);
+                    if (pointer.attractOrbHoldActive && pointer.travel > GAME_CONFIG.input.gestureTapMaxMove) {
+                        this.cancelAttractOrbHold('moved');
+                    }
                     if (this.multitouchBlocked) {
                         if (event.cancelable) event.preventDefault();
                         continue;
@@ -10473,11 +10572,16 @@ Font License Notices
                     return;
                 }
 
+                if (pointer.attractOrbHoldActive) this.cancelAttractOrbHold(canceled ? 'pointer-cancel' : 'released-early');
                 this.pointers.delete(pointer.id);
                 if (pointer.id !== this.primaryPointerId) return;
 
                 this.primaryPointerId = null;
                 document.body.classList.remove('gameplay-gesture-active');
+                if (pointer.attractOrbHoldCompleted) {
+                    this.suppressClicksUntil = this.now() + 220;
+                    return;
+                }
                 const duration = this.now() - pointer.startedAt;
                 const wasTap = !canceled && !pointer.multitouchSeen && !pointer.movementCommitted &&
                     pointer.travel <= GAME_CONFIG.input.gestureTapMaxMove &&
@@ -19401,6 +19505,9 @@ Best Score: ${bestScore}${recoveredLine}` :
 
             // Stop attract mode and clean up
             stopAttractMode() {
+                if (this.gestures && typeof this.gestures.cancelAttractOrbHold === 'function') {
+                    this.gestures.cancelAttractOrbHold('stop-attract-mode');
+                }
                 this.suspendAttractEnemyCards();
                 this.scheduler.cancelScope('attract-mode');
                 this.attractInterval = null;
