@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Trackpad Prototype p123: repairs the final campaign-to-Gridlock handoff, visibly lowers High Score details, and geometrically centers the Help/Launch controls.
+Trackpad Prototype p124: fixes Developer END-to-Final-Gridlock, restores Help/Launch to the correct corner cells, lowers the actual Scoring-page details, and adds an active crystal-color radar glow.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="trackpad-p123">
+<html data-build-version="trackpad-p124">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -8522,6 +8522,135 @@ Font License Notices
             transform: translate(-50%, -50%) !important;
         }
 
+
+        /* p124: the star shortcut opens Scoring. Move its detail block—not the unused legacy panel—
+           while leaving the High Score label and number exactly where they are. */
+        html body #scoringPanel #scoringHighScoreRunLine {
+            position: relative !important;
+            top: clamp(42px, 10vw, 64px) !important;
+            margin-top: 0 !important;
+            transform: none !important;
+        }
+
+        /* p124: restore Help and Launch to the authored upper-right and lower-right corner cells. */
+        html body #gameContainer > #pauseGridMenu #pauseHowToButton,
+        html body #gameContainer > #pauseGridMenu #pauseLaunchSetupButton {
+            position: absolute !important;
+            left: auto !important;
+            right: 0 !important;
+            width: var(--grid-size, 60px) !important;
+            height: var(--grid-size, 60px) !important;
+            min-width: var(--grid-size, 60px) !important;
+            min-height: var(--grid-size, 60px) !important;
+            margin: 0 !important;
+            padding: calc(var(--grid-size, 60px) * 0.16) !important;
+            transform: none !important;
+            box-sizing: border-box !important;
+        }
+
+        html body #gameContainer > #pauseGridMenu #pauseHowToButton {
+            top: 0 !important;
+            bottom: auto !important;
+        }
+
+        html body #gameContainer > #pauseGridMenu #pauseLaunchSetupButton {
+            top: auto !important;
+            bottom: 0 !important;
+        }
+
+        html body #gameContainer > #pauseGridMenu #pauseHowToButton .pause-grid-symbol,
+        html body #gameContainer > #pauseGridMenu #pauseLaunchSetupButton .launch-cycle-grid-icon {
+            position: absolute !important;
+            left: 50% !important;
+            top: 50% !important;
+            right: auto !important;
+            bottom: auto !important;
+            margin: 0 !important;
+        }
+
+        html body #gameContainer > #pauseGridMenu #pauseHowToButton .pause-grid-symbol {
+            transform: translate(-50%, -54%) !important;
+            line-height: 1 !important;
+        }
+
+        html body #gameContainer > #pauseGridMenu #pauseLaunchSetupButton .launch-cycle-grid-icon {
+            transform: translate(-50%, -50%) !important;
+        }
+
+        /* p124: active crystal-color status on the pre-rendered lower radar. Percentages follow
+           the 887 x 1774 cabinet artwork so the glow remains aligned on every viewport. */
+        html body #radarColorIndicator {
+            --radar-rgb: 255, 0, 0;
+            --radar-pulse-rgb: 255, 0, 0;
+            position: absolute;
+            left: 27.62%;
+            top: 65.95%;
+            width: 44.64%;
+            height: 22.27%;
+            z-index: 3;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 160ms linear;
+        }
+
+        html body #radarColorIndicator.visible {
+            opacity: 1;
+        }
+
+        html body #radarColorIndicator::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            box-sizing: border-box;
+            border: 1px solid rgba(var(--radar-rgb), 0.16);
+            border-radius: 50%;
+            box-shadow:
+                0 0 calc(var(--skin-scale, 1) * 10px) rgba(var(--radar-rgb), 0.13),
+                0 0 calc(var(--skin-scale, 1) * 22px) rgba(var(--radar-rgb), 0.07),
+                inset 0 0 calc(var(--skin-scale, 1) * 16px) rgba(var(--radar-rgb), 0.08);
+            animation: radarColorBreathe 2.8s ease-in-out infinite;
+        }
+
+        html body #radarColorIndicator::after {
+            content: "";
+            position: absolute;
+            inset: -1.2%;
+            box-sizing: border-box;
+            border: max(1px, calc(var(--skin-scale, 1) * 1.4px)) solid rgba(var(--radar-pulse-rgb), 0.72);
+            border-radius: 50%;
+            opacity: 0;
+            transform: scale(0.98);
+            pointer-events: none;
+        }
+
+        html body #radarColorIndicator.radar-collect-pulse::after {
+            animation: radarCollectionRipple 400ms ease-out 1;
+        }
+
+        html body #radarColorIndicator .radar-color-marker {
+            position: absolute;
+            left: 50%;
+            top: 0;
+            width: max(6px, calc(var(--skin-scale, 1) * 10px));
+            height: max(6px, calc(var(--skin-scale, 1) * 10px));
+            border-radius: 50%;
+            background: rgb(var(--radar-rgb));
+            box-shadow:
+                0 0 calc(var(--skin-scale, 1) * 5px) rgba(var(--radar-rgb), 0.92),
+                0 0 calc(var(--skin-scale, 1) * 12px) rgba(var(--radar-rgb), 0.48);
+            transform: translate(-50%, -50%);
+        }
+
+        @keyframes radarColorBreathe {
+            0%, 100% { opacity: 0.62; }
+            50% { opacity: 0.92; }
+        }
+
+        @keyframes radarCollectionRipple {
+            0% { opacity: 0.68; transform: scale(0.98); }
+            100% { opacity: 0; transform: scale(1.075); }
+        }
+
     </style>
 </head>
 <body class="crt-phosphor-calibration">
@@ -8851,6 +8980,10 @@ Font License Notices
             <span class="skin-status-label" aria-hidden="true">CYCLE</span>
             <span class="skin-status-value">01</span>
         </div>
+    </div>
+
+    <div id="radarColorIndicator" aria-hidden="true">
+        <span class="radar-color-marker" aria-hidden="true"></span>
     </div>
 
     <!-- Full-surface gestures and the cabinet play/pause control share this canonical lifecycle command. -->
@@ -15625,7 +15758,12 @@ Best Score: ${bestScore}${recoveredLine}` :
                 this.clearGameplayObjects();
                 this.player.element.style.display = 'none';
 
-                this.finishGame(transitionToken);
+                // Developer END represents completion of the selected cycle. On the final cycle,
+                // normalize the sector to the campaign endpoint so the restoration presentation and
+                // Final Gridlock handoff share the same canonical completion state as normal play.
+                if (this.cycle >= this.MAX_CYCLES) this.level = this.MAX_LEVEL;
+                this.ui.updateAll();
+                void this.finishGame(transitionToken);
             }
 
             handleVisibilityChange() {
@@ -17763,6 +17901,9 @@ Best Score: ${bestScore}${recoveredLine}` :
 
                 const effectId = ++this.visualEffectSequence;
                 const playerElement = this.player.element;
+                if (this.ui && typeof this.ui.pulseRadarCollection === 'function') {
+                    this.ui.pulseRadarCollection(crystal.color);
+                }
 
                 // The Orb remains the movement/collision owner. Only this disposable child layer animates,
                 // so collection feedback cannot alter the Orb transform or force a movement-layer reflow.
@@ -19208,7 +19349,7 @@ Best Score: ${bestScore}${recoveredLine}` :
                 if (this.finalGridlockResultActive) return false;
                 if (this.finalGridlockHandoffPromise) return this.finalGridlockHandoffPromise;
 
-                const campaignComplete = this.cycle >= this.MAX_CYCLES && this.level >= this.MAX_LEVEL;
+                const campaignComplete = this.cycle >= this.MAX_CYCLES;
                 if (!campaignComplete || !this.finalCompletionActive || !this.restartReady) return false;
 
                 // Normalize any stale UI/flow locks left by the completion presentation.
@@ -19297,7 +19438,7 @@ Best Score: ${bestScore}${recoveredLine}` :
             // Canonical lifecycle entry from final campaign completion into endless survival.
             async beginFinalGridlock(source = 'unknown') {
                 const ready = this.finalCompletionActive && this.restartReady && !this.finalGridlockActive &&
-                    !this.finalGridlockResultActive && this.cycle >= this.MAX_CYCLES && this.level >= this.MAX_LEVEL;
+                    !this.finalGridlockResultActive && this.cycle >= this.MAX_CYCLES;
                 if (!this.requireLifecycleAction('beginFinalGridlock', ready, 'final-gridlock-not-ready', { source })) return false;
 
                 this.flow.enter(GAME_FLOW_STATES.FINAL_GRIDLOCK, 'start-final-gridlock');
@@ -23211,6 +23352,7 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 this.cycleNumberElement = document.getElementById('cycleNumberHud');
                 this.sectorNumberValueElement = this.sectorNumberElement ? this.sectorNumberElement.querySelector('.skin-status-value') : null;
                 this.cycleNumberValueElement = this.cycleNumberElement ? this.cycleNumberElement.querySelector('.skin-status-value') : null;
+                this.radarColorIndicator = document.getElementById('radarColorIndicator');
                 this.scoreAlertActive = false;
                 this.scoreAlertTimer = null;
                 this.cosmicZapIcons = this.cosmicZapIndicators ? [...this.cosmicZapIndicators.querySelectorAll('.cosmic-zap-icon')] : [];
@@ -23218,6 +23360,7 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 this.lastCycleIndicatorSignature = null;
                 this.lastSectorProgressSignature = null;
                 this.lastZapHudSignature = null;
+                this.lastRadarColorSignature = null;
             }
 
             // Update score display. Final Gridlock replaces score with its survival clock.
@@ -23476,6 +23619,48 @@ startMaxSwarmBeat(delaySeconds = 0) {
 
             }
 
+            updateRadarColorIndicator() {
+                const indicator = this.radarColorIndicator;
+                if (!indicator) return;
+
+                const colorName = String(this.game.colorOrder[this.game.currentColorIndex] || 'red').toLowerCase();
+                const rgbByColor = {
+                    red: '255, 0, 0',
+                    green: '0, 255, 0',
+                    blue: '0, 96, 255'
+                };
+                const showIndicator = !this.game.finalGridlockActive && !this.game.finalGridlockResultActive &&
+                    (this.game.tutorialActive || (this.game.active && this.game.levelActionStarted) ||
+                     this.game.isPaused || this.game.showHudDuringSectorIntro);
+                const signature = `${showIndicator}|${colorName}`;
+                if (signature === this.lastRadarColorSignature) return;
+                this.lastRadarColorSignature = signature;
+
+                indicator.style.setProperty('--radar-rgb', rgbByColor[colorName] || rgbByColor.red);
+                indicator.dataset.color = colorName;
+                indicator.classList.toggle('visible', showIndicator);
+                indicator.setAttribute('aria-hidden', showIndicator ? 'false' : 'true');
+                indicator.setAttribute('aria-label', showIndicator ? `Collecting ${colorName} crystals` : '');
+            }
+
+            pulseRadarCollection(colorName) {
+                const indicator = this.radarColorIndicator;
+                if (!indicator) return;
+                const rgbByColor = {
+                    red: '255, 0, 0',
+                    green: '0, 255, 0',
+                    blue: '0, 96, 255'
+                };
+                const normalizedColor = String(colorName || 'red').toLowerCase();
+                indicator.style.setProperty('--radar-pulse-rgb', rgbByColor[normalizedColor] || rgbByColor.red);
+                indicator.classList.remove('radar-collect-pulse');
+                void indicator.offsetWidth;
+                indicator.classList.add('radar-collect-pulse');
+                this.game.scheduler.scheduleTimeout('ui-effects', 'radar-collection-pulse', () => {
+                    indicator.classList.remove('radar-collect-pulse');
+                }, 420);
+            }
+
             // Update all retained visible UI elements.
             updateAll() {
                 this.updateScore();
@@ -23486,6 +23671,7 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 this.updateSectorProgressIndicators();
                 this.updateSectorCycleReadouts();
                 this.updateCosmicZapIndicators();
+                this.updateRadarColorIndicator();
             }
         }
 
