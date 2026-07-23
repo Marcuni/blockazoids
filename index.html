@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Trackpad Prototype p113: moves Sector/Cycle visibly lower and enforces mutually exclusive menu/playfield framing so the square border and CRT bevel never appear together.
+Trackpad Prototype p114: re-centers Sector/Cycle vertically and makes Cosmic Zap double-tap input global across all valid gameplay and tutorial surfaces.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="trackpad-p113">
+<html data-build-version="trackpad-p114">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -8274,7 +8274,7 @@ Font License Notices
 
         /* p113: visibly lower the live Sector/Cycle readouts without moving the menu buttons. */
         html body #skinShell > #bottomStatusHud .skin-status-box {
-            top: 72.150000% !important;
+            top: 71.750000% !important;
         }
 
         /* p113 framing authority: square border and CRT bevel are mutually exclusive. */
@@ -10051,17 +10051,12 @@ Font License Notices
             handleOneFingerTap(pointer) {
                 const game = this.game;
                 const now = this.now();
+                const interactiveTarget = this.isInteractiveTarget(pointer.target);
+                const zapInputOpen = typeof game.canTriggerCosmicZap === 'function' && game.canTriggerCosmicZap();
 
-                // Hardware/menu controls keep their native click path. In particular, the top-left
-                // control must remain available to pause and resume during live gameplay.
-                if (this.isInteractiveTarget(pointer.target)) {
-                    this.lastGameplayTap = null;
-                    return;
-                }
-
-                if (game.flow.isLiveAction()) {
-                    // A live single tap has no command, so suppress any noninteractive click.
-                    this.suppressClicksUntil = now + 120;
+                // Cosmic Zap double-tap detection is page-global whenever the current game state
+                // permits a Zap, including the tutorial. The target element does not own this command.
+                if (zapInputOpen) {
                     const previous = this.lastGameplayTap;
                     const closeEnough = previous &&
                         Math.hypot(pointer.x - previous.x, pointer.y - previous.y) <=
@@ -10071,10 +10066,25 @@ Font License Notices
 
                     if (closeEnough && withinWindow) {
                         this.lastGameplayTap = null;
+                        this.suppressClicksUntil = now + 180;
                         game.requestCosmicZap('double-tap');
-                    } else {
-                        this.lastGameplayTap = { time: now, x: pointer.x, y: pointer.y };
+                        return;
                     }
+
+                    this.lastGameplayTap = { time: now, x: pointer.x, y: pointer.y };
+                    if (!interactiveTarget) this.suppressClicksUntil = now + 120;
+                    return;
+                }
+
+                // Hardware/menu controls keep their native click path when no Zap command is open.
+                if (interactiveTarget) {
+                    this.lastGameplayTap = null;
+                    return;
+                }
+
+                if (game.flow.isLiveAction()) {
+                    this.suppressClicksUntil = now + 120;
+                    this.lastGameplayTap = null;
                     return;
                 }
 
@@ -17817,8 +17827,8 @@ Best Score: ${bestScore}${recoveredLine}` :
             }
 
             // All Zap inputs converge here so simultaneous touch and motion signals can consume only one charge.
+            // Input source never changes eligibility: tutorial, touch/mouse double-tap, and shake use the same gate.
             requestCosmicZap(source = 'unknown') {
-                if (this.tutorialActive && source !== 'shake') return false;
                 if (!this.canTriggerCosmicZap()) return false;
                 const before = this.cosmicZapsLeft;
                 this.handleCosmicZap(source);
