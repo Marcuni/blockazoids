@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Trackpad Prototype p137: restores iPhone shake input through explicit permission gestures, retryable motion recovery, and listener health checks.
+Trackpad Prototype p138: centralizes motion permission, listener ownership, and shake delivery in one stable motion-input controller.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="trackpad-p137">
+<html data-build-version="trackpad-p138">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -10546,6 +10546,177 @@ Font License Notices
             }
         }
 
+        // Owns the complete browser motion lifecycle. Gameplay receives only normalized
+        // shake samples and never requests permissions or manages listeners directly.
+        class MotionInputController {
+            constructor(game) {
+                this.game = game;
+                this.state = 'unknown'; // unknown, requesting, granted, denied, unavailable, temporary-error
+                this.requestPromise = null;
+                this.listenerAttached = false;
+                this.lastSampleAt = 0;
+                this.lastRequestSource = '';
+                this.handleDeviceMotion = (event) => {
+                    this.lastSampleAt = performance.now();
+                    this.game.motionSampleSeenSinceAttach = true;
+                    this.game.handleShakeMotion(event);
+                };
+                this.publishState();
+            }
+
+            get DeviceMotionAPI() {
+                return typeof window !== 'undefined' ? window.DeviceMotionEvent : undefined;
+            }
+
+            isFeatureAvailable() {
+                return !!(GAME_FEATURE_FLAGS.motionShake && this.DeviceMotionAPI);
+            }
+
+            isReady() {
+                return this.state === 'granted';
+            }
+
+            publishState() {
+                const game = this.game;
+                game.motionPermissionGranted = this.isReady();
+                game.motionPermissionState = this.state === 'unavailable' ? 'unsupported' : this.state;
+                game.motionPermissionPromise = this.requestPromise;
+                game.motionListenerAttached = this.listenerAttached;
+            }
+
+            initializeWithoutPrompt(source = 'startup') {
+                if (!this.isFeatureAvailable()) {
+                    this.state = 'unavailable';
+                    this.publishState();
+                    return Promise.resolve(false);
+                }
+
+                const MotionAPI = this.DeviceMotionAPI;
+                if (typeof MotionAPI.requestPermission === 'function') {
+                    // iOS must wait for the explicit Play or tutorial Continue action.
+                    this.state = this.state === 'temporary-error' ? 'temporary-error' : 'unknown';
+                    this.publishState();
+                    return Promise.resolve(false);
+                }
+
+                this.state = 'granted';
+                this.attachListener(source);
+                this.publishState();
+                return Promise.resolve(true);
+            }
+
+            requestAccessFromUserGesture(source = 'player-action') {
+                if (!this.isFeatureAvailable()) {
+                    this.state = 'unavailable';
+                    this.publishState();
+                    return Promise.resolve(false);
+                }
+                if (this.state === 'granted') {
+                    this.ensureListener(source);
+                    return Promise.resolve(true);
+                }
+                if (this.state === 'denied' || this.state === 'unavailable') {
+                    return Promise.resolve(false);
+                }
+                if (this.requestPromise) return this.requestPromise;
+
+                const MotionAPI = this.DeviceMotionAPI;
+                if (typeof MotionAPI.requestPermission !== 'function') {
+                    this.state = 'granted';
+                    this.attachListener(source);
+                    this.publishState();
+                    return Promise.resolve(true);
+                }
+
+                let permissionRequest;
+                try {
+                    // This call must remain synchronous within the trusted button/Continue event.
+                    this.state = 'requesting';
+                    this.lastRequestSource = source;
+                    this.publishState();
+                    permissionRequest = MotionAPI.requestPermission();
+                } catch (_) {
+                    this.state = 'temporary-error';
+                    this.publishState();
+                    return Promise.resolve(false);
+                }
+
+                const request = Promise.resolve(permissionRequest)
+                    .then((permission) => {
+                        if (permission === 'granted') {
+                            this.state = 'granted';
+                            this.attachListener(source);
+                            return true;
+                        }
+                        if (permission === 'denied') {
+                            // Because requests originate only from explicit Play/Continue actions,
+                            // this represents a real browser/user denial rather than an incidental tap.
+                            this.state = 'denied';
+                            return false;
+                        }
+                        this.state = 'temporary-error';
+                        return false;
+                    })
+                    .catch(() => {
+                        this.state = 'temporary-error';
+                        return false;
+                    })
+                    .finally(() => {
+                        if (this.requestPromise === request) this.requestPromise = null;
+                        this.publishState();
+                    });
+
+                this.requestPromise = request;
+                this.publishState();
+                return request;
+            }
+
+            attachListener(source = 'attach') {
+                if (!this.isReady() || this.listenerAttached) {
+                    this.publishState();
+                    return this.listenerAttached;
+                }
+                window.addEventListener('devicemotion', this.handleDeviceMotion, { passive: true });
+                this.listenerAttached = true;
+                this.lastSampleAt = 0;
+                this.game.lastMotionSample = null;
+                this.game.motionSampleSeenSinceAttach = false;
+                this.publishState();
+                return true;
+            }
+
+            ensureListener(source = 'ensure') {
+                if (!this.isReady()) return false;
+                return this.attachListener(source) || this.listenerAttached;
+            }
+
+            handleVisibilityChange(visibilityState) {
+                if (visibilityState !== 'visible' || !this.isReady()) return;
+                // Keep one stable listener for the page lifetime. Reset only the motion baseline
+                // so the first sample after an interruption cannot be mistaken for a shake.
+                this.game.lastMotionSample = null;
+                this.ensureListener('page-visible');
+            }
+
+            destroy() {
+                if (this.listenerAttached) {
+                    window.removeEventListener('devicemotion', this.handleDeviceMotion);
+                    this.listenerAttached = false;
+                }
+                this.requestPromise = null;
+                this.publishState();
+            }
+
+            getStatus() {
+                return Object.freeze({
+                    state: this.state,
+                    listenerAttached: this.listenerAttached,
+                    lastSampleAt: this.lastSampleAt,
+                    lastRequestSource: this.lastRequestSource
+                });
+            }
+        }
+
         class Game {
             constructor() {
                 this.scheduler = new SchedulingManager();
@@ -10996,6 +11167,7 @@ Font License Notices
                 this.audio = new AudioManager(this.scheduler); // Audio manager instance with Phase 3H timer ownership
                 this.ui = new UI(this);               // UI manager instance
                 this.systems = new GameSystemCoordinator(this); // Build 341 cross-system lifecycle coordinator
+                this.motionInput = new MotionInputController(this); // Single owner for permission, listener, and motion delivery
 
                 // Event handlers for player input
                 this.handlePointerDown = (e) => this.player.handlePointerDown(e);
@@ -11586,7 +11758,6 @@ Font License Notices
                 this.splashEasterEggTimer = null;
                 this.resetSplashEasterEgg();
 
-                this.enableShakeCosmicZap('splash-dismiss');
 
                 if (this.splashScreen) {
                     this.splashScreen.classList.add('hidden');
@@ -13471,8 +13642,6 @@ Font License Notices
                 const menuContextAllowed = this.isMenuContextAllowed();
                 if (!menuContextAllowed) return;
                 if (this.cycleTransitionActive || this.showHudDuringSectorIntro || this.resumeCountdownActive || this.startInputLocked) return;
-                this.enableShakeCosmicZap();
-
                 const panelMap = {
                     howTo: this.howToPanel,
                     scoring: this.scoringPanel,
@@ -13498,8 +13667,6 @@ Font License Notices
             openDeveloperLevelSelectShortcut() {
                 if (!this.isGameOver || !this.restartReady) return;
                 if (this.cycleTransitionActive || this.showHudDuringSectorIntro || this.resumeCountdownActive || this.startInputLocked) return;
-
-                this.enableShakeCosmicZap();
 
                 this.menuOpenedAt = performance.now();
                 this.stopAttractComputerAmbience();
@@ -15876,18 +16043,13 @@ Best Score: ${bestScore}${recoveredLine}` :
                 this.markStabilityEvent(`visibility-${document.visibilityState}`);
                 if (document.visibilityState === 'hidden') {
                     this.player.invalidateDragSession('page-hidden');
-                    if (this.motionListenerAttached) {
-                        window.removeEventListener('devicemotion', this.handleDeviceMotion);
-                        this.motionListenerAttached = false;
-                        this.lastMotionSample = null;
-                    }
-                    this.clearMotionListenerHealthCheck();
+                    this.lastMotionSample = null;
                     if (this.flow.isLiveAction() && this.active && this.levelActionStarted && !this.isGameOver) {
                         void this.endRun({ deathCause: 'app-backgrounded' });
                     }
                     return;
                 }
-                if (this.motionPermissionGranted) this.syncMotionListenerState(true, 'page-visible');
+                if (this.motionInput) this.motionInput.handleVisibilityChange(document.visibilityState);
                 if (this.flow.isLiveAction()) {
                     this.lastFrameTime = performance.now();
                     this.requestWakeLock();
@@ -16271,7 +16433,7 @@ Best Score: ${bestScore}${recoveredLine}` :
                 // Request motion permission from the direct gesture, but never make tutorial
                 // progression or the double-tap fallback wait for that asynchronous result.
                 if (phase === 'zap') {
-                    this.enableShakeInput(true, 'tutorial-zap-continue').finally(() => this.syncMotionListenerState(false, 'tutorial-zap-settled'));
+                    this.enableShakeCosmicZap('tutorial-zap-continue');
                 }
                 if (this.audio) this.audio.resume(`tutorial-${phase || 'continue'}`);
 
@@ -16890,7 +17052,6 @@ Best Score: ${bestScore}${recoveredLine}` :
                 if (this.finalCompletionActive) {
                     if (this.restartReady && !this.finalGridlockActive && !this.finalGridlockResultActive) {
                         this.playUiClick();
-                        this.enableShakeCosmicZap();
                         void this.requestFinalGridlockHandoff('play-control');
                     }
                     return;
@@ -16898,7 +17059,6 @@ Best Score: ${bestScore}${recoveredLine}` :
                 if (this.showHudDuringSectorIntro || this.resumeCountdownActive || this.startInputLocked) return;
                 if (this.finalGridlockResultActive) {
                     this.playUiClick();
-                    this.enableShakeCosmicZap();
                     this.selectedStartSector = 1;
                     this.selectedStartCycle = 1;
                     this.closeBottomPanelOverlay();
@@ -18469,72 +18629,12 @@ Best Score: ${bestScore}${recoveredLine}` :
                 return this.cosmicZapsLeft < before;
             }
 
-            // Enable shake input. iOS requires motion permission from a direct user action.
-            // Only an explicit browser "denied" result is permanent; gesture timing failures stay retryable.
+            // Compatibility boundary: all legacy game call sites delegate to one motion-input owner.
             enableShakeInput(requestPermission = true, source = 'unspecified') {
-                if (!GAME_FEATURE_FLAGS.motionShake || typeof DeviceMotionEvent === 'undefined') {
-                    this.motionPermissionState = 'unsupported';
-                    return Promise.resolve(false);
-                }
-                if (this.motionPermissionGranted || this.motionPermissionState === 'granted') {
-                    this.motionPermissionGranted = true;
-                    this.motionPermissionState = 'granted';
-                    this.syncMotionListenerState(false, source);
-                    return Promise.resolve(true);
-                }
-                if (this.motionPermissionState === 'denied' || this.motionPermissionState === 'unsupported') {
-                    return Promise.resolve(false);
-                }
-                if (this.motionPermissionPromise) return this.motionPermissionPromise;
-
-                if (typeof DeviceMotionEvent.requestPermission !== 'function') {
-                    this.motionPermissionGranted = true;
-                    this.motionPermissionState = 'granted';
-                    this.syncMotionListenerState(false, source);
-                    return Promise.resolve(true);
-                }
-                if (!requestPermission) return Promise.resolve(false);
-
-                let permissionRequest;
-                try {
-                    // Call synchronously inside the explicit gesture. Awaiting before this call can
-                    // cause Safari to reject the request even though the player initiated the action.
-                    this.motionPermissionState = 'requesting';
-                    permissionRequest = DeviceMotionEvent.requestPermission();
-                } catch (_) {
-                    this.motionPermissionGranted = false;
-                    this.motionPermissionState = 'retryable';
-                    return Promise.resolve(false);
-                }
-
-                const request = Promise.resolve(permissionRequest)
-                    .then(permission => {
-                        if (permission === 'denied') {
-                            this.motionPermissionGranted = false;
-                            this.motionPermissionState = 'denied';
-                            return false;
-                        }
-                        if (permission !== 'granted') {
-                            this.motionPermissionGranted = false;
-                            this.motionPermissionState = 'retryable';
-                            return false;
-                        }
-                        this.motionPermissionGranted = true;
-                        this.motionPermissionState = 'granted';
-                        this.syncMotionListenerState(true, source);
-                        return true;
-                    })
-                    .catch(() => {
-                        this.motionPermissionGranted = false;
-                        this.motionPermissionState = 'retryable';
-                        return false;
-                    })
-                    .finally(() => {
-                        if (this.motionPermissionPromise === request) this.motionPermissionPromise = null;
-                    });
-
-                this.motionPermissionPromise = request;
-                return request;
+                if (!this.motionInput) return Promise.resolve(false);
+                return requestPermission
+                    ? this.motionInput.requestAccessFromUserGesture(source)
+                    : this.motionInput.initializeWithoutPrompt(source);
             }
 
             requireShakeNeutralReset() {
@@ -18548,61 +18648,30 @@ Best Score: ${bestScore}${recoveredLine}` :
             }
 
             shouldListenForMotion() {
-                // Once motion permission is granted, keep the listener attached globally.
-                // handleShakeMotion() owns state routing for attract cards versus Cosmic Zap.
-                return !!(GAME_FEATURE_FLAGS.motionShake && this.motionPermissionGranted);
+                return !!(this.motionInput && this.motionInput.isReady() && this.motionInput.listenerAttached);
             }
 
             clearMotionListenerHealthCheck() {
+                // p138 keeps one stable listener; short detach/reattach health timers are intentionally retired.
                 if (this.motionListenerHealthTimer) {
                     clearTimeout(this.motionListenerHealthTimer);
                     this.motionListenerHealthTimer = null;
                 }
             }
 
-            scheduleMotionListenerHealthCheck(generation, source = 'unknown') {
-                this.clearMotionListenerHealthCheck();
-                this.motionListenerHealthTimer = setTimeout(() => {
-                    this.motionListenerHealthTimer = null;
-                    if (generation !== this.motionListenerGeneration || !this.shouldListenForMotion()) return;
-                    if (document.visibilityState === 'hidden' || this.motionSampleSeenSinceAttach) return;
-                    if (this.motionListenerHealthRetries >= 2) return;
-                    // Permission is already granted, so this recovery never prompts. A forced
-                    // detach/reattach repairs Safari after page restoration or a stalled listener.
-                    this.motionListenerHealthRetries++;
-                    this.syncMotionListenerState(true, `health-retry:${source}`);
-                }, 1400);
+            scheduleMotionListenerHealthCheck() {
+                // Retained as a no-op compatibility method for older call sites and telemetry.
             }
 
             syncMotionListenerState(forceReattach = false, source = 'state-sync') {
-                const shouldAttach = this.shouldListenForMotion();
-                if (!String(source).startsWith('health-retry:')) this.motionListenerHealthRetries = 0;
-                if ((forceReattach || !shouldAttach) && this.motionListenerAttached) {
-                    window.removeEventListener('devicemotion', this.handleDeviceMotion);
-                    this.motionListenerAttached = false;
-                    this.lastMotionSample = null;
-                }
-
-                if (shouldAttach && !this.motionListenerAttached) {
-                    window.addEventListener('devicemotion', this.handleDeviceMotion, { passive: true });
-                    this.motionListenerAttached = true;
-                    this.lastMotionSample = null;
-                    this.motionSampleSeenSinceAttach = false;
-                    const generation = ++this.motionListenerGeneration;
-                    this.scheduleMotionListenerHealthCheck(generation, source);
-                    return;
-                }
-
-                if (!shouldAttach) {
-                    this.clearMotionListenerHealthCheck();
-                    this.motionSampleSeenSinceAttach = false;
-                    this.motionListenerGeneration++;
-                }
+                if (!this.motionInput) return false;
+                return this.motionInput.ensureListener(source);
             }
 
-            // Enable shake-to-Cosmic-Zap from an explicit player action when required by the browser.
+            // Enable shake-to-Cosmic-Zap only from a trusted Play or tutorial Continue action.
             enableShakeCosmicZap(source = 'player-action') {
-                return this.enableShakeInput(true, source);
+                if (!this.motionInput) return Promise.resolve(false);
+                return this.motionInput.requestAccessFromUserGesture(source);
             }
 
             // Shake the phone for the attract-mode marquee easter egg, or to use a Cosmic Zap during active gameplay.
@@ -18610,12 +18679,6 @@ Best Score: ${bestScore}${recoveredLine}` :
                 if (!this.shouldListenForMotion()) return;
                 const a = e.accelerationIncludingGravity || e.acceleration;
                 if (!a) return;
-                if (!this.motionSampleSeenSinceAttach) {
-                    this.motionSampleSeenSinceAttach = true;
-                    this.motionListenerHealthRetries = 0;
-                    this.clearMotionListenerHealthCheck();
-                }
-
                 const x = a.x || 0;
                 const y = a.y || 0;
                 const z = a.z || 0;
