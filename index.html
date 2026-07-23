@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Trackpad Prototype p139: adds an explicit shake-permission control, clears pending Super Gridlock bonuses on Cosmic Zap, and renames High Score Pace.
+Trackpad Prototype p140: adds a resilient Safari motion-permission watchdog, embedded-page detection, and retry-safe late permission handling.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="trackpad-p139">
+<html data-build-version="trackpad-p140">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -10571,6 +10571,9 @@ Font License Notices
                 this.game = game;
                 this.state = 'unknown'; // unknown, requesting, granted, denied, unavailable, temporary-error
                 this.requestPromise = null;
+                this.requestSequence = 0;
+                this.permissionWatchdogTimer = null;
+                this.lastFailureReason = '';
                 this.listenerAttached = false;
                 this.lastSampleAt = 0;
                 this.lastRequestSource = '';
@@ -10586,6 +10589,21 @@ Font License Notices
 
             get DeviceMotionAPI() {
                 return typeof window !== 'undefined' ? window.DeviceMotionEvent : undefined;
+            }
+
+            isEmbeddedContext() {
+                if (typeof window === 'undefined') return false;
+                try {
+                    return window.top !== window.self;
+                } catch (_) {
+                    return true;
+                }
+            }
+
+            clearPermissionWatchdog() {
+                if (!this.permissionWatchdogTimer) return;
+                clearTimeout(this.permissionWatchdogTimer);
+                this.permissionWatchdogTimer = null;
             }
 
             isFeatureAvailable() {
@@ -10629,6 +10647,7 @@ Font License Notices
             requestAccessFromUserGesture(source = 'player-action', options = {}) {
                 if (!this.isFeatureAvailable()) {
                     this.state = 'unavailable';
+                    this.lastFailureReason = 'feature-unavailable';
                     this.publishState();
                     return Promise.resolve(false);
                 }
@@ -10641,58 +10660,104 @@ Font License Notices
                 if (this.state === 'denied' && !allowDeniedRetry) return Promise.resolve(false);
                 if (this.state === 'denied' && allowDeniedRetry) {
                     this.state = 'unknown';
+                    this.lastFailureReason = '';
                     this.publishState();
                 }
                 if (this.requestPromise) return this.requestPromise;
 
+                if (this.isEmbeddedContext()) {
+                    this.state = 'temporary-error';
+                    this.lastFailureReason = 'embedded-context';
+                    this.publishState();
+                    return Promise.resolve(false);
+                }
+
                 const MotionAPI = this.DeviceMotionAPI;
                 if (typeof MotionAPI.requestPermission !== 'function') {
                     this.state = 'granted';
+                    this.lastFailureReason = '';
                     this.attachListener(source);
                     this.publishState();
                     return Promise.resolve(true);
                 }
 
                 let permissionRequest;
+                const requestToken = ++this.requestSequence;
                 try {
                     // This call must remain synchronous within the trusted button/Continue event.
                     this.state = 'requesting';
+                    this.lastFailureReason = '';
                     this.lastRequestSource = source;
                     this.publishState();
                     permissionRequest = MotionAPI.requestPermission();
                 } catch (_) {
                     this.state = 'temporary-error';
+                    this.lastFailureReason = 'request-threw';
                     this.publishState();
                     return Promise.resolve(false);
                 }
 
-                const request = Promise.resolve(permissionRequest)
-                    .then((permission) => {
-                        if (permission === 'granted') {
-                            this.state = 'granted';
-                            this.attachListener(source);
-                            return true;
-                        }
-                        if (permission === 'denied') {
-                            // Because requests originate only from explicit Play/Continue actions,
-                            // this represents a real browser/user denial rather than an incidental tap.
-                            this.state = 'denied';
-                            return false;
-                        }
-                        this.state = 'temporary-error';
-                        return false;
-                    })
-                    .catch(() => {
-                        this.state = 'temporary-error';
-                        return false;
-                    })
-                    .finally(() => {
-                        if (this.requestPromise === request) this.requestPromise = null;
-                        this.publishState();
-                    });
+                let publicResolve;
+                let responseHandled = false;
+                let publicResolved = false;
+                const request = new Promise((resolve) => {
+                    publicResolve = resolve;
+                });
+                const resolvePublic = (value) => {
+                    if (publicResolved) return;
+                    publicResolved = true;
+                    publicResolve(value);
+                };
 
                 this.requestPromise = request;
+                this.clearPermissionWatchdog();
+                this.permissionWatchdogTimer = setTimeout(() => {
+                    if (requestToken !== this.requestSequence || responseHandled) return;
+                    this.permissionWatchdogTimer = null;
+                    this.state = 'temporary-error';
+                    this.lastFailureReason = 'permission-timeout';
+                    if (this.requestPromise === request) this.requestPromise = null;
+                    this.publishState();
+                    resolvePublic(false);
+                }, 4000);
                 this.publishState();
+
+                Promise.resolve(permissionRequest)
+                    .then((permission) => {
+                        if (requestToken !== this.requestSequence) return;
+                        responseHandled = true;
+                        this.clearPermissionWatchdog();
+                        if (permission === 'granted') {
+                            this.state = 'granted';
+                            this.lastFailureReason = '';
+                            this.attachListener(source);
+                            if (this.requestPromise === request) this.requestPromise = null;
+                            this.publishState();
+                            resolvePublic(true);
+                            return;
+                        }
+                        if (permission === 'denied') {
+                            this.state = 'denied';
+                            this.lastFailureReason = 'permission-denied';
+                        } else {
+                            this.state = 'temporary-error';
+                            this.lastFailureReason = 'unexpected-response';
+                        }
+                        if (this.requestPromise === request) this.requestPromise = null;
+                        this.publishState();
+                        resolvePublic(false);
+                    })
+                    .catch(() => {
+                        if (requestToken !== this.requestSequence) return;
+                        responseHandled = true;
+                        this.clearPermissionWatchdog();
+                        this.state = 'temporary-error';
+                        this.lastFailureReason = 'request-rejected';
+                        if (this.requestPromise === request) this.requestPromise = null;
+                        this.publishState();
+                        resolvePublic(false);
+                    });
+
                 return request;
             }
 
@@ -10728,6 +10793,8 @@ Font License Notices
             }
 
             destroy() {
+                this.requestSequence++;
+                this.clearPermissionWatchdog();
                 if (this.listenerAttached) {
                     window.removeEventListener('devicemotion', this.handleDeviceMotion);
                     this.listenerAttached = false;
@@ -10741,7 +10808,9 @@ Font License Notices
                     state: this.state,
                     listenerAttached: this.listenerAttached,
                     lastSampleAt: this.lastSampleAt,
-                    lastRequestSource: this.lastRequestSource
+                    lastRequestSource: this.lastRequestSource,
+                    lastFailureReason: this.lastFailureReason,
+                    embeddedContext: this.isEmbeddedContext()
                 });
             }
         }
@@ -14902,7 +14971,14 @@ Best Score: ${bestScore}${recoveredLine}` :
                     status = 'Access denied. Safari site settings may need Motion enabled.';
                 } else if (state === 'temporary-error' || state === 'retryable') {
                     label = 'RETRY SHAKE';
-                    status = 'Safari could not start motion. Tap to retry.';
+                    const reason = motionStatus ? motionStatus.lastFailureReason : '';
+                    if (reason === 'embedded-context') {
+                        status = 'Open the game directly in Safari, then retry.';
+                    } else if (reason === 'permission-timeout') {
+                        status = 'Safari did not respond. Reopen the page directly in Safari and retry.';
+                    } else {
+                        status = 'Safari could not start motion. Tap to retry.';
+                    }
                 } else if (state === 'unsupported') {
                     label = 'SHAKE UNAVAILABLE';
                     status = 'Device motion is unavailable. Double tap still works.';
