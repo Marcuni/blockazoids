@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Block-A-Zoids p165: makes Canvas the production-default playfield renderer while retaining the DOM renderer as a temporary diagnostic fallback.
+Block-A-Zoids p166: restores the animated attract-mode life grid in Canvas and calibrates selectable-crystal glow to match the DOM presentation.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="p165">
+<html data-build-version="p166">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -8448,7 +8448,7 @@ Font License Notices
             background-position: -2px -2px;
         }
 
-        /* p165: Canvas is the production-default renderer for the grid, Orb, crystals, connection lines, completed squares,
+        /* p166: Canvas is the production-default renderer for the grid, Orb, crystals, connection lines, completed squares,
            all three Block-A-Zoids, spawn warnings, the Prism Relic, explosions, and Cosmic Zap discharge
            effects. DOM remains available only as a temporary diagnostic fallback. */
         #playfieldCanvas {
@@ -10888,7 +10888,7 @@ Font License Notices
         })();
 
         // Second-stage rendering boundary for the live playfield. Gameplay objects retain their
-        // existing DOM elements in p165 only as a temporary fallback, while simulation state and frame
+        // existing DOM elements in p166 only as a temporary fallback, while simulation state and frame
         // presentation continue to pass through one renderer boundary.
         class DomPlayfieldRenderer {
             constructor(game) {
@@ -10941,6 +10941,30 @@ Font License Notices
                 this.setPlayerEffect(player, 'crystal-pickup-pop', false);
                 if (!player.element) return;
                 player.element.querySelectorAll('.orb-crystal-pickup-fx').forEach(effect => effect.remove());
+            }
+
+            createAttractSquare(square) {
+                if (!square) return null;
+                const element = document.createElement('div');
+                element.className = 'filled-square attract-square';
+                element.style.left = `${square.x}px`;
+                element.style.top = `${square.y}px`;
+                element.style.animationDelay = `${Math.max(0, Number(square.animationDelayMs) || 0)}ms`;
+                square.element = element;
+                square.isActive = true;
+                this.game.container.appendChild(element);
+                return element;
+            }
+
+            removeAttractSquare(square) {
+                if (!square) return;
+                square.isActive = false;
+                if (square.element) square.element.remove();
+                square.element = null;
+            }
+
+            removeAttractSquares(squares) {
+                (squares || []).forEach(square => this.removeAttractSquare(square));
             }
 
             createSpawnWarning(warning) {
@@ -11494,7 +11518,7 @@ Font License Notices
         }
 
 
-        // p165 Canvas renderer. Canvas is now the production default for the real grid, Orb, crystals, connection lines,
+        // p166 Canvas renderer. Canvas is now the production default for the real grid, Orb, crystals, connection lines,
         // completed grid cells, ZIG, DASH, ECHO, spawn warnings, and the Prism Relic. DOM elements remain
         // as hidden compatibility handles until
         // the later cleanup stage removes the retired playfield presentation.
@@ -11661,6 +11685,30 @@ Font License Notices
                     this.game.requestPlayfieldRender();
                 }
                 this.ensurePlayerEffectFrame();
+            }
+
+            createAttractSquare(square) {
+                if (!square) return null;
+                square.element = null;
+                square.isActive = true;
+                this.requestTransientPresentationFrame();
+                return null;
+            }
+
+            removeAttractSquare(square) {
+                if (!square) return;
+                square.isActive = false;
+                square.element = null;
+                this.requestTransientPresentationFrame();
+            }
+
+            removeAttractSquares(squares) {
+                (squares || []).forEach(square => {
+                    if (!square) return;
+                    square.isActive = false;
+                    square.element = null;
+                });
+                this.requestTransientPresentationFrame();
             }
 
             createSpawnWarning(warning) {
@@ -12051,6 +12099,7 @@ Font License Notices
             canvasNeedsStandaloneAnimation(timestamp = performance.now()) {
                 return this.restorationEffectsNeedAnimation(timestamp) ||
                     this.playerEffectsNeedAnimation(this.game?.player, timestamp) ||
+                    this.attractSquaresNeedAnimation(this.game) ||
                     this.crystalsNeedAnimation(this.game) ||
                     this.spawnWarningsNeedAnimation(this.game, timestamp) ||
                     this.prismRelicNeedsAnimation(this.game) ||
@@ -12179,6 +12228,47 @@ Font License Notices
                 return `rgb(${channel(base.r)}, ${channel(base.g)}, ${channel(base.b)})`;
             }
 
+            attractSquaresNeedAnimation(game) {
+                return !!(
+                    game &&
+                    game.flow &&
+                    game.flow.is(GAME_FLOW_STATES.ATTRACT) &&
+                    Array.isArray(game.attractSquares) &&
+                    game.attractSquares.some(square => square && square.isActive !== false)
+                );
+            }
+
+            getAttractSquarePresentation(square, timestamp) {
+                const createdAt = Number(square?.createdAt) || 0;
+                const delay = Math.max(0, Number(square?.animationDelayMs) || 0);
+                const elapsed = Math.max(0, (Number(timestamp) || 0) - createdAt - delay);
+                if ((Number(timestamp) || 0) < createdAt + delay) {
+                    return { color: '#fff', opacity: 0.20 };
+                }
+
+                const phase = (elapsed % 1000) / 1000;
+                if (phase < 0.20) return { color: '#000', opacity: 0.20 };
+                if (phase < 0.40) return { color: this.game?.RED_COLOR || '#f00', opacity: 0.60 };
+                if (phase < 0.60) return { color: this.game?.GREEN_COLOR || '#0f0', opacity: 0.60 };
+                if (phase < 0.80) return { color: this.game?.BLUE_COLOR || '#00f', opacity: 0.60 };
+                return { color: '#fff', opacity: 0.80 };
+            }
+
+            drawAttractSquares(game, timestamp) {
+                if (!this.attractSquaresNeedAnimation(game)) return;
+                const context = this.context;
+                const gridSize = Math.max(1, Number(game.GRID_SIZE) || 1);
+                context.save();
+                game.attractSquares.forEach(square => {
+                    if (!square || square.isActive === false) return;
+                    const presentation = this.getAttractSquarePresentation(square, timestamp);
+                    context.globalAlpha = presentation.opacity;
+                    context.fillStyle = presentation.color;
+                    context.fillRect(Number(square.x) || 0, Number(square.y) || 0, Number(square.size) || gridSize, Number(square.size) || gridSize);
+                });
+                context.restore();
+            }
+
             drawCompletedSquares(game) {
                 if (!game || !Array.isArray(game.completedSquares) || game.completedSquares.length === 0) return;
                 const context = this.context;
@@ -12233,8 +12323,10 @@ Font License Notices
                     scale,
                     whiteMix: this.interpolateKeyframes(progress, [[0, 0], [0.46, 0.48], [1, 0.96]]),
                     brightness: this.interpolateKeyframes(progress, [[0, 1.02], [0.46, 1.14], [1, 1.30]]),
-                    glowSpread: this.interpolateKeyframes(progress, [[0, 18], [0.46, 50], [1, 102]]) * rankGlowScale,
-                    glowOpacity: this.interpolateKeyframes(progress, [[0, 0.16], [0.46, 0.46], [1, 0.68]])
+                    // Canvas radial gradients accumulate more strongly than layered CSS shadows.
+                    // These calibrated values preserve the selectable cue without flooding nearby cells.
+                    glowSpread: this.interpolateKeyframes(progress, [[0, 11], [0.46, 27], [1, 52]]) * rankGlowScale,
+                    glowOpacity: this.interpolateKeyframes(progress, [[0, 0.08], [0.46, 0.20], [1, 0.34]])
                 };
             }
 
@@ -12283,7 +12375,7 @@ Font License Notices
                 context.rotate(Math.PI / 4);
                 context.fillStyle = fillColor;
                 context.shadowColor = crystal.isSelectable ? '#fff' : 'transparent';
-                context.shadowBlur = crystal.isSelectable ? Math.min(34, Math.max(4, presentation.glowSpread * 0.24)) : 0;
+                context.shadowBlur = crystal.isSelectable ? Math.min(16, Math.max(3, presentation.glowSpread * 0.16)) : 0;
                 context.fillRect(-side / 2, -side / 2, side, side);
 
                 const outlineCount = presentation.rank === 3 ? 2 : (presentation.rank === 2 ? 1 : 0);
@@ -13427,6 +13519,7 @@ Font License Notices
                 this.context.translate(shakeOffset.x, shakeOffset.y);
                 const cycleCelebrationActive = this.drawCycleCelebrationBase(game, timestamp);
                 if (!cycleCelebrationActive) this.drawProductionGrid(game);
+                this.drawAttractSquares(game, timestamp);
                 this.drawCompletedSquares(game);
                 this.drawConnectionLines(game);
                 this.drawCrystals(game, timestamp);
@@ -22351,7 +22444,7 @@ Best Score: ${bestScore}${recoveredLine}` :
                 reseedAttractGrid();
 
                 const updatePattern = () => {
-                    this.attractSquares.forEach(square => square.remove()); // Clear existing squares
+                    this.playfieldRenderer.removeAttractSquares(this.attractSquares);
                     this.attractSquares = [];
 
                     if (performance.now() - this.attractModeStartedAt >= this.attractReseedIntervalMs) {
@@ -22360,16 +22453,21 @@ Best Score: ${bestScore}${recoveredLine}` :
                         this.lifeGrid = this.nextGeneration(); // Compute next generation
                     }
 
-                    // Display live cells as flashing squares
+                    // Display live cells as flashing squares. The same state drives either renderer.
+                    const createdAt = performance.now();
                     for (let x = 0; x < gridWidth; x++) {
                         for (let y = 0; y < gridHeight; y++) {
                             if (this.lifeGrid[x][y]) {
-                                const square = document.createElement('div');
-                                square.className = 'filled-square attract-square';
-                                square.style.left = `${x * gridSize}px`;
-                                square.style.top = `${y * gridSize}px`;
-                                square.style.animationDelay = `${Math.random() * 0.5}s`; // Random flash delay
-                                this.container.appendChild(square);
+                                const square = {
+                                    x: x * gridSize,
+                                    y: y * gridSize,
+                                    size: gridSize,
+                                    createdAt,
+                                    animationDelayMs: Math.random() * 500,
+                                    isActive: true,
+                                    element: null
+                                };
+                                this.playfieldRenderer.createAttractSquare(square);
                                 this.attractSquares.push(square);
                             }
                         }
@@ -22380,6 +22478,7 @@ Best Score: ${bestScore}${recoveredLine}` :
                     if (totalLive === 0) {
                         reseedAttractGrid();
                     }
+                    this.requestPlayfieldRender();
                 };
 
                 updatePattern(); // Initial pattern
@@ -22407,9 +22506,10 @@ Best Score: ${bestScore}${recoveredLine}` :
                 this.stopAttractComputerAmbience();
                 if (this.player) this.playfieldRenderer.setPlayerEffect(this.player, 'attract-orb-pulse', false);
                 this.resetMarqueeEasterEgg();
-                this.attractSquares.forEach(square => square.remove()); // Remove squares
+                this.playfieldRenderer.removeAttractSquares(this.attractSquares);
                 this.attractSquares = [];
                 this.lifeGrid = []; // Clear grid
+                this.requestPlayfieldRender();
             }
 
             removeCycleRebootCells() {
