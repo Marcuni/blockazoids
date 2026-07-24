@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Block-A-Zoids p167: normalizes regular Canvas glow, further reduces selectable-crystal bloom, and recenters the Orb whenever attract mode begins.
+Block-A-Zoids p168: removes the retired DOM playfield renderer and hidden gameplay elements, leaving Canvas as the sole live-playfield renderer.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="p167">
+<html data-build-version="p168">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -424,506 +424,8 @@ Font License Notices
             -webkit-touch-callout: none;
         }
 
-        /* Player styling as a glowing white circle */
-        #player {
-            position: absolute;
-            background: #fff;
-            width: var(--player-size, 20px);
-            height: var(--player-size, 20px);
-            border-radius: 50%;
-            box-shadow: 0 0 calc(var(--default-glow) * 0.8px) #fff;
-            border: 1px solid #fff;
-            z-index: 3;
-            display: none;
-        }
+        /* Live playfield objects are rendered by Canvas. */
 
-        #player.attract-orb-pulse {
-            display: block;
-            animation: attractOrbPulse 1.05s ease-in-out infinite;
-        }
-
-        /* Secret attract-card trigger: after a short confirmation delay, a tightening ring
-           shows that the two-second Orb hold is being recognized. */
-        #player.attract-orb-hold-cue::after {
-            content: "";
-            position: absolute;
-            inset: -10px;
-            border: 2px solid #fff;
-            border-radius: 50%;
-            opacity: 0;
-            pointer-events: none;
-            transform: scale(1.55);
-            box-shadow: 0 0 8px rgba(255,255,255,0.72), inset 0 0 8px rgba(255,255,255,0.28);
-            animation: attractOrbHoldCue 1.6s linear forwards;
-        }
-
-        @keyframes attractOrbPulse {
-            0% { transform: scale(1); box-shadow: 0 0 8px #fff, 0 0 16px rgba(255,255,255,0.72); }
-            50% { transform: scale(1.12); box-shadow: 0 0 16px #fff, 0 0 36px rgba(255,255,255,0.95), 0 0 64px rgba(255,255,255,0.45); }
-            100% { transform: scale(1); box-shadow: 0 0 8px #fff, 0 0 16px rgba(255,255,255,0.72); }
-        }
-
-        @keyframes attractOrbHoldCue {
-            0% {
-                opacity: 0.28;
-                transform: scale(1.55);
-                box-shadow: 0 0 6px rgba(255,255,255,0.44), inset 0 0 5px rgba(255,255,255,0.18);
-            }
-            72% {
-                opacity: 0.76;
-                transform: scale(1.12);
-            }
-            100% {
-                opacity: 1;
-                transform: scale(1);
-                box-shadow: 0 0 15px #fff, 0 0 34px rgba(255,255,255,0.82), inset 0 0 10px rgba(255,255,255,0.52);
-            }
-        }
-        
-        /* Enemy styling with dynamic color and glow */
-        .enemy {
-            position: absolute;
-            box-shadow: 0 0 calc(var(--default-glow) * 0.8px) currentColor;
-            border: 1px solid #fff;
-            z-index: 5;
-            opacity: 0;
-            transition: opacity 0.5s ease-in, transform 0.3s ease-out;
-            --enemy-color: #fff;
-        }
-
-
-        /* Developer-only behavior test presentation. The square body remains shared with every Block-A-Zoid. */
-        .enemy[data-enemy-behavior="charger"] {
-            box-shadow: 0 0 8px rgba(0,255,0,0.78), 0 0 18px rgba(0,255,0,0.30);
-        }
-
-        .enemy[data-enemy-behavior="charger"].charger-telegraph {
-            animation: chargerTelegraphPulse 0.18s steps(2, end) infinite;
-        }
-
-        .enemy[data-enemy-behavior="charger"].charger-telegraph::before {
-            content: "";
-            position: absolute;
-            left: 50%;
-            top: 50%;
-            width: calc(var(--grid-size, 60px) * 0.72);
-            height: 1px;
-            pointer-events: none;
-            transform-origin: left center;
-            transform: translateY(-50%) rotate(var(--charger-aim-angle, 0rad));
-            background: rgba(255,255,255,0.92);
-            box-shadow: 0 0 5px #fff, 0 0 11px rgba(0,255,0,0.78);
-            opacity: 0.86;
-        }
-
-        .enemy[data-enemy-behavior="charger"].charger-charge {
-            box-shadow: 0 0 12px #fff, 0 0 26px rgba(0,255,0,0.96), 0 0 44px rgba(0,255,0,0.46);
-            filter: brightness(1.35);
-        }
-
-        .enemy[data-enemy-behavior="charger"].charger-recovery {
-            filter: brightness(0.72);
-            box-shadow: 0 0 5px rgba(0,255,0,0.62), 0 0 12px rgba(0,255,0,0.20);
-        }
-
-        @keyframes chargerTelegraphPulse {
-            0% {
-                filter: brightness(0.82);
-                box-shadow: 0 0 6px rgba(0,255,0,0.62), 0 0 14px rgba(0,255,0,0.22);
-            }
-            100% {
-                filter: brightness(1.65);
-                box-shadow: 0 0 12px #fff, 0 0 26px rgba(0,255,0,0.95), 0 0 42px rgba(0,255,0,0.44);
-            }
-        }
-
-        /* p052 developer-only Blue Ghost Pulse presentation. Active remains dangerous; dormant is safe, nearly invisible, periodically revealed, and followed by a fully visible safe reactivation warning. */
-        .enemy[data-enemy-behavior="pulse"] {
-            background-color: #00F !important;
-            box-shadow: 0 0 8px rgba(0,90,255,0.86), 0 0 18px rgba(0,90,255,0.34);
-        }
-
-        .enemy[data-enemy-behavior="pulse"].pulse-active {
-            background-color: #00F !important;
-            border-color: #fff !important;
-            filter: brightness(1.08);
-            box-shadow: 0 0 9px rgba(0,100,255,0.92), 0 0 20px rgba(0,100,255,0.42);
-        }
-
-        .enemy[data-enemy-behavior="pulse"].pulse-deactivation-warning {
-            background-color: #00F !important;
-            animation: pulseDeactivateWarning 0.15s steps(2, end) infinite;
-        }
-
-        .enemy[data-enemy-behavior="pulse"].pulse-dormant {
-            background-color: rgba(0, 40, 255, 0.015) !important;
-            border-color: rgba(80, 165, 255, 0.08) !important;
-            filter: brightness(0.52);
-            box-shadow: 0 0 2px rgba(0, 100, 255, 0.10);
-            animation: pulseDormantPositionFlash var(--pulse-ghost-flash-period, 350ms) linear infinite;
-        }
-
-        /* A restrained directional trace keeps the hidden movement readable without turning the dormant body back into a visible obstacle. */
-        .enemy[data-enemy-behavior="pulse"].pulse-dormant::after {
-            content: "";
-            position: absolute;
-            left: 50%;
-            top: 50%;
-            width: clamp(7px, calc(var(--player-size, 20px) * 0.70), 15px);
-            height: 1px;
-            transform-origin: 0 50%;
-            transform: translate(-1px, -50%) rotate(calc(var(--pulse-motion-angle, 0deg) + 180deg));
-            background: linear-gradient(90deg, rgba(90, 175, 255, 0.38), rgba(40, 110, 255, 0));
-            filter: blur(0.35px);
-            opacity: 0.46;
-            pointer-events: none;
-        }
-
-        .enemy[data-enemy-behavior="pulse"].pulse-reactivation-warning {
-            background-color: rgba(0, 55, 255, 0.82) !important;
-            border-color: rgba(195, 225, 255, 1) !important;
-            animation: pulseReactivateWarning 0.14s steps(2, end) infinite;
-        }
-
-        @keyframes pulseDeactivateWarning {
-            0% {
-                filter: brightness(0.82);
-                box-shadow: 0 0 6px rgba(0,90,255,0.58), 0 0 14px rgba(0,90,255,0.20);
-            }
-            100% {
-                filter: brightness(1.72);
-                box-shadow: 0 0 11px #fff, 0 0 24px rgba(0,110,255,0.96), 0 0 40px rgba(0,110,255,0.44);
-            }
-        }
-
-        @keyframes pulseDormantPositionFlash {
-            0%, 27% {
-                background-color: rgba(0, 55, 255, 0.10);
-                border-color: rgba(105, 185, 255, 0.74);
-                filter: brightness(1.14);
-                box-shadow: 0 0 5px rgba(75, 165, 255, 0.56), 0 0 12px rgba(0, 95, 255, 0.22);
-            }
-            29%, 100% {
-                background-color: rgba(0, 40, 255, 0.015);
-                border-color: rgba(80, 165, 255, 0.08);
-                filter: brightness(0.52);
-                box-shadow: 0 0 2px rgba(0, 100, 255, 0.10);
-            }
-        }
-
-        @keyframes pulseReactivateWarning {
-            0% {
-                background-color: rgba(0, 55, 255, 0.72);
-                filter: brightness(1.08);
-                box-shadow: 0 0 8px rgba(0,100,255,0.72), 0 0 18px rgba(0,100,255,0.34);
-            }
-            100% {
-                background-color: #fff;
-                filter: brightness(1.90);
-                box-shadow: 0 0 12px #fff, 0 0 28px rgba(0,120,255,0.98), 0 0 44px rgba(0,120,255,0.48);
-            }
-        }
-        
-        /* Explosion effect for player death or Cosmic Zap discharge */
-        .explosion {
-            position: absolute;
-            background: #fff;
-            border-radius: 50%;
-            border: 2px solid #fff;
-            box-shadow: 0 0 calc(var(--default-glow) * 1.2px) #fff;
-            opacity: 0;
-            transition: all 0.6s ease-out;
-            z-index: 6;
-        }
-        
-        /* Cosmic Zap: instant Orb-triggered target overload. Gameplay clears immediately; this is visual confirmation. */
-        #player.cosmicZapOrbFlash {
-            animation: cosmicZapOrbFlashAnimation 0.42s ease-out 1;
-        }
-
-        .cosmic-zap-overload-ring {
-            position: absolute;
-            width: 8px;
-            height: 8px;
-            border: 2px solid #fff;
-            border-radius: 50%;
-            box-shadow: 0 0 10px #fff, 0 0 24px rgba(255, 255, 255, 0.86), inset 0 0 10px rgba(255, 255, 255, 0.66);
-            opacity: 0;
-            z-index: 9;
-            pointer-events: none;
-            transform: translate(-50%, -50%) scale(0.35);
-            animation: cosmicZapOverloadRingAnimation 0.40s ease-out forwards;
-        }
-
-        .cosmic-zap-line {
-            position: absolute;
-            height: 2px;
-            background: #fff;
-            box-shadow: 0 0 7px #fff, 0 0 18px rgba(255, 255, 255, 0.86);
-            opacity: 0;
-            z-index: 9;
-            pointer-events: none;
-            transform-origin: left center;
-            animation: cosmicZapLineAnimation 0.24s steps(1, end) forwards;
-        }
-
-        .cosmic-zap-spark {
-            position: absolute;
-            width: 5px;
-            height: 5px;
-            background: #fff;
-            box-shadow: 0 0 6px #fff, 0 0 14px rgba(255, 255, 255, 0.86);
-            opacity: 0;
-            z-index: 10;
-            pointer-events: none;
-            animation: cosmicZapSparkAnimation 0.36s ease-out forwards;
-        }
-
-        .enemy.cosmicZapDissolve {
-            animation: cosmicZapDissolveAnimation 0.16s steps(1, end) forwards;
-        }
-
-        #gameContainer.cosmicZapShake {
-            animation: cosmicZapShakeAnimation 0.28s ease-in-out 1;
-        }
-
-        @keyframes cosmicZapOrbFlashAnimation {
-            0% { transform: scale(1); box-shadow: 0 0 calc(var(--default-glow) * 0.8px) #fff; }
-            22% { transform: scale(1.10); box-shadow: 0 0 16px #fff, 0 0 34px #fff, 0 0 56px rgba(255,255,255,0.82); }
-            100% { transform: scale(1); box-shadow: 0 0 calc(var(--default-glow) * 0.8px) #fff; }
-        }
-
-        @keyframes cosmicZapOverloadRingAnimation {
-            0% { opacity: 0.95; transform: translate(-50%, -50%) scale(0.35); }
-            58% { opacity: 0.70; transform: translate(-50%, -50%) scale(12); }
-            100% { opacity: 0; transform: translate(-50%, -50%) scale(18); }
-        }
-
-        @keyframes cosmicZapLineAnimation {
-            0% { opacity: 0; }
-            10% { opacity: 1; }
-            36% { opacity: 0; }
-            54% { opacity: 0.9; }
-            100% { opacity: 0; }
-        }
-
-        @keyframes cosmicZapSparkAnimation {
-            0% { opacity: 1; transform: translate(0, 0) scale(0.85); }
-            100% { opacity: 0; transform: translate(var(--zap-spark-x, 0), var(--zap-spark-y, -18px)) scale(0.1); }
-        }
-
-        @keyframes cosmicZapDissolveAnimation {
-            0% { opacity: 1; filter: brightness(1); transform: scale(1); }
-            32% { opacity: 1; filter: brightness(4); transform: scale(1.06); background: #fff; }
-            64% { opacity: 0.52; filter: brightness(2); transform: scale(0.84); }
-            100% { opacity: 0; filter: brightness(1); transform: scale(0.22); }
-        }
-
-        @keyframes cosmicZapShakeAnimation {
-            0% { transform: translate(0, 0); }
-            20% { transform: translate(-2px, 2px); }
-            40% { transform: translate(2px, -2px); }
-            60% { transform: translate(-1px, 1px); }
-            80% { transform: translate(1px, -1px); }
-            100% { transform: translate(0, 0); }
-        }
-        
-        /* Base crystal (diamond-shaped) styling */
-        .crystal {
-            position: absolute;
-            width: var(--crystal-size, 10px);
-            height: var(--crystal-size, 10px);
-            transform: rotate(45deg);
-            z-index: 2;
-        }
-        
-        /* Crystal color variants expose their RGB base color to the value-blink animations. */
-        .crystal.red {
-            --crystal-base-color: var(--red-color);
-            background-color: var(--crystal-base-color);
-        }
-        .crystal.green {
-            --crystal-base-color: var(--green-color);
-            background-color: var(--crystal-base-color);
-        }
-        .crystal.blue {
-            --crystal-base-color: var(--blue-color);
-            background-color: var(--crystal-base-color);
-        }
-        /* Selectable crystal value uses a restrained size hierarchy plus outline count.
-           10 points = base size/no outline; 15 = 8% larger/one outline; 20 = 15% larger/two outlines. */
-        .crystal.next {
-            --crystal-value-scale: 1;
-            --crystal-blink-duration: 0.30s;
-            --crystal-glow-start:
-                0 0 18px rgba(255, 255, 255, 0.42),
-                0 0 32px rgba(255, 255, 255, 0.25),
-                0 0 50px rgba(255, 255, 255, 0.14);
-            --crystal-glow-middle:
-                0 0 30px rgba(255, 255, 255, 0.94),
-                0 0 50px rgba(255, 255, 255, 0.76),
-                0 0 76px rgba(255, 255, 255, 0.50);
-            --crystal-glow-peak:
-                0 0 42px rgba(255, 255, 255, 1),
-                0 0 68px rgba(255, 255, 255, 0.90),
-                0 0 102px rgba(255, 255, 255, 0.68);
-            transform: rotate(45deg) scale(var(--crystal-value-scale));
-            transform-origin: center;
-            z-index: 3;
-            animation: crystalSelectableBlink var(--crystal-blink-duration) infinite alternate;
-            will-change: transform, filter, box-shadow;
-        }
-
-        .crystal.next.value-rank-1 {
-            --crystal-value-scale: 1;
-        }
-
-        .crystal.next.value-rank-2 {
-            --crystal-value-scale: 1.08;
-        }
-
-        .crystal.next.value-rank-3 {
-            --crystal-value-scale: 1.15;
-            --crystal-glow-start:
-                0 0 20px rgba(255, 255, 255, 0.46),
-                0 0 35px rgba(255, 255, 255, 0.28),
-                0 0 54px rgba(255, 255, 255, 0.16);
-            --crystal-glow-middle:
-                0 0 33px rgba(255, 255, 255, 0.98),
-                0 0 54px rgba(255, 255, 255, 0.80),
-                0 0 81px rgba(255, 255, 255, 0.54);
-            --crystal-glow-peak:
-                0 0 46px rgba(255, 255, 255, 1),
-                0 0 74px rgba(255, 255, 255, 0.94),
-                0 0 110px rgba(255, 255, 255, 0.72);
-        }
-
-        /* Fine outlines provide the secondary value cue without overpowering the crystal. */
-        .crystal.next.value-rank-2::after,
-        .crystal.next.value-rank-3::before,
-        .crystal.next.value-rank-3::after {
-            content: "";
-            position: absolute;
-            box-sizing: border-box;
-            pointer-events: none;
-            border: 0.55px solid rgba(255, 255, 255, 0.92);
-            border-radius: 0;
-        }
-
-        .crystal.next.value-rank-2::after {
-            inset: -1.25px;
-            opacity: 0.90;
-        }
-
-        .crystal.next.value-rank-3::before {
-            inset: -1.25px;
-            opacity: 0.92;
-        }
-
-        .crystal.next.value-rank-3::after {
-            inset: -2.75px;
-            opacity: 0.80;
-        }
-
-        @keyframes crystalSelectableBlink {
-            0% {
-                background-color: var(--crystal-base-color);
-                filter: brightness(1.02);
-                box-shadow:
-                    var(--crt-crystal-rgb, 0 0 0 transparent),
-                    var(--crt-crystal-bloom, 0 0 0 transparent),
-                    var(--crystal-glow-start);
-            }
-            46% {
-                background-color: rgba(255, 255, 255, 0.48);
-                filter: brightness(1.14);
-                box-shadow:
-                    var(--crt-crystal-rgb, 0 0 0 transparent),
-                    var(--crt-crystal-bloom, 0 0 0 transparent),
-                    var(--crystal-glow-middle);
-            }
-            100% {
-                background-color: rgba(255, 255, 255, 0.96);
-                filter: brightness(1.30);
-                box-shadow:
-                    var(--crt-crystal-rgb, 0 0 0 transparent),
-                    var(--crt-crystal-bloom, 0 0 0 transparent),
-                    var(--crystal-glow-peak);
-            }
-        }
-
-        /* Optional Prism Relic pickup: oversized crystal with a big collectible glow */
-        .prism-relic {
-            position: absolute;
-            width: var(--prism-relic-size, 30px);
-            height: var(--prism-relic-size, 30px);
-            z-index: 4;
-            pointer-events: none;
-            background-color: rgba(255, 255, 255, 0.48);
-            border: 1px solid rgba(255, 255, 255, 0.72);
-            box-shadow: 0 0 18px #fff, 0 0 38px rgba(255, 255, 255, 0.82), 0 0 72px rgba(255, 255, 255, 0.58);
-            transform: rotate(45deg);
-            animation: prismRelicCrystalTwinkle 0.25s infinite alternate;
-            isolation: isolate;
-            overflow: visible;
-        }
-
-        .prism-relic::before {
-            content: "";
-            position: absolute;
-            inset: -20px;
-            border-radius: 50%;
-            background: radial-gradient(circle, rgba(255,255,255,0.72) 0%, rgba(255,255,255,0.30) 38%, rgba(255,255,255,0) 74%);
-            opacity: 0.50;
-            transform: scale(0.92);
-            animation: prismRelicAuraGlow 0.25s infinite alternate;
-            pointer-events: none;
-            z-index: -1;
-        }
-
-        .prism-relic-outer,
-        .prism-relic-reflections {
-            display: none;
-        }
-
-        @keyframes prismRelicCrystalTwinkle {
-            0% {
-                background-color: rgba(255, 255, 255, 0.38);
-                border-color: rgba(255, 255, 255, 0.68);
-                box-shadow: 0 0 16px #fff, 0 0 34px rgba(255, 255, 255, 0.72), 0 0 64px rgba(255, 255, 255, 0.50);
-                filter: brightness(0.86);
-            }
-            100% {
-                background-color: rgba(255, 255, 255, 0.96);
-                border-color: #fff;
-                box-shadow: 0 0 30px #fff, 0 0 62px #fff, 0 0 108px rgba(255, 255, 255, 0.98);
-                filter: brightness(1.28);
-            }
-        }
-
-        @keyframes prismRelicAuraGlow {
-            0% { opacity: 0.42; transform: scale(0.90); }
-            100% { opacity: 0.90; transform: scale(1.10); }
-        }
-
-        /* Connection lines between collected crystals */
-        .connection-line {
-            position: absolute;
-            background: #fff;
-            z-index: 1;
-        }
-        
-        /* Filled square styling for completed grid sections */
-        .filled-square {
-            position: absolute;
-            background: #fff;
-            width: var(--grid-size, 60px);
-            height: var(--grid-size, 60px);
-            z-index: 0;
-            opacity: 0.2;
-            transition: opacity 0.3s ease;
-        }
-        
         /* Game over text styling */
         #gameOver {
             position: absolute;
@@ -8434,58 +7936,18 @@ Font License Notices
             background-image: none !important;
         }
 
-        html body #gameContainer > .playfield-grid-layer {
-            position: absolute;
-            inset: 2px;
-            z-index: 0;
-            pointer-events: none;
-            overflow: hidden;
-            background-color: #000;
-            background-image:
-                linear-gradient(rgba(255, 255, 255, 0.5) 0.67px, transparent 0.67px),
-                linear-gradient(90deg, rgba(255, 255, 255, 0.5) 0.67px, transparent 0.67px);
-            background-size: var(--grid-size, 60px) var(--grid-size, 60px);
-            background-position: -2px -2px;
-        }
 
-        /* p167: Canvas is the production-default renderer for the grid, Orb, crystals, connection lines, completed squares,
-           all three Block-A-Zoids, spawn warnings, the Prism Relic, explosions, and Cosmic Zap discharge
-           effects. DOM remains available only as a temporary diagnostic fallback. */
+        /* p168: Canvas is the only live-playfield renderer. HUD, menus, text panels,
+           cabinet artwork, and CRT glass remain HTML/CSS layers above it. */
         #playfieldCanvas {
             position: absolute;
             inset: 0;
             z-index: 1;
-            display: none;
+            display: block;
             width: 100%;
             height: 100%;
             pointer-events: none;
             touch-action: none;
-        }
-
-        #gameContainer.renderer-canvas > #playfieldCanvas {
-            display: block;
-        }
-
-        /* Canvas mode remains an isolated migration path. The grid, Orb, crystals, crystal
-           connections, completed cells, Orb trails, all three Block-A-Zoids, spawn warnings, the
-           Prism Relic, explosions, and Cosmic Zap effects are Canvas-rendered; remaining DOM
-           playfield objects stay hidden until their renderer stages are complete. */
-        #gameContainer.renderer-canvas > .playfield-grid-layer,
-        #gameContainer.renderer-canvas > #player,
-        #gameContainer.renderer-canvas > .enemy,
-        #gameContainer.renderer-canvas > .crystal,
-        #gameContainer.renderer-canvas > .spawn-warning,
-        #gameContainer.renderer-canvas > .prism-relic,
-        #gameContainer.renderer-canvas > .explosion,
-        #gameContainer.renderer-canvas > .connection-line,
-        #gameContainer.renderer-canvas > .filled-square,
-        #gameContainer.renderer-canvas > .vector-phosphor-trail,
-        #gameContainer.renderer-canvas > .cosmic-zap-overload-ring,
-        #gameContainer.renderer-canvas > .cosmic-zap-line,
-        #gameContainer.renderer-canvas > .cosmic-zap-spark,
-        #gameContainer.renderer-canvas > .cycle-reboot-line,
-        #gameContainer.renderer-canvas > .cycle-reboot-cell {
-            visibility: hidden !important;
         }
 
         html body #gameContainer.crt-enabled.crt-fx-grid-rgb.crt-grid-rgb-low:not(.crt-ui-suspended) > .playfield-grid-layer {
@@ -9074,7 +8536,6 @@ Font License Notices
     <!-- Main game container -->
     <div id="playfieldShell">
         <div id="gameContainer">
-        <div class="playfield-grid-layer" aria-hidden="true"></div>
         <canvas id="playfieldCanvas" aria-hidden="true"></canvas>
         <div class="playfield-crt-layer playfield-crt-tint" aria-hidden="true"></div>
         <div class="playfield-crt-layer playfield-crt-scanlines" aria-hidden="true"></div>
@@ -9115,7 +8576,6 @@ Font License Notices
         <div class="playfield-crt-layer playfield-crt-sweep" aria-hidden="true"></div>
         <div class="playfield-crt-layer playfield-crt-event" aria-hidden="true"></div>
         <div class="playfield-crt-shutdown" aria-hidden="true"></div>
-        <div id="player"></div>
         <button id="tutorialPrompt" type="button" aria-live="polite" aria-atomic="true" aria-hidden="true"><span class="tutorial-window-title"></span><span class="tutorial-window-message"></span><span class="tutorial-window-continue">TAP TO CONTINUE</span></button>
         <div id="enemyIdentityCard" aria-live="polite" aria-hidden="true">
             <div class="enemy-identity-card-panel">
@@ -10880,47 +10340,28 @@ Font License Notices
             }
         }
 
-        // Canvas is the production-default renderer. The query-string or injected override keeps
-        // the DOM renderer available temporarily for browser/WKWebView comparison and rollback.
-        const PLAYFIELD_RENDERER_MODE = (() => {
-            const injectedMode = typeof window !== 'undefined' ? window.__BLOCK_A_ZOIDS_RENDERER__ : null;
-            const queryMode = typeof window !== 'undefined'
-                ? new URLSearchParams(window.location.search).get('renderer')
-                : null;
-            return String(injectedMode || queryMode || 'canvas').toLowerCase() === 'dom' ? 'dom' : 'canvas';
-        })();
-
-        // Second-stage rendering boundary for the live playfield. Gameplay objects retain their
-        // existing DOM elements in p167 only as a temporary fallback, while simulation state and frame
-        // presentation continue to pass through one renderer boundary.
-        class DomPlayfieldRenderer {
+        // p168 state boundary for Canvas presentation. Gameplay objects keep plain JavaScript
+        // state only; no live-playfield HTML elements are created or inspected.
+        class PlayfieldRendererState {
             constructor(game) {
                 this.game = game;
-                this.kind = 'dom';
+                this.kind = 'state';
             }
 
-            resize() {
-                // DOM sizing is controlled by the responsive playfield layout and CSS variables.
-            }
+            resize() {}
 
             attachPlayer(player) {
-                player.element = document.getElementById('player');
-                return player.element;
+                if (!player) return null;
+                player.element = null;
+                if (!player.visualEffects) player.visualEffects = new Set();
+                if (!player.visualEffectStartTimes) player.visualEffectStartTimes = new Map();
+                return null;
             }
 
-            renderPlayer(player) {
-                if (!player || !player.element) return;
-                player.element.style.width = `${player.size}px`;
-                player.element.style.height = `${player.size}px`;
-                player.element.style.left = `${player.x}px`;
-                player.element.style.top = `${player.y}px`;
-            }
+            renderPlayer() {}
 
             setPlayerVisible(player, visible) {
-                if (!player) return;
-                player.isVisible = Boolean(visible);
-                if (!player.element) return;
-                player.element.style.display = player.isVisible ? 'block' : 'none';
+                if (player) player.isVisible = Boolean(visible);
             }
 
             setPlayerEffect(player, effectClass, active) {
@@ -10928,41 +10369,28 @@ Font License Notices
                 if (!player.visualEffects) player.visualEffects = new Set();
                 if (active) player.visualEffects.add(effectClass);
                 else player.visualEffects.delete(effectClass);
-                if (!player.element) return;
-                player.element.classList.toggle(effectClass, Boolean(active));
             }
 
             restartPlayerEffect(player, effectClass) {
                 if (!player || !effectClass) return;
                 this.setPlayerEffect(player, effectClass, false);
-                if (player.element) void player.element.offsetWidth;
                 this.setPlayerEffect(player, effectClass, true);
             }
 
             clearPlayerPickupEffects(player) {
-                if (!player) return;
                 this.setPlayerEffect(player, 'crystal-pickup-pop', false);
-                if (!player.element) return;
-                player.element.querySelectorAll('.orb-crystal-pickup-fx').forEach(effect => effect.remove());
             }
 
             createAttractSquare(square) {
                 if (!square) return null;
-                const element = document.createElement('div');
-                element.className = 'filled-square attract-square';
-                element.style.left = `${square.x}px`;
-                element.style.top = `${square.y}px`;
-                element.style.animationDelay = `${Math.max(0, Number(square.animationDelayMs) || 0)}ms`;
-                square.element = element;
+                square.element = null;
                 square.isActive = true;
-                this.game.container.appendChild(element);
-                return element;
+                return null;
             }
 
             removeAttractSquare(square) {
                 if (!square) return;
                 square.isActive = false;
-                if (square.element) square.element.remove();
                 square.element = null;
             }
 
@@ -10971,60 +10399,36 @@ Font License Notices
             }
 
             createSpawnWarning(warning) {
-                const element = document.createElement('div');
-                element.className = 'spawn-warning';
-                warning.element = element;
+                if (!warning) return null;
+                warning.element = null;
                 warning.isActive = true;
                 if (!Number.isFinite(warning.createdAt)) warning.createdAt = performance.now();
                 if (!Number.isFinite(warning.durationMs)) warning.durationMs = this.game.spawnWarningDurationMs;
-                this.renderSpawnWarning(warning);
-                this.game.container.appendChild(element);
-                return element;
+                return null;
             }
 
-            renderSpawnWarning(warning) {
-                if (!warning || !warning.element) return;
-                warning.element.style.left = `${warning.x}px`;
-                warning.element.style.top = `${warning.y}px`;
-                warning.element.style.width = `${warning.size}px`;
-                warning.element.style.height = `${warning.size}px`;
-            }
+            renderSpawnWarning() {}
 
             removeSpawnWarning(warning) {
                 if (!warning) return;
                 warning.isActive = false;
                 warning.removedAt = performance.now();
-                if (!warning.element) return;
-                warning.element.remove();
                 warning.element = null;
             }
 
             createEnemy(enemy) {
-                const element = document.createElement('div');
-                element.className = 'enemy';
-                element.dataset.enemyBehavior = enemy.behaviorType;
-                element.dataset.enemySizeType = enemy.type;
-                element.style.transform = 'scale(0)';
-                enemy.element = element;
-                this.renderEnemySize(enemy);
-                this.renderEnemyPosition(enemy);
-                this.applyEnemyColor(enemy, enemy.baseColor);
-                this.game.container.appendChild(element);
+                if (!enemy) return null;
+                enemy.element = null;
                 this.setEnemyVisible(enemy, false);
-                this.renderEnemyVisualState(enemy);
-                return element;
+                this.applyEnemyColor(enemy, enemy.baseColor);
+                return null;
             }
 
             setEnemyVisible(enemy, visible) {
                 if (!enemy) return;
                 const nextVisible = Boolean(visible);
-                if (enemy.isVisible !== nextVisible) {
-                    enemy.visibilityChangedAt = performance.now();
-                }
+                if (enemy.isVisible !== nextVisible) enemy.visibilityChangedAt = performance.now();
                 enemy.isVisible = nextVisible;
-                if (!enemy.element) return;
-                enemy.element.style.opacity = enemy.isVisible ? '1' : '0';
-                enemy.element.style.transform = enemy.isVisible ? 'scale(1)' : 'scale(0)';
             }
 
             setEnemyRestoring(enemy, restoring) {
@@ -11032,8 +10436,6 @@ Font License Notices
                 const nextRestoring = Boolean(restoring);
                 if (nextRestoring && !enemy.isRestoring) enemy.restoringStartedAt = performance.now();
                 enemy.isRestoring = nextRestoring;
-                if (!enemy.element) return;
-                enemy.element.classList.toggle('restoring', enemy.isRestoring);
             }
 
             setEnemyDissolving(enemy, dissolving) {
@@ -11041,8 +10443,6 @@ Font License Notices
                 const nextDissolving = Boolean(dissolving);
                 if (nextDissolving && !enemy.isDissolving) enemy.dissolvingStartedAt = performance.now();
                 enemy.isDissolving = nextDissolving;
-                if (!enemy.element) return;
-                enemy.element.classList.toggle('cosmicZapDissolve', enemy.isDissolving);
             }
 
             setEnemyBorderFlash(enemy, active) {
@@ -11050,68 +10450,22 @@ Font License Notices
                 const nextActive = Boolean(active);
                 if (nextActive && !enemy.borderFlashActive) enemy.borderFlashStartedAt = performance.now();
                 enemy.borderFlashActive = nextActive;
-                if (!enemy.element) return;
-                enemy.element.classList.toggle('enemyBorderFlash', nextActive);
             }
 
-            renderEnemyVisualState(enemy) {
-                if (!enemy || !enemy.element) return;
-                const element = enemy.element;
-                const chargerClasses = ['charger-cruise', 'charger-telegraph', 'charger-charge', 'charger-recovery'];
-                const pulseClasses = ['pulse-active', 'pulse-deactivation-warning', 'pulse-dormant', 'pulse-reactivation-warning'];
-                element.classList.remove(...chargerClasses, ...pulseClasses);
-
-                if (enemy.behaviorType === ENEMY_BEHAVIOR_TYPES.CHARGER) {
-                    const state = enemy.visualState || 'cruise';
-                    element.classList.add(`charger-${state}`);
-                    element.dataset.chargerState = state;
-                } else if (enemy.behaviorType === ENEMY_BEHAVIOR_TYPES.PULSE) {
-                    const state = enemy.visualState || 'active';
-                    element.classList.add(`pulse-${state}`);
-                    element.dataset.pulseState = state;
-                    const identity = getEnemyIdentity(ENEMY_BEHAVIOR_TYPES.PULSE);
-                    element.setAttribute('aria-label', `${identity.displayName} ${identity.className}: ${state}`);
-                }
-
-                this.renderEnemyDirectionalVisuals(enemy);
-            }
-
-            renderEnemyDirectionalVisuals(enemy) {
-                if (!enemy || !enemy.element) return;
-                enemy.element.style.setProperty('--charger-aim-angle', `${Number(enemy.aimAngleRad) || 0}rad`);
-                enemy.element.style.setProperty('--pulse-motion-angle', `${Number(enemy.motionAngleDeg) || 0}deg`);
-                if (enemy.pulseGhostFlashPeriodMs > 0) {
-                    enemy.element.style.setProperty('--pulse-ghost-flash-period', `${enemy.pulseGhostFlashPeriodMs}ms`);
-                }
-            }
-
-            renderEnemyPosition(enemy) {
-                if (!enemy || !enemy.element) return;
-                enemy.element.style.left = `${enemy.x}px`;
-                enemy.element.style.top = `${enemy.y}px`;
-            }
-
-            renderEnemySize(enemy) {
-                if (!enemy || !enemy.element) return;
-                enemy.element.style.width = `${enemy.size}px`;
-                enemy.element.style.height = `${enemy.size}px`;
-            }
+            renderEnemyVisualState() {}
+            renderEnemyDirectionalVisuals() {}
+            renderEnemyPosition() {}
+            renderEnemySize() {}
 
             applyEnemyColor(enemy, color) {
-                if (!enemy || !enemy.element || !color) return;
-                enemy.element.style.backgroundColor = color;
-                enemy.element.style.setProperty('--enemy-base-color', color);
+                if (!enemy || !color) return;
+                enemy.renderColor = color;
             }
 
-            renderEnemyAnimation(enemy) {
-                if (!enemy || !enemy.element) return;
-                enemy.element.style.setProperty('--enemy-color', '#fff');
-                enemy.element.style.border = '1px solid #fff';
-            }
+            renderEnemyAnimation() {}
 
             removeEnemy(enemy) {
-                if (!enemy || !enemy.element) return;
-                enemy.element.remove();
+                if (!enemy) return;
                 enemy.element = null;
                 enemy.isVisible = false;
                 enemy.isRestoring = false;
@@ -11119,358 +10473,165 @@ Font License Notices
             }
 
             createCrystal(crystal) {
-                const element = document.createElement('div');
-                element.className = `crystal ${crystal.color}`;
-                crystal.element = element;
-                this.renderCrystalPosition(crystal);
-                this.game.container.appendChild(element);
-                return element;
+                if (!crystal) return null;
+                crystal.element = null;
+                return null;
             }
 
-            renderCrystalPosition(crystal) {
-                if (!crystal || !crystal.element) return;
-                crystal.element.style.left = `${crystal.x}px`;
-                crystal.element.style.top = `${crystal.y}px`;
-            }
+            renderCrystalPosition() {}
 
             setCrystalSelectable(crystal, selectable) {
-                if (!crystal) return;
-                crystal.isSelectable = Boolean(selectable);
-                if (!crystal.element) return;
-                crystal.element.classList.toggle('next', crystal.isSelectable);
+                if (crystal) crystal.isSelectable = Boolean(selectable);
             }
 
-            renderCrystalValue(crystal) {
-                if (!crystal || !crystal.element) return;
-                crystal.element.classList.remove('value-rank-1', 'value-rank-2', 'value-rank-3');
-                if (crystal.valueRank > 0) crystal.element.classList.add(`value-rank-${crystal.valueRank}`);
-                crystal.element.dataset.valueRank = String(crystal.valueRank);
-                crystal.element.dataset.pointValue = String(crystal.pointValue);
-            }
+            renderCrystalValue() {}
 
             removeCrystal(crystal) {
-                if (!crystal || !crystal.element) return;
-                crystal.element.remove();
+                if (!crystal) return;
                 crystal.element = null;
                 crystal.isSelectable = false;
             }
 
             createConnectionLine(line) {
                 if (!line) return null;
-                const element = document.createElement('div');
-                element.className = 'connection-line';
-                line.element = element;
+                line.element = null;
                 this.renderConnectionLine(line);
-                this.game.container.appendChild(element);
-                return element;
+                return null;
             }
 
             renderConnectionLine(line) {
-                if (!line || !line.element) return;
-                const start = line.start;
-                const end = line.end;
-                const horizontal = start && end && start.row === end.row;
-                line.horizontal = Boolean(horizontal);
-                line.element.style.left = `${Math.min(start.x, end.x)}px`;
-                line.element.style.top = `${Math.min(start.y, end.y)}px`;
-                line.element.style.width = horizontal ? `${this.game.GRID_SIZE}px` : `${this.game.LINE_THICKNESS}px`;
-                line.element.style.height = horizontal ? `${this.game.LINE_THICKNESS}px` : `${this.game.GRID_SIZE}px`;
+                if (!line || !line.start || !line.end) return;
+                line.horizontal = line.start.row === line.end.row;
             }
 
             removeConnectionLine(line) {
-                if (!line || !line.element) return;
-                line.element.remove();
-                line.element = null;
+                if (line) line.element = null;
             }
 
             createFilledSquare(square) {
                 if (!square) return null;
-                const element = document.createElement('div');
-                element.className = square.className || 'filled-square';
-                element.dataset.gridCol = `${square.col}`;
-                element.dataset.gridRow = `${square.row}`;
-                square.element = element;
-                this.renderFilledSquare(square);
-                this.game.container.appendChild(element);
-                return element;
+                square.element = null;
+                return null;
             }
 
-            renderFilledSquare(square) {
-                if (!square || !square.element) return;
-                square.element.style.left = `${square.col * this.game.GRID_SIZE}px`;
-                square.element.style.top = `${square.row * this.game.GRID_SIZE}px`;
-                square.element.style.width = `${this.game.GRID_SIZE}px`;
-                square.element.style.height = `${this.game.GRID_SIZE}px`;
-            }
+            renderFilledSquare() {}
 
             removeFilledSquare(square) {
-                if (!square || !square.element) return;
-                square.element.remove();
-                square.element = null;
+                if (square) square.element = null;
             }
 
             createPrismRelic(relic) {
-                const element = document.createElement('div');
-                element.className = 'prism-relic';
+                if (!relic) return null;
+                relic.element = null;
+                relic.outerElement = null;
+                relic.reflectionsElement = null;
                 relic.isVisible = true;
                 if (!Number.isFinite(relic.createdAt)) relic.createdAt = performance.now();
-
-                const outerElement = document.createElement('div');
-                outerElement.className = 'prism-relic-outer';
-                const reflectionsElement = document.createElement('div');
-                reflectionsElement.className = 'prism-relic-reflections';
-                outerElement.appendChild(reflectionsElement);
-                element.appendChild(outerElement);
-
-                relic.element = element;
-                relic.outerElement = outerElement;
-                relic.reflectionsElement = reflectionsElement;
-                this.renderPrismRelic(relic);
-                this.game.container.appendChild(element);
-                return element;
+                return null;
             }
 
-            renderPrismRelic(relic) {
-                if (!relic || !relic.element) return;
-                relic.element.style.left = `${relic.x}px`;
-                relic.element.style.top = `${relic.y}px`;
-            }
+            renderPrismRelic() {}
 
             removePrismRelic(relic) {
                 if (!relic) return;
                 relic.isVisible = false;
                 relic.removedAt = performance.now();
-                if (!relic.element) return;
-                relic.element.remove();
                 relic.element = null;
             }
 
             createExplosion(explosion, initialSize) {
                 if (!explosion) return null;
-                const now = performance.now();
                 const normalizedSize = Math.max(1, Number(initialSize) || 1);
-                const element = document.createElement('div');
-                const initialRadius = normalizedSize / 2;
-                element.className = 'explosion';
-                element.style.left = `${explosion.x - initialRadius}px`;
-                element.style.top = `${explosion.y - initialRadius}px`;
-                element.style.width = `${normalizedSize}px`;
-                element.style.height = `${normalizedSize}px`;
-                element.style.opacity = '1';
                 explosion.initialSize = normalizedSize;
                 explosion.currentSize = normalizedSize;
                 explosion.targetSize = normalizedSize;
-                explosion.createdAt = Number.isFinite(explosion.createdAt) ? explosion.createdAt : now;
+                explosion.createdAt = Number.isFinite(explosion.createdAt) ? explosion.createdAt : performance.now();
                 explosion.opacity = 1;
                 explosion.isVisible = true;
                 explosion.removedAt = null;
-                explosion.element = element;
-                this.game.container.appendChild(element);
-                return element;
+                explosion.element = null;
+                return null;
             }
 
             expandExplosion(explosion, expandedSize) {
                 if (!explosion) return;
-                const normalizedSize = Math.max(1, Number(expandedSize) || explosion.currentSize || 1);
-                explosion.targetSize = normalizedSize;
+                explosion.targetSize = Math.max(1, Number(expandedSize) || explosion.currentSize || 1);
                 explosion.expansionStartedAt = performance.now();
-                if (!explosion.element) return;
-                const expandedRadius = normalizedSize / 2;
-                explosion.element.style.width = `${normalizedSize}px`;
-                explosion.element.style.height = `${normalizedSize}px`;
-                explosion.element.style.left = `${explosion.x - expandedRadius}px`;
-                explosion.element.style.top = `${explosion.y - expandedRadius}px`;
             }
 
             setExplosionOpacity(explosion, opacity) {
                 if (!explosion) return;
                 explosion.opacity = Math.max(0, Math.min(1, Number(opacity) || 0));
-                if (explosion.opacity < 1 && !Number.isFinite(explosion.fadeStartedAt)) {
-                    explosion.fadeStartedAt = performance.now();
-                }
-                if (explosion.element) explosion.element.style.opacity = String(explosion.opacity);
+                if (explosion.opacity < 1 && !Number.isFinite(explosion.fadeStartedAt)) explosion.fadeStartedAt = performance.now();
             }
 
             removeExplosion(explosion) {
                 if (!explosion) return;
                 explosion.isVisible = false;
                 explosion.removedAt = performance.now();
-                if (!explosion.element) return;
-                explosion.element.remove();
                 explosion.element = null;
             }
 
-            createCosmicZapLine(effect) {
-                if (!effect) return null;
-                const element = document.createElement('div');
-                element.className = 'cosmic-zap-line';
-                element.style.left = `${effect.x}px`;
-                element.style.top = `${effect.y}px`;
-                element.style.width = `${effect.length}px`;
-                element.style.transform = `translateY(-50%) rotate(${effect.angleRad}rad)`;
-                element.style.animationDelay = `${Math.max(0, Number(effect.delayMs) || 0)}ms`;
-                effect.element = element;
-                effect.isActive = true;
-                this.game.container.appendChild(element);
-                return element;
-            }
-
-            createCosmicZapRing(effect) {
-                if (!effect) return null;
-                const element = document.createElement('div');
-                element.className = 'cosmic-zap-overload-ring';
-                element.style.left = `${effect.x}px`;
-                element.style.top = `${effect.y}px`;
-                effect.element = element;
-                effect.isActive = true;
-                this.game.container.appendChild(element);
-                return element;
-            }
-
-            createCosmicZapSpark(effect) {
-                if (!effect) return null;
-                const element = document.createElement('div');
-                element.className = 'cosmic-zap-spark';
-                element.style.left = `${effect.x}px`;
-                element.style.top = `${effect.y}px`;
-                element.style.setProperty('--zap-spark-x', `${effect.deltaX}px`);
-                element.style.setProperty('--zap-spark-y', `${effect.deltaY}px`);
-                element.style.animationDelay = `${Math.max(0, Number(effect.delayMs) || 0)}ms`;
-                effect.element = element;
-                effect.isActive = true;
-                this.game.container.appendChild(element);
-                return element;
-            }
+            createCosmicZapLine(effect) { return this.registerCosmicZapEffect ? this.registerCosmicZapEffect(effect) : null; }
+            createCosmicZapRing(effect) { return this.registerCosmicZapEffect ? this.registerCosmicZapEffect(effect) : null; }
+            createCosmicZapSpark(effect) { return this.registerCosmicZapEffect ? this.registerCosmicZapEffect(effect) : null; }
 
             removeCosmicZapEffect(effect) {
                 if (!effect) return;
                 effect.isActive = false;
                 effect.removedAt = performance.now();
-                if (!effect.element) return;
-                effect.element.remove();
                 effect.element = null;
             }
 
             restartCosmicZapShake(durationMs = 280) {
-                const now = performance.now();
                 this.game.cosmicZapShakeActive = true;
-                this.game.cosmicZapShakeStartedAt = now;
+                this.game.cosmicZapShakeStartedAt = performance.now();
                 this.game.cosmicZapShakeDurationMs = Math.max(1, Number(durationMs) || 280);
-                if (!this.game.container) return;
-                this.game.container.classList.remove('cosmicZapShake');
-                void this.game.container.offsetWidth;
-                this.game.container.classList.add('cosmicZapShake');
             }
 
             setCosmicZapShake(active) {
                 this.game.cosmicZapShakeActive = Boolean(active);
                 if (!active) this.game.cosmicZapShakeStartedAt = null;
-                if (this.game.container) this.game.container.classList.toggle('cosmicZapShake', Boolean(active));
             }
 
             restartGridRestoreSequence(durationMs = 1180) {
-                const now = performance.now();
-                this.game.gridRestoreEffect = {
-                    active: true,
-                    startedAt: now,
-                    durationMs: Math.max(1, Number(durationMs) || 1180)
-                };
-                if (!this.game.container) return;
-                this.game.container.classList.remove('gridRestoreSequence');
-                void this.game.container.offsetWidth;
-                this.game.container.classList.add('gridRestoreSequence');
+                this.game.gridRestoreEffect = { active: true, startedAt: performance.now(), durationMs: Math.max(1, Number(durationMs) || 1180) };
             }
 
             stopGridRestoreSequence() {
                 if (this.game.gridRestoreEffect) this.game.gridRestoreEffect.active = false;
-                if (this.game.container) this.game.container.classList.remove('gridRestoreSequence');
             }
 
             restartCycleStartPulse(durationMs = 1150) {
-                const now = performance.now();
-                this.game.cycleStartPulseEffect = {
-                    active: true,
-                    startedAt: now,
-                    durationMs: Math.max(1, Number(durationMs) || 1150)
-                };
-                if (!this.game.container) return;
-                this.game.container.classList.remove('cycleStartPulse');
-                void this.game.container.offsetWidth;
-                this.game.container.classList.add('cycleStartPulse');
+                this.game.cycleStartPulseEffect = { active: true, startedAt: performance.now(), durationMs: Math.max(1, Number(durationMs) || 1150) };
             }
 
             stopCycleStartPulse() {
                 if (this.game.cycleStartPulseEffect) this.game.cycleStartPulseEffect.active = false;
-                if (this.game.container) this.game.container.classList.remove('cycleStartPulse');
             }
 
             createCycleRebootPresentation(lines = [], cells = []) {
-                if (!this.game || !this.game.container) return;
-                lines.forEach(line => {
-                    if (!line) return;
-                    const element = document.createElement('div');
-                    element.className = `cycle-reboot-line ${line.orientation}`;
-                    if (line.orientation === 'horizontal') {
-                        element.style.left = '0px';
-                        element.style.top = `${line.offset}px`;
-                        element.style.width = `${line.length}px`;
-                    } else {
-                        element.style.left = `${line.offset}px`;
-                        element.style.top = '0px';
-                        element.style.height = `${line.length}px`;
-                    }
-                    element.style.setProperty('--line-delay', `${line.delayMs}ms`);
-                    line.element = element;
-                    this.game.container.appendChild(element);
-                });
-
-                cells.forEach(cell => {
-                    if (!cell) return;
-                    const element = document.createElement('div');
-                    element.className = 'cycle-reboot-cell final-lock';
-                    element.style.left = `${cell.x}px`;
-                    element.style.top = `${cell.y}px`;
-                    element.style.width = `${cell.size}px`;
-                    element.style.height = `${cell.size}px`;
-                    element.style.setProperty('--reboot-delay', `${cell.repairDelayMs}ms`);
-                    cell.element = element;
-                    this.game.container.appendChild(element);
-                });
+                this.cycleRebootLines = Array.isArray(lines) ? lines : [];
+                this.cycleRebootCells = Array.isArray(cells) ? cells : [];
             }
 
             removeCycleRebootPresentation(lines = [], cells = []) {
-                [...lines, ...cells].forEach(item => {
-                    if (!item || !item.element) return;
-                    item.element.remove();
-                    item.element = null;
-                });
-                if (this.game && this.game.container) {
-                    this.game.container.querySelectorAll('.cycle-reboot-line, .cycle-reboot-cell').forEach(element => element.remove());
-                }
+                [...lines, ...cells].forEach(item => { if (item) item.element = null; });
+                this.cycleRebootLines = [];
+                this.cycleRebootCells = [];
             }
 
             startCycleCelebration(durationMs = 6200) {
-                const now = performance.now();
-                this.game.cycleCelebrationEffect = {
-                    active: true,
-                    startedAt: now,
-                    durationMs: Math.max(1, Number(durationMs) || 6200)
-                };
-                this.setCycleRestoredIdle(false);
-                if (!this.game.container) return;
-                this.game.container.classList.remove('cycleCelebrationSequence');
-                void this.game.container.offsetWidth;
-                this.game.container.classList.add('cycleCelebrationSequence');
+                this.game.cycleCelebrationEffect = { active: true, startedAt: performance.now(), durationMs: Math.max(1, Number(durationMs) || 6200) };
+                this.game.cycleRestoredIdle = false;
             }
 
             stopCycleCelebration() {
                 if (this.game.cycleCelebrationEffect) this.game.cycleCelebrationEffect.active = false;
-                if (this.game.container) this.game.container.classList.remove('cycleCelebrationSequence');
             }
 
             setCycleRestoredIdle(active) {
                 this.game.cycleRestoredIdle = Boolean(active);
-                if (this.game.container) this.game.container.classList.toggle('cycleRestoredIdle', this.game.cycleRestoredIdle);
             }
 
             clearRestorationPresentation() {
@@ -11482,50 +10643,15 @@ Font License Notices
             }
 
             clearTransientEffects() {
-                if (!this.game || !this.game.container) return;
-                this.game.container.querySelectorAll('.spawn-warning, .cosmic-zap-line, .cosmic-zap-spark, .cosmic-zap-overload-ring, .explosion, .cycle-reboot-line, .cycle-reboot-cell').forEach(element => element.remove());
                 this.clearRestorationPresentation();
                 this.setCosmicZapShake(false);
             }
 
-            getTransientEffectCount() {
-                if (!this.game || !this.game.container) return 0;
-                return this.game.container.querySelectorAll('.spawn-warning, .cosmic-zap-line, .cosmic-zap-spark, .cosmic-zap-overload-ring, .explosion, .cycle-reboot-line, .cycle-reboot-cell').length;
-            }
-
-            // One centralized presentation pass reads the completed simulation state.
-            // Event-driven CSS effects remain renderer-owned, while live positions and sizes
-            // are synchronized only here so Canvas can later replace this method directly.
-            renderFrame(game = this.game, timestamp = performance.now()) {
-                if (!game) return;
-
-                if (game.player) this.renderPlayer(game.player);
-
-                (game.enemies || []).forEach(enemy => {
-                    this.renderEnemySize(enemy);
-                    this.renderEnemyPosition(enemy);
-                    this.renderEnemyDirectionalVisuals(enemy);
-                });
-
-                (game.crystals || []).forEach(crystal => {
-                    this.renderCrystalPosition(crystal);
-                });
-
-                (game.pendingSpawnWarnings || []).forEach(pending => {
-                    if (pending && pending.warning) this.renderSpawnWarning(pending.warning);
-                });
-
-                if (game.prismRelic) this.renderPrismRelic(game.prismRelic);
-                if (game.vectorTrail) game.vectorTrail.update(timestamp);
-            }
+            getTransientEffectCount() { return 0; }
+            renderFrame() {}
         }
 
-
-        // p167 Canvas renderer. Canvas is now the production default for the real grid, Orb, crystals, connection lines,
-        // completed grid cells, ZIG, DASH, ECHO, spawn warnings, and the Prism Relic. DOM elements remain
-        // as hidden compatibility handles until
-        // the later cleanup stage removes the retired playfield presentation.
-        class CanvasPlayfieldRenderer extends DomPlayfieldRenderer {
+        class CanvasPlayfieldRenderer extends PlayfieldRendererState {
             constructor(game, canvas) {
                 super(game);
                 if (!canvas) throw new Error('Canvas playfield element is unavailable.');
@@ -11609,7 +10735,6 @@ Font License Notices
                 if (!player.visualEffectStartTimes) player.visualEffectStartTimes = new Map();
                 super.setPlayerEffect(player, effectClass, false);
                 player.visualEffectStartTimes.delete(effectClass);
-                if (player.element) void player.element.offsetWidth;
                 super.setPlayerEffect(player, effectClass, true);
                 player.visualEffectStartTimes.set(effectClass, performance.now());
                 if (this.game && typeof this.game.requestPlayfieldRender === 'function') {
@@ -11836,14 +10961,12 @@ Font License Notices
                 this.game.cosmicZapShakeActive = true;
                 this.game.cosmicZapShakeStartedAt = performance.now();
                 this.game.cosmicZapShakeDurationMs = Math.max(1, Number(durationMs) || 280);
-                if (this.game.container) this.game.container.classList.remove('cosmicZapShake');
                 this.requestTransientPresentationFrame();
             }
 
             setCosmicZapShake(active) {
                 this.game.cosmicZapShakeActive = Boolean(active);
                 if (!active) this.game.cosmicZapShakeStartedAt = null;
-                if (this.game.container) this.game.container.classList.remove('cosmicZapShake');
                 this.requestTransientPresentationFrame();
             }
 
@@ -11853,13 +10976,11 @@ Font License Notices
                     startedAt: performance.now(),
                     durationMs: Math.max(1, Number(durationMs) || 1180)
                 };
-                if (this.game.container) this.game.container.classList.remove('gridRestoreSequence');
                 this.requestTransientPresentationFrame();
             }
 
             stopGridRestoreSequence() {
                 if (this.game.gridRestoreEffect) this.game.gridRestoreEffect.active = false;
-                if (this.game.container) this.game.container.classList.remove('gridRestoreSequence');
                 this.requestTransientPresentationFrame();
             }
 
@@ -11869,13 +10990,11 @@ Font License Notices
                     startedAt: performance.now(),
                     durationMs: Math.max(1, Number(durationMs) || 1150)
                 };
-                if (this.game.container) this.game.container.classList.remove('cycleStartPulse');
                 this.requestTransientPresentationFrame();
             }
 
             stopCycleStartPulse() {
                 if (this.game.cycleStartPulseEffect) this.game.cycleStartPulseEffect.active = false;
-                if (this.game.container) this.game.container.classList.remove('cycleStartPulse');
                 this.requestTransientPresentationFrame();
             }
 
@@ -11891,9 +11010,6 @@ Font License Notices
                 });
                 this.cycleRebootLines = [];
                 this.cycleRebootCells = [];
-                if (this.game && this.game.container) {
-                    this.game.container.querySelectorAll('.cycle-reboot-line, .cycle-reboot-cell').forEach(element => element.remove());
-                }
                 this.requestTransientPresentationFrame();
             }
 
@@ -11904,19 +11020,16 @@ Font License Notices
                     durationMs: Math.max(1, Number(durationMs) || 6200)
                 };
                 this.game.cycleRestoredIdle = false;
-                if (this.game.container) this.game.container.classList.remove('cycleCelebrationSequence', 'cycleRestoredIdle');
                 this.requestTransientPresentationFrame();
             }
 
             stopCycleCelebration() {
                 if (this.game.cycleCelebrationEffect) this.game.cycleCelebrationEffect.active = false;
-                if (this.game.container) this.game.container.classList.remove('cycleCelebrationSequence');
                 this.requestTransientPresentationFrame();
             }
 
             setCycleRestoredIdle(active) {
                 this.game.cycleRestoredIdle = Boolean(active);
-                if (this.game.container) this.game.container.classList.remove('cycleRestoredIdle');
                 this.requestTransientPresentationFrame();
             }
 
@@ -11927,10 +11040,6 @@ Font License Notices
                 this.game.cycleRestoredIdle = false;
                 this.cycleRebootLines = [];
                 this.cycleRebootCells = [];
-                if (this.game.container) {
-                    this.game.container.classList.remove('gridRestoreSequence', 'cycleStartPulse', 'cycleCelebrationSequence', 'cycleRestoredIdle');
-                    this.game.container.querySelectorAll('.cycle-reboot-line, .cycle-reboot-cell').forEach(element => element.remove());
-                }
                 this.requestTransientPresentationFrame();
             }
 
@@ -13582,18 +12691,7 @@ Font License Notices
                 // DOM element references
                 this.container = document.getElementById('gameContainer');
                 this.playfieldCanvas = document.getElementById('playfieldCanvas');
-                this.playfieldRendererMode = PLAYFIELD_RENDERER_MODE;
-                try {
-                    this.playfieldRenderer = this.playfieldRendererMode === 'canvas'
-                        ? new CanvasPlayfieldRenderer(this, this.playfieldCanvas)
-                        : new DomPlayfieldRenderer(this);
-                } catch (error) {
-                    console.warn('Canvas renderer unavailable; reverting to DOM renderer.', error);
-                    this.playfieldRendererMode = 'dom';
-                    this.playfieldRenderer = new DomPlayfieldRenderer(this);
-                }
-                this.container.classList.toggle('renderer-canvas', this.playfieldRendererMode === 'canvas');
-                this.container.classList.toggle('renderer-dom', this.playfieldRendererMode !== 'canvas');
+                this.playfieldRenderer = new CanvasPlayfieldRenderer(this, this.playfieldCanvas);
                 this.playfieldRenderDirty = true;
                 this.skinShell = document.getElementById('skinShell');
                 this.skinFrameImage = null;
@@ -19661,7 +18759,7 @@ Best Score: ${bestScore}${recoveredLine}` :
                         enemy.dx = 0;
                         enemy.dy = 0;
                         enemy.updatePosition();
-                        enemy.element.dataset.tutorialZapTarget = `${index + 1}`;
+                        enemy.tutorialZapTarget = index + 1;
                         this.tutorialZapTargetsSpawned += 1;
                         if (this.tutorialZapTargetsSpawned >= locations.length) {
                             this.cosmicZapsLeft = 1;
@@ -20241,9 +19339,8 @@ Best Score: ${bestScore}${recoveredLine}` :
                 cells.forEach(cell => {
                     const crystal = new Crystal(this, cell.x - this.CRYSTAL_OFFSET, cell.y - this.CRYSTAL_OFFSET, cell.color, cell.order); // Create crystal
                     if (withIntro) {
-                        crystal.element.style.animation = 'crystalDrop 0.8s ease-out forwards'; // Drop animation
                         const delay = (colorIndex % 3) * 0.2; // Staggered delay
-                        crystal.element.style.animationDelay = `${delay}s`;
+                        crystal.introAnimation = { startedAt: performance.now(), delayMs: delay * 1000, durationMs: 800 };
                     }
                     this.crystals.push(crystal); // Add to crystals array
                     colorIndex++;
@@ -20252,8 +19349,7 @@ Best Score: ${bestScore}${recoveredLine}` :
                 if (withIntro) {
                     this.scheduler.scheduleTimeout('transitions', 'crystal-intro-cleanup', () => {
                         this.crystals.forEach(crys => {
-                            crys.element.style.animation = ''; // Clear animation
-                            crys.element.style.animationDelay = '';
+                            crys.introAnimation = null;
                         });
                         this.updateCrystalHighlight(); // Highlight first crystal
                     }, GAME_CONFIG.transitions.sectorCrystalDropMs); // Wait for intro to complete
@@ -22769,17 +21865,14 @@ Best Score: ${bestScore}${recoveredLine}` :
             buildFinalGridlockGrid() {
                 this.completedSquares.forEach(square => this.playfieldRenderer.removeFilledSquare(square));
                 this.completedSquares = [];
-                const existingSquares = this.container.querySelectorAll('.filled-square');
-                existingSquares.forEach(square => square.remove());
                 for (let row = 1; row <= 8; row++) {
                     for (let col = 1; col <= 8; col++) {
-                        const square = document.createElement('div');
-                        square.className = 'filled-square final-gridlock-square';
-                        square.style.left = `${col * this.GRID_SIZE}px`;
-                        square.style.top = `${row * this.GRID_SIZE}px`;
-                        this.container.appendChild(square);
+                        const square = { col, row, className: 'filled-square final-gridlock-square', element: null };
+                        this.completedSquares.push(square);
+                        this.playfieldRenderer.createFilledSquare(square);
                     }
                 }
+                this.requestPlayfieldRender();
             }
 
             async runFinalGridlockCountdown(loadToken) {
@@ -23028,15 +22121,15 @@ Best Score: ${bestScore}${recoveredLine}` :
             }
 
             createPool(kind, count) {
-                const pool = [];
-                for (let index = 0; index < count; index += 1) {
-                    const element = document.createElement('div');
-                    element.className = `vector-phosphor-trail is-${kind}`;
-                    element.setAttribute('aria-hidden', 'true');
-                    this.game.container.appendChild(element);
-                    pool.push({ element, active: false, bornAt: 0, durationMs: 0, startOpacity: 0 });
-                }
-                return pool;
+                return Array.from({ length: count }, () => ({
+                    element: null,
+                    active: false,
+                    bornAt: 0,
+                    durationMs: 0,
+                    startOpacity: 0,
+                    opacity: 0,
+                    kind
+                }));
             }
 
             isEnabled() {
@@ -23060,7 +22153,6 @@ Best Score: ${bestScore}${recoveredLine}` :
             activateGhost(pool, kind, x, y, size, color, timestamp, durationMs, startOpacity, behaviorType = null) {
                 if (!pool.length) return;
                 const ghost = this.acquire(pool);
-                const element = ghost.element;
                 ghost.active = true;
                 ghost.bornAt = timestamp;
                 ghost.durationMs = durationMs;
@@ -23071,13 +22163,7 @@ Best Score: ${bestScore}${recoveredLine}` :
                 ghost.size = size;
                 ghost.color = color;
                 ghost.behaviorType = behaviorType;
-                element.style.left = `${x}px`;
-                element.style.top = `${y}px`;
-                element.style.width = `${size}px`;
-                element.style.height = `${size}px`;
-                element.style.color = color;
-                element.style.opacity = `${startOpacity}`;
-                if (kind === 'enemy') element.style.borderRadius = '0';
+                ghost.opacity = startOpacity;
             }
 
             recordPlayerMotion(previousX, previousY, nextX, nextY, size, movedDistance, timestamp = performance.now()) {
@@ -23131,11 +22217,11 @@ Best Score: ${bestScore}${recoveredLine}` :
                     const progress = Math.max(0, (timestamp - ghost.bornAt) / Math.max(1, ghost.durationMs));
                     if (progress >= 1) {
                         ghost.active = false;
-                        ghost.element.style.opacity = '0';
+                        ghost.opacity = 0;
                         return;
                     }
                     const remaining = 1 - progress;
-                    ghost.element.style.opacity = `${ghost.startOpacity * remaining * remaining}`;
+                    ghost.opacity = ghost.startOpacity * remaining * remaining;
                 });
             }
 
@@ -23149,7 +22235,7 @@ Best Score: ${bestScore}${recoveredLine}` :
                     ghost.size = 0;
                     ghost.color = '#fff';
                     ghost.behaviorType = null;
-                    ghost.element.style.opacity = '0';
+                    ghost.opacity = 0;
                 });
             }
         }
