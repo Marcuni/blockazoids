@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Block-A-Zoids p168: removes the retired DOM playfield renderer and hidden gameplay elements, leaving Canvas as the sole live-playfield renderer.
+Block-A-Zoids p169: adds Off/CRT/Vector monitor cycling and keeps the sector-restoration color show unobscured by the dark UI overlay.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="p168">
+<html data-build-version="p169">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -8737,10 +8737,12 @@ Font License Notices
                             </svg>
                         </span>
                     </button>
-                    <button id="crtToggleButton" class="settings-icon-toggle" type="button" aria-label="Disable Vector monitor" aria-pressed="true">
+                    <button id="crtToggleButton" class="settings-icon-toggle" type="button" aria-label="Vector monitor — tap to turn off" aria-pressed="true" data-monitor-mode="vector">
                         <span class="settings-control-icon" aria-hidden="true">
                             <svg viewBox="0 0 24 24" focusable="false">
                                 <rect x="3" y="4.5" width="18" height="12.5" rx="1.4" fill="none" stroke="currentColor" stroke-width="1.8"></rect>
+                                <text id="monitorModeGlyph" x="12" y="13.15" text-anchor="middle" fill="currentColor" font-family="Orbitron, sans-serif" font-size="7.2" font-weight="800">V</text>
+                                <path id="monitorOffSlash" d="M5.4 6.7l13.2 8.1" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" style="display:none"></path>
                                 <path d="M9 20h6M12 17v3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>
                             </svg>
                         </span>
@@ -8868,10 +8870,10 @@ Font License Notices
 
         // Player-facing monitor modes are separate from the granular CRT rendering engine.
         // This keeps visual policy centralized while preserving the proven event/lifecycle architecture.
-        const MONITOR_MODE_ORDER = Object.freeze(['vector', 'off']);
+        const MONITOR_MODE_ORDER = Object.freeze(['off', 'crt', 'vector']);
         const MONITOR_PRESETS = Object.freeze({
             vector: Object.freeze({
-                label: 'Approved',
+                label: 'Vector',
                 effectLevels: Object.freeze({
                     scanlines: 'off',
                     vignette: 'current',
@@ -16883,8 +16885,8 @@ Best Score: ${bestScore}${recoveredLine}` :
                     const storedMode = localStorage.getItem(this.monitorPresetStorageKey);
                     if (MONITOR_MODE_ORDER.includes(storedMode)) return storedMode;
 
-                    // Migrate older monitor preferences into the current player-facing policy:
-                    // enabled means the Vector model; disabled means no monitor effect.
+                    // Migrate older two-state monitor preferences into the current three-state policy:
+                    // enabled starts in Vector; disabled remains Off.
                     const storedLegacyPreset = localStorage.getItem(this.crtPresetStorageKey);
                     if (storedLegacyPreset === 'off' || !this.loadCrtPreference()) return 'off';
                     return 'vector';
@@ -16945,22 +16947,37 @@ Best Score: ${bestScore}${recoveredLine}` :
             }
 
             updateCrtToggleLabel() {
-                const vectorEnabled = GAME_FEATURE_FLAGS.crt && this.monitorMode !== 'off';
-                const mode = vectorEnabled ? 'vector' : 'off';
+                const mode = (GAME_FEATURE_FLAGS.crt && MONITOR_PRESETS[this.monitorMode]) ? this.monitorMode : 'off';
                 const label = MONITOR_PRESETS[mode].label;
+                const nextMode = MONITOR_MODE_ORDER[(MONITOR_MODE_ORDER.indexOf(mode) + 1) % MONITOR_MODE_ORDER.length];
+                const nextLabel = MONITOR_PRESETS[nextMode].label;
+                const enabled = mode !== 'off';
                 if (this.crtToggleButton) {
+                    const glyph = this.crtToggleButton.querySelector('#monitorModeGlyph');
+                    const offSlash = this.crtToggleButton.querySelector('#monitorOffSlash');
+                    const accessibleLabel = !GAME_FEATURE_FLAGS.crt
+                        ? 'Monitor effects unavailable'
+                        : (mode === 'off'
+                            ? 'Monitor off — tap for CRT'
+                            : (mode === 'crt'
+                                ? 'CRT monitor — tap for Vector'
+                                : 'Vector monitor — tap to turn off'));
+
                     this.crtToggleButton.disabled = !GAME_FEATURE_FLAGS.crt;
-                    this.crtToggleButton.classList.toggle('is-muted', !vectorEnabled);
-                    this.crtToggleButton.setAttribute('aria-pressed', vectorEnabled ? 'true' : 'false');
-                    this.crtToggleButton.setAttribute('aria-label', !GAME_FEATURE_FLAGS.crt
-                        ? 'Vector monitor unavailable'
-                        : (vectorEnabled ? 'Disable Vector monitor' : 'Enable Vector monitor'));
-                    this.crtToggleButton.title = !GAME_FEATURE_FLAGS.crt
-                        ? 'Vector monitor unavailable'
-                        : (vectorEnabled ? 'Disable Vector monitor' : 'Enable Vector monitor');
+                    this.crtToggleButton.classList.toggle('is-muted', !enabled);
+                    this.crtToggleButton.setAttribute('aria-pressed', enabled ? 'true' : 'false');
+                    this.crtToggleButton.setAttribute('aria-label', accessibleLabel);
+                    this.crtToggleButton.setAttribute('data-monitor-mode', mode);
+                    this.crtToggleButton.title = accessibleLabel;
+
+                    if (glyph) {
+                        glyph.textContent = mode === 'crt' ? 'C' : (mode === 'vector' ? 'V' : '');
+                        glyph.style.display = mode === 'off' ? 'none' : '';
+                    }
+                    if (offSlash) offSlash.style.display = mode === 'off' ? '' : 'none';
                 }
                 if (this.crtDeveloperMasterState) {
-                    this.crtDeveloperMasterState.textContent = `MONITOR: ${label.toUpperCase()}`;
+                    this.crtDeveloperMasterState.textContent = `MONITOR: ${label.toUpperCase()} · NEXT: ${nextLabel.toUpperCase()}`;
                 }
             }
 
@@ -17064,7 +17081,9 @@ Best Score: ${bestScore}${recoveredLine}` :
 
             toggleCrtSetting() {
                 if (!GAME_FEATURE_FLAGS.crt) return;
-                this.applyMonitorMode(this.monitorMode === 'off' ? 'vector' : 'off');
+                const currentIndex = MONITOR_MODE_ORDER.indexOf(this.monitorMode);
+                const nextIndex = currentIndex >= 0 ? (currentIndex + 1) % MONITOR_MODE_ORDER.length : 0;
+                this.applyMonitorMode(MONITOR_MODE_ORDER[nextIndex]);
             }
 
 
@@ -20156,7 +20175,8 @@ Best Score: ${bestScore}${recoveredLine}` :
 
                 this.clearPendingSpawnWarnings(requeueSpawnWarnings);
                 this.triggerCrtEvent('restore');
-                this.setGameOverlayVisible(true);
+                // Keep the restoration color show unobscured. The restore panel supplies its own black background.
+                this.setGameOverlayVisible(false);
                 this.enemies.forEach(enemy => this.playfieldRenderer.setEnemyRestoring(enemy, true));
                 this.playfieldRenderer.setPlayerEffect(this.player, 'orbRestoreGlow', true);
 
