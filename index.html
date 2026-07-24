@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Block-A-Zoids p170: tightens non-CRT Block-A-Zoid glow and bounce flashes, shortens the opening attract cards, and removes the full-screen dark overlay from the cycle-restoration animation while preserving title readability.
+Block-A-Zoids p171: restores the approved Block-A-Zoid standard glow, keeps collision flashes tight but fully bright, separates monitor-filter glow policy from the standard presentation, and makes the build tutorial start on the first run after refresh.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="p170">
+<html data-build-version="p171">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -8919,6 +8919,24 @@ Font License Notices
             off: Object.freeze({ label: 'Off', effectLevels: Object.freeze({}), fixedFeatures: Object.freeze({}) })
         });
 
+        // Standard Block-A-Zoid presentation is independent from monitor filters.
+        // Off and Vector use these approved gameplay values directly; CRT may preserve
+        // its older collision bloom through the separate filter policy below.
+        const BLOCKAZOID_STANDARD_VISUALS = Object.freeze({
+            normalGlowBlur: 8,
+            pulseActiveGlowBlur: 20,
+            collision: Object.freeze({
+                durationMs: 180,
+                glowBlurBoost: 5,
+                whiteMix: 0.34
+            })
+        });
+
+        const BLOCKAZOID_FILTER_VISUALS = Object.freeze({
+            off: Object.freeze({ minimumGlowBlur: 0, preserveLegacyCollisionBloom: false }),
+            vector: Object.freeze({ minimumGlowBlur: 0, preserveLegacyCollisionBloom: false }),
+            crt: Object.freeze({ minimumGlowBlur: 8, preserveLegacyCollisionBloom: true })
+        });
 
 
         // Build 342 configuration boundary. Game rules and static campaign data live here so
@@ -10686,6 +10704,36 @@ Font License Notices
                 return Math.max(0, Number(value) || 0) * this.regularGlowScale;
             }
 
+            getBlockazoidFilterVisuals(game) {
+                const container = game && game.container;
+                if (!container || !container.classList.contains('crt-enabled') || container.classList.contains('crt-ui-suspended')) {
+                    return BLOCKAZOID_FILTER_VISUALS.off;
+                }
+                if (container.classList.contains('monitor-crt')) return BLOCKAZOID_FILTER_VISUALS.crt;
+                if (container.classList.contains('monitor-vector')) return BLOCKAZOID_FILTER_VISUALS.vector;
+                return BLOCKAZOID_FILTER_VISUALS.off;
+            }
+
+            resolveBlockazoidMonitorPresentation(game, presentation) {
+                const filterVisuals = this.getBlockazoidFilterVisuals(game);
+                let whiteMix = Math.max(0, Number(presentation.whiteMix) || 0);
+                let glowBlur = Math.max(
+                    Math.max(0, Number(presentation.glowBlur) || 0),
+                    Math.max(0, Number(filterVisuals.minimumGlowBlur) || 0)
+                );
+
+                // CRT collision bloom is deliberately frozen at the approved older values.
+                // The standard Off/Vector collision flash remains tight while retaining full intensity.
+                if (filterVisuals.preserveLegacyCollisionBloom && Number.isFinite(presentation.collisionElapsedMs)) {
+                    const progress = this.clamp01(presentation.collisionElapsedMs / 300);
+                    const pulse = Math.sin(Math.PI * progress);
+                    glowBlur = Math.max(glowBlur, 8 + 12 * pulse);
+                    whiteMix = Math.max(whiteMix, 0.34 * pulse);
+                }
+
+                return { whiteMix, glowBlur };
+            }
+
             attachPlayer(player) {
                 const element = super.attachPlayer(player);
                 if (!player.visualEffectStartTimes) player.visualEffectStartTimes = new Map();
@@ -11598,9 +11646,8 @@ Font License Notices
                 let scale = enemy && enemy.isVisible ? 1 : 0;
                 let rotation = 0;
                 let whiteMix = 0;
-                let glowBlur = 6;
-                let legacyWhiteMix = 0;
-                let legacyGlowBlur = 8;
+                let glowBlur = BLOCKAZOID_STANDARD_VISUALS.normalGlowBlur;
+                let collisionElapsedMs = null;
 
                 if (enemy && enemy.isVisible) {
                     const spawnAge = Math.max(0, timestamp - (enemy.visibilityChangedAt || timestamp));
@@ -11622,21 +11669,21 @@ Font License Notices
                     scale *= this.interpolateKeyframes(progress, [[0, 1], [0.32, 1.06], [0.64, 0.84], [1, 0.22]]);
                     whiteMix = this.interpolateKeyframes(progress, [[0, 0], [0.32, 1], [0.64, 0.48], [1, 0]]);
                     glowBlur = this.interpolateKeyframes(progress, [[0, 8], [0.32, 28], [0.64, 16], [1, 4]]);
-                    legacyWhiteMix = whiteMix;
-                    legacyGlowBlur = glowBlur;
                 }
 
                 if (enemy && enemy.borderFlashActive) {
-                    const elapsed = Math.max(0, timestamp - (enemy.borderFlashStartedAt || timestamp));
-                    const progress = this.clamp01(elapsed / 180);
-                    const legacyProgress = this.clamp01(elapsed / 300);
-                    glowBlur = Math.max(glowBlur, 6 + 5 * Math.sin(Math.PI * progress));
-                    whiteMix = Math.max(whiteMix, 0.14 * Math.sin(Math.PI * progress));
-                    legacyGlowBlur = Math.max(legacyGlowBlur, 8 + 12 * Math.sin(Math.PI * legacyProgress));
-                    legacyWhiteMix = Math.max(legacyWhiteMix, 0.34 * Math.sin(Math.PI * legacyProgress));
+                    collisionElapsedMs = Math.max(0, timestamp - (enemy.borderFlashStartedAt || timestamp));
+                    const collisionVisuals = BLOCKAZOID_STANDARD_VISUALS.collision;
+                    const progress = this.clamp01(collisionElapsedMs / collisionVisuals.durationMs);
+                    const pulse = Math.sin(Math.PI * progress);
+                    glowBlur = Math.max(
+                        glowBlur,
+                        BLOCKAZOID_STANDARD_VISUALS.normalGlowBlur + collisionVisuals.glowBlurBoost * pulse
+                    );
+                    whiteMix = Math.max(whiteMix, collisionVisuals.whiteMix * pulse);
                 }
 
-                return { opacity, scale, rotation, whiteMix, glowBlur, legacyWhiteMix, legacyGlowBlur };
+                return { opacity, scale, rotation, whiteMix, glowBlur, collisionElapsedMs };
             }
 
             drawDrifter(enemy, game, timestamp) {
@@ -11657,9 +11704,9 @@ Font License Notices
                 const objectRgbEnabled = !!(
                     crtActive && container.classList.contains('crt-fx-object-rgb')
                 );
-                const preserveCrtGlow = !!(crtActive && container.classList.contains('monitor-crt'));
-                const effectiveWhiteMix = preserveCrtGlow ? presentation.legacyWhiteMix : presentation.whiteMix;
-                const bloomBlur = preserveCrtGlow ? presentation.legacyGlowBlur : presentation.glowBlur;
+                const monitorPresentation = this.resolveBlockazoidMonitorPresentation(game, presentation);
+                const effectiveWhiteMix = monitorPresentation.whiteMix;
+                const bloomBlur = monitorPresentation.glowBlur;
                 const fillColor = this.mixCanvasColor(baseColor, effectiveWhiteMix, 1);
 
                 context.save();
@@ -11698,8 +11745,7 @@ Font License Notices
                 const state = enemy && enemy.visualState ? enemy.visualState : 'cruise';
                 let brightness = 1;
                 let stateWhiteMix = 0;
-                let stateGlowBlur = 6;
-                let legacyStateGlowBlur = 8;
+                let stateGlowBlur = BLOCKAZOID_STANDARD_VISUALS.normalGlowBlur;
                 let targetLineOpacity = 0;
                 let targetLineBrightness = 1;
 
@@ -11709,25 +11755,20 @@ Font License Notices
                     brightness = brightStep ? 1.65 : 0.82;
                     stateWhiteMix = brightStep ? 0.36 : 0.04;
                     stateGlowBlur = brightStep ? 26 : 14;
-                    legacyStateGlowBlur = stateGlowBlur;
                     targetLineOpacity = 0.86;
                     targetLineBrightness = 1;
                 } else if (state === 'charge') {
                     brightness = 1.35;
                     stateWhiteMix = 0.16;
                     stateGlowBlur = 28;
-                    legacyStateGlowBlur = stateGlowBlur;
                 } else if (state === 'recovery') {
                     brightness = 0.72;
                     stateWhiteMix = 0;
                     stateGlowBlur = 12;
-                    legacyStateGlowBlur = stateGlowBlur;
                 }
 
                 presentation.whiteMix = Math.max(presentation.whiteMix, stateWhiteMix);
-                presentation.legacyWhiteMix = Math.max(presentation.legacyWhiteMix, stateWhiteMix);
                 presentation.glowBlur = Math.max(presentation.glowBlur, stateGlowBlur);
-                presentation.legacyGlowBlur = Math.max(presentation.legacyGlowBlur, legacyStateGlowBlur);
                 presentation.brightness = brightness;
                 presentation.state = state;
                 presentation.targetLineOpacity = targetLineOpacity;
@@ -11777,9 +11818,9 @@ Font License Notices
                 const objectRgbEnabled = !!(
                     crtActive && container.classList.contains('crt-fx-object-rgb')
                 );
-                const preserveCrtGlow = !!(crtActive && container.classList.contains('monitor-crt'));
-                const effectiveWhiteMix = preserveCrtGlow ? presentation.legacyWhiteMix : presentation.whiteMix;
-                const bloomBlur = preserveCrtGlow ? presentation.legacyGlowBlur : presentation.glowBlur;
+                const monitorPresentation = this.resolveBlockazoidMonitorPresentation(game, presentation);
+                const effectiveWhiteMix = monitorPresentation.whiteMix;
+                const bloomBlur = monitorPresentation.glowBlur;
                 const fillColor = this.mixCanvasColor(baseColor, effectiveWhiteMix, presentation.brightness);
 
                 this.drawChargerTargetLine(enemy, game, presentation);
@@ -11820,8 +11861,7 @@ Font License Notices
                 const state = enemy && enemy.visualState ? enemy.visualState : 'active';
                 let brightness = 1.08;
                 let stateWhiteMix = 0;
-                let stateGlowBlur = 14;
-                let legacyStateGlowBlur = 20;
+                let stateGlowBlur = BLOCKAZOID_STANDARD_VISUALS.pulseActiveGlowBlur;
                 let bodyAlpha = 1;
                 let borderAlpha = 1;
                 let traceOpacity = 0;
@@ -11833,7 +11873,6 @@ Font License Notices
                     brightness = brightStep ? 1.72 : 0.82;
                     stateWhiteMix = brightStep ? 0.68 : 0;
                     stateGlowBlur = brightStep ? 40 : 14;
-                    legacyStateGlowBlur = stateGlowBlur;
                 } else if (state === 'dormant') {
                     const period = Math.max(1, Number(enemy.pulseGhostFlashPeriodMs) || 350);
                     const stateAge = Math.max(0, timestamp - (enemy.visualStateChangedAt || timestamp));
@@ -11843,7 +11882,6 @@ Font License Notices
                     bodyAlpha = positionFlash ? 0.10 : 0.015;
                     borderAlpha = positionFlash ? 0.74 : 0.08;
                     stateGlowBlur = positionFlash ? 12 : 2;
-                    legacyStateGlowBlur = stateGlowBlur;
                     traceOpacity = 0.46;
                     traceLength = Math.max(7, Math.min(15, (Number(enemy.game?.PLAYER_SIZE) || Number(enemy.size) || 20) * 0.70));
                 } else if (state === 'reactivation-warning') {
@@ -11852,7 +11890,6 @@ Font License Notices
                     brightness = brightStep ? 1.90 : 1.08;
                     stateWhiteMix = brightStep ? 1 : 0.08;
                     stateGlowBlur = brightStep ? 44 : 18;
-                    legacyStateGlowBlur = stateGlowBlur;
                     bodyAlpha = brightStep ? 1 : 0.82;
                     borderAlpha = 1;
                 }
@@ -11870,9 +11907,7 @@ Font License Notices
                     state,
                     brightness,
                     whiteMix: Math.max(common.whiteMix, stateWhiteMix),
-                    legacyWhiteMix: Math.max(common.legacyWhiteMix, stateWhiteMix),
                     glowBlur: Math.max(common.glowBlur, stateGlowBlur),
-                    legacyGlowBlur: Math.max(common.legacyGlowBlur, legacyStateGlowBlur),
                     bodyAlpha,
                     borderAlpha,
                     traceOpacity,
@@ -11926,9 +11961,9 @@ Font License Notices
                 const objectRgbEnabled = !!(
                     crtActive && container.classList.contains('crt-fx-object-rgb')
                 );
-                const preserveCrtGlow = !!(crtActive && container.classList.contains('monitor-crt'));
-                const effectiveWhiteMix = preserveCrtGlow ? presentation.legacyWhiteMix : presentation.whiteMix;
-                const bloomBlur = preserveCrtGlow ? presentation.legacyGlowBlur : presentation.glowBlur;
+                const monitorPresentation = this.resolveBlockazoidMonitorPresentation(game, presentation);
+                const effectiveWhiteMix = monitorPresentation.whiteMix;
+                const bloomBlur = monitorPresentation.glowBlur;
                 const fillColor = this.mixCanvasColor(baseColor, effectiveWhiteMix, presentation.brightness);
 
                 this.drawPulseDirectionalTrace(enemy, presentation);
@@ -13046,6 +13081,7 @@ Font License Notices
                 this.introCompletionStorageKey = GAME_CONFIG.storage.introCompletion;
                 this.introCompletionBuildStorageKey = GAME_CONFIG.storage.introCompletionBuild;
                 this.introCompleted = !TUTORIAL_ENABLED || this.loadIntroCompletionFlag();
+                this.tutorialRequiredOnFirstRun = TUTORIAL_ENABLED && !this.introCompleted;
                 this.tutorialActive = false;
                 this.tutorialStep = '';
                 this.tutorialToken = 0;
@@ -18385,6 +18421,7 @@ Best Score: ${bestScore}${recoveredLine}` :
                     localStorage.setItem(this.introCompletionBuildStorageKey, this.getCurrentTutorialBuildId());
                 } catch (_) {}
                 this.introCompleted = true;
+                this.tutorialRequiredOnFirstRun = false;
             }
 
             resetIntroCompletionFlag() {
@@ -18397,6 +18434,7 @@ Best Score: ${bestScore}${recoveredLine}` :
                     localStorage.removeItem(this.introCompletionBuildStorageKey);
                 } catch (_) {}
                 this.introCompleted = false;
+                this.tutorialRequiredOnFirstRun = true;
             }
 
             resetTutorialProgress() {
@@ -19141,6 +19179,13 @@ Best Score: ${bestScore}${recoveredLine}` :
                     'new-run-not-available'
                 )) return false;
 
+                // Revalidate the build-specific tutorial flag at the actual first Play press.
+                // This avoids startup/cache timing leaving the first run on a new build untreated.
+                if (!this.hasStartedRun && TUTORIAL_ENABLED) {
+                    this.introCompleted = this.loadIntroCompletionFlag();
+                    this.tutorialRequiredOnFirstRun = !this.introCompleted;
+                }
+
                 this.cancelTransitionGroup('new-run');
                 this.suspendAttractEnemyCards();
                 const selectedOption = Math.max(1, Math.min(this.getSectorSelectOptionCount(), this.selectedStartSector || 1));
@@ -19161,12 +19206,12 @@ Best Score: ${bestScore}${recoveredLine}` :
                     return;
                 }
 
-                if (TUTORIAL_ENABLED && !this.introCompleted) {
+                if (TUTORIAL_ENABLED && (this.tutorialRequiredOnFirstRun || !this.introCompleted)) {
                     this.selectedStartSector = 1;
                     this.selectedStartCycle = 1;
                     this.cycle = 1;
                     this.startOneTimeIntro();
-                    return;
+                    return true;
                 }
 
                 const loadToken = ++this.levelLoadToken;
