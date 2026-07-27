@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Block-A-Zoids p181: changes the startup splash from tap-to-dismiss to an automatic three-second timed presentation.
+Block-A-Zoids p182: adds a playfield-only WebGL glass-distortion test for CRT and Vector monitor modes while keeping menus and overlays undistorted.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="p181">
+<html data-build-version="p182">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -8009,6 +8009,37 @@ Font License Notices
             touch-action: none;
         }
 
+
+        /* p182 WebGL glass-distortion test. The 2D canvas remains the authoritative
+           gameplay renderer; this second canvas only warps its completed frame.
+           Menus and text overlays remain normal HTML/CSS above both canvases. */
+        #playfieldWebglCanvas {
+            position: absolute;
+            inset: 0;
+            z-index: 2;
+            display: block;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            pointer-events: none;
+            touch-action: none;
+        }
+
+        #gameContainer.webgl-distortion-ready.webgl-distortion-active > #playfieldCanvas {
+            opacity: 0;
+        }
+
+        #gameContainer.webgl-distortion-ready.webgl-distortion-active > #playfieldWebglCanvas {
+            opacity: 1;
+        }
+
+        /* The WebGL pass draws curved CRT scanlines in warped texture space. Suppress
+           the original straight CSS scanlines only while the post-process is active. */
+        #gameContainer.webgl-distortion-active > .playfield-crt-scanlines {
+            opacity: 0 !important;
+            animation: none !important;
+        }
+
         html body #gameContainer.crt-enabled.crt-fx-grid-rgb.crt-grid-rgb-low:not(.crt-ui-suspended) > .playfield-grid-layer {
             background-color: #000609;
             background-image:
@@ -8596,6 +8627,7 @@ Font License Notices
     <div id="playfieldShell">
         <div id="gameContainer">
         <canvas id="playfieldCanvas" aria-hidden="true"></canvas>
+        <canvas id="playfieldWebglCanvas" aria-hidden="true"></canvas>
         <div class="playfield-crt-layer playfield-crt-tint" aria-hidden="true"></div>
         <div class="playfield-crt-layer playfield-crt-scanlines" aria-hidden="true"></div>
         <div class="playfield-crt-layer playfield-crt-vignette" aria-hidden="true"></div>
@@ -8917,6 +8949,7 @@ Font License Notices
             spawnWarnings: true,
             visualEffects: true,
             vectorPhosphorTrails: true,
+            webglDistortion: true,
             gridlockVisualEffects: true,
             telemetry: true,
             stabilityDiagnostics: false,
@@ -12801,6 +12834,258 @@ Font License Notices
                 this.drawCycleRestoredIdle(game);
                 this.context.restore();
                 this.ensurePlayerEffectFrame();
+                if (game.webglDistortion) game.webglDistortion.render(timestamp);
+            }
+        }
+
+        class WebGLPlayfieldDistortion {
+            constructor(game, sourceCanvas, outputCanvas) {
+                this.game = game;
+                this.sourceCanvas = sourceCanvas;
+                this.outputCanvas = outputCanvas;
+                this.gl = null;
+                this.program = null;
+                this.positionBuffer = null;
+                this.texture = null;
+                this.locations = null;
+                this.available = false;
+                this.hasFrame = false;
+                this.lastWidth = 0;
+                this.lastHeight = 0;
+
+                if (!sourceCanvas || !outputCanvas || !GAME_FEATURE_FLAGS.webglDistortion) {
+                    this.syncPresentation();
+                    return;
+                }
+
+                outputCanvas.addEventListener('webglcontextlost', (event) => {
+                    event.preventDefault();
+                    this.available = false;
+                    this.hasFrame = false;
+                    this.syncPresentation();
+                }, false);
+
+                outputCanvas.addEventListener('webglcontextrestored', () => {
+                    this.initialize();
+                    this.invalidate();
+                    if (this.game && typeof this.game.requestPlayfieldRender === 'function') {
+                        this.game.requestPlayfieldRender();
+                    }
+                }, false);
+
+                this.initialize();
+            }
+
+            compileShader(type, source) {
+                const gl = this.gl;
+                const shader = gl.createShader(type);
+                gl.shaderSource(shader, source);
+                gl.compileShader(shader);
+                if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+                    const message = gl.getShaderInfoLog(shader) || 'Unknown shader compilation error.';
+                    gl.deleteShader(shader);
+                    throw new Error(message);
+                }
+                return shader;
+            }
+
+            initialize() {
+                try {
+                    const gl = this.outputCanvas.getContext('webgl', {
+                        alpha: false,
+                        antialias: false,
+                        depth: false,
+                        stencil: false,
+                        preserveDrawingBuffer: false,
+                        premultipliedAlpha: false,
+                        desynchronized: true,
+                        powerPreference: 'high-performance'
+                    }) || this.outputCanvas.getContext('experimental-webgl');
+
+                    if (!gl) throw new Error('WebGL is unavailable.');
+                    this.gl = gl;
+
+                    const vertexShader = this.compileShader(gl.VERTEX_SHADER, `
+                        attribute vec2 a_position;
+                        varying vec2 v_uv;
+                        void main() {
+                            v_uv = a_position * 0.5 + 0.5;
+                            gl_Position = vec4(a_position, 0.0, 1.0);
+                        }
+                    `);
+
+                    const fragmentShader = this.compileShader(gl.FRAGMENT_SHADER, `
+                        precision mediump float;
+                        uniform sampler2D u_source;
+                        uniform float u_strength;
+                        uniform float u_crtMode;
+                        uniform float u_cssHeight;
+                        varying vec2 v_uv;
+
+                        void main() {
+                            vec2 point = v_uv * 2.0 - 1.0;
+                            float radiusSquared = dot(point, point);
+                            float normalization = 1.0 + u_strength;
+
+                            // Radial barrel distortion plus a small cross-axis bow makes
+                            // horizontal and vertical paths follow the existing tube contour.
+                            vec2 sourcePoint;
+                            sourcePoint.x = point.x * (1.0 + u_strength * (radiusSquared + 0.10 * point.y * point.y)) / normalization;
+                            sourcePoint.y = point.y * (1.0 + u_strength * (radiusSquared + 0.18 * point.x * point.x)) / normalization;
+                            vec2 sourceUv = sourcePoint * 0.5 + 0.5;
+
+                            if (sourceUv.x < 0.0 || sourceUv.x > 1.0 || sourceUv.y < 0.0 || sourceUv.y > 1.0) {
+                                gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+                                return;
+                            }
+
+                            vec4 color = texture2D(u_source, sourceUv);
+
+                            // CRT scanlines are calculated from the distorted source position,
+                            // so they bend with the glass instead of remaining straight overlays.
+                            float scanPhase = sourceUv.y * u_cssHeight * 1.57079632679;
+                            float scanWave = 0.5 + 0.5 * sin(scanPhase);
+                            float scanMultiplier = mix(1.0, 0.925 + 0.075 * scanWave, u_crtMode);
+                            color.rgb *= scanMultiplier;
+
+                            gl_FragColor = vec4(color.rgb, 1.0);
+                        }
+                    `);
+
+                    const program = gl.createProgram();
+                    gl.attachShader(program, vertexShader);
+                    gl.attachShader(program, fragmentShader);
+                    gl.linkProgram(program);
+                    gl.deleteShader(vertexShader);
+                    gl.deleteShader(fragmentShader);
+
+                    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+                        const message = gl.getProgramInfoLog(program) || 'Unknown WebGL program link error.';
+                        gl.deleteProgram(program);
+                        throw new Error(message);
+                    }
+
+                    const positionBuffer = gl.createBuffer();
+                    gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+                    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+                        -1, -1,
+                         1, -1,
+                        -1,  1,
+                         1,  1
+                    ]), gl.STATIC_DRAW);
+
+                    const texture = gl.createTexture();
+                    gl.bindTexture(gl.TEXTURE_2D, texture);
+                    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+                    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+                    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+                    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+                    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+                    gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+
+                    this.program = program;
+                    this.positionBuffer = positionBuffer;
+                    this.texture = texture;
+                    this.locations = {
+                        position: gl.getAttribLocation(program, 'a_position'),
+                        source: gl.getUniformLocation(program, 'u_source'),
+                        strength: gl.getUniformLocation(program, 'u_strength'),
+                        crtMode: gl.getUniformLocation(program, 'u_crtMode'),
+                        cssHeight: gl.getUniformLocation(program, 'u_cssHeight')
+                    };
+                    this.available = true;
+                    this.hasFrame = false;
+                    this.lastWidth = 0;
+                    this.lastHeight = 0;
+                    this.syncPresentation();
+                } catch (error) {
+                    console.warn('WebGL playfield distortion disabled:', error);
+                    this.available = false;
+                    this.hasFrame = false;
+                    this.syncPresentation();
+                }
+            }
+
+            getMode() {
+                if (!this.game || !this.game.container) return 'off';
+                if (this.game.container.classList.contains('monitor-crt')) return 'crt';
+                if (this.game.container.classList.contains('monitor-vector')) return 'vector';
+                return 'off';
+            }
+
+            shouldRender() {
+                if (!this.available || !GAME_FEATURE_FLAGS.webglDistortion || !this.game || !this.game.container) return false;
+                if (this.game.container.classList.contains('crt-ui-suspended')) return false;
+                return this.getMode() !== 'off';
+            }
+
+            syncPresentation() {
+                const container = this.game && this.game.container;
+                if (!container) return;
+                container.classList.toggle('webgl-distortion-ready', !!this.available);
+                container.classList.toggle('webgl-distortion-active', !!(this.available && this.hasFrame && this.shouldRender()));
+            }
+
+            invalidate() {
+                this.hasFrame = false;
+                this.syncPresentation();
+            }
+
+            resizeIfNeeded() {
+                const width = Math.max(1, this.sourceCanvas.width || 1);
+                const height = Math.max(1, this.sourceCanvas.height || 1);
+                const renderer = this.game && this.game.playfieldRenderer;
+                const cssWidth = Math.max(1, Number(renderer && renderer.cssWidth) || this.sourceCanvas.clientWidth || 1);
+                const cssHeight = Math.max(1, Number(renderer && renderer.cssHeight) || this.sourceCanvas.clientHeight || cssWidth);
+
+                this.outputCanvas.style.width = `${cssWidth}px`;
+                this.outputCanvas.style.height = `${cssHeight}px`;
+                if (this.outputCanvas.width !== width) this.outputCanvas.width = width;
+                if (this.outputCanvas.height !== height) this.outputCanvas.height = height;
+
+                if (width !== this.lastWidth || height !== this.lastHeight) {
+                    this.lastWidth = width;
+                    this.lastHeight = height;
+                    this.gl.viewport(0, 0, width, height);
+                }
+
+                return { cssHeight };
+            }
+
+            render() {
+                if (!this.shouldRender()) {
+                    this.syncPresentation();
+                    return;
+                }
+
+                try {
+                    const gl = this.gl;
+                    const mode = this.getMode();
+                    const layout = this.resizeIfNeeded();
+                    const strength = mode === 'crt' ? 0.105 : 0.058;
+
+                    gl.useProgram(this.program);
+                    gl.bindBuffer(gl.ARRAY_BUFFER, this.positionBuffer);
+                    gl.enableVertexAttribArray(this.locations.position);
+                    gl.vertexAttribPointer(this.locations.position, 2, gl.FLOAT, false, 0, 0);
+
+                    gl.activeTexture(gl.TEXTURE0);
+                    gl.bindTexture(gl.TEXTURE_2D, this.texture);
+                    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, this.sourceCanvas);
+                    gl.uniform1i(this.locations.source, 0);
+                    gl.uniform1f(this.locations.strength, strength);
+                    gl.uniform1f(this.locations.crtMode, mode === 'crt' ? 1 : 0);
+                    gl.uniform1f(this.locations.cssHeight, layout.cssHeight);
+
+                    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+                    this.hasFrame = true;
+                    this.syncPresentation();
+                } catch (error) {
+                    console.warn('WebGL playfield distortion frame failed:', error);
+                    this.available = false;
+                    this.hasFrame = false;
+                    this.syncPresentation();
+                }
             }
         }
 
@@ -12826,7 +13111,9 @@ Font License Notices
                 // DOM element references
                 this.container = document.getElementById('gameContainer');
                 this.playfieldCanvas = document.getElementById('playfieldCanvas');
+                this.playfieldWebglCanvas = document.getElementById('playfieldWebglCanvas');
                 this.playfieldRenderer = new CanvasPlayfieldRenderer(this, this.playfieldCanvas);
+                this.webglDistortion = new WebGLPlayfieldDistortion(this, this.playfieldCanvas, this.playfieldWebglCanvas);
                 this.playfieldRenderDirty = true;
                 this.cabinetBackgroundPalette = ['#000000', '#0A0A0A', '#141414', '#1E1E1E', '#220000', '#002200', '#000022'];
                 this.cabinetBackgroundIndex = 0;
@@ -17204,6 +17491,8 @@ Best Score: ${bestScore}${recoveredLine}` :
 
                 this.applyCrtFeatureClasses();
                 if (!this.crtEnabled) this.clearCrtEventEffects();
+                if (this.webglDistortion) this.webglDistortion.invalidate();
+                this.requestPlayfieldRender();
                 this.updateCrtToggleLabel();
             }
 
@@ -17292,6 +17581,8 @@ Best Score: ${bestScore}${recoveredLine}` :
                 if (suspended && this.vectorTrail) this.vectorTrail.clear();
                 if (this.playfieldShell) this.playfieldShell.classList.toggle('crt-ui-suspended', !!suspended);
                 if (suspended) this.clearCrtEventEffects();
+                if (this.webglDistortion) this.webglDistortion.syncPresentation();
+                this.requestPlayfieldRender();
             }
 
             clearCrtEventEffects() {
