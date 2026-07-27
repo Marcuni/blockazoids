@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Block-A-Zoids p177: keeps the Play/Resume control animated in every non-gameplay state and stops it only during active play.
+Block-A-Zoids p178: adds a temporary score double-tap test for cycling darker black, red, green, and blue playfield backgrounds.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="p177">
+<html data-build-version="p178">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -6427,6 +6427,13 @@ Font License Notices
             display: none !important;
         }
 
+        /* Temporary p178 test control: double-tap the score to rotate the playfield background. */
+        #skinShell > #scoreHud {
+            pointer-events: auto;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+        }
+
         #score {
             margin: 0;
             padding: 0;
@@ -11402,7 +11409,7 @@ Font License Notices
                 const highRgb = rgbGridEnabled && container.classList.contains('crt-grid-rgb-high');
 
                 context.save();
-                context.fillStyle = rgbGridEnabled ? (highRgb ? '#000b10' : '#000609') : '#000';
+                context.fillStyle = String(game?.playfieldBackgroundColor || (rgbGridEnabled ? (highRgb ? '#000b10' : '#000609') : '#000'));
                 context.fillRect(0, 0, width, height);
                 context.restore();
 
@@ -12818,6 +12825,10 @@ Font License Notices
                 this.playfieldCanvas = document.getElementById('playfieldCanvas');
                 this.playfieldRenderer = new CanvasPlayfieldRenderer(this, this.playfieldCanvas);
                 this.playfieldRenderDirty = true;
+                this.playfieldBackgroundPalette = ['#000000', '#220000', '#002200', '#000022'];
+                this.playfieldBackgroundIndex = 0;
+                this.playfieldBackgroundColor = this.playfieldBackgroundPalette[this.playfieldBackgroundIndex];
+                this.scoreBackgroundTap = { at: 0, x: 0, y: 0 };
                 this.skinShell = document.getElementById('skinShell');
                 this.skinFrameImage = null;
                 this.playfieldShell = document.getElementById('playfieldShell');
@@ -12847,6 +12858,7 @@ Font License Notices
                 this.bonusTextElement = document.getElementById('bonusText'); // New reference for bonus text
                 this.screenFadeElement = document.getElementById('screenFade');
                 this.gameOverlayElement = document.getElementById('gameOverlay');
+                this.scoreHudElement = document.getElementById('scoreHud');
                 this.startButton = document.getElementById('startButton');
                 this.howToButton = document.getElementById('howToButton');
                 this.settingsHudButton = document.getElementById('settingsHudButton');
@@ -13312,6 +13324,11 @@ Font License Notices
                 window.addEventListener('blur', this.handleWindowBlur, { passive: true });
                 this.enableShakeInput(false); // Android/desktop motion can listen immediately; iOS waits for an explicit action.
                 document.addEventListener('visibilitychange', () => this.handleVisibilityChange());
+                if (this.scoreHudElement) {
+                    this.scoreHudElement.setAttribute('role', 'button');
+                    this.scoreHudElement.setAttribute('aria-label', 'Score. Double tap to test playfield background color.');
+                    this.scoreHudElement.addEventListener('pointerup', (event) => this.handleScoreBackgroundTestTap(event), { passive: false });
+                }
                 this.startButton.addEventListener('click', (e) => this.handlePlayPauseControlClick(e));
                 if (this.howToButton) {
                     this.howToButton.addEventListener('click', (e) => {
@@ -19188,6 +19205,34 @@ Best Score: ${bestScore}${recoveredLine}` :
                 this.setTransitionState({ startInputLocked: true });
                 this.ui.updateAll();
                 this.startPreparedLevel(loadToken);
+            }
+
+            handleScoreBackgroundTestTap(event) {
+                if (!event || event.isPrimary === false) return;
+                const now = performance.now();
+                const previous = this.scoreBackgroundTap || { at: 0, x: 0, y: 0 };
+                const elapsed = now - Number(previous.at || 0);
+                const distance = Math.hypot(
+                    Number(event.clientX || 0) - Number(previous.x || 0),
+                    Number(event.clientY || 0) - Number(previous.y || 0)
+                );
+                const isDoubleTap = elapsed > 0 && elapsed <= 360 && distance <= 32;
+
+                if (!isDoubleTap) {
+                    this.scoreBackgroundTap = {
+                        at: now,
+                        x: Number(event.clientX || 0),
+                        y: Number(event.clientY || 0)
+                    };
+                    return;
+                }
+
+                this.scoreBackgroundTap = { at: 0, x: 0, y: 0 };
+                this.playfieldBackgroundIndex = (Number(this.playfieldBackgroundIndex || 0) + 1) % this.playfieldBackgroundPalette.length;
+                this.playfieldBackgroundColor = this.playfieldBackgroundPalette[this.playfieldBackgroundIndex];
+                if (event.cancelable) event.preventDefault();
+                event.stopPropagation();
+                this.requestPlayfieldRender();
             }
 
             // Phase 4B lifecycle commands route player-facing state changes through explicit entry points.
