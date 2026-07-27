@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Block-A-Zoids p176: increases TAP PLAY / TO START spacing and strengthens the animated Play/Resume cue in attract and paused states.
+Block-A-Zoids p177: keeps the Play/Resume control animated in every non-gameplay state and stops it only during active play.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="p176">
+<html data-build-version="p177">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -26394,7 +26394,10 @@ startMaxSwarmBeat(delaySeconds = 0) {
                     overlay.setAttribute('aria-hidden', showPrompt ? 'false' : 'true');
                 }
                 if (startButton) {
-                    const shouldPulse = attractCueAvailable || resumeCueAvailable;
+                    // Keep the Play/Resume cue animated everywhere except during active gameplay.
+                    // Menus, attract mode, pause, game over, transitions, and waiting screens all pulse.
+                    const ongoingGameplay = !!(game.flow.isLiveAction() || game.tutorialActive);
+                    const shouldPulse = !ongoingGameplay;
                     startButton.classList.toggle('attract-start-pulse', shouldPulse && !startButton.classList.contains('pause-visible'));
                 }
             }
@@ -26585,10 +26588,8 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 if (inLivePlay) {
                     startButton.textContent = '❚❚';
                     startButton.classList.add('pause-visible');
-                } else if (canResume) {
-                    startButton.textContent = '▶';
-                    startButton.classList.remove('pause-visible');
-                } else if (continueCycleReady || !this.game.hasStartedRun || this.game.isGameOver || !this.game.active) {
+                } else {
+                    // Every non-gameplay state uses the animated Play/Resume symbol.
                     startButton.textContent = '▶';
                     startButton.classList.remove('pause-visible');
                 }
