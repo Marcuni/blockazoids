@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Block-A-Zoids p174: makes the TAP PLAY TO START prompt a persistent one-time onboarding cue, adds deliberate spacing between its two lines, and keeps the stronger PLAY pulse for later attract screens.
+Block-A-Zoids p175: shows TAP PLAY TO START once per app session, dismisses it after the first game, and restores it after refresh or relaunch.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="p174">
+<html data-build-version="p175">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -13143,7 +13143,8 @@ Font License Notices
                 this.isPaused = false;                // Temporary pause-screen state
                 this.hasStartedRun = false;           // Distinguishes first Start Game attract mode from Play Again.
                 this.startPromptStorageKey = GAME_CONFIG.storage.startPromptDismissed;
-                this.startPromptDismissed = this.loadRunStartPromptDismissedFlag();
+                // Session-only onboarding cue: every page/app launch starts with the prompt visible.
+                this.startPromptDismissed = false;
                 this.introCompletionStorageKey = GAME_CONFIG.storage.introCompletion;
                 this.introCompletionBuildStorageKey = GAME_CONFIG.storage.introCompletionBuild;
                 this.introCompleted = !TUTORIAL_ENABLED || this.loadIntroCompletionFlag();
@@ -18458,29 +18459,13 @@ Best Score: ${bestScore}${recoveredLine}` :
             }
 
             loadRunStartPromptDismissedFlag() {
-                try {
-                    const key = this.startPromptStorageKey || 'blockazoidsStartPromptDismissedV1';
-                    if (localStorage.getItem(key) === '1') return true;
-
-                    // Existing players should not receive first-launch onboarding again when this
-                    // persistent flag is introduced. These values can only exist after prior play.
-                    const previousTutorialCompleted = localStorage.getItem(GAME_CONFIG.storage.introCompletion) === '1';
-                    const priorProgress = (Number(this.highestUnlockedSector) || 1) > 1 ||
-                        (Number(this.highestUnlockedCycle) || 1) > 1 || (Number(this.highScore) || 0) > 0;
-                    if (previousTutorialCompleted || priorProgress) {
-                        localStorage.setItem(key, '1');
-                        return true;
-                    }
-                } catch (_) {}
+                // Deliberately session-scoped. Reloading or reopening the app must show the cue again.
                 return false;
             }
 
             dismissRunStartPrompt() {
                 if (this.startPromptDismissed) return;
                 this.startPromptDismissed = true;
-                try {
-                    localStorage.setItem(this.startPromptStorageKey || 'blockazoidsStartPromptDismissedV1', '1');
-                } catch (_) {}
                 if (this.activationHowToOverlay) {
                     this.activationHowToOverlay.classList.remove('visible');
                     this.activationHowToOverlay.setAttribute('aria-hidden', 'true');
