@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Block-A-Zoids p173: strengthens the animated PLAY cue, wraps the centered start prompt safely within the playfield, preserves the ten-second attract presentation timing and tap-to-dismiss behavior, and corrects all visible build identifiers.
+Block-A-Zoids p174: makes the TAP PLAY TO START prompt a persistent one-time onboarding cue, adds deliberate spacing between its two lines, and keeps the stronger PLAY pulse for later attract screens.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="p173">
+<html data-build-version="p174">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -1049,7 +1049,7 @@ Font License Notices
             font-family: "Orbitron";
             font-size: clamp(24px, 7.4vw, 46px);
             font-weight: 800;
-            line-height: 1.16;
+            line-height: 1.06;
             letter-spacing: clamp(2px, 1vw, 6px);
             text-shadow: 0 0 10px rgba(255,255,255,0.82), 0 0 24px rgba(255,255,255,0.42);
             white-space: normal;
@@ -1058,11 +1058,13 @@ Font License Notices
             text-wrap: balance;
         }
 
-        #activationHowToOverlay.compact .activation-how-to-title {
-            font-size: clamp(15px, 4.1vw, 22px);
-            line-height: 1.18;
-            letter-spacing: clamp(1.5px, 0.6vw, 3px);
-            text-shadow: 0 0 7px rgba(255,255,255,0.62), 0 0 14px rgba(255,255,255,0.24);
+        .activation-prompt-line {
+            display: block;
+            white-space: nowrap;
+        }
+
+        .activation-prompt-line-secondary {
+            margin-top: clamp(12px, 3.4vw, 22px);
         }
 
         .activation-how-to-list {
@@ -9166,6 +9168,7 @@ Font License Notices
                 difficulty: 'blockazoidsDifficulty',
                 introCompletion: 'blockazoidsGridCalibrationCompletedV1',
                 introCompletionBuild: 'blockazoidsGridCalibrationCompletedBuildV1',
+                startPromptDismissed: 'blockazoidsStartPromptDismissedV1',
                 telemetry: 'blockazoidsBalanceTelemetry',
                 enemyEncounters: 'blockazoidsEnemyEncountersV1'
             })
@@ -12854,7 +12857,7 @@ Font License Notices
                 this.instructionsWindow = document.getElementById('instructionsWindow');
                 this.activationHowToOverlay = document.getElementById('activationHowToOverlay');
                 if (this.activationHowToOverlay && !this.activationHowToOverlay.firstElementChild) {
-                    this.activationHowToOverlay.innerHTML = '<div class="activation-how-to-panel"><div class="activation-how-to-title">TAP PLAY TO START</div></div>';
+                    this.activationHowToOverlay.innerHTML = '<div class="activation-how-to-panel"><div class="activation-how-to-title"><span class="activation-prompt-line">TAP PLAY</span><span class="activation-prompt-line activation-prompt-line-secondary">TO START</span></div></div>';
                 }
                 this.activationHowToTitle = this.activationHowToOverlay ? this.activationHowToOverlay.querySelector('.activation-how-to-title') : null;
                 this.pauseWindow = document.getElementById('pauseWindow');
@@ -13139,6 +13142,8 @@ Font License Notices
                 this.startInputLocked = false;        // Blocks stray menu/start taps while a sector is starting
                 this.isPaused = false;                // Temporary pause-screen state
                 this.hasStartedRun = false;           // Distinguishes first Start Game attract mode from Play Again.
+                this.startPromptStorageKey = GAME_CONFIG.storage.startPromptDismissed;
+                this.startPromptDismissed = this.loadRunStartPromptDismissedFlag();
                 this.introCompletionStorageKey = GAME_CONFIG.storage.introCompletion;
                 this.introCompletionBuildStorageKey = GAME_CONFIG.storage.introCompletionBuild;
                 this.introCompleted = !TUTORIAL_ENABLED || this.loadIntroCompletionFlag();
@@ -18452,6 +18457,36 @@ Best Score: ${bestScore}${recoveredLine}` :
                 this.bonusTextElement.style.opacity = '0';
             }
 
+            loadRunStartPromptDismissedFlag() {
+                try {
+                    const key = this.startPromptStorageKey || 'blockazoidsStartPromptDismissedV1';
+                    if (localStorage.getItem(key) === '1') return true;
+
+                    // Existing players should not receive first-launch onboarding again when this
+                    // persistent flag is introduced. These values can only exist after prior play.
+                    const previousTutorialCompleted = localStorage.getItem(GAME_CONFIG.storage.introCompletion) === '1';
+                    const priorProgress = (Number(this.highestUnlockedSector) || 1) > 1 ||
+                        (Number(this.highestUnlockedCycle) || 1) > 1 || (Number(this.highScore) || 0) > 0;
+                    if (previousTutorialCompleted || priorProgress) {
+                        localStorage.setItem(key, '1');
+                        return true;
+                    }
+                } catch (_) {}
+                return false;
+            }
+
+            dismissRunStartPrompt() {
+                if (this.startPromptDismissed) return;
+                this.startPromptDismissed = true;
+                try {
+                    localStorage.setItem(this.startPromptStorageKey || 'blockazoidsStartPromptDismissedV1', '1');
+                } catch (_) {}
+                if (this.activationHowToOverlay) {
+                    this.activationHowToOverlay.classList.remove('visible');
+                    this.activationHowToOverlay.setAttribute('aria-hidden', 'true');
+                }
+            }
+
             // Grid Calibration completion is scoped to the current build. A new build clears only
             // the tutorial completion markers; scores, unlocks, settings, and telemetry remain intact.
             getCurrentTutorialBuildId() {
@@ -19248,6 +19283,7 @@ Best Score: ${bestScore}${recoveredLine}` :
                 }
 
                 this.cancelTransitionGroup('new-run');
+                this.dismissRunStartPrompt();
                 this.suspendAttractEnemyCards();
                 const selectedOption = Math.max(1, Math.min(this.getSectorSelectOptionCount(), this.selectedStartSector || 1));
                 const endOption = this.getEndSectorOptionValue();
@@ -26345,7 +26381,7 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 const overlay = this.game.activationHowToOverlay;
                 if (!overlay) return { overlay: null, title: null };
                 if (!overlay.firstElementChild) {
-                    overlay.innerHTML = '<div class="activation-how-to-panel"><div class="activation-how-to-title">TAP PLAY TO START</div></div>';
+                    overlay.innerHTML = '<div class="activation-how-to-panel"><div class="activation-how-to-title"><span class="activation-prompt-line">TAP PLAY</span><span class="activation-prompt-line activation-prompt-line-secondary">TO START</span></div></div>';
                 }
                 return {
                     overlay,
@@ -26361,17 +26397,16 @@ startMaxSwarmBeat(delaySeconds = 0) {
                     !!(game.levelSelectWindow && game.levelSelectWindow.style.display === 'flex');
                 const cardVisible = !!(game.attractEnemyCardSequenceActive ||
                     (typeof game.isAttractEnemyCardPresentationVisible === 'function' && game.isAttractEnemyCardPresentationVisible()));
-                const showPrompt = !!(game.flow.is(GAME_FLOW_STATES.ATTRACT) && !game.active && !game.isPaused &&
+                const attractCueAvailable = !!(game.flow.is(GAME_FLOW_STATES.ATTRACT) && !game.active && !game.isPaused &&
                     !game.tutorialActive && !game.splashIntroActive && !menuOpen && !cardVisible);
-                const compact = !!game.hasStartedRun;
+                const showPrompt = attractCueAvailable && !game.startPromptDismissed;
 
                 if (overlay) {
                     overlay.classList.toggle('visible', showPrompt);
-                    overlay.classList.toggle('compact', showPrompt && compact);
+                    overlay.classList.remove('compact');
                     overlay.setAttribute('aria-hidden', showPrompt ? 'false' : 'true');
                 }
-                if (title) title.textContent = 'TAP PLAY TO START';
-                if (startButton) startButton.classList.toggle('attract-start-pulse', showPrompt && !startButton.classList.contains('pause-visible'));
+                if (startButton) startButton.classList.toggle('attract-start-pulse', attractCueAvailable && !startButton.classList.contains('pause-visible'));
             }
 
             // Update score display. Final Gridlock replaces score with its survival clock.
