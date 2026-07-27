@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Block-A-Zoids p186: continues from p185 and adds a clean white curved border around the WebGL-distorted CRT and Vector playfield without restoring the monitor bezel.
+Block-A-Zoids p187: continues from p185 and adds a static white border that follows each WebGL-distorted playfield contour without restoring the monitor bezel.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="p186">
+<html data-build-version="p187">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -8609,27 +8609,51 @@ Font License Notices
         }
 
 
-
-        /* p186 curved-border test. Keep the p185 bezel-free WebGL presentation, but
-           restore one clean white contour so the glass curvature is easy to judge.
-           Its weight and glow match the standard monitor-off square border. */
-        html body #skinShell:not(:has(#pauseGridMenu.visible))
-            #gameContainer.crt-enabled:not(.crt-ui-suspended) .playfield-crt-outline {
-            display: block !important;
-            opacity: 1 !important;
-            visibility: visible !important;
+        /* p187 WebGL contour-border test. This is a static overlay, not a live
+           redraw. Each mode uses a precomputed ring matching the exact p182
+           distortion equation. The white ring occupies only the black area
+           outside the warped playfield, so it does not cover gameplay pixels. */
+        .playfield-webgl-curvature-border {
+            position: absolute;
+            inset: 0;
+            z-index: 27;
+            width: 100%;
+            height: 100%;
+            display: block;
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+            overflow: hidden;
+            shape-rendering: geometricPrecision;
         }
 
-        html body #skinShell:not(:has(#pauseGridMenu.visible))
-            #gameContainer.crt-enabled:not(.crt-ui-suspended)
-            .playfield-crt-outline .crt-outline-line {
-            fill: none !important;
-            stroke: rgba(255, 255, 255, 0.92) !important;
-            stroke-width: 2 !important;
-            vector-effect: non-scaling-stroke !important;
+        .playfield-webgl-curvature-border .webgl-contour-ring {
+            display: none;
+            fill: rgba(255, 255, 255, 0.94);
+            fill-rule: evenodd;
             filter:
-                drop-shadow(0 0 3px rgba(255, 255, 255, 0.62))
-                drop-shadow(0 0 8px rgba(255, 255, 255, 0.42)) !important;
+                drop-shadow(0 0 4px rgba(255,255,255,0.62))
+                drop-shadow(0 0 8px rgba(255,255,255,0.42));
+        }
+
+        #gameContainer.webgl-distortion-active:not(.crt-ui-suspended)
+            > .playfield-webgl-curvature-border {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        #gameContainer.webgl-distortion-active.monitor-vector:not(.crt-ui-suspended)
+            > .playfield-webgl-curvature-border .webgl-contour-ring-vector,
+        #gameContainer.webgl-distortion-active.monitor-crt:not(.crt-ui-suspended)
+            > .playfield-webgl-curvature-border .webgl-contour-ring-crt {
+            display: block;
+        }
+
+        html body #skinShell:has(#pauseGridMenu.visible)
+            #gameContainer > .playfield-webgl-curvature-border {
+            display: none !important;
+            opacity: 0 !important;
+            visibility: hidden !important;
         }
 
 </style>
@@ -8671,6 +8695,10 @@ Font License Notices
         <div id="gameContainer">
         <canvas id="playfieldCanvas" aria-hidden="true"></canvas>
         <canvas id="playfieldWebglCanvas" aria-hidden="true"></canvas>
+        <svg class="playfield-webgl-curvature-border" viewBox="0 0 600 600" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+            <path class="webgl-contour-ring webgl-contour-ring-vector" d="M 602.20 300.00 L 602.17 288.13 L 602.09 276.22 L 601.96 264.26 L 601.77 252.21 L 601.52 240.02 L 601.21 227.69 L 600.84 215.16 L 600.40 202.39 L 599.89 189.36 L 599.31 176.02 L 598.64 162.32 L 597.89 148.22 L 597.04 133.65 L 596.08 118.56 L 595.01 102.88 L 593.81 86.53 L 592.46 69.44 L 590.95 51.50 L 589.26 32.61 L 586.46 13.54 L 566.66 11.53 L 547.90 9.75 L 530.08 8.15 L 513.08 6.72 L 496.81 5.45 L 481.20 4.31 L 466.16 3.30 L 451.64 2.39 L 437.57 1.59 L 423.90 0.89 L 410.58 0.26 L 397.57 -0.28 L 384.82 -0.74 L 372.30 -1.14 L 359.97 -1.47 L 347.79 -1.74 L 335.74 -1.94 L 323.77 -2.09 L 311.87 -2.17 L 300.00 -2.20 L 288.13 -2.17 L 276.23 -2.09 L 264.26 -1.94 L 252.21 -1.74 L 240.03 -1.47 L 227.70 -1.14 L 215.18 -0.74 L 202.43 -0.28 L 189.42 0.26 L 176.10 0.89 L 162.43 1.59 L 148.36 2.39 L 133.84 3.30 L 118.80 4.31 L 103.19 5.45 L 86.92 6.72 L 69.92 8.15 L 52.10 9.75 L 33.34 11.53 L 13.54 13.54 L 10.74 32.61 L 9.05 51.50 L 7.54 69.44 L 6.19 86.53 L 4.99 102.88 L 3.92 118.56 L 2.96 133.65 L 2.11 148.22 L 1.36 162.32 L 0.69 176.02 L 0.11 189.36 L -0.40 202.39 L -0.84 215.16 L -1.21 227.69 L -1.52 240.02 L -1.77 252.21 L -1.96 264.26 L -2.09 276.22 L -2.17 288.13 L -2.20 300.00 L -2.17 311.87 L -2.09 323.78 L -1.96 335.74 L -1.77 347.79 L -1.52 359.98 L -1.21 372.31 L -0.84 384.84 L -0.40 397.61 L 0.11 410.64 L 0.69 423.98 L 1.36 437.68 L 2.11 451.78 L 2.96 466.35 L 3.92 481.44 L 4.99 497.12 L 6.19 513.47 L 7.54 530.56 L 9.05 548.50 L 10.74 567.39 L 13.54 586.46 L 33.34 588.47 L 52.10 590.25 L 69.92 591.85 L 86.92 593.28 L 103.19 594.55 L 118.80 595.69 L 133.84 596.70 L 148.36 597.61 L 162.43 598.41 L 176.10 599.11 L 189.42 599.74 L 202.43 600.28 L 215.18 600.74 L 227.70 601.14 L 240.03 601.47 L 252.21 601.74 L 264.26 601.94 L 276.23 602.09 L 288.13 602.17 L 300.00 602.20 L 311.87 602.17 L 323.77 602.09 L 335.74 601.94 L 347.79 601.74 L 359.97 601.47 L 372.30 601.14 L 384.82 600.74 L 397.57 600.28 L 410.58 599.74 L 423.90 599.11 L 437.57 598.41 L 451.64 597.61 L 466.16 596.70 L 481.20 595.69 L 496.81 594.55 L 513.08 593.28 L 530.08 591.85 L 547.90 590.25 L 566.66 588.47 L 586.46 586.46 L 589.26 567.39 L 590.95 548.50 L 592.46 530.56 L 593.81 513.47 L 595.01 497.12 L 596.08 481.44 L 597.04 466.35 L 597.89 451.78 L 598.64 437.68 L 599.31 423.98 L 599.89 410.64 L 600.40 397.61 L 600.84 384.84 L 601.21 372.31 L 601.52 359.98 L 601.77 347.79 L 601.96 335.74 L 602.09 323.78 L 602.17 311.87 Z M 600.00 300.00 L 599.97 288.21 L 599.90 276.40 L 599.77 264.52 L 599.59 252.55 L 599.36 240.45 L 599.07 228.20 L 598.72 215.75 L 598.31 203.07 L 597.83 190.13 L 597.27 176.86 L 596.64 163.24 L 595.93 149.22 L 595.12 134.72 L 594.21 119.71 L 593.18 104.10 L 592.03 87.83 L 590.74 70.80 L 589.28 52.93 L 587.65 34.10 L 584.91 15.09 L 565.16 13.15 L 546.47 11.42 L 528.71 9.88 L 511.78 8.50 L 495.59 7.28 L 480.05 6.19 L 465.09 5.22 L 450.64 4.35 L 436.65 3.59 L 423.06 2.92 L 409.82 2.33 L 396.89 1.81 L 384.22 1.37 L 371.78 1.00 L 359.54 0.69 L 347.45 0.44 L 335.48 0.24 L 323.60 0.11 L 311.79 0.03 L 300.00 0.00 L 288.21 0.03 L 276.40 0.11 L 264.52 0.24 L 252.55 0.44 L 240.46 0.69 L 228.22 1.00 L 215.78 1.37 L 203.11 1.81 L 190.18 2.33 L 176.94 2.92 L 163.35 3.59 L 149.36 4.35 L 134.91 5.22 L 119.95 6.19 L 104.41 7.28 L 88.22 8.50 L 71.29 9.88 L 53.53 11.42 L 34.84 13.15 L 15.09 15.09 L 12.35 34.10 L 10.72 52.93 L 9.26 70.80 L 7.97 87.83 L 6.82 104.10 L 5.79 119.71 L 4.88 134.72 L 4.07 149.22 L 3.36 163.24 L 2.73 176.86 L 2.17 190.13 L 1.69 203.07 L 1.28 215.75 L 0.93 228.20 L 0.64 240.45 L 0.41 252.55 L 0.23 264.52 L 0.10 276.40 L 0.03 288.21 L 0.00 300.00 L 0.03 311.79 L 0.10 323.60 L 0.23 335.48 L 0.41 347.45 L 0.64 359.55 L 0.93 371.80 L 1.28 384.25 L 1.69 396.93 L 2.17 409.87 L 2.73 423.14 L 3.36 436.76 L 4.07 450.78 L 4.88 465.28 L 5.79 480.29 L 6.82 495.90 L 7.97 512.17 L 9.26 529.20 L 10.72 547.07 L 12.35 565.90 L 15.09 584.91 L 34.84 586.85 L 53.53 588.58 L 71.29 590.12 L 88.22 591.50 L 104.41 592.72 L 119.95 593.81 L 134.91 594.78 L 149.36 595.65 L 163.35 596.41 L 176.94 597.08 L 190.18 597.67 L 203.11 598.19 L 215.78 598.63 L 228.22 599.00 L 240.46 599.31 L 252.55 599.56 L 264.52 599.76 L 276.40 599.89 L 288.21 599.97 L 300.00 600.00 L 311.79 599.97 L 323.60 599.89 L 335.48 599.76 L 347.45 599.56 L 359.54 599.31 L 371.78 599.00 L 384.22 598.63 L 396.89 598.19 L 409.82 597.67 L 423.06 597.08 L 436.65 596.41 L 450.64 595.65 L 465.09 594.78 L 480.05 593.81 L 495.59 592.72 L 511.78 591.50 L 528.71 590.12 L 546.47 588.58 L 565.16 586.85 L 584.91 584.91 L 587.65 565.90 L 589.28 547.07 L 590.74 529.20 L 592.03 512.17 L 593.18 495.90 L 594.21 480.29 L 595.12 465.28 L 595.93 450.78 L 596.64 436.76 L 597.27 423.14 L 597.83 409.87 L 598.31 396.93 L 598.72 384.25 L 599.07 371.80 L 599.36 359.55 L 599.59 347.45 L 599.77 335.48 L 599.90 323.60 L 599.97 311.79 Z"></path>
+            <path class="webgl-contour-ring webgl-contour-ring-crt" d="M 602.20 300.00 L 602.16 288.13 L 602.03 276.23 L 601.82 264.28 L 601.52 252.24 L 601.13 240.10 L 600.64 227.82 L 600.06 215.37 L 599.38 202.73 L 598.59 189.84 L 597.69 176.69 L 596.67 163.23 L 595.52 149.43 L 594.23 135.22 L 592.79 120.58 L 591.18 105.44 L 589.40 89.74 L 587.42 73.41 L 585.23 56.39 L 582.80 38.58 L 578.84 21.16 L 560.36 18.34 L 542.74 15.79 L 525.87 13.48 L 509.68 11.40 L 494.10 9.51 L 479.05 7.82 L 464.49 6.29 L 450.35 4.92 L 436.60 3.70 L 423.18 2.61 L 410.07 1.65 L 397.21 0.81 L 384.58 0.09 L 372.15 -0.53 L 359.88 -1.05 L 347.75 -1.47 L 335.72 -1.79 L 323.77 -2.02 L 311.87 -2.15 L 300.00 -2.20 L 288.13 -2.15 L 276.23 -2.02 L 264.28 -1.79 L 252.25 -1.47 L 240.12 -1.05 L 227.85 -0.53 L 215.42 0.09 L 202.79 0.81 L 189.93 1.65 L 176.82 2.61 L 163.40 3.70 L 149.65 4.92 L 135.51 6.29 L 120.95 7.82 L 105.90 9.51 L 90.32 11.40 L 74.13 13.48 L 57.26 15.79 L 39.64 18.34 L 21.16 21.16 L 17.20 38.58 L 14.77 56.39 L 12.58 73.41 L 10.60 89.74 L 8.82 105.44 L 7.21 120.58 L 5.77 135.22 L 4.48 149.43 L 3.33 163.23 L 2.31 176.69 L 1.41 189.84 L 0.62 202.73 L -0.06 215.37 L -0.64 227.82 L -1.13 240.10 L -1.52 252.24 L -1.82 264.28 L -2.03 276.23 L -2.16 288.13 L -2.20 300.00 L -2.16 311.87 L -2.03 323.77 L -1.82 335.72 L -1.52 347.76 L -1.13 359.90 L -0.64 372.18 L -0.06 384.63 L 0.62 397.27 L 1.41 410.16 L 2.31 423.31 L 3.33 436.77 L 4.48 450.57 L 5.77 464.78 L 7.21 479.42 L 8.82 494.56 L 10.60 510.26 L 12.58 526.59 L 14.77 543.61 L 17.20 561.42 L 21.16 578.84 L 39.64 581.66 L 57.26 584.21 L 74.13 586.52 L 90.32 588.60 L 105.90 590.49 L 120.95 592.18 L 135.51 593.71 L 149.65 595.08 L 163.40 596.30 L 176.82 597.39 L 189.93 598.35 L 202.79 599.19 L 215.42 599.91 L 227.85 600.53 L 240.12 601.05 L 252.25 601.47 L 264.28 601.79 L 276.23 602.02 L 288.13 602.15 L 300.00 602.20 L 311.87 602.15 L 323.77 602.02 L 335.72 601.79 L 347.75 601.47 L 359.88 601.05 L 372.15 600.53 L 384.58 599.91 L 397.21 599.19 L 410.07 598.35 L 423.18 597.39 L 436.60 596.30 L 450.35 595.08 L 464.49 593.71 L 479.05 592.18 L 494.10 590.49 L 509.68 588.60 L 525.87 586.52 L 542.74 584.21 L 560.36 581.66 L 578.84 578.84 L 582.80 561.42 L 585.23 543.61 L 587.42 526.59 L 589.40 510.26 L 591.18 494.56 L 592.79 479.42 L 594.23 464.78 L 595.52 450.57 L 596.67 436.77 L 597.69 423.31 L 598.59 410.16 L 599.38 397.27 L 600.06 384.63 L 600.64 372.18 L 601.13 359.90 L 601.52 347.76 L 601.82 335.72 L 602.03 323.77 L 602.16 311.87 Z M 600.00 300.00 L 599.96 288.21 L 599.84 276.40 L 599.63 264.54 L 599.34 252.59 L 598.97 240.53 L 598.50 228.34 L 597.94 215.97 L 597.29 203.41 L 596.53 190.61 L 595.66 177.53 L 594.67 164.15 L 593.56 150.42 L 592.31 136.30 L 590.91 121.73 L 589.35 106.66 L 587.62 91.03 L 585.70 74.78 L 583.56 57.82 L 581.18 40.08 L 577.28 22.72 L 558.87 19.96 L 541.31 17.46 L 524.51 15.21 L 508.39 13.18 L 492.87 11.34 L 477.90 9.69 L 463.41 8.21 L 449.35 6.88 L 435.68 5.70 L 422.34 4.65 L 409.30 3.72 L 396.53 2.91 L 383.99 2.20 L 371.64 1.61 L 359.45 1.11 L 347.40 0.70 L 335.46 0.39 L 323.60 0.17 L 311.79 0.04 L 300.00 0.00 L 288.21 0.04 L 276.40 0.17 L 264.54 0.39 L 252.60 0.70 L 240.55 1.11 L 228.36 1.61 L 216.01 2.20 L 203.47 2.91 L 190.70 3.72 L 177.66 4.65 L 164.32 5.70 L 150.65 6.88 L 136.59 8.21 L 122.10 9.69 L 107.13 11.34 L 91.61 13.18 L 75.49 15.21 L 58.69 17.46 L 41.13 19.96 L 22.72 22.72 L 18.82 40.08 L 16.44 57.82 L 14.30 74.78 L 12.38 91.03 L 10.65 106.66 L 9.09 121.73 L 7.69 136.30 L 6.44 150.42 L 5.33 164.15 L 4.34 177.53 L 3.47 190.61 L 2.71 203.41 L 2.06 215.97 L 1.50 228.34 L 1.03 240.53 L 0.66 252.59 L 0.37 264.54 L 0.16 276.40 L 0.04 288.21 L 0.00 300.00 L 0.04 311.79 L 0.16 323.60 L 0.37 335.46 L 0.66 347.41 L 1.03 359.47 L 1.50 371.66 L 2.06 384.03 L 2.71 396.59 L 3.47 409.39 L 4.34 422.47 L 5.33 435.85 L 6.44 449.58 L 7.69 463.70 L 9.09 478.27 L 10.65 493.34 L 12.38 508.97 L 14.30 525.22 L 16.44 542.18 L 18.82 559.92 L 22.72 577.28 L 41.13 580.04 L 58.69 582.54 L 75.49 584.79 L 91.61 586.82 L 107.13 588.66 L 122.10 590.31 L 136.59 591.79 L 150.65 593.12 L 164.32 594.30 L 177.66 595.35 L 190.70 596.28 L 203.47 597.09 L 216.01 597.80 L 228.36 598.39 L 240.55 598.89 L 252.60 599.30 L 264.54 599.61 L 276.40 599.83 L 288.21 599.96 L 300.00 600.00 L 311.79 599.96 L 323.60 599.83 L 335.46 599.61 L 347.40 599.30 L 359.45 598.89 L 371.64 598.39 L 383.99 597.80 L 396.53 597.09 L 409.30 596.28 L 422.34 595.35 L 435.68 594.30 L 449.35 593.12 L 463.41 591.79 L 477.90 590.31 L 492.87 588.66 L 508.39 586.82 L 524.51 584.79 L 541.31 582.54 L 558.87 580.04 L 577.28 577.28 L 581.18 559.92 L 583.56 542.18 L 585.70 525.22 L 587.62 508.97 L 589.35 493.34 L 590.91 478.27 L 592.31 463.70 L 593.56 449.58 L 594.67 435.85 L 595.66 422.47 L 596.53 409.39 L 597.29 396.59 L 597.94 384.03 L 598.50 371.66 L 598.97 359.47 L 599.34 347.41 L 599.63 335.46 L 599.84 323.60 L 599.96 311.79 Z"></path>
+        </svg>
         <div class="playfield-crt-layer playfield-crt-tint" aria-hidden="true"></div>
         <div class="playfield-crt-layer playfield-crt-scanlines" aria-hidden="true"></div>
         <div class="playfield-crt-layer playfield-crt-vignette" aria-hidden="true"></div>
