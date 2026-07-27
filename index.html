@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Block-A-Zoids p180: expands the temporary score double-tap iPhone/cabinet background test with three progressively lighter dark-gray options while keeping the gameplay square unchanged.
+Block-A-Zoids p181: changes the startup splash from tap-to-dismiss to an automatic three-second timed presentation.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="p180">
+<html data-build-version="p181">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -1200,7 +1200,7 @@ Font License Notices
             background: #000;
             border: 2px solid #fff;
             box-shadow: 0 0 calc(var(--default-glow) * 0.85px) #fff;
-            cursor: pointer;
+            cursor: default;
             letter-spacing: 1px;
         }
 
@@ -9134,7 +9134,8 @@ Font License Notices
                 gameOverRevealMs: 1450,
                 gameOverTitleHoldMs: 2000,
                 gameOverTitleFadeMs: 500,
-                screenFadeMs: 500
+                screenFadeMs: 500,
+                splashHoldMs: 3000
             }),
             audioTiming: Object.freeze({
                 oneShotCleanupMinimumMs: 1200,
@@ -13846,20 +13847,14 @@ Font License Notices
                 this.splashIntroActive = true;
                 this.splashEasterEggReady = false;
                 this.scheduler.cancelTask('splash', 'easter-egg-ready');
+                this.scheduler.cancelTask('splash', 'auto-dismiss');
                 this.splashEasterEggTimer = null; // Intro easter egg disabled for now.
 
-                const continueFromSplash = (e) => {
-                    if (!this.splashIntroActive) return;
-                    if (e && e.preventDefault) e.preventDefault();
-                    if (e && e.stopPropagation) e.stopPropagation();
-                    // The splash dismissal is the first guaranteed player gesture. Unlock audio here
-                    // so Safari never has to create or resume the sound graph from an attract-mode timer.
-                    if (this.audio) this.audio.resume('splash-dismiss');
+                // The startup splash is presentation-only. It remains fully visible for three seconds,
+                // then fades into Activate mode without requiring or accepting a dismissal tap.
+                this.scheduler.scheduleTimeout('splash', 'auto-dismiss', () => {
                     this.dismissSplashIntro();
-                };
-
-                this.splashScreen.addEventListener('pointerup', continueFromSplash, { passive: false });
-                this.splashScreen.addEventListener('click', continueFromSplash, { passive: false });
+                }, GAME_CONFIG.transitions.splashHoldMs);
             }
 
             dismissSplashIntro() {
