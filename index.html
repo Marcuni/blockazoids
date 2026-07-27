@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Block-A-Zoids p183: replaces the WebGL glass experiment with a lower-cost Canvas 2D strip distortion test for Vector and CRT monitor modes while leaving menus undistorted.
+Block-A-Zoids p184: keeps the p182 WebGL glass distortion and adds a monitor-shaped Orb boundary so the full Orb remains visible inside the curved bezel.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="p183">
+<html data-build-version="p184">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -7996,10 +7996,6 @@ Font License Notices
         }
 
 
-        /* p183: lower-cost monitor distortion test. The live playfield is rendered to an
-           internal 2D canvas, then bent with two strip-scaling passes at a maximum 2x output density.
-           Menus suspend the distortion and retain the normal square presentation. */
-
         /* p168: Canvas is the only live-playfield renderer. HUD, menus, text panels,
            cabinet artwork, and CRT glass remain HTML/CSS layers above it. */
         #playfieldCanvas {
@@ -8011,6 +8007,37 @@ Font License Notices
             height: 100%;
             pointer-events: none;
             touch-action: none;
+        }
+
+
+        /* p184 WebGL glass-distortion presentation. The 2D canvas remains the authoritative
+           gameplay renderer; this second canvas only warps its completed frame.
+           Menus and text overlays remain normal HTML/CSS above both canvases. */
+        #playfieldWebglCanvas {
+            position: absolute;
+            inset: 0;
+            z-index: 2;
+            display: block;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            pointer-events: none;
+            touch-action: none;
+        }
+
+        #gameContainer.webgl-distortion-ready.webgl-distortion-active > #playfieldCanvas {
+            opacity: 0;
+        }
+
+        #gameContainer.webgl-distortion-ready.webgl-distortion-active > #playfieldWebglCanvas {
+            opacity: 1;
+        }
+
+        /* The WebGL pass draws curved CRT scanlines in warped texture space. Suppress
+           the original straight CSS scanlines only while the post-process is active. */
+        #gameContainer.webgl-distortion-active > .playfield-crt-scanlines {
+            opacity: 0 !important;
+            animation: none !important;
         }
 
         html body #gameContainer.crt-enabled.crt-fx-grid-rgb.crt-grid-rgb-low:not(.crt-ui-suspended) > .playfield-grid-layer {
@@ -8600,6 +8627,7 @@ Font License Notices
     <div id="playfieldShell">
         <div id="gameContainer">
         <canvas id="playfieldCanvas" aria-hidden="true"></canvas>
+        <canvas id="playfieldWebglCanvas" aria-hidden="true"></canvas>
         <div class="playfield-crt-layer playfield-crt-tint" aria-hidden="true"></div>
         <div class="playfield-crt-layer playfield-crt-scanlines" aria-hidden="true"></div>
         <div class="playfield-crt-layer playfield-crt-vignette" aria-hidden="true"></div>
@@ -8921,6 +8949,7 @@ Font License Notices
             spawnWarnings: true,
             visualEffects: true,
             vectorPhosphorTrails: true,
+            webglDistortion: true,
             gridlockVisualEffects: true,
             telemetry: true,
             stabilityDiagnostics: false,
@@ -10751,28 +10780,15 @@ Font License Notices
             constructor(game, canvas) {
                 super(game);
                 if (!canvas) throw new Error('Canvas playfield element is unavailable.');
-                const displayContext = canvas.getContext('2d');
-                if (!displayContext) throw new Error('Canvas 2D rendering is unavailable.');
-
-                const sourceCanvas = document.createElement('canvas');
-                const sourceContext = sourceCanvas.getContext('2d');
-                const warpCanvas = document.createElement('canvas');
-                const warpContext = warpCanvas.getContext('2d');
-                if (!sourceContext || !warpContext) throw new Error('Canvas 2D distortion buffers are unavailable.');
+                const context = canvas.getContext('2d');
+                if (!context) throw new Error('Canvas 2D rendering is unavailable.');
 
                 this.kind = 'canvas';
                 this.canvas = canvas;
-                this.displayContext = displayContext;
-                this.sourceCanvas = sourceCanvas;
-                this.sourceContext = sourceContext;
-                this.warpCanvas = warpCanvas;
-                this.warpContext = warpContext;
-                this.context = sourceContext;
+                this.context = context;
                 this.cssWidth = 1;
                 this.cssHeight = 1;
                 this.pixelRatio = 1;
-                this.outputPixelRatio = 1;
-                this.distortionStripCount = 64;
                 this.effectFrameScheduled = false;
                 this.effectFrameSequence = 0;
                 this.activeSpawnWarnings = new Set();
@@ -10841,112 +10857,10 @@ Font License Notices
                 this.canvas.style.width = `${width}px`;
                 this.canvas.style.height = `${height}px`;
 
-                if (this.sourceCanvas.width !== bufferWidth) this.sourceCanvas.width = bufferWidth;
-                if (this.sourceCanvas.height !== bufferHeight) this.sourceCanvas.height = bufferHeight;
-                this.sourceContext.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
-                this.sourceContext.imageSmoothingEnabled = true;
-                this.context = this.sourceContext;
-
-                this.ensureOutputBuffer(pixelRatio);
-            }
-
-            ensureOutputBuffer(pixelRatio) {
-                const ratio = Math.max(1, Number(pixelRatio) || 1);
-                const width = Math.max(1, Math.round(this.cssWidth * ratio));
-                const height = Math.max(1, Math.round(this.cssHeight * ratio));
-                this.outputPixelRatio = ratio;
-
-                if (this.canvas.width !== width) this.canvas.width = width;
-                if (this.canvas.height !== height) this.canvas.height = height;
-                if (this.warpCanvas.width !== width) this.warpCanvas.width = width;
-                if (this.warpCanvas.height !== height) this.warpCanvas.height = height;
-
-                this.displayContext.setTransform(1, 0, 0, 1, 0, 0);
-                this.warpContext.setTransform(1, 0, 0, 1, 0, 0);
-                this.displayContext.imageSmoothingEnabled = true;
-                this.warpContext.imageSmoothingEnabled = true;
-            }
-
-            getMonitorDistortionProfile(game) {
-                const container = game && game.container;
-                if (!container || !container.classList.contains('crt-enabled') || container.classList.contains('crt-ui-suspended')) return null;
-                if (container.classList.contains('monitor-crt')) {
-                    return { horizontal: 0.075, vertical: 0.045, power: 3.2, outputRatio: Math.min(2, this.pixelRatio) };
-                }
-                if (container.classList.contains('monitor-vector')) {
-                    return { horizontal: 0.040, vertical: 0.024, power: 3.2, outputRatio: Math.min(2, this.pixelRatio) };
-                }
-                return null;
-            }
-
-            presentUndistortedFrame() {
-                this.ensureOutputBuffer(this.pixelRatio);
-                const context = this.displayContext;
-                context.clearRect(0, 0, this.canvas.width, this.canvas.height);
-                context.drawImage(
-                    this.sourceCanvas,
-                    0, 0, this.sourceCanvas.width, this.sourceCanvas.height,
-                    0, 0, this.canvas.width, this.canvas.height
-                );
-            }
-
-            presentDistortedFrame(profile) {
-                const outputRatio = Math.max(1, Number(profile.outputRatio) || 1);
-                this.ensureOutputBuffer(outputRatio);
-
-                const source = this.sourceCanvas;
-                const intermediate = this.warpCanvas;
-                const intermediateContext = this.warpContext;
-                const output = this.canvas;
-                const outputContext = this.displayContext;
-                const width = output.width;
-                const height = output.height;
-                const stripCount = Math.max(24, Math.round(this.distortionStripCount));
-                const power = Math.max(1, Number(profile.power) || 3);
-
-                intermediateContext.clearRect(0, 0, width, height);
-                outputContext.clearRect(0, 0, width, height);
-
-                // Horizontal pass: progressively narrows the picture near the top and bottom.
-                for (let index = 0; index < stripCount; index += 1) {
-                    const sourceY0 = Math.floor(index * source.height / stripCount);
-                    const sourceY1 = Math.ceil((index + 1) * source.height / stripCount);
-                    const destY0 = Math.floor(index * height / stripCount);
-                    const destY1 = Math.min(height, Math.ceil((index + 1) * height / stripCount) + 1);
-                    const center = (index + 0.5) / stripCount;
-                    const edge = Math.abs(center * 2 - 1);
-                    const inset = Math.pow(edge, power) * width * Math.max(0, Number(profile.horizontal) || 0);
-                    intermediateContext.drawImage(
-                        source,
-                        0, sourceY0, source.width, Math.max(1, sourceY1 - sourceY0),
-                        inset, destY0, Math.max(1, width - inset * 2), Math.max(1, destY1 - destY0)
-                    );
-                }
-
-                // Vertical pass: compresses the left and right edges to bend horizontal grid lines.
-                for (let index = 0; index < stripCount; index += 1) {
-                    const sourceX0 = Math.floor(index * width / stripCount);
-                    const sourceX1 = Math.ceil((index + 1) * width / stripCount);
-                    const destX0 = Math.floor(index * width / stripCount);
-                    const destX1 = Math.min(width, Math.ceil((index + 1) * width / stripCount) + 1);
-                    const center = (index + 0.5) / stripCount;
-                    const edge = Math.abs(center * 2 - 1);
-                    const inset = Math.pow(edge, power) * height * Math.max(0, Number(profile.vertical) || 0);
-                    outputContext.drawImage(
-                        intermediate,
-                        sourceX0, 0, Math.max(1, sourceX1 - sourceX0), height,
-                        destX0, inset, Math.max(1, destX1 - destX0), Math.max(1, height - inset * 2)
-                    );
-                }
-            }
-
-            presentFrame(game) {
-                const profile = this.getMonitorDistortionProfile(game);
-                if (!profile) {
-                    this.presentUndistortedFrame();
-                    return;
-                }
-                this.presentDistortedFrame(profile);
+                if (this.canvas.width !== bufferWidth) this.canvas.width = bufferWidth;
+                if (this.canvas.height !== bufferHeight) this.canvas.height = bufferHeight;
+                this.context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+                this.context.imageSmoothingEnabled = true;
             }
 
             setPlayerVisible(player, visible) {
@@ -12919,8 +12833,416 @@ Font License Notices
                 this.drawCycleCelebrationOverlay(game, timestamp);
                 this.drawCycleRestoredIdle(game);
                 this.context.restore();
-                this.presentFrame(game);
                 this.ensurePlayerEffectFrame();
+                if (game.webglDistortion) game.webglDistortion.render(timestamp);
+            }
+        }
+
+        class WebGLPlayfieldDistortion {
+            constructor(game, sourceCanvas, outputCanvas) {
+                this.game = game;
+                this.sourceCanvas = sourceCanvas;
+                this.outputCanvas = outputCanvas;
+                this.gl = null;
+                this.program = null;
+                this.positionBuffer = null;
+                this.texture = null;
+                this.locations = null;
+                this.available = false;
+                this.hasFrame = false;
+                this.lastWidth = 0;
+                this.lastHeight = 0;
+
+                if (!sourceCanvas || !outputCanvas || !GAME_FEATURE_FLAGS.webglDistortion) {
+                    this.syncPresentation();
+                    return;
+                }
+
+                outputCanvas.addEventListener('webglcontextlost', (event) => {
+                    event.preventDefault();
+                    this.available = false;
+                    this.hasFrame = false;
+                    this.syncPresentation();
+                }, false);
+
+                outputCanvas.addEventListener('webglcontextrestored', () => {
+                    this.initialize();
+                    this.invalidate();
+                    if (this.game && typeof this.game.requestPlayfieldRender === 'function') {
+                        this.game.requestPlayfieldRender();
+                    }
+                }, false);
+
+                this.initialize();
+            }
+
+            compileShader(type, source) {
+                const gl = this.gl;
+                const shader = gl.createShader(type);
+                gl.shaderSource(shader, source);
+                gl.compileShader(shader);
+                if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+                    const message = gl.getShaderInfoLog(shader) || 'Unknown shader compilation error.';
+                    gl.deleteShader(shader);
+                    throw new Error(message);
+                }
+                return shader;
+            }
+
+            initialize() {
+                try {
+                    const gl = this.outputCanvas.getContext('webgl', {
+                        alpha: false,
+                        antialias: false,
+                        depth: false,
+                        stencil: false,
+                        preserveDrawingBuffer: false,
+                        premultipliedAlpha: false,
+                        desynchronized: true,
+                        powerPreference: 'high-performance'
+                    }) || this.outputCanvas.getContext('experimental-webgl');
+
+                    if (!gl) throw new Error('WebGL is unavailable.');
+                    this.gl = gl;
+
+                    const vertexShader = this.compileShader(gl.VERTEX_SHADER, `
+                        attribute vec2 a_position;
+                        varying vec2 v_uv;
+                        void main() {
+                            v_uv = a_position * 0.5 + 0.5;
+                            gl_Position = vec4(a_position, 0.0, 1.0);
+                        }
+                    `);
+
+                    const fragmentShader = this.compileShader(gl.FRAGMENT_SHADER, `
+                        precision mediump float;
+                        uniform sampler2D u_source;
+                        uniform float u_strength;
+                        uniform float u_crtMode;
+                        uniform float u_cssHeight;
+                        varying vec2 v_uv;
+
+                        void main() {
+                            vec2 point = v_uv * 2.0 - 1.0;
+                            float radiusSquared = dot(point, point);
+                            float normalization = 1.0 + u_strength;
+
+                            // Radial barrel distortion plus a small cross-axis bow makes
+                            // horizontal and vertical paths follow the existing tube contour.
+                            vec2 sourcePoint;
+                            sourcePoint.x = point.x * (1.0 + u_strength * (radiusSquared + 0.10 * point.y * point.y)) / normalization;
+                            sourcePoint.y = point.y * (1.0 + u_strength * (radiusSquared + 0.18 * point.x * point.x)) / normalization;
+                            vec2 sourceUv = sourcePoint * 0.5 + 0.5;
+
+                            if (sourceUv.x < 0.0 || sourceUv.x > 1.0 || sourceUv.y < 0.0 || sourceUv.y > 1.0) {
+                                gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+                                return;
+                            }
+
+                            vec4 color = texture2D(u_source, sourceUv);
+
+                            // CRT scanlines are calculated from the distorted source position,
+                            // so they bend with the glass instead of remaining straight overlays.
+                            float scanPhase = sourceUv.y * u_cssHeight * 1.57079632679;
+                            float scanWave = 0.5 + 0.5 * sin(scanPhase);
+                            float scanMultiplier = mix(1.0, 0.925 + 0.075 * scanWave, u_crtMode);
+                            color.rgb *= scanMultiplier;
+
+                            gl_FragColor = vec4(color.rgb, 1.0);
+                        }
+                    `);
+
+                    const program = gl.createProgram();
+                    gl.attachShader(program, vertexShader);
+                    gl.attachShader(program, fragmentShader);
+                    gl.linkProgram(program);
+                    gl.deleteShader(vertexShader);
+                    gl.deleteShader(fragmentShader);
+
+                    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+                        const message = gl.getProgramInfoLog(program) || 'Unknown WebGL program link error.';
+                        gl.deleteProgram(program);
+                        throw new Error(message);
+                    }
+
+                    const positionBuffer = gl.createBuffer();
+                    gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+                    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+                        -1, -1,
+                         1, -1,
+                        -1,  1,
+                         1,  1
+                    ]), gl.STATIC_DRAW);
+
+                    const texture = gl.createTexture();
+                    gl.bindTexture(gl.TEXTURE_2D, texture);
+                    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+                    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+                    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+                    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+                    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+                    gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+
+                    this.program = program;
+                    this.positionBuffer = positionBuffer;
+                    this.texture = texture;
+                    this.locations = {
+                        position: gl.getAttribLocation(program, 'a_position'),
+                        source: gl.getUniformLocation(program, 'u_source'),
+                        strength: gl.getUniformLocation(program, 'u_strength'),
+                        crtMode: gl.getUniformLocation(program, 'u_crtMode'),
+                        cssHeight: gl.getUniformLocation(program, 'u_cssHeight')
+                    };
+                    this.available = true;
+                    this.hasFrame = false;
+                    this.lastWidth = 0;
+                    this.lastHeight = 0;
+                    this.syncPresentation();
+                } catch (error) {
+                    console.warn('WebGL playfield distortion disabled:', error);
+                    this.available = false;
+                    this.hasFrame = false;
+                    this.syncPresentation();
+                }
+            }
+
+            getMode() {
+                if (!this.game || !this.game.container) return 'off';
+                if (this.game.container.classList.contains('monitor-crt')) return 'crt';
+                if (this.game.container.classList.contains('monitor-vector')) return 'vector';
+                return 'off';
+            }
+
+            getStrength(mode = this.getMode()) {
+                return mode === 'crt' ? 0.105 : (mode === 'vector' ? 0.058 : 0);
+            }
+
+            // The shader samples the source canvas from each output pixel. These two helpers
+            // expose the same transform to gameplay so the Orb boundary can follow the glass.
+            outputBoardPointToSource(point, mode = this.getMode()) {
+                const boardSize = Math.max(1, Number(this.game && this.game.PLAYFIELD_SIZE) || 600);
+                const strength = this.getStrength(mode);
+                if (!strength) return { x: point.x, y: point.y };
+
+                const px = (Number(point.x) / boardSize) * 2 - 1;
+                const py = (Number(point.y) / boardSize) * 2 - 1;
+                const radiusSquared = px * px + py * py;
+                const normalization = 1 + strength;
+                const sourceX = px * (1 + strength * (radiusSquared + 0.10 * py * py)) / normalization;
+                const sourceY = py * (1 + strength * (radiusSquared + 0.18 * px * px)) / normalization;
+                return {
+                    x: (sourceX * 0.5 + 0.5) * boardSize,
+                    y: (sourceY * 0.5 + 0.5) * boardSize
+                };
+            }
+
+            sourceBoardPointToOutput(point, mode = this.getMode()) {
+                const boardSize = Math.max(1, Number(this.game && this.game.PLAYFIELD_SIZE) || 600);
+                const strength = this.getStrength(mode);
+                if (!strength) return { x: point.x, y: point.y };
+
+                const sourceX = (Number(point.x) / boardSize) * 2 - 1;
+                const sourceY = (Number(point.y) / boardSize) * 2 - 1;
+                const normalization = 1 + strength;
+                let outputX = sourceX;
+                let outputY = sourceY;
+
+                // Fixed-point inversion is stable for the two deliberately mild monitor strengths.
+                for (let iteration = 0; iteration < 7; iteration++) {
+                    const radiusSquared = outputX * outputX + outputY * outputY;
+                    const factorX = (1 + strength * (radiusSquared + 0.10 * outputY * outputY)) / normalization;
+                    const factorY = (1 + strength * (radiusSquared + 0.18 * outputX * outputX)) / normalization;
+                    outputX = sourceX / Math.max(0.0001, factorX);
+                    outputY = sourceY / Math.max(0.0001, factorY);
+                }
+
+                return {
+                    x: (outputX * 0.5 + 0.5) * boardSize,
+                    y: (outputY * 0.5 + 0.5) * boardSize
+                };
+            }
+
+            getTubeOpeningSamples() {
+                if (this.tubeOpeningSamples) return this.tubeOpeningSamples;
+                const segments = [
+                    [[54, 28], [180, 12], [420, 12], [546, 28]],
+                    [[546, 28], [574, 32], [586, 52], [588, 82]],
+                    [[588, 82], [596, 210], [596, 390], [588, 518]],
+                    [[588, 518], [586, 548], [574, 568], [546, 572]],
+                    [[546, 572], [420, 588], [180, 588], [54, 572]],
+                    [[54, 572], [26, 568], [14, 548], [12, 518]],
+                    [[12, 518], [4, 390], [4, 210], [12, 82]],
+                    [[12, 82], [14, 52], [26, 32], [54, 28]]
+                ];
+                const samples = [];
+                const samplesPerSegment = 28;
+                const cubic = (p0, p1, p2, p3, t) => {
+                    const inverse = 1 - t;
+                    const inverseSquared = inverse * inverse;
+                    const tSquared = t * t;
+                    return {
+                        x: inverseSquared * inverse * p0[0] + 3 * inverseSquared * t * p1[0] + 3 * inverse * tSquared * p2[0] + tSquared * t * p3[0],
+                        y: inverseSquared * inverse * p0[1] + 3 * inverseSquared * t * p1[1] + 3 * inverse * tSquared * p2[1] + tSquared * t * p3[1]
+                    };
+                };
+
+                segments.forEach(segment => {
+                    for (let index = 0; index < samplesPerSegment; index++) {
+                        samples.push(cubic(segment[0], segment[1], segment[2], segment[3], index / samplesPerSegment));
+                    }
+                });
+                this.tubeOpeningSamples = samples;
+                this.tubeInsetPolygons = new Map();
+                return samples;
+            }
+
+            getInsetTubePolygon(canonicalMargin) {
+                const safeMargin = Math.max(0, Number(canonicalMargin) || 0);
+                const cacheKey = safeMargin.toFixed(2);
+                this.getTubeOpeningSamples();
+                if (this.tubeInsetPolygons.has(cacheKey)) return this.tubeInsetPolygons.get(cacheKey);
+
+                // Scaling the symmetric tube path toward its center closely approximates a
+                // uniform inward offset while retaining the exact production bezel silhouette.
+                const scale = Math.max(0.15, (300 - safeMargin) / 300);
+                const polygon = this.tubeOpeningSamples.map(point => ({
+                    x: 300 + (point.x - 300) * scale,
+                    y: 300 + (point.y - 300) * scale
+                }));
+                this.tubeInsetPolygons.set(cacheKey, polygon);
+                return polygon;
+            }
+
+            pointIsInsidePolygon(point, polygon) {
+                let inside = false;
+                for (let index = 0, previous = polygon.length - 1; index < polygon.length; previous = index++) {
+                    const currentPoint = polygon[index];
+                    const previousPoint = polygon[previous];
+                    const crosses = ((currentPoint.y > point.y) !== (previousPoint.y > point.y)) &&
+                        (point.x < (previousPoint.x - currentPoint.x) * (point.y - currentPoint.y) /
+                            (previousPoint.y - currentPoint.y) + currentPoint.x);
+                    if (crosses) inside = !inside;
+                }
+                return inside;
+            }
+
+            closestPointOnSegment(point, start, end) {
+                const deltaX = end.x - start.x;
+                const deltaY = end.y - start.y;
+                const lengthSquared = deltaX * deltaX + deltaY * deltaY;
+                if (lengthSquared <= 0.000001) return { x: start.x, y: start.y };
+                const projection = Math.max(0, Math.min(1,
+                    ((point.x - start.x) * deltaX + (point.y - start.y) * deltaY) / lengthSquared));
+                return { x: start.x + deltaX * projection, y: start.y + deltaY * projection };
+            }
+
+            constrainOutputPointToTube(point, margin = 0) {
+                const boardSize = Math.max(1, Number(this.game && this.game.PLAYFIELD_SIZE) || 600);
+                const canonicalScale = 600 / boardSize;
+                const canonicalPoint = {
+                    x: Number(point.x) * canonicalScale,
+                    y: Number(point.y) * canonicalScale
+                };
+                const polygon = this.getInsetTubePolygon(Number(margin) * canonicalScale);
+                if (this.pointIsInsidePolygon(canonicalPoint, polygon)) return { x: point.x, y: point.y };
+
+                let closest = null;
+                let closestDistanceSquared = Infinity;
+                for (let index = 0; index < polygon.length; index++) {
+                    const start = polygon[index];
+                    const end = polygon[(index + 1) % polygon.length];
+                    const candidate = this.closestPointOnSegment(canonicalPoint, start, end);
+                    const deltaX = canonicalPoint.x - candidate.x;
+                    const deltaY = canonicalPoint.y - candidate.y;
+                    const distanceSquared = deltaX * deltaX + deltaY * deltaY;
+                    if (distanceSquared < closestDistanceSquared) {
+                        closestDistanceSquared = distanceSquared;
+                        closest = candidate;
+                    }
+                }
+
+                if (!closest) return { x: point.x, y: point.y };
+                const centerDeltaX = 300 - closest.x;
+                const centerDeltaY = 300 - closest.y;
+                const centerDistance = Math.max(0.0001, Math.hypot(centerDeltaX, centerDeltaY));
+                closest.x += (centerDeltaX / centerDistance) * 0.75;
+                closest.y += (centerDeltaY / centerDistance) * 0.75;
+                return { x: closest.x / canonicalScale, y: closest.y / canonicalScale };
+            }
+
+            shouldRender() {
+                if (!this.available || !GAME_FEATURE_FLAGS.webglDistortion || !this.game || !this.game.container) return false;
+                if (this.game.container.classList.contains('crt-ui-suspended')) return false;
+                return this.getMode() !== 'off';
+            }
+
+            syncPresentation() {
+                const container = this.game && this.game.container;
+                if (!container) return;
+                container.classList.toggle('webgl-distortion-ready', !!this.available);
+                container.classList.toggle('webgl-distortion-active', !!(this.available && this.hasFrame && this.shouldRender()));
+            }
+
+            invalidate() {
+                this.hasFrame = false;
+                this.syncPresentation();
+            }
+
+            resizeIfNeeded() {
+                const width = Math.max(1, this.sourceCanvas.width || 1);
+                const height = Math.max(1, this.sourceCanvas.height || 1);
+                const renderer = this.game && this.game.playfieldRenderer;
+                const cssWidth = Math.max(1, Number(renderer && renderer.cssWidth) || this.sourceCanvas.clientWidth || 1);
+                const cssHeight = Math.max(1, Number(renderer && renderer.cssHeight) || this.sourceCanvas.clientHeight || cssWidth);
+
+                this.outputCanvas.style.width = `${cssWidth}px`;
+                this.outputCanvas.style.height = `${cssHeight}px`;
+                if (this.outputCanvas.width !== width) this.outputCanvas.width = width;
+                if (this.outputCanvas.height !== height) this.outputCanvas.height = height;
+
+                if (width !== this.lastWidth || height !== this.lastHeight) {
+                    this.lastWidth = width;
+                    this.lastHeight = height;
+                    this.gl.viewport(0, 0, width, height);
+                }
+
+                return { cssHeight };
+            }
+
+            render() {
+                if (!this.shouldRender()) {
+                    this.syncPresentation();
+                    return;
+                }
+
+                try {
+                    const gl = this.gl;
+                    const mode = this.getMode();
+                    const layout = this.resizeIfNeeded();
+                    const strength = this.getStrength(mode);
+
+                    gl.useProgram(this.program);
+                    gl.bindBuffer(gl.ARRAY_BUFFER, this.positionBuffer);
+                    gl.enableVertexAttribArray(this.locations.position);
+                    gl.vertexAttribPointer(this.locations.position, 2, gl.FLOAT, false, 0, 0);
+
+                    gl.activeTexture(gl.TEXTURE0);
+                    gl.bindTexture(gl.TEXTURE_2D, this.texture);
+                    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, this.sourceCanvas);
+                    gl.uniform1i(this.locations.source, 0);
+                    gl.uniform1f(this.locations.strength, strength);
+                    gl.uniform1f(this.locations.crtMode, mode === 'crt' ? 1 : 0);
+                    gl.uniform1f(this.locations.cssHeight, layout.cssHeight);
+
+                    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+                    this.hasFrame = true;
+                    this.syncPresentation();
+                } catch (error) {
+                    console.warn('WebGL playfield distortion frame failed:', error);
+                    this.available = false;
+                    this.hasFrame = false;
+                    this.syncPresentation();
+                }
             }
         }
 
@@ -12946,7 +13268,9 @@ Font License Notices
                 // DOM element references
                 this.container = document.getElementById('gameContainer');
                 this.playfieldCanvas = document.getElementById('playfieldCanvas');
+                this.playfieldWebglCanvas = document.getElementById('playfieldWebglCanvas');
                 this.playfieldRenderer = new CanvasPlayfieldRenderer(this, this.playfieldCanvas);
+                this.webglDistortion = new WebGLPlayfieldDistortion(this, this.playfieldCanvas, this.playfieldWebglCanvas);
                 this.playfieldRenderDirty = true;
                 this.cabinetBackgroundPalette = ['#000000', '#0A0A0A', '#141414', '#1E1E1E', '#220000', '#002200', '#000022'];
                 this.cabinetBackgroundIndex = 0;
@@ -17324,6 +17648,11 @@ Best Score: ${bestScore}${recoveredLine}` :
 
                 this.applyCrtFeatureClasses();
                 if (!this.crtEnabled) this.clearCrtEventEffects();
+                if (this.webglDistortion) this.webglDistortion.invalidate();
+                if (this.player && typeof this.player.constrainCurrentPositionToMonitor === 'function') {
+                    this.player.constrainCurrentPositionToMonitor();
+                }
+                this.requestPlayfieldRender();
                 this.updateCrtToggleLabel();
             }
 
@@ -17339,7 +17668,6 @@ Best Score: ${bestScore}${recoveredLine}` :
                 this.saveCrtFeaturePreferences();
                 this.clearCrtEventEffects();
                 this.applyCrtPreference();
-                this.requestPlayfieldRender();
             }
 
             applyCrtPresetLevel(level) {
@@ -17413,6 +17741,7 @@ Best Score: ${bestScore}${recoveredLine}` :
                 if (suspended && this.vectorTrail) this.vectorTrail.clear();
                 if (this.playfieldShell) this.playfieldShell.classList.toggle('crt-ui-suspended', !!suspended);
                 if (suspended) this.clearCrtEventEffects();
+                if (this.webglDistortion) this.webglDistortion.syncPresentation();
                 this.requestPlayfieldRender();
             }
 
@@ -22677,6 +23006,60 @@ Best Score: ${bestScore}${recoveredLine}` :
                        point.y <= this.y + this.size + padding;
             }
 
+            clampCenterToSquare(centerX, centerY) {
+                const halfSize = this.size / 2;
+                return {
+                    x: Math.max(halfSize, Math.min(this.game.PLAYFIELD_SIZE - halfSize, centerX)),
+                    y: Math.max(halfSize, Math.min(this.game.PLAYFIELD_SIZE - halfSize, centerY))
+                };
+            }
+
+            constrainCenterToMonitor(centerX, centerY) {
+                const squareCenter = this.clampCenterToSquare(centerX, centerY);
+                const distortion = this.game.webglDistortion;
+                const mode = distortion ? distortion.getMode() : (this.game.monitorMode || 'off');
+                if (!distortion || mode === 'off') return squareCenter;
+
+                const outputCenter = distortion.sourceBoardPointToOutput(squareCenter, mode);
+                const visualRadius = Math.max(this.size * 0.64, this.size / 2 + 1.5);
+                const diagonalRadius = visualRadius * Math.SQRT1_2;
+                const sourceSamples = [
+                    { x: squareCenter.x + visualRadius, y: squareCenter.y },
+                    { x: squareCenter.x - visualRadius, y: squareCenter.y },
+                    { x: squareCenter.x, y: squareCenter.y + visualRadius },
+                    { x: squareCenter.x, y: squareCenter.y - visualRadius },
+                    { x: squareCenter.x + diagonalRadius, y: squareCenter.y + diagonalRadius },
+                    { x: squareCenter.x - diagonalRadius, y: squareCenter.y + diagonalRadius },
+                    { x: squareCenter.x + diagonalRadius, y: squareCenter.y - diagonalRadius },
+                    { x: squareCenter.x - diagonalRadius, y: squareCenter.y - diagonalRadius }
+                ];
+                let outputRadius = visualRadius;
+                sourceSamples.forEach(sample => {
+                    const warped = distortion.sourceBoardPointToOutput(sample, mode);
+                    outputRadius = Math.max(outputRadius, Math.hypot(warped.x - outputCenter.x, warped.y - outputCenter.y));
+                });
+
+                const bezelSafety = mode === 'crt' ? 3.5 : 2.5;
+                const constrainedOutput = distortion.constrainOutputPointToTube(outputCenter, outputRadius + bezelSafety);
+                const constrainedSource = distortion.outputBoardPointToSource(constrainedOutput, mode);
+                return this.clampCenterToSquare(constrainedSource.x, constrainedSource.y);
+            }
+
+            constrainCurrentPositionToMonitor() {
+                const currentCenterX = this.x + this.size / 2;
+                const currentCenterY = this.y + this.size / 2;
+                const constrained = this.constrainCenterToMonitor(currentCenterX, currentCenterY);
+                const nextX = constrained.x - this.size / 2;
+                const nextY = constrained.y - this.size / 2;
+                if (Math.hypot(nextX - this.x, nextY - this.y) <= 0.01) return false;
+                this.x = nextX;
+                this.y = nextY;
+                this.movementSegments.length = 0;
+                if (this.game.vectorTrail) this.game.vectorTrail.clear();
+                this.game.requestPlayfieldRender();
+                return true;
+            }
+
             moveToPoint(point, keepTouchOffset = false) {
                 const targetCenterX = keepTouchOffset ? point.x - this.touchDragOffsetX : point.x;
                 const targetCenterY = keepTouchOffset ? point.y - this.touchDragOffsetY : point.y;
@@ -22684,10 +23067,9 @@ Best Score: ${bestScore}${recoveredLine}` :
                 const previousY = this.y;
                 const now = performance.now();
 
-                this.x = Math.max(0, Math.min(this.game.PLAYFIELD_SIZE - this.size,
-                    targetCenterX - this.size / 2));
-                this.y = Math.max(0, Math.min(this.game.PLAYFIELD_SIZE - this.size,
-                    targetCenterY - this.size / 2));
+                const constrainedCenter = this.constrainCenterToMonitor(targetCenterX, targetCenterY);
+                this.x = constrainedCenter.x - this.size / 2;
+                this.y = constrainedCenter.y - this.size / 2;
 
                 const movedDistance = Math.hypot(this.x - previousX, this.y - previousY);
                 if (this.game.vectorTrail) {
