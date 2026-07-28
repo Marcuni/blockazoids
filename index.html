@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Block-A-Zoids p195: expands the 15-sector progress row to the exact playfield width and replaces yellow sector states with a white-only visual system.
+Block-A-Zoids p196: moves idle Play to the lower-HUD crystal-radar center, keeps Pause/Resume in the existing utility slot, and raises the sector row slightly.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="p195">
+<html data-build-version="p196">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -8744,6 +8744,80 @@ Font License Notices
         html body #skinShell.skin-menu-open > #sectorProgressPanel {
             opacity: 0 !important;
             visibility: hidden !important;
+        }
+
+
+        /* p196: state-driven primary-control placement.
+           Start/restart/continue uses the lower-HUD radar center while it is dormant.
+           Live Pause and paused Resume remain in the established utility slot, clear of swipe play. */
+        html body #skinShell > #sectorProgressPanel {
+            top: 64.75% !important;
+        }
+
+        html body #skinShell > #startButton.primary-play-layout {
+            left: 50% !important;
+            top: 77.30% !important;
+            width: 16.25% !important;
+            aspect-ratio: 1 !important;
+            height: auto !important;
+            transform: translate(-50%, -50%);
+            border-radius: 50% !important;
+            background: #fff !important;
+            box-shadow:
+                0 0 calc(var(--skin-scale, 1) * 8px) rgba(255,255,255,0.92),
+                0 0 calc(var(--skin-scale, 1) * 22px) rgba(255,255,255,0.48) !important;
+            z-index: 6 !important;
+        }
+
+        html body #skinShell > #startButton.primary-play-layout::before {
+            border-top-width: calc(var(--skin-scale, 1) * 22px) !important;
+            border-bottom-width: calc(var(--skin-scale, 1) * 22px) !important;
+            border-left-width: calc(var(--skin-scale, 1) * 35px) !important;
+            border-left-color: #000 !important;
+            transform: translateX(10%) !important;
+            filter: none !important;
+            animation: none !important;
+        }
+
+        html body #skinShell > #startButton.utility-control-layout {
+            left: var(--skin-start-left, 13.230606%) !important;
+            top: var(--skin-start-top, 10.765550%) !important;
+            width: var(--skin-start-width, 13.920298%) !important;
+            aspect-ratio: 1 !important;
+            height: auto !important;
+            border-radius: 0 !important;
+            background: transparent !important;
+            box-shadow: none !important;
+            transform: translate(-50%, -50%);
+            z-index: 5 !important;
+        }
+
+        html body #skinShell > #startButton.control-hidden-layout {
+            opacity: 0 !important;
+            visibility: hidden !important;
+            pointer-events: none !important;
+            animation: none !important;
+        }
+
+
+        html body #skinShell > #startButton.primary-play-layout.attract-start-pulse {
+            animation: primaryPlayButtonPulse 1.18s cubic-bezier(0.22, 0.86, 0.28, 1) infinite !important;
+        }
+
+        @keyframes primaryPlayButtonPulse {
+            0%, 100% {
+                transform: translate(-50%, -50%) scale(1);
+                box-shadow:
+                    0 0 calc(var(--skin-scale, 1) * 8px) rgba(255,255,255,0.92),
+                    0 0 calc(var(--skin-scale, 1) * 22px) rgba(255,255,255,0.48);
+            }
+            48% {
+                transform: translate(-50%, -50%) scale(1.09);
+                box-shadow:
+                    0 0 calc(var(--skin-scale, 1) * 14px) rgba(255,255,255,1),
+                    0 0 calc(var(--skin-scale, 1) * 34px) rgba(255,255,255,0.76),
+                    0 0 calc(var(--skin-scale, 1) * 54px) rgba(255,255,255,0.34);
+            }
         }
 
 </style>
@@ -27080,15 +27154,41 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 const canResume = this.game.flow.allowsResume();
                 const inLivePlay = this.game.flow.isLiveAction();
                 const continueCycleReady = this.game.cycleTransitionActive && !!this.game.pendingCycleContinueToken && !this.game.isGameOver;
+                const finalRestartReady = !!(
+                    this.game.finalGridlockResultActive ||
+                    (this.game.finalCompletionActive && this.game.restartReady)
+                );
+                const ordinaryStartReady = !!(
+                    !this.game.active &&
+                    (this.game.flow.is(GAME_FLOW_STATES.ATTRACT) ||
+                     (this.game.isGameOver && this.game.restartReady))
+                );
+                const blockedTransition = !!(
+                    this.game.tutorialActive ||
+                    this.game.showHudDuringSectorIntro ||
+                    this.game.resumeCountdownActive ||
+                    this.game.startInputLocked ||
+                    this.game.sectorTransitionActive
+                );
+                const primaryActionReady = !blockedTransition && (ordinaryStartReady || continueCycleReady || finalRestartReady);
+                const controlHidden = !inLivePlay && !canResume && !primaryActionReady;
+                const useUtilitySlot = !controlHidden && (inLivePlay || canResume);
+                const usePrimarySlot = !controlHidden && !useUtilitySlot;
                 const controlLabel = this.game.finalGridlockResultActive
                     ? 'Restart Prism Campaign'
                     : (inLivePlay ? 'Pause game' : (canResume ? 'Resume game' : (continueCycleReady ? 'Continue to next cycle' : 'Start game')));
+
                 startButton.setAttribute('aria-label', controlLabel);
+                startButton.setAttribute('aria-hidden', controlHidden ? 'true' : 'false');
+                startButton.classList.toggle('control-hidden-layout', controlHidden);
+                startButton.classList.toggle('utility-control-layout', useUtilitySlot);
+                startButton.classList.toggle('primary-play-layout', usePrimarySlot);
+
                 if (inLivePlay) {
                     startButton.textContent = '❚❚';
                     startButton.classList.add('pause-visible');
                 } else {
-                    // Every non-gameplay state uses the animated Play/Resume symbol.
+                    // Start/restart/continue is a primary lower-HUD action; Resume stays in the utility slot.
                     startButton.textContent = '▶';
                     startButton.classList.remove('pause-visible');
                 }
