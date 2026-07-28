@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Block-A-Zoids p200: moves the playfield and full-width sector-progress row upward by another 1.0 percentage point while preserving their spacing.
+Block-A-Zoids p201: moves the complete top HUD, playfield, and sector-progress row upward together; adds restrained charcoal cabinet depth; removes the temporary score double-tap background test.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="p200">
+<html data-build-version="p201">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -6316,17 +6316,17 @@ Font License Notices
             --skin-height: 100dvh;
             --playfield-render-size: 300px;
             --skin-playfield-left: 10.201913%;
-            --skin-playfield-top: 18.779904%;
+            --skin-playfield-top: 17.779904%;
             --skin-score-left: 25.717322%;
-            --skin-score-top: 5.681818%;
+            --skin-score-top: 4.681818%;
             --skin-score-width: 48.034006%;
             --skin-score-height: 9.150718%;
             --skin-zap-left: 79.064825%;
-            --skin-zap-top: 7.467225%;
+            --skin-zap-top: 6.467225%;
             --skin-zap-width: 14.133900%;
             --skin-zap-height: 6.040670%;
             --skin-start-left: 13.230606%;
-            --skin-start-top: 10.765550%;
+            --skin-start-top: 9.765550%;
             --skin-start-width: 13.920298%;
             --skin-status-top: 70.454545%;
             --skin-status-width: 13.496281%;
@@ -6425,13 +6425,6 @@ Font License Notices
 
         #scoreHud > :not(#score) {
             display: none !important;
-        }
-
-        /* Temporary p180 test control: double-tap the score to rotate the iPhone/cabinet background. */
-        #skinShell > #scoreHud {
-            pointer-events: auto;
-            touch-action: manipulation;
-            -webkit-tap-highlight-color: transparent;
         }
 
         #score {
@@ -7929,15 +7922,21 @@ Font License Notices
 
     
 
-        /* p108: static cabinet background architecture. No alpha overlay or runtime image mask. */
+        /* p201: restrained cabinet depth. The vector skin remains dominant while the
+           black field gains only a faint playfield halo, trackball halo, charcoal falloff,
+           and edge vignette. No animated or RGB background treatment is used. */
         html body #skinShell {
-            --cabinet-test-background: #000000;
-            background-color: var(--cabinet-test-background) !important;
-            background-image: url("blockazoids-skin-vector-frame.png") !important;
+            background-color: #000 !important;
+            background-image:
+                url("blockazoids-skin-vector-frame.png"),
+                radial-gradient(ellipse at 50% 37%, rgba(255,255,255,0.036) 0%, rgba(255,255,255,0.014) 28%, rgba(255,255,255,0) 52%),
+                radial-gradient(ellipse at 50% 82%, rgba(255,255,255,0.026) 0%, rgba(255,255,255,0.009) 22%, rgba(255,255,255,0) 38%),
+                radial-gradient(ellipse at 50% 48%, rgba(0,0,0,0) 52%, rgba(0,0,0,0.20) 76%, rgba(0,0,0,0.62) 100%),
+                linear-gradient(180deg, #070707 0%, #040404 43%, #020202 72%, #000 100%) !important;
             background-repeat: no-repeat !important;
             background-position: center top !important;
             background-size: 100% 100% !important;
-            background-blend-mode: screen !important;
+            background-blend-mode: screen, screen, screen, multiply, normal !important;
         }
 
         html body #skinFrameImage {
@@ -7947,7 +7946,7 @@ Font License Notices
         /* The game sits above the cabinet art. Its square is aligned to the inner span of the two top side windows. */
         html body #skinShell > #playfieldShell {
             left: var(--skin-playfield-left, 4.904171%) !important;
-            top: var(--skin-playfield-top, 11.800000%) !important;
+            top: var(--skin-playfield-top, 10.800000%) !important;
             z-index: 2 !important;
         }
 
@@ -8750,9 +8749,9 @@ Font License Notices
         /* p196: state-driven primary-control placement.
            Start/restart/continue uses the lower-HUD radar center while it is dormant.
            Live Pause and paused Resume remain in the established utility slot, clear of swipe play. */
-        /* p200: playfield and sector progress move upward by another 1.0 percentage point. */
+        /* p201: top HUD, playfield, and sector progress move upward together by 1.0 percentage point. */
         html body #skinShell > #sectorProgressPanel {
-            top: 61.25% !important;
+            top: 60.25% !important;
         }
 
         html body #skinShell > #startButton.primary-play-layout {
@@ -13356,12 +13355,7 @@ Font License Notices
                 this.playfieldRenderer = new CanvasPlayfieldRenderer(this, this.playfieldCanvas);
                 this.webglDistortion = new WebGLPlayfieldDistortion(this, this.playfieldCanvas, this.playfieldWebglCanvas);
                 this.playfieldRenderDirty = true;
-                this.cabinetBackgroundPalette = ['#000000', '#0A0A0A', '#141414', '#1E1E1E', '#220000', '#002200', '#000022'];
-                this.cabinetBackgroundIndex = 0;
-                this.cabinetBackgroundColor = this.cabinetBackgroundPalette[this.cabinetBackgroundIndex];
-                this.scoreBackgroundTap = { at: 0, x: 0, y: 0 };
                 this.skinShell = document.getElementById('skinShell');
-                if (this.skinShell) this.skinShell.style.setProperty('--cabinet-test-background', this.cabinetBackgroundColor);
                 this.skinFrameImage = null;
                 this.playfieldShell = document.getElementById('playfieldShell');
                 this.splashScreen = document.getElementById('splashScreen');
@@ -13390,7 +13384,6 @@ Font License Notices
                 this.bonusTextElement = document.getElementById('bonusText'); // New reference for bonus text
                 this.screenFadeElement = document.getElementById('screenFade');
                 this.gameOverlayElement = document.getElementById('gameOverlay');
-                this.scoreHudElement = document.getElementById('scoreHud');
                 this.startButton = document.getElementById('startButton');
                 this.howToButton = document.getElementById('howToButton');
                 this.settingsHudButton = document.getElementById('settingsHudButton');
@@ -13491,17 +13484,17 @@ Font License Notices
                             masterHeight: 1774,
                             masterPlayfieldSize: 800,
                             playfieldLeft: 4.904171,
-                            playfieldTop: 11.800000,
+                            playfieldTop: 10.800000,
                             scoreLeft: 25.817362,
-                            scoreTop: 2.536640,
+                            scoreTop: 1.536640,
                             scoreWidth: 48.365276,
                             scoreHeight: 9.019166,
                             zapLeft: 79.706877,
-                            zapTop: 3.945885,
+                            zapTop: 2.945885,
                             zapWidth: 15.219842,
                             zapHeight: 6.764375,
                             startLeft: 12.570462,
-                            startTop: 7.271702,
+                            startTop: 6.271702,
                             startWidth: 14.881624,
                             statusTop: 67.361894,
                             statusWidth: 14.881624,
@@ -13856,11 +13849,6 @@ Font License Notices
                 window.addEventListener('blur', this.handleWindowBlur, { passive: true });
                 this.enableShakeInput(false); // Android/desktop motion can listen immediately; iOS waits for an explicit action.
                 document.addEventListener('visibilitychange', () => this.handleVisibilityChange());
-                if (this.scoreHudElement) {
-                    this.scoreHudElement.setAttribute('role', 'button');
-                    this.scoreHudElement.setAttribute('aria-label', 'Score. Double tap to test playfield background color.');
-                    this.scoreHudElement.addEventListener('pointerup', (event) => this.handleScoreBackgroundTestTap(event), { passive: false });
-                }
                 this.startButton.addEventListener('click', (e) => this.handlePlayPauseControlClick(e));
                 if (this.howToButton) {
                     this.howToButton.addEventListener('click', (e) => {
@@ -19739,34 +19727,6 @@ Best Score: ${bestScore}${recoveredLine}` :
                 this.setTransitionState({ startInputLocked: true });
                 this.ui.updateAll();
                 this.startPreparedLevel(loadToken);
-            }
-
-            handleScoreBackgroundTestTap(event) {
-                if (!event || event.isPrimary === false) return;
-                const now = performance.now();
-                const previous = this.scoreBackgroundTap || { at: 0, x: 0, y: 0 };
-                const elapsed = now - Number(previous.at || 0);
-                const distance = Math.hypot(
-                    Number(event.clientX || 0) - Number(previous.x || 0),
-                    Number(event.clientY || 0) - Number(previous.y || 0)
-                );
-                const isDoubleTap = elapsed > 0 && elapsed <= 360 && distance <= 32;
-
-                if (!isDoubleTap) {
-                    this.scoreBackgroundTap = {
-                        at: now,
-                        x: Number(event.clientX || 0),
-                        y: Number(event.clientY || 0)
-                    };
-                    return;
-                }
-
-                this.scoreBackgroundTap = { at: 0, x: 0, y: 0 };
-                this.cabinetBackgroundIndex = (Number(this.cabinetBackgroundIndex || 0) + 1) % this.cabinetBackgroundPalette.length;
-                this.cabinetBackgroundColor = this.cabinetBackgroundPalette[this.cabinetBackgroundIndex];
-                if (this.skinShell) this.skinShell.style.setProperty('--cabinet-test-background', this.cabinetBackgroundColor);
-                if (event.cancelable) event.preventDefault();
-                event.stopPropagation();
             }
 
             // Phase 4B lifecycle commands route player-facing state changes through explicit entry points.
