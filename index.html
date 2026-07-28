@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Block-A-Zoids p193: simplifies sector tracking to one 15-circle HUD row, removes visible cycle readouts, matches CRT curvature to Vector, and extends the splash to eight seconds.
+Block-A-Zoids p194: restores the retained gameplay HUD update methods removed during the p193 sector-row refactor, fixing attract mode and Play startup.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="p193">
+<html data-build-version="p194">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -14288,7 +14288,7 @@ Font License Notices
                 this.scheduler.cancelTask('splash', 'auto-dismiss');
                 this.splashEasterEggTimer = null; // Intro easter egg disabled for now.
 
-                // The startup splash remains visible for up to five seconds. A tap anywhere
+                // The startup splash remains visible for up to eight seconds. A tap anywhere
                 // on the splash dismisses it immediately; the scheduled fallback remains automatic.
                 this.splashScreen.addEventListener('pointerdown', () => {
                     this.dismissSplashIntro();
@@ -27174,6 +27174,77 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 this.sectorProgressIndicators.setAttribute('aria-label', label);
                 const panel = this.sectorProgressIndicators.closest('#sectorProgressPanel');
                 if (panel) panel.setAttribute('aria-label', label);
+            }
+
+            // Hide the live score/Zap HUD only before the first run starts.
+            shouldShowGameplayHud() {
+                return (this.game.active && this.game.levelActionStarted) ||
+                       (this.game.isPaused && this.game.levelActionStarted) ||
+                       this.game.showHudDuringSectorIntro ||
+                       this.game.isGameOver;
+            }
+
+            // Update Cosmic Zap indicators based on remaining Cosmic Zaps.
+            updateCosmicZapIndicators() {
+                const showHud = this.shouldShowGameplayHud();
+                const remainingZaps = Math.max(0, Math.floor(Number(this.game.cosmicZapsLeft) || 0));
+                const zapIcons = this.cosmicZapIcons || [];
+                const cycleCapacity = this.game.getCosmicZapsForCurrentCycle
+                    ? Math.max(1, Math.floor(Number(this.game.getCosmicZapsForCurrentCycle()) || 1))
+                    : Math.max(1, remainingZaps);
+                const visibleCapacity = Math.min(zapIcons.length, Math.max(cycleCapacity, remainingZaps));
+                const litStartIndex = Math.max(0, visibleCapacity - Math.min(visibleCapacity, remainingZaps));
+                const signature = `${showHud}|${remainingZaps}|${visibleCapacity}|${litStartIndex}`;
+
+                if (signature !== this.lastZapHudSignature) {
+                    this.lastZapHudSignature = signature;
+                    if (this.cosmicZapIndicators) {
+                        this.cosmicZapIndicators.style.display = showHud && remainingZaps > 0 ? 'flex' : 'none';
+                    }
+                    zapIcons.forEach((icon, index) => {
+                        const belongsToCurrentCapacity = index < visibleCapacity;
+                        icon.style.display = showHud && belongsToCurrentCapacity ? 'block' : 'none';
+                        icon.style.visibility = belongsToCurrentCapacity && index >= litStartIndex ? 'visible' : 'hidden';
+                    });
+                }
+            }
+
+            // Keep the retained radar instrument synchronized with the current crystal target.
+            updateRadarColorIndicator() {
+                const indicator = this.radarColorIndicator;
+                if (!indicator) return;
+
+                const tutorialColor = String(this.game.tutorialRadarColor || '').toLowerCase();
+                const tutorialNeutral = !!this.game.tutorialActive && !tutorialColor;
+                const colorName = this.game.tutorialActive && tutorialColor
+                    ? tutorialColor
+                    : String(this.game.colorOrder[this.game.currentColorIndex] || 'red').toLowerCase();
+                const rgbByColor = {
+                    red: '255, 0, 0',
+                    green: '0, 255, 0',
+                    blue: '0, 96, 255'
+                };
+                const showIndicator = !this.game.finalGridlockActive && !this.game.finalGridlockResultActive &&
+                    (this.game.tutorialActive || (this.game.active && this.game.levelActionStarted) ||
+                     this.game.isPaused || this.game.showHudDuringSectorIntro);
+                const gridlockActive = !!this.game.maxSwarmActive && !this.game.finalGridlockActive;
+                const gridlockSilent = gridlockActive && !!(this.game.audio && this.game.audio.isMusicMuted && this.game.audio.isMusicMuted());
+                const signature = `${showIndicator}|${tutorialNeutral}|${colorName}|${gridlockActive}|${gridlockSilent}`;
+                if (signature === this.lastRadarColorSignature) return;
+                this.lastRadarColorSignature = signature;
+
+                indicator.style.setProperty('--radar-rgb', rgbByColor[colorName] || rgbByColor.red);
+                indicator.dataset.color = tutorialNeutral ? 'neutral' : colorName;
+                indicator.classList.toggle('tutorial-neutral', tutorialNeutral);
+                indicator.classList.toggle('gridlock-active', gridlockActive);
+                indicator.classList.toggle('gridlock-silent', gridlockSilent);
+                indicator.classList.toggle('visible', showIndicator);
+                indicator.setAttribute('aria-hidden', showIndicator ? 'false' : 'true');
+                indicator.setAttribute('aria-label', !showIndicator
+                    ? ''
+                    : (gridlockActive
+                        ? `Gridlock active; collecting ${colorName} crystals`
+                        : (tutorialNeutral ? 'Radar color activates after collecting a crystal' : `Collecting ${colorName} crystals`)));
             }
 
             pulseRadarCollection(colorName) {
