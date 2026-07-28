@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Block-A-Zoids p192: continues from p191, adds subtle rounded playfield corners, and gives Vector a slightly flatter WebGL curvature than CRT.
+Block-A-Zoids p193: simplifies sector tracking to one 15-circle HUD row, removes visible cycle readouts, matches CRT curvature to Vector, and extends the splash to eight seconds.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="p192">
+<html data-build-version="p193">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -8634,7 +8634,7 @@ Font License Notices
         }
 
         #playfieldShell.monitor-vector > .playfield-webgl-curvature-border .webgl-contour-vector,
-        #playfieldShell.monitor-crt > .playfield-webgl-curvature-border .webgl-contour-crt {
+        #playfieldShell.monitor-crt > .playfield-webgl-curvature-border .webgl-contour-vector {
             display: block;
         }
 
@@ -8663,6 +8663,74 @@ Font License Notices
             opacity: 0 !important;
             visibility: hidden !important;
         }
+
+
+        /* p193: one authoritative sector presentation. The 15-circle row replaces both
+           numeric Sector/Cycle boxes and the completed-cycle icons. Cycle state remains
+           internal until a new visual treatment is designed. */
+        html body #skinShell > #bottomStatusHud,
+        html body #scoreHud > #cycleHud {
+            display: none !important;
+        }
+
+        html body #skinShell > #sectorProgressPanel {
+            position: absolute !important;
+            left: 14% !important;
+            top: 65.35% !important;
+            width: 72% !important;
+            height: auto !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            box-sizing: border-box !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            transform: translateY(-50%) !important;
+            opacity: 1;
+            visibility: visible;
+            pointer-events: none;
+            z-index: 4 !important;
+            transition: opacity 0.12s linear, visibility 0.12s linear;
+        }
+
+        html body #skinShell > #sectorProgressPanel #sectorProgressIndicators {
+            width: 100% !important;
+            display: grid !important;
+            grid-template-columns: repeat(15, minmax(0, 1fr)) !important;
+            align-items: center !important;
+            justify-items: center !important;
+            gap: clamp(2px, 0.62vw, 5px) !important;
+        }
+
+        html body #skinShell > #sectorProgressPanel .sector-progress-circle {
+            width: clamp(8px, 2.65vw, 14px) !important;
+            height: auto !important;
+            aspect-ratio: 1 !important;
+            box-sizing: border-box !important;
+            border: 1.5px solid rgba(143,143,143,0.82) !important;
+            border-radius: 50% !important;
+            background: #000 !important;
+            box-shadow: none !important;
+        }
+
+        html body #skinShell > #sectorProgressPanel .sector-progress-circle.current {
+            border-color: rgba(220,220,120,0.92) !important;
+            background: var(--dark-yellow-color) !important;
+            box-shadow: inset 0 0 calc(var(--default-glow) * 0.18px) rgba(255,255,0,0.34) !important;
+        }
+
+        html body #skinShell > #sectorProgressPanel .sector-progress-circle.completed {
+            border-color: rgba(255,255,255,0.90) !important;
+            background: var(--yellow-color) !important;
+            box-shadow: 0 0 calc(var(--default-glow) * 0.62px) rgba(255,255,0,0.82),
+                        0 0 calc(var(--default-glow) * 1.10px) rgba(255,255,0,0.38) !important;
+        }
+
+        html body #skinShell.skin-menu-open > #sectorProgressPanel {
+            opacity: 0 !important;
+            visibility: hidden !important;
+        }
+
 </style>
 </head>
 <body class="crt-phosphor-calibration">
@@ -8686,7 +8754,6 @@ Font License Notices
 
     <!-- Score display -->
     <div id="scoreHud">
-        <div class="hud-group" id="cycleHud" aria-live="polite"></div>
         <div id="score">0</div>
         <div id="highScoreHud">0</div>
     </div>
@@ -8997,16 +9064,6 @@ Font License Notices
         <div id="sectorProgressIndicators" aria-label="15-sector progress"></div>
     </div>
 
-    <div id="bottomStatusHud" aria-label="Current sector and cycle">
-        <div id="sectorNumberHud" class="skin-status-box" aria-label="Sector 1">
-            <span class="skin-status-label" aria-hidden="true">SECTOR</span>
-            <span class="skin-status-value">01</span>
-        </div>
-        <div id="cycleNumberHud" class="skin-status-box" aria-label="Cycle 1">
-            <span class="skin-status-label" aria-hidden="true">CYCLE</span>
-            <span class="skin-status-value">01</span>
-        </div>
-    </div>
 
     <div id="radarColorIndicator" aria-hidden="true">
         <span class="radar-center-orb" aria-hidden="true"></span>
@@ -9249,7 +9306,7 @@ Font License Notices
                 gameOverTitleHoldMs: 2000,
                 gameOverTitleFadeMs: 500,
                 screenFadeMs: 500,
-                splashHoldMs: 5000
+                splashHoldMs: 8000
             }),
             audioTiming: Object.freeze({
                 oneShotCleanupMinimumMs: 1200,
@@ -13155,7 +13212,7 @@ Font License Notices
                     const gl = this.gl;
                     const mode = this.getMode();
                     const layout = this.resizeIfNeeded();
-                    const strength = mode === 'vector' ? 0.044 : 0.058;
+                    const strength = 0.044;
 
                     gl.useProgram(this.program);
                     gl.bindBuffer(gl.ARRAY_BUFFER, this.positionBuffer);
@@ -26777,19 +26834,15 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 this.scoreHud = document.getElementById('scoreHud');
                 this.scoreElement = document.getElementById('score');
                 this.cosmicZapIndicators = document.getElementById('cosmicZapIndicators');
-                this.cycleElement = document.getElementById('cycleHud');
                 this.sectorProgressIndicators = document.getElementById('sectorProgressIndicators');
-                this.sectorNumberElement = document.getElementById('sectorNumberHud');
-                this.cycleNumberElement = document.getElementById('cycleNumberHud');
-                this.sectorNumberValueElement = this.sectorNumberElement ? this.sectorNumberElement.querySelector('.skin-status-value') : null;
-                this.cycleNumberValueElement = this.cycleNumberElement ? this.cycleNumberElement.querySelector('.skin-status-value') : null;
                 this.radarColorIndicator = document.getElementById('radarColorIndicator');
                 this.scoreAlertActive = false;
                 this.scoreAlertTimer = null;
                 this.cosmicZapIcons = this.cosmicZapIndicators ? [...this.cosmicZapIndicators.querySelectorAll('.cosmic-zap-icon')] : [];
                 this.lastStartPauseSignature = null;
-                this.lastCycleIndicatorSignature = null;
                 this.lastSectorProgressSignature = null;
+                this.sectorProgressCircles = [];
+                this.initializeSectorProgressIndicators();
                 this.lastZapHudSignature = null;
                 this.lastRadarColorSignature = null;
             }
@@ -26909,7 +26962,6 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 if (this.scoreHud) this.scoreHud.classList.remove('gridlock-announcement-active');
                 this.scoreElement.classList.remove('gridlockAlert', 'superGridlockAlert', 'gridlockAwardAlert');
                 this.updateScore();
-                this.updateCycleIndicator();
                 this.updateCosmicZapIndicators();
                 this.updateHighScore();
 
@@ -27041,161 +27093,87 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 this.game.scheduler.scheduleTimeout('ui-effects', 'high-score-flash', () => this.scoreElement.classList.remove('highScoreFlash'), 700);
             }
 
-            // One completed-grid symbol represents each fully completed campaign cycle.
-            updateCycleIndicator() {
-                if (!this.cycleElement) return;
-                const completedCycles = (this.game.finalCompletionActive || this.game.finalGridlockActive || this.game.finalGridlockResultActive)
-                    ? this.game.MAX_CYCLES
-                    : Math.max(0, Math.floor((this.game.cycle || 1) - 1));
-                const inRunContext = this.game.hasStartedRun || this.game.active || this.game.showHudDuringSectorIntro || this.game.isGameOver || this.game.cycleTransitionActive;
-                const hideDuringFinalGridlock = this.game.finalGridlockActive || this.game.finalGridlockResultActive;
-                const showCompletedGrid = completedCycles > 0 && inRunContext && !hideDuringFinalGridlock;
-                const signature = `${completedCycles}|${showCompletedGrid}`;
-                if (signature === this.lastCycleIndicatorSignature) return;
-                this.lastCycleIndicatorSignature = signature;
-
-                this.cycleElement.replaceChildren();
-                if (showCompletedGrid) {
-                    const fragment = document.createDocumentFragment();
-                    for (let index = 0; index < completedCycles; index += 1) {
-                        const icon = document.createElement('span');
-                        icon.className = 'cycle-grid-icon';
-                        icon.setAttribute('aria-hidden', 'true');
-                        fragment.appendChild(icon);
-                    }
-                    this.cycleElement.appendChild(fragment);
-                }
-
-                this.cycleElement.classList.toggle('visible', showCompletedGrid);
-                this.cycleElement.setAttribute('aria-label', showCompletedGrid ? `${completedCycles} completed ${completedCycles === 1 ? 'grid' : 'grids'}` : '');
-            }
-
-            // Update the 15-sector progress row below the playfield. Sector numbering is 1–15;
-            // there is intentionally no Sector 0 display slot.
-            updateSectorProgressIndicators() {
-                if (!this.sectorProgressIndicators) return;
-
+            // Resolve sector presentation from authoritative campaign state. This projection is
+            // read-only: it never changes level, cycle, unlocks, scoring, or telemetry.
+            getSectorProgressSnapshot() {
                 const totalSectors = Math.max(1, Math.min(15, Number(this.game.MAX_LEVEL) || 15));
-                const campaignComplete = !!(this.game.finalCompletionActive || this.game.finalGridlockActive || this.game.finalGridlockResultActive);
-                const inRunContext = !!(this.game.hasStartedRun || this.game.active || this.game.isPaused ||
-                    this.game.showHudDuringSectorIntro || this.game.isGameOver || campaignComplete);
+                const campaignComplete = !!(
+                    this.game.finalCompletionActive ||
+                    this.game.finalGridlockActive ||
+                    this.game.finalGridlockResultActive
+                );
+                const inRunContext = !!(
+                    this.game.hasStartedRun ||
+                    this.game.active ||
+                    this.game.isPaused ||
+                    this.game.showHudDuringSectorIntro ||
+                    this.game.isGameOver ||
+                    campaignComplete
+                );
+                const selectedSector = Number(this.game.selectedStartSector) || 1;
+                const liveSector = Number(this.game.level) || selectedSector;
                 const currentSector = campaignComplete
                     ? 0
-                    : Math.max(1, Math.min(totalSectors, Number(inRunContext ? this.game.level : this.game.selectedStartSector) || 1));
+                    : Math.max(1, Math.min(totalSectors, inRunContext ? liveSector : selectedSector));
                 const completedCount = campaignComplete
                     ? totalSectors
                     : (inRunContext ? Math.max(0, Math.min(totalSectors, currentSector - 1)) : 0);
-                const signature = `${totalSectors}|${campaignComplete}|${completedCount}|${currentSector}`;
-                if (signature === this.lastSectorProgressSignature) return;
-                this.lastSectorProgressSignature = signature;
+
+                return Object.freeze({
+                    totalSectors,
+                    campaignComplete,
+                    currentSector,
+                    completedCount,
+                    signature: `${totalSectors}|${campaignComplete}|${currentSector}|${completedCount}`
+                });
+            }
+
+            // Create stable circle nodes once. Rebuild only if the campaign sector count changes.
+            initializeSectorProgressIndicators(totalSectors = null) {
+                if (!this.sectorProgressIndicators) return;
+                const resolvedTotal = totalSectors === null
+                    ? Math.max(1, Math.min(15, Number(this.game.MAX_LEVEL) || 15))
+                    : Math.max(1, Math.min(15, Number(totalSectors) || 15));
+                if (this.sectorProgressCircles.length === resolvedTotal &&
+                    this.sectorProgressIndicators.childElementCount === resolvedTotal) return;
 
                 const fragment = document.createDocumentFragment();
-                for (let sector = 1; sector <= totalSectors; sector += 1) {
+                const circles = [];
+                for (let sector = 1; sector <= resolvedTotal; sector += 1) {
                     const circle = document.createElement('span');
                     circle.className = 'sector-progress-circle';
+                    circle.dataset.sector = String(sector);
                     circle.setAttribute('aria-hidden', 'true');
-                    if (sector <= completedCount) circle.classList.add('completed');
-                    else if (sector === currentSector) circle.classList.add('current');
                     fragment.appendChild(circle);
+                    circles.push(circle);
                 }
                 this.sectorProgressIndicators.replaceChildren(fragment);
-                const label = campaignComplete
-                    ? 'All 15 sectors completed'
-                    : `Sector ${currentSector} of ${totalSectors}`;
+                this.sectorProgressCircles = circles;
+                this.lastSectorProgressSignature = null;
+            }
+
+            // Update only classes on the stable 15-circle row.
+            updateSectorProgressIndicators() {
+                if (!this.sectorProgressIndicators) return;
+                const snapshot = this.getSectorProgressSnapshot();
+                this.initializeSectorProgressIndicators(snapshot.totalSectors);
+                if (snapshot.signature === this.lastSectorProgressSignature) return;
+                this.lastSectorProgressSignature = snapshot.signature;
+
+                this.sectorProgressCircles.forEach((circle, index) => {
+                    const sector = index + 1;
+                    const completed = sector <= snapshot.completedCount;
+                    const current = !completed && sector === snapshot.currentSector;
+                    circle.classList.toggle('completed', completed);
+                    circle.classList.toggle('current', current);
+                });
+
+                const label = snapshot.campaignComplete
+                    ? `All ${snapshot.totalSectors} sectors completed`
+                    : `Sector ${snapshot.currentSector} of ${snapshot.totalSectors}`;
                 this.sectorProgressIndicators.setAttribute('aria-label', label);
-            }
-
-            updateSectorCycleReadouts() {
-                const totalSectors = Math.max(1, Math.min(15, Number(this.game.MAX_LEVEL) || 15));
-                const showContext = !!(this.game.hasStartedRun || this.game.active || this.game.isPaused || this.game.showHudDuringSectorIntro || this.game.isGameOver || this.game.finalGridlockActive || this.game.finalGridlockResultActive);
-                const sectorValue = Math.max(1, Math.min(totalSectors, Number(showContext ? this.game.level : this.game.selectedStartSector) || 1));
-                const cycleValue = Math.max(1, Math.min(this.game.MAX_CYCLES || 3, Number(showContext ? this.game.cycle : this.game.selectedStartCycle) || 1));
-                if (this.sectorNumberElement) {
-                    const sectorText = String(sectorValue).padStart(2, '0');
-                    if (this.sectorNumberValueElement) this.sectorNumberValueElement.textContent = sectorText;
-                    else this.sectorNumberElement.textContent = sectorText;
-                    this.sectorNumberElement.setAttribute('aria-label', `Sector ${sectorValue}`);
-                }
-                if (this.cycleNumberElement) {
-                    const cycleText = String(cycleValue).padStart(2, '0');
-                    if (this.cycleNumberValueElement) this.cycleNumberValueElement.textContent = cycleText;
-                    else this.cycleNumberElement.textContent = cycleText;
-                    this.cycleNumberElement.setAttribute('aria-label', `Cycle ${cycleValue}`);
-                }
-            }
-
-            // Update Cosmic Zap indicators based on remaining Cosmic Zaps
-            shouldShowGameplayHud() {
-                // Hide the live score/Zap HUD only before the first run starts.
-                // During Game Over / Play Again, keep the last-run score state visible so the player
-                // can see the remaining Cosmic Zaps.
-                return (this.game.active && this.game.levelActionStarted) ||
-                       (this.game.isPaused && this.game.levelActionStarted) ||
-                       this.game.showHudDuringSectorIntro ||
-                       this.game.isGameOver;
-            }
-
-            // Update Cosmic Zap indicators based on remaining Cosmic Zaps
-            updateCosmicZapIndicators() {
-                const showHud = this.shouldShowGameplayHud();
-                const remainingZaps = Math.max(0, Math.floor(Number(this.game.cosmicZapsLeft) || 0));
-                const zapIcons = this.cosmicZapIcons || [];
-                const cycleCapacity = this.game.getCosmicZapsForCurrentCycle
-                    ? Math.max(1, Math.floor(Number(this.game.getCosmicZapsForCurrentCycle()) || 1))
-                    : Math.max(1, remainingZaps);
-                const visibleCapacity = Math.min(zapIcons.length, Math.max(cycleCapacity, remainingZaps));
-                const litStartIndex = Math.max(0, visibleCapacity - Math.min(visibleCapacity, remainingZaps));
-                const signature = `${showHud}|${remainingZaps}|${visibleCapacity}|${litStartIndex}`;
-
-                if (signature !== this.lastZapHudSignature) {
-                    this.lastZapHudSignature = signature;
-                    if (this.cosmicZapIndicators) {
-                        this.cosmicZapIndicators.style.display = showHud && remainingZaps > 0 ? 'flex' : 'none';
-                    }
-                    zapIcons.forEach((icon, index) => {
-                        const belongsToCurrentCapacity = index < visibleCapacity;
-                        icon.style.display = showHud && belongsToCurrentCapacity ? 'block' : 'none';
-                        icon.style.visibility = belongsToCurrentCapacity && index >= litStartIndex ? 'visible' : 'hidden';
-                    });
-                }
-
-            }
-
-            updateRadarColorIndicator() {
-                const indicator = this.radarColorIndicator;
-                if (!indicator) return;
-
-                const tutorialColor = String(this.game.tutorialRadarColor || '').toLowerCase();
-                const tutorialNeutral = !!this.game.tutorialActive && !tutorialColor;
-                const colorName = this.game.tutorialActive && tutorialColor
-                    ? tutorialColor
-                    : String(this.game.colorOrder[this.game.currentColorIndex] || 'red').toLowerCase();
-                const rgbByColor = {
-                    red: '255, 0, 0',
-                    green: '0, 255, 0',
-                    blue: '0, 96, 255'
-                };
-                const showIndicator = !this.game.finalGridlockActive && !this.game.finalGridlockResultActive &&
-                    (this.game.tutorialActive || (this.game.active && this.game.levelActionStarted) ||
-                     this.game.isPaused || this.game.showHudDuringSectorIntro);
-                const gridlockActive = !!this.game.maxSwarmActive && !this.game.finalGridlockActive;
-                const gridlockSilent = gridlockActive && !!(this.game.audio && this.game.audio.isMusicMuted && this.game.audio.isMusicMuted());
-                const signature = `${showIndicator}|${tutorialNeutral}|${colorName}|${gridlockActive}|${gridlockSilent}`;
-                if (signature === this.lastRadarColorSignature) return;
-                this.lastRadarColorSignature = signature;
-
-                indicator.style.setProperty('--radar-rgb', rgbByColor[colorName] || rgbByColor.red);
-                indicator.dataset.color = tutorialNeutral ? 'neutral' : colorName;
-                indicator.classList.toggle('tutorial-neutral', tutorialNeutral);
-                indicator.classList.toggle('gridlock-active', gridlockActive);
-                indicator.classList.toggle('gridlock-silent', gridlockSilent);
-                indicator.classList.toggle('visible', showIndicator);
-                indicator.setAttribute('aria-hidden', showIndicator ? 'false' : 'true');
-                indicator.setAttribute('aria-label', !showIndicator
-                    ? ''
-                    : (gridlockActive
-                        ? `Gridlock active; collecting ${colorName} crystals`
-                        : (tutorialNeutral ? 'Radar color activates after collecting a crystal' : `Collecting ${colorName} crystals`)));
+                const panel = this.sectorProgressIndicators.closest('#sectorProgressPanel');
+                if (panel) panel.setAttribute('aria-label', label);
             }
 
             pulseRadarCollection(colorName) {
@@ -27223,9 +27201,7 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 this.updateHudMenuButton();
                 this.updateStartPauseButton();
                 this.updateRunStartPrompt();
-                this.updateCycleIndicator();
                 this.updateSectorProgressIndicators();
-                this.updateSectorCycleReadouts();
                 this.updateCosmicZapIndicators();
                 this.updateRadarColorIndicator();
             }
