@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Block-A-Zoids p213: repairs Final Gridlock restart lifecycle, routes developer END through the restoration sequence, and preserves tutorial completion across builds.
+Block-A-Zoids p214: rebuilds the campaign-ending lifecycle, restores the full Prism Grid restoration presentation, and repairs Final Gridlock death/restart recovery.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="p213">
+<html data-build-version="p214">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -438,6 +438,18 @@ Font License Notices
             letter-spacing: 3px;
             z-index: 1004;
             text-shadow: 0 0 20px #fff, 0 0 48px rgba(255, 255, 255, 0.88);
+        }
+
+
+        #gameOver.finalGameCompleteText.campaign-completion-title {
+            animation: campaignCompletionTitle 6.2s ease-in-out 1;
+        }
+
+        @keyframes campaignCompletionTitle {
+            0%, 77% { opacity: 0; transform: translate(-50%, -50%) scale(0.92); }
+            84% { opacity: 1; transform: translate(-50%, -50%) scale(1.10); }
+            91% { opacity: 1; transform: translate(-50%, -50%) scale(1.02); }
+            100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
         }
 
         #bonusText.finalGameSummary {
@@ -2181,6 +2193,40 @@ Font License Notices
             width: min(390px, 96%);
             margin-top: 0;
             opacity: 0.92;
+        }
+
+
+        #bonusText.finalGridlockSummary .campaign-final-stat-list {
+            width: min(330px, 94%);
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: clamp(8px, 2.4vw, 14px);
+        }
+
+        #bonusText.finalGridlockSummary .campaign-final-stat-line {
+            display: flex;
+            justify-content: center;
+            align-items: baseline;
+            gap: 12px;
+            width: 100%;
+            text-align: center;
+            white-space: nowrap;
+        }
+
+        #bonusText.finalGridlockSummary .campaign-final-stat-label {
+            min-width: 84px;
+            text-align: right;
+            opacity: 0.78;
+            letter-spacing: 1.6px;
+        }
+
+        #bonusText.finalGridlockSummary .campaign-final-stat-value {
+            min-width: 84px;
+            text-align: left;
+            font-weight: 800;
+            letter-spacing: 1.5px;
         }
 
         #bonusText.countdownText.final-gridlock-intro-flash .countdown-level-name,
@@ -8775,6 +8821,8 @@ Font License Notices
                 gameOverTitleHoldMs: 2000,
                 gameOverTitleFadeMs: 500,
                 screenFadeMs: 500,
+                campaignCompletionPreludeMs: 300,
+                campaignCompletionPresentationMs: 6200,
                 splashHoldMs: 8000
             }),
             audioTiming: Object.freeze({
@@ -9081,6 +9129,7 @@ Font License Notices
                 PAUSED: 'paused',
                 RESUME_COUNTDOWN: 'resume-countdown',
                 SECTOR_RESTORE: 'sector-restore',
+                CAMPAIGN_COMPLETE: 'campaign-complete',
                 FINAL_GRIDLOCK: 'final-gridlock',
                 GAME_OVER: 'game-over'
         });
@@ -9483,11 +9532,8 @@ Font License Notices
                 game.container.classList.remove('crt-shutdown-blackout');
                 game.clearCrtEventEffects();
                 game.cancelGameplayScheduling();
-                game.scheduler.cancelScope('visual-effects');
                 game.releaseWakeLock();
-                game.resetTerminalState({ clearGameOver: true, clearRestartReady: true });
-                game.container.classList.remove('shake');
-                game.container.style.animation = '';
+                game.resetTerminalState();
                 game.instructionsWindow.style.display = 'none';
                 game.setGameOverlayVisible(false);
                 if (game.resumeButton) game.resumeButton.textContent = 'Resume';
@@ -9506,6 +9552,8 @@ Font License Notices
                 game.bonusTextElement.style.opacity = '0';
                 if (!options.keepScreenFade) game.screenFadeElement.classList.remove('visible');
                 game.playfieldRenderer.clearRestorationPresentation();
+                game.removeCampaignRestorePresentation();
+                game.setTransitionState({ campaignCompletionActive: false });
 
                 game.playfieldRenderer.setPlayerEffect(game.player, 'orbRestoreGlow', false);
                 game.stopAttractMode();
@@ -9620,6 +9668,7 @@ Font License Notices
                 game.setTerminalState({ restartReady: false });
 
                 game.setTransitionState({ sectorTransitionActive: false });
+                game.setTransitionState({ campaignCompletionActive: false });
                 game.setGameplayState({ active: false });
                 game.setGameplayState({ levelActionStarted: false });
                 game.setGameplayState({ isPaused: false });
@@ -9669,6 +9718,8 @@ Font License Notices
                 game.lastDeathCause = deathDetails.deathCause || null;
                 game.hideEnemyDeathCausePresentation();
                 const endedInFinalGridlock = !!game.finalGridlockActive;
+                game.clearCampaignCompletionPresentation();
+                game.screenFadeElement.classList.remove('visible');
                 game.setTerminalState({ finalGridlockResultActive: false });
                 game.stopRunRecordActionClock();
                 game.setGameplayState({ active: false }); // Pause game
@@ -10296,9 +10347,36 @@ Font License Notices
                 if (this.game.gridRestoreEffect) this.game.gridRestoreEffect.active = false;
             }
 
+            createCampaignRestorePresentation(lines = [], cells = []) {
+                this.campaignRestoreLines = Array.isArray(lines) ? lines : [];
+                this.campaignRestoreCells = Array.isArray(cells) ? cells : [];
+            }
+
+            removeCampaignRestorePresentation(lines = [], cells = []) {
+                [...lines, ...cells].forEach(item => { if (item) item.element = null; });
+                this.campaignRestoreLines = [];
+                this.campaignRestoreCells = [];
+            }
+
+            startCampaignCompletion(durationMs = 6200) {
+                this.game.campaignCompletionEffect = {
+                    active: true,
+                    startedAt: performance.now(),
+                    durationMs: Math.max(1, Number(durationMs) || 6200)
+                };
+            }
+
+            stopCampaignCompletion() {
+                if (this.game.campaignCompletionEffect) this.game.campaignCompletionEffect.active = false;
+            }
 
             clearRestorationPresentation() {
                 this.stopGridRestoreSequence();
+                this.stopCampaignCompletion();
+                this.removeCampaignRestorePresentation(
+                    this.game.campaignRestoreLines || [],
+                    this.game.campaignRestoreCells || []
+                );
             }
 
             clearTransientEffects() {
@@ -10329,7 +10407,8 @@ Font License Notices
                 this.activePrismRelic = null;
                 this.activeExplosions = new Set();
                 this.activeCosmicZapEffects = new Set();
-
+                this.campaignRestoreLines = [];
+                this.campaignRestoreCells = [];
 
                 // Canvas blur appears brighter than equivalent layered CSS shadows. The shared
                 // playfield scale trims all gameplay glow sources evenly while the regular-object
@@ -10678,11 +10757,38 @@ Font License Notices
                 this.requestTransientPresentationFrame();
             }
 
+            createCampaignRestorePresentation(lines = [], cells = []) {
+                this.campaignRestoreLines = Array.isArray(lines) ? lines : [];
+                this.campaignRestoreCells = Array.isArray(cells) ? cells : [];
+                this.requestTransientPresentationFrame();
+            }
+
+            removeCampaignRestorePresentation(lines = [], cells = []) {
+                [...lines, ...cells].forEach(item => { if (item) item.element = null; });
+                this.campaignRestoreLines = [];
+                this.campaignRestoreCells = [];
+                this.requestTransientPresentationFrame();
+            }
+
+            startCampaignCompletion(durationMs = 6200) {
+                this.game.campaignCompletionEffect = {
+                    active: true,
+                    startedAt: performance.now(),
+                    durationMs: Math.max(1, Number(durationMs) || 6200)
+                };
+                this.requestTransientPresentationFrame();
+            }
+
+            stopCampaignCompletion() {
+                if (this.game.campaignCompletionEffect) this.game.campaignCompletionEffect.active = false;
+                this.requestTransientPresentationFrame();
+            }
 
             clearRestorationPresentation() {
                 if (this.game.gridRestoreEffect) this.game.gridRestoreEffect.active = false;
-
-
+                if (this.game.campaignCompletionEffect) this.game.campaignCompletionEffect.active = false;
+                this.campaignRestoreLines = [];
+                this.campaignRestoreCells = [];
                 this.requestTransientPresentationFrame();
             }
 
@@ -10698,7 +10804,10 @@ Font License Notices
             }
 
             getTransientEffectCount() {
-                return this.activeSpawnWarnings.size + this.activeExplosions.size + this.activeCosmicZapEffects.size + (this.activePrismRelic ? 1 : 0);
+                const campaignEffectCount = this.game.campaignCompletionEffect && this.game.campaignCompletionEffect.active ? 1 : 0;
+                return this.activeSpawnWarnings.size + this.activeExplosions.size + this.activeCosmicZapEffects.size +
+                    (this.activePrismRelic ? 1 : 0) + campaignEffectCount +
+                    this.campaignRestoreLines.length + this.campaignRestoreCells.length;
             }
 
             clear() {
@@ -12051,6 +12160,157 @@ Font License Notices
             }
 
 
+            campaignCompletionProgress(game, timestamp) {
+                return this.getTimedEffectProgress(game && game.campaignCompletionEffect, timestamp);
+            }
+
+            drawCampaignRestoreCell(cell, ageMs) {
+                if (!cell || ageMs < Number(cell.repairDelayMs || 0)) return;
+                const local = this.clamp01((ageMs - Number(cell.repairDelayMs || 0)) / 1280);
+                const context = this.context;
+                let color = { r: 255, g: 255, b: 255, a: 0 };
+                let fillAlpha = 0;
+                if (local < 0.08) return;
+                if (local < 0.24) {
+                    color = { r: 255, g: 0, b: 0, a: 0.92 };
+                    fillAlpha = 0.20;
+                } else if (local < 0.34) {
+                    color = { r: 255, g: 0, b: 0, a: 0.10 };
+                } else if (local < 0.50) {
+                    color = { r: 0, g: 255, b: 0, a: 0.92 };
+                    fillAlpha = 0.20;
+                } else if (local < 0.60) {
+                    color = { r: 0, g: 255, b: 0, a: 0.10 };
+                } else if (local < 0.76) {
+                    color = { r: 0, g: 0, b: 255, a: 0.94 };
+                    fillAlpha = 0.24;
+                } else if (local < 0.88) {
+                    color = { r: 0, g: 0, b: 255, a: 0.12 };
+                } else {
+                    color = { r: 255, g: 255, b: 255, a: 0.34 };
+                    fillAlpha = 0.08;
+                }
+
+                context.save();
+                context.fillStyle = `rgba(${color.r},${color.g},${color.b},${fillAlpha})`;
+                context.strokeStyle = this.rgbaString(color);
+                context.lineWidth = 1;
+                context.shadowColor = this.rgbaString({ ...color, a: Math.max(0.2, color.a) });
+                context.shadowBlur = this.scalePlayfieldGlow(color.a > 0.5 ? 12 : 4);
+                context.fillRect(cell.x, cell.y, cell.size, cell.size);
+                context.strokeRect(cell.x + 0.5, cell.y + 0.5, Math.max(0, cell.size - 1), Math.max(0, cell.size - 1));
+                context.restore();
+
+                const whiteLockAge = ageMs - 5120;
+                if (whiteLockAge >= 0 && whiteLockAge < 700) {
+                    const lock = this.clamp01(whiteLockAge / 700);
+                    const lockOpacity = this.interpolateKeyframes(lock, [[0, 0.22], [0.38, 1], [1, 0]]);
+                    const lockFill = this.interpolateKeyframes(lock, [[0, 0.08], [0.38, 0.48], [1, 0]]);
+                    context.save();
+                    context.fillStyle = `rgba(255,255,255,${lockFill})`;
+                    context.strokeStyle = `rgba(255,255,255,${lockOpacity})`;
+                    context.lineWidth = 1;
+                    context.shadowColor = '#fff';
+                    context.shadowBlur = this.scalePlayfieldGlow(18 * lockOpacity);
+                    context.fillRect(cell.x, cell.y, cell.size, cell.size);
+                    context.strokeRect(cell.x + 0.5, cell.y + 0.5, Math.max(0, cell.size - 1), Math.max(0, cell.size - 1));
+                    context.restore();
+                }
+            }
+
+            drawCampaignCompletionBase(game, timestamp) {
+                const progress = this.campaignCompletionProgress(game, timestamp);
+                if (progress === null) return false;
+                const ageMs = Math.max(0, timestamp - Number(game.campaignCompletionEffect.startedAt || timestamp));
+                const context = this.context;
+                context.save();
+                context.fillStyle = '#000';
+                context.fillRect(0, 0, this.cssWidth, this.cssHeight);
+                context.restore();
+
+                this.campaignRestoreLines.forEach(line => {
+                    if (!line || ageMs < Number(line.delayMs || 0)) return;
+                    const local = this.clamp01((ageMs - Number(line.delayMs || 0)) / 1280);
+                    const opacity = this.interpolateKeyframes(local, [[0, 0], [0.14, 0.24], [0.54, 0.95], [0.82, 0.72], [1, 0.42]]);
+                    const drawScale = this.interpolateKeyframes(local, [[0, 0], [0.68, 1.03], [1, 1]]);
+                    context.save();
+                    context.globalAlpha = opacity;
+                    context.fillStyle = '#fff';
+                    context.shadowColor = '#fff';
+                    context.shadowBlur = this.scalePlayfieldGlow(10);
+                    if (line.orientation === 'horizontal') {
+                        const width = line.length * drawScale;
+                        context.fillRect((line.length - width) / 2, line.offset, width, 2);
+                    } else {
+                        const height = line.length * drawScale;
+                        context.fillRect(line.offset, (line.length - height) / 2, 2, height);
+                    }
+                    context.restore();
+                });
+
+                this.campaignRestoreCells.forEach(cell => this.drawCampaignRestoreCell(cell, ageMs));
+                return true;
+            }
+
+            drawCampaignCompletionOverlay(game, timestamp) {
+                const progress = this.campaignCompletionProgress(game, timestamp);
+                if (progress === null || !this.visualEffectsEnabled()) return;
+                const ageMs = Math.max(0, timestamp - Number(game.campaignCompletionEffect.startedAt || timestamp));
+                const pulse = this.sampleColorKeyframes(progress, [
+                    [0.00, { r: 255, g: 255, b: 255, a: 0.00 }],
+                    [0.10, { r: 255, g: 255, b: 255, a: 0.04 }],
+                    [0.24, { r: 255, g: 255, b: 255, a: 0.08 }],
+                    [0.36, { r: 255, g: 255, b: 255, a: 0.04 }],
+                    [0.48, { r: 255, g: 0, b: 0, a: 0.08 }],
+                    [0.60, { r: 0, g: 255, b: 0, a: 0.08 }],
+                    [0.72, { r: 0, g: 0, b: 255, a: 0.10 }],
+                    [0.82, { r: 255, g: 255, b: 255, a: 0.22 }],
+                    [0.92, { r: 255, g: 255, b: 255, a: 0.12 }],
+                    [1.00, { r: 255, g: 255, b: 255, a: 0.00 }]
+                ]);
+                const glow = this.interpolateKeyframes(progress, [[0, 0], [0.24, 18], [0.48, 34], [0.72, 34], [0.82, 70], [0.92, 52], [1, 28]]);
+                const context = this.context;
+                context.save();
+                context.fillStyle = this.rgbaString(pulse);
+                context.fillRect(0, 0, this.cssWidth, this.cssHeight);
+                context.restore();
+                this.drawInnerPlayfieldPulse({ ...pulse, a: Math.max(0.10, pulse.a + 0.28) }, glow, 2);
+
+                const orbOpacity = this.interpolateKeyframes(progress, [[0, 0], [0.06, 1], [0.13, 0.58], [0.22, 0.20], [0.42, 0], [0.66, 0], [0.73, 0.84], [0.88, 0.38], [1, 0.74]]);
+                const orbScale = this.interpolateKeyframes(progress, [[0, 0.7], [0.06, 1.45], [0.13, 1.08], [0.22, 0.92], [0.42, 0.8], [0.66, 0.8], [0.73, 1.25], [0.88, 1.02], [1, 1]]);
+                if (orbOpacity > 0.001) {
+                    const radius = Math.max(2, Number(game.PLAYER_SIZE) * 0.5 * orbScale);
+                    const x = this.cssWidth / 2;
+                    const y = this.cssHeight / 2;
+                    context.save();
+                    context.globalAlpha = orbOpacity;
+                    context.fillStyle = '#fff';
+                    context.shadowColor = '#fff';
+                    context.shadowBlur = this.scalePlayfieldGlow(34);
+                    context.beginPath();
+                    context.arc(x, y, radius, 0, Math.PI * 2);
+                    context.fill();
+                    context.restore();
+                }
+
+                const whiteLock = this.clamp01((ageMs - 4464) / Math.max(1, 1736));
+                const whiteOpacity = this.interpolateKeyframes(whiteLock, [[0, 0], [0.43, 0], [0.57, 0.66], [0.83, 0.30], [1, 0]]);
+                const whiteScale = this.interpolateKeyframes(whiteLock, [[0, 0.12], [0.43, 0.22], [0.57, 1.08], [0.83, 1.82], [1, 2.45]]);
+                if (whiteOpacity > 0.001) {
+                    const x = this.cssWidth / 2;
+                    const y = this.cssHeight / 2;
+                    const radius = Math.max(this.cssWidth, this.cssHeight) * 0.34 * whiteScale;
+                    const gradient = context.createRadialGradient(x, y, 0, x, y, radius);
+                    gradient.addColorStop(0, `rgba(255,255,255,${Math.min(1, whiteOpacity * 1.4)})`);
+                    gradient.addColorStop(0.28, `rgba(255,255,255,${whiteOpacity * 0.45})`);
+                    gradient.addColorStop(1, 'rgba(255,255,255,0)');
+                    context.save();
+                    context.fillStyle = gradient;
+                    context.fillRect(0, 0, this.cssWidth, this.cssHeight);
+                    context.restore();
+                }
+            }
+
             getOrbPresentation(player, timestamp) {
                 let scale = 1;
                 let glowSpread = 5;
@@ -12203,7 +12463,8 @@ Font License Notices
                 const shakeOffset = this.getCosmicZapShakeOffset(timestamp);
                 this.context.save();
                 this.context.translate(shakeOffset.x, shakeOffset.y);
-                this.drawProductionGrid(game);
+                const campaignCompletionActive = this.drawCampaignCompletionBase(game, timestamp);
+                if (!campaignCompletionActive) this.drawProductionGrid(game);
                 this.drawAttractSquares(game, timestamp);
                 this.drawCompletedSquares(game);
                 this.drawConnectionLines(game);
@@ -12221,6 +12482,7 @@ Font License Notices
                 this.drawExplosions(timestamp);
                 this.drawCosmicZapEffects(timestamp);
                 this.drawSectorRestoreEffect(game, timestamp);
+                this.drawCampaignCompletionOverlay(game, timestamp);
                 this.drawTutorialCrystalValuePopups(game, timestamp);
 
                 this.context.restore();
@@ -12883,6 +13145,10 @@ Font License Notices
                 this.finalGridlockResultActive = false;  // Persistent Final Gridlock GAME OVER statistics screen
                 this.finalGridlockElapsedMs = 0;         // Active survival time inside Final Gridlock only
                 this.finalGridlockHandoffPromise = null; // Single canonical completion-to-survival transition owner
+                this.campaignCompletionActive = false;   // Full Prism Grid restoration presentation before Final Gridlock
+                this.campaignCompletionEffect = null;
+                this.campaignRestoreLines = [];
+                this.campaignRestoreCells = [];
                 this.enemySpawnElapsedMs = 0;         // Active gameplay time accumulated toward the next normal spawn
                 this.lastFrameTime = performance.now(); // Last frame timestamp
                 this.currentColorIndex = 0;           // Index of current crystal color
@@ -13613,6 +13879,7 @@ Font License Notices
                     overtimeActive: !!this.overtimeActive,
                     prismRelicVisible: !!this.prismRelic,
                     prismRelicCuePending: !!this.prismRelicCueTimer,
+                    campaignCompletionActive: !!this.campaignCompletionActive,
                     finalGridlockActive: !!this.finalGridlockActive,
                     finalGridlockResultActive: !!this.finalGridlockResultActive,
                     gameOver: !!this.isGameOver,
@@ -13685,6 +13952,12 @@ Font License Notices
                 ].filter(Boolean).length;
                 if (finalModeCount > 1) {
                     addIssue('multiple-final-modes-active');
+                }
+                if (snapshot.campaignCompletionActive && flowState !== GAME_FLOW_STATES.CAMPAIGN_COMPLETE) {
+                    addIssue('campaign-completion-flow-mismatch', { flow: flowState });
+                }
+                if (!snapshot.campaignCompletionActive && flowState === GAME_FLOW_STATES.CAMPAIGN_COMPLETE) {
+                    addIssue('campaign-completion-flow-without-state');
                 }
                 if (snapshot.finalGridlockActive && snapshot.sector !== this.FINAL_GRIDLOCK_LEVEL) {
                     addIssue('final-gridlock-level-mismatch', { sector: snapshot.sector });
@@ -15841,7 +16114,7 @@ Best Score: ${bestScore}${recoveredLine}` :
             setTransitionState(patch = {}) {
                 if (Object.prototype.hasOwnProperty.call(patch, 'startInputLocked')) this.startInputLocked = patch.startInputLocked;
                 if (Object.prototype.hasOwnProperty.call(patch, 'sectorTransitionActive')) this.sectorTransitionActive = patch.sectorTransitionActive;
-
+                if (Object.prototype.hasOwnProperty.call(patch, 'campaignCompletionActive')) this.campaignCompletionActive = patch.campaignCompletionActive;
                 if (Object.prototype.hasOwnProperty.call(patch, 'showHudDuringSectorIntro')) this.showHudDuringSectorIntro = patch.showHudDuringSectorIntro;
             }
 
@@ -15881,6 +16154,7 @@ Best Score: ${bestScore}${recoveredLine}` :
                 this.setGameplayState({ active: false });
                 this.setGameplayState({ levelActionStarted: false });
                 this.setTransitionState({ sectorTransitionActive: false });
+                this.setTransitionState({ campaignCompletionActive: false });
                 this.setTransitionState({ showHudDuringSectorIntro: false });
                 this.setTransitionState({ startInputLocked: false });
                 this.setGameplayState({ isPaused: false });
@@ -15891,7 +16165,7 @@ Best Score: ${bestScore}${recoveredLine}` :
 
             resetTerminalState(options = {}) {
                 const clearGameOver = options.clearGameOver !== false;
-                const clearRestartReady = options.clearRestartReady !== false;
+                const clearRestartReady = !!options.clearRestartReady;
                 if (clearGameOver) this.setTerminalState({ isGameOver: false });
                 this.setTerminalState({ finalGridlockActive: false });
                 this.setTerminalState({ finalGridlockResultActive: false });
@@ -15899,18 +16173,28 @@ Best Score: ${bestScore}${recoveredLine}` :
                 if (clearRestartReady) this.setTerminalState({ restartReady: false });
             }
 
-            resetFreshRunLifecycle(reason = 'fresh-run-reset') {
+            prepareFreshRunLifecycle(reason = 'fresh-run-reset') {
                 this.cancelTransitionGroup(reason);
                 this.cancelGameplayScheduling();
                 this.scheduler.cancelScope('visual-effects');
                 this.resetTemporaryInteractionState();
                 this.resetTerminalState({ clearGameOver: true, clearRestartReady: true });
                 this.flow.enter(GAME_FLOW_STATES.ATTRACT, reason);
+
                 this.container.classList.remove('shake', 'crt-shutdown-blackout');
                 this.container.style.animation = '';
-                this.clearCrtEventEffects();
-                this.hideEnemyDeathCausePresentation();
+                this.screenFadeElement.classList.remove('visible');
                 this.setGameOverlayVisible(false);
+                this.hideEnemyDeathCausePresentation();
+                this.clearCrtEventEffects();
+                this.playfieldRenderer.clearRestorationPresentation();
+                this.removeCampaignRestorePresentation();
+                this.gameOverElement.classList.remove('finalGameCompleteText', 'finalGridlockGameOverText', 'campaign-completion-title');
+                this.bonusTextElement.classList.remove('countdownText', 'restoreText', 'resumeCountdownText', 'finalGameSummary', 'finalGridlockSummary');
+                this.gameOverElement.style.opacity = '0';
+                this.bonusTextElement.style.opacity = '0';
+                this.gameOverElement.textContent = '';
+                this.bonusTextElement.textContent = '';
                 if (this.gestures) this.gestures.reset(reason);
                 if (this.player) this.player.reset();
             }
@@ -15961,9 +16245,10 @@ Best Score: ${bestScore}${recoveredLine}` :
                     GAME_FLOW_STATES.SECTOR_INTRO,
                     GAME_FLOW_STATES.RESUME_COUNTDOWN,
                     GAME_FLOW_STATES.SECTOR_RESTORE,
+                    GAME_FLOW_STATES.CAMPAIGN_COMPLETE,
                     GAME_FLOW_STATES.FINAL_GRIDLOCK
                 );
-                const terminalNotReady = this.flow.is(GAME_FLOW_STATES.GAME_OVER) && this.isGameOver && !this.restartReady;
+                const terminalNotReady = this.flow.is(GAME_FLOW_STATES.GAME_OVER) && !this.restartReady;
                 if (!this.requireLifecycleAction(
                     'beginSector',
                     !incompatibleFlow && !terminalNotReady,
@@ -17348,52 +17633,30 @@ Best Score: ${bestScore}${recoveredLine}` :
 
             startFinalGridlockTest() {
                 if (!this.developerModeEnabled) return false;
-
                 this.hideLevelSelectMenu();
                 this.stopAttractMode();
-                this.resetFreshRunLifecycle('developer-end-reset');
-                this.systems.prepareSectorEntry();
+                this.prepareFreshRunLifecycle('developer-end-reset');
                 this.clearEnemyDeathCause();
-
                 this.level = this.MAX_LEVEL;
                 this.resetRunState(this.level);
                 this.resetSectorState();
                 this.setPrismRelicState({ prismRelicRecoveredThisSector: true });
                 this.cosmicZapsLeft = 0;
-                this.player.reset();
-                this.playfieldRenderer.setPlayerVisible(this.player, true);
-                this.buildFinalGridlockGrid();
-
-                this.setGameplayState({ active: false, levelActionStarted: false });
-                this.setTransitionState({ sectorTransitionActive: true, startInputLocked: true });
-                this.flow.enter(GAME_FLOW_STATES.SECTOR_RESTORE, 'developer-end-restoration');
                 this.audio.resume();
                 this.audio.stopBackgroundMusic();
-                this.ui.updateAll();
+                this.screenFadeElement.classList.add('visible');
 
                 const transitionToken = ++this.levelLoadToken;
-                this.beginTransitionGroup('developer-end-restoration', transitionToken);
-                this.runGridRestoreSequence(this.MAX_LEVEL, transitionToken, {
-                    bonusLines: [],
-                    totalBonus: 0,
-                    removeEnemies: true,
-                    fadeToBlack: true
-                }).then((sequenceCompleted) => {
-                    if (!sequenceCompleted || transitionToken !== this.levelLoadToken || this.isGameOver) {
-                        this.setTransitionState({ sectorTransitionActive: false, startInputLocked: false });
-                        this.resetFreshRunLifecycle('developer-end-cancelled');
-                        this.returnToAttractMode();
-                        this.ui.updateAll();
-                        return;
-                    }
-                    this.setTransitionState({ sectorTransitionActive: false });
-                    void this.beginFinalGridlock('developer-end-test');
-                }).catch(() => {
-                    this.setTransitionState({ sectorTransitionActive: false, startInputLocked: false });
-                    this.resetFreshRunLifecycle('developer-end-error');
-                    this.returnToAttractMode();
-                    this.ui.updateAll();
-                });
+                this.beginTransitionGroup('developer-campaign-completion', transitionToken);
+                this.runCampaignCompletionSequence(transitionToken, 'developer-end-test')
+                    .then((completed) => {
+                        if (!completed || transitionToken !== this.levelLoadToken) {
+                            this.recoverFromEndingTransitionFailure('developer-end-cancelled');
+                            return;
+                        }
+                        void this.beginFinalGridlock('developer-end-test');
+                    })
+                    .catch(() => this.recoverFromEndingTransitionFailure('developer-end-error'));
                 return true;
             }
 
@@ -17652,11 +17915,10 @@ Best Score: ${bestScore}${recoveredLine}` :
                 this.bonusTextElement.style.opacity = '0';
             }
 
-            // Tutorial completion persists across builds and is cleared only by Reset Tutorial in Settings.
+            // Tutorial completion persists across numbered builds and is cleared only through Settings.
             loadIntroCompletionFlag() {
                 try {
-                    const completionKey = this.introCompletionStorageKey || 'blockazoidsIntroCompletedV1';
-                    return localStorage.getItem(completionKey) === '1';
+                    return localStorage.getItem(this.introCompletionStorageKey || 'blockazoidsIntroCompletedV1') === '1';
                 } catch (_) {
                     return false;
                 }
@@ -17665,7 +17927,6 @@ Best Score: ${bestScore}${recoveredLine}` :
             saveIntroCompletionFlag() {
                 try {
                     localStorage.setItem(this.introCompletionStorageKey, '1');
-                    // Remove the retired build-scoped marker during migration.
                     if (this.introCompletionBuildStorageKey) localStorage.removeItem(this.introCompletionBuildStorageKey);
                 } catch (_) {}
                 this.introCompleted = true;
@@ -18448,8 +18709,6 @@ Best Score: ${bestScore}${recoveredLine}` :
                 if (this.showHudDuringSectorIntro || this.resumeCountdownActive || this.startInputLocked) return;
                 if (this.finalGridlockResultActive) {
                     this.playUiClick();
-                    this.selectedStartSector = 1;
-
                     this.closeBottomPanelOverlay();
                     this.beginNewRun();
                     return;
@@ -18501,18 +18760,16 @@ Best Score: ${bestScore}${recoveredLine}` :
                 const endOption = this.getEndSectorOptionValue();
 
                 this.clearEnemyDeathCause();
-                this.resetFreshRunLifecycle('new-run-reset');
                 this.hasStartedRun = true;
-
                 this.systems.activateRunStartAudio();
 
                 if (this.developerModeEnabled && selectedOption === endOption) {
-                    this.selectedStartSector = 1; // Return future fresh runs to Sector 1 after the END test.
-                    this.ui.updateAll();
                     this.startFinalGridlockTest();
                     this.validateStateInvariants('beginNewRun:end-test');
-                    return;
+                    return true;
                 }
+
+                this.prepareFreshRunLifecycle('new-run-reset');
 
                 if (TUTORIAL_ENABLED && (this.tutorialRequiredOnFirstRun || !this.introCompleted)) {
                     this.selectedStartSector = 1;
@@ -19487,7 +19744,15 @@ Best Score: ${bestScore}${recoveredLine}` :
                     if (!sequenceCompleted || transitionToken !== this.levelLoadToken || this.isGameOver) return;
 
                     if (completedLevel >= this.MAX_LEVEL) {
-                        void this.beginFinalGridlock('level-15-complete');
+                        this.runCampaignCompletionSequence(transitionToken, 'level-15-complete')
+                            .then((completed) => {
+                                if (!completed || transitionToken !== this.levelLoadToken) {
+                                    this.recoverFromEndingTransitionFailure('campaign-completion-cancelled');
+                                    return;
+                                }
+                                void this.beginFinalGridlock('level-15-complete');
+                            })
+                            .catch(() => this.recoverFromEndingTransitionFailure('campaign-completion-error'));
                         return;
                     }
 
@@ -21013,6 +21278,88 @@ Best Score: ${bestScore}${recoveredLine}` :
             }
 
             // Stop attract mode and clean up
+            removeCampaignRestorePresentation() {
+                if (this.playfieldRenderer && typeof this.playfieldRenderer.removeCampaignRestorePresentation === 'function') {
+                    this.playfieldRenderer.removeCampaignRestorePresentation(
+                        this.campaignRestoreLines || [],
+                        this.campaignRestoreCells || []
+                    );
+                }
+                this.campaignRestoreLines = [];
+                this.campaignRestoreCells = [];
+            }
+
+            createCampaignRestorePresentation() {
+                this.removeCampaignRestorePresentation();
+                const gridSize = this.GRID_SIZE;
+                const gridCount = Math.round(this.PLAYFIELD_SIZE / gridSize);
+                const positions = [];
+                const lines = [];
+                const cells = [];
+
+                for (let index = 0; index <= gridCount; index++) {
+                    const offset = Math.max(0, Math.min(this.PLAYFIELD_SIZE, Math.round(index * gridSize)));
+                    lines.push({ orientation: 'horizontal', offset, length: this.PLAYFIELD_SIZE, delayMs: 120 + index * 34, element: null });
+                    lines.push({ orientation: 'vertical', offset, length: this.PLAYFIELD_SIZE, delayMs: 160 + index * 34, element: null });
+                }
+
+                for (let row = 0; row < gridCount; row++) {
+                    for (let col = 0; col < gridCount; col++) positions.push({ row, col });
+                }
+
+                // Deterministic shuffle keeps the restoration lively and test-reproducible.
+                let seed = 0x9e3779b9;
+                const nextRandom = () => {
+                    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+                    return seed / 0x100000000;
+                };
+                for (let index = positions.length - 1; index > 0; index--) {
+                    const swapIndex = Math.floor(nextRandom() * (index + 1));
+                    [positions[index], positions[swapIndex]] = [positions[swapIndex], positions[index]];
+                }
+
+                positions.forEach((position, index) => {
+                    const progress = positions.length <= 1 ? 0 : index / (positions.length - 1);
+                    cells.push({
+                        row: position.row,
+                        col: position.col,
+                        x: position.col * gridSize,
+                        y: position.row * gridSize,
+                        size: gridSize,
+                        repairDelayMs: Math.round(1900 + progress * 1900 + nextRandom() * 85),
+                        element: null
+                    });
+                });
+
+                this.campaignRestoreLines = lines;
+                this.campaignRestoreCells = cells;
+                this.playfieldRenderer.createCampaignRestorePresentation(lines, cells);
+            }
+
+            clearCampaignCompletionPresentation() {
+                this.setTransitionState({ campaignCompletionActive: false });
+                this.playfieldRenderer.stopCampaignCompletion();
+                this.removeCampaignRestorePresentation();
+                this.gameOverElement.classList.remove('finalGameCompleteText', 'campaign-completion-title');
+                this.gameOverElement.style.opacity = '0';
+                this.gameOverElement.textContent = '';
+                this.playfieldRenderer.setPlayerVisible(this.player, true);
+            }
+
+            recoverFromEndingTransitionFailure(reason = 'ending-transition-failed') {
+                this.cancelTransitionGroup(reason);
+                this.cancelGameplayScheduling();
+                this.clearCampaignCompletionPresentation();
+                this.resetTemporaryInteractionState();
+                this.resetTerminalState({ clearGameOver: true, clearRestartReady: true });
+                this.screenFadeElement.classList.remove('visible');
+                this.setGameOverlayVisible(false);
+                this.flow.enter(GAME_FLOW_STATES.GAME_OVER, reason);
+                this.returnToAttractMode();
+                this.ui.updateAll();
+                return false;
+            }
+
             stopAttractMode() {
                 if (this.gestures && typeof this.gestures.cancelAttractOrbHold === 'function') {
                     this.gestures.cancelAttractOrbHold('stop-attract-mode');
@@ -21029,6 +21376,63 @@ Best Score: ${bestScore}${recoveredLine}` :
                 this.requestPlayfieldRender();
             }
 
+
+            async runCampaignCompletionSequence(transitionToken = this.levelLoadToken, source = 'campaign-complete') {
+                this.ensureTransitionGroup('campaign-completion', transitionToken);
+                if (transitionToken !== this.levelLoadToken || this.isGameOver) return false;
+
+                this.flow.enter(GAME_FLOW_STATES.CAMPAIGN_COMPLETE, source);
+                this.setTransitionState({ campaignCompletionActive: true });
+                this.setTransitionState({ sectorTransitionActive: true });
+                this.setTransitionState({ startInputLocked: true });
+                this.setTransitionState({ showHudDuringSectorIntro: false });
+                this.setGameplayState({ active: false, levelActionStarted: false, isPaused: false, resumeCountdownActive: false });
+                this.cancelGameplayScheduling();
+                this.releaseWakeLock();
+                this.audio.stopBackgroundMusic();
+                this.clearGameplayObjects();
+                this.player.reset();
+                this.playfieldRenderer.setPlayerVisible(this.player, false);
+                this.setGameOverlayVisible(false);
+
+                this.gameOverElement.classList.remove('finalGridlockGameOverText', 'campaign-completion-title');
+                this.gameOverElement.classList.add('finalGameCompleteText');
+                this.gameOverElement.textContent = 'PRISM GRID\nRESTORED';
+                this.gameOverElement.style.opacity = '0';
+                this.bonusTextElement.style.opacity = '0';
+                this.bonusTextElement.textContent = '';
+
+                this.createCampaignRestorePresentation();
+                const durationMs = GAME_CONFIG.transitions.campaignCompletionPresentationMs;
+
+                if (!await this.fadeScreenFromBlack(transitionToken, GAME_CONFIG.transitions.campaignCompletionPreludeMs)) {
+                    this.clearCampaignCompletionPresentation();
+                    return false;
+                }
+                if (transitionToken !== this.levelLoadToken || this.isGameOver) {
+                    this.clearCampaignCompletionPresentation();
+                    return false;
+                }
+
+                this.gameOverElement.classList.add('campaign-completion-title');
+                this.gameOverElement.style.opacity = '1';
+                this.playfieldRenderer.startCampaignCompletion(durationMs);
+                this.audio.playGridRestored();
+                if (!await this.wait(durationMs, transitionToken, 'campaign-completion-presentation')) {
+                    this.clearCampaignCompletionPresentation();
+                    return false;
+                }
+                if (transitionToken !== this.levelLoadToken || this.isGameOver) {
+                    this.clearCampaignCompletionPresentation();
+                    return false;
+                }
+
+                const faded = await this.fadeScreenToBlack(transitionToken);
+                this.clearCampaignCompletionPresentation();
+                this.setTransitionState({ sectorTransitionActive: false });
+                this.setTransitionState({ startInputLocked: false });
+                return faded && transitionToken === this.levelLoadToken && !this.isGameOver;
+            }
 
             // Completing Level 15 proceeds directly into Level 16: Final Gridlock.
 
@@ -21087,9 +21491,10 @@ Best Score: ${bestScore}${recoveredLine}` :
                 return isCurrent();
             }
 
-            // Canonical lifecycle entry from final campaign completion into endless survival.
+            // Canonical lifecycle entry from the completed campaign into endless survival.
             async beginFinalGridlock(source = 'unknown') {
-                const ready = !this.finalGridlockActive && !this.finalGridlockResultActive && !this.isGameOver && this.level >= this.MAX_LEVEL;
+                const ready = !this.campaignCompletionActive && !this.finalGridlockActive &&
+                    !this.finalGridlockResultActive && !this.isGameOver && this.level >= this.MAX_LEVEL;
                 if (!this.requireLifecycleAction('beginFinalGridlock', ready, 'final-gridlock-not-ready', { source })) return false;
 
                 this.flow.enter(GAME_FLOW_STATES.FINAL_GRIDLOCK, 'start-final-gridlock');
@@ -21097,15 +21502,14 @@ Best Score: ${bestScore}${recoveredLine}` :
                 this.beginTransitionGroup('final-gridlock-start', loadToken);
                 this.systems.prepareFinalGridlock();
 
-                const countdownCompleted = await this.runFinalGridlockCountdown(loadToken);
-                if (loadToken !== this.levelLoadToken || !this.finalGridlockActive) return false;
+                const revealed = await this.fadeScreenFromBlack(loadToken);
+                if (!revealed || loadToken !== this.levelLoadToken || !this.finalGridlockActive) {
+                    return this.recoverFromEndingTransitionFailure('final-gridlock-reveal-failed');
+                }
 
-                // A cancelled countdown task must not leave the campaign in a dead-end state.
-                if (!countdownCompleted) {
-                    this.bonusTextElement.classList.remove('countdownText', 'final-gridlock-intro-flash');
-                    this.bonusTextElement.style.opacity = '0';
-                    this.bonusTextElement.textContent = '';
-                    this.setTransitionState({ showHudDuringSectorIntro: false });
+                const countdownCompleted = await this.runFinalGridlockCountdown(loadToken);
+                if (!countdownCompleted || loadToken !== this.levelLoadToken || !this.finalGridlockActive) {
+                    return this.recoverFromEndingTransitionFailure('final-gridlock-countdown-failed');
                 }
 
                 this.setGameplayState({ active: true });
@@ -21159,7 +21563,7 @@ Best Score: ${bestScore}${recoveredLine}` :
                     this.bonusTextElement.classList.remove('finalGameSummary');
                     this.bonusTextElement.classList.add('finalGridlockSummary');
                     this.gameOverElement.textContent = 'PRISM CAMPAIGN';
-                    this.bonusTextElement.innerHTML = `<span class="campaign-final-score"><span class="campaign-final-score-label">FINAL SCORE</span><span class="campaign-final-score-value">${this.score}</span></span><span class="high-score-run-line campaign-high-score-run-line"><span class="high-score-detail-group"><span class="high-score-detail-label">RELICS</span><span class="high-score-detail-value">${finalRelics}</span><span class="high-score-detail-label">LEVEL</span><span class="high-score-detail-value">${this.FINAL_GRIDLOCK_LEVEL}</span></span><span class="high-score-detail-group"><span class="high-score-detail-label">TIME</span><span class="high-score-detail-value">${finalCampaignTime}</span></span></span>`;
+                    this.bonusTextElement.innerHTML = `<span class="campaign-final-score"><span class="campaign-final-score-label">FINAL SCORE</span><span class="campaign-final-score-value">${this.score}</span></span><span class="campaign-final-stat-list"><span class="campaign-final-stat-line"><span class="campaign-final-stat-label">RELICS</span><span class="campaign-final-stat-value">${finalRelics}</span></span><span class="campaign-final-stat-line"><span class="campaign-final-stat-label">LEVEL</span><span class="campaign-final-stat-value">${this.FINAL_GRIDLOCK_LEVEL}</span></span><span class="campaign-final-stat-line"><span class="campaign-final-stat-label">TIME</span><span class="campaign-final-stat-value">${finalCampaignTime}</span></span></span>`;
                     this.gameOverElement.style.opacity = '1';
                     this.bonusTextElement.style.opacity = '1';
                     this.setGameOverlayVisible(true);
