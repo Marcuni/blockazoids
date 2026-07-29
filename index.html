@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Block-A-Zoids p203: removes the onboarding text while preserving the animated Play control.
+Block-A-Zoids p204: suppresses CRT perimeter speck artifacts while preserving the continuous curved monitor outline.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="p203">
+<html data-build-version="p204">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -7769,6 +7769,9 @@ Font License Notices
             animation: none !important;
         }
 
+        /* p204: the CRT WebGL shader now masks the extreme square perimeter.
+           The independent SVG tube contour remains fully visible and continuous. */
+
         html body #gameContainer.crt-enabled.crt-fx-grid-rgb.crt-grid-rgb-low:not(.crt-ui-suspended) > .playfield-grid-layer {
             background-color: #000609;
             background-image:
@@ -12852,6 +12855,18 @@ Font License Notices
                         varying vec2 v_uv;
 
                         void main() {
+                            // CRT-only output-edge guard. The separate SVG contour supplies the
+                            // continuous tube outline, so the post-process canvas can safely mask
+                            // the extreme square perimeter where isolated source pixels can leak.
+                            if (u_crtMode > 0.5) {
+                                const float crtEdgeGuard = 0.008;
+                                if (v_uv.x < crtEdgeGuard || v_uv.x > 1.0 - crtEdgeGuard ||
+                                    v_uv.y < crtEdgeGuard || v_uv.y > 1.0 - crtEdgeGuard) {
+                                    gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+                                    return;
+                                }
+                            }
+
                             vec2 point = v_uv * 2.0 - 1.0;
                             float radiusSquared = dot(point, point);
                             float normalization = 1.0 + u_strength;
