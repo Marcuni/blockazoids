@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Block-A-Zoids p206: restores the Launch menu shortcut and preserves sector/difficulty run setup while retaining the cycle-free Final Gridlock progression.
+Block-A-Zoids p207: teaches crystal distance values with three ranked tutorial crystals, tutorial-only labels, and earned-value popups.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="p206">
+<html data-build-version="p207">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -8629,6 +8629,7 @@ Font License Notices
                 movementRequired: 150,
                 movementAdvanceDelayMs: 1700,
                 crystalAdvanceDelayMs: 1650,
+                crystalValuePopupMs: 780,
                 enemySpawnDelayMs: 650,
                 enemyAvoidRequiredMs: 5000,
                 enemySpeedMultiplier: 0.72,
@@ -8735,7 +8736,7 @@ Font License Notices
             ].map(plan => Object.freeze(plan))),
             tutorialMessages: Object.freeze({
                 movement: 'SWIPE ANYWHERE TO MOVE',
-                crystal: 'COLLECT BLINKING CRYSTALS',
+                crystal: 'FARTHER CRYSTALS SCORE MORE',
                 enemy: 'AVOID\nBLOCK-A-ZOIDS',
                 zap: 'DOUBLE TAP TO COSMIC ZAP',
                 complete: 'STARTING GAME'
@@ -11048,6 +11049,84 @@ Font License Notices
                 game.crystals.forEach(crystal => this.drawCrystal(crystal, game, timestamp));
             }
 
+            drawTutorialCrystalValueLabels(game, timestamp) {
+                if (!game || !game.tutorialActive ||
+                    !['crystal', 'crystal-wait'].includes(game.tutorialStep) ||
+                    !Array.isArray(game.crystals)) return;
+
+                const tutorialCrystals = game.crystals.filter(crystal =>
+                    crystal && crystal.isTutorialValueCrystal && Number.isFinite(crystal.tutorialPointValue)
+                );
+                if (!tutorialCrystals.length) return;
+
+                const context = this.context;
+                const fontSize = Math.max(11, game.scalePresentationPixels(16));
+                const edgePadding = Math.max(5, game.scalePresentationPixels(7));
+                const labelGap = Math.max(5, game.scalePresentationPixels(8));
+
+                context.save();
+                context.font = `700 ${fontSize}px "Orbitron", "Courier New", monospace`;
+                context.textBaseline = 'middle';
+                context.fillStyle = '#fff';
+                context.shadowColor = 'rgba(255,255,255,0.55)';
+                context.shadowBlur = this.scalePlayfieldGlow(Math.max(2, game.scalePresentationPixels(4)));
+
+                tutorialCrystals.forEach(crystal => {
+                    const text = String(crystal.tutorialPointValue);
+                    const width = context.measureText(text).width;
+                    const centerX = Number(crystal.x) + Number(crystal.size) / 2;
+                    const centerY = Number(crystal.y) + Number(crystal.size) / 2;
+                    const crystalRadius = Number(crystal.size) * 0.8;
+
+                    let x = centerX + crystalRadius + labelGap;
+                    if (x + width > game.PLAYFIELD_SIZE - edgePadding) {
+                        x = centerX - crystalRadius - labelGap - width;
+                    }
+                    x = Math.max(edgePadding, Math.min(game.PLAYFIELD_SIZE - edgePadding - width, x));
+
+                    let y = centerY;
+                    if (y - fontSize / 2 < edgePadding) y = edgePadding + fontSize / 2;
+                    if (y + fontSize / 2 > game.PLAYFIELD_SIZE - edgePadding) {
+                        y = game.PLAYFIELD_SIZE - edgePadding - fontSize / 2;
+                    }
+
+                    context.globalAlpha = 0.94;
+                    context.fillText(text, x, y);
+                });
+                context.restore();
+            }
+
+            drawTutorialCrystalValuePopups(game, timestamp) {
+                if (!game || !game.tutorialActive || !Array.isArray(game.tutorialCrystalValuePopups) ||
+                    !game.tutorialCrystalValuePopups.length) return;
+
+                const context = this.context;
+                const fontSize = Math.max(12, game.scalePresentationPixels(18));
+                const riseDistance = Math.max(14, game.scalePresentationPixels(24));
+
+                context.save();
+                context.font = `800 ${fontSize}px "Orbitron", "Courier New", monospace`;
+                context.textAlign = 'center';
+                context.textBaseline = 'middle';
+                context.fillStyle = '#fff';
+                context.shadowColor = 'rgba(255,255,255,0.70)';
+                context.shadowBlur = this.scalePlayfieldGlow(Math.max(3, game.scalePresentationPixels(5)));
+
+                game.tutorialCrystalValuePopups.forEach(popup => {
+                    if (!popup) return;
+                    const duration = Math.max(1, Number(popup.durationMs) || 1);
+                    const progress = Math.max(0, Math.min(1, (timestamp - Number(popup.createdAt || timestamp)) / duration));
+                    const alpha = progress < 0.70 ? 1 : 1 - ((progress - 0.70) / 0.30);
+                    context.globalAlpha = Math.max(0, alpha);
+                    context.fillText(
+                        `+${Math.max(0, Number(popup.value) || 0)}`,
+                        Number(popup.x) || 0,
+                        (Number(popup.y) || 0) - riseDistance * progress
+                    );
+                });
+                context.restore();
+            }
+
             drawSoftHalo(centerX, centerY, radius, spread, opacity) {
                 if (spread <= 0 || opacity <= 0) return;
                 spread = this.scalePlayfieldGlow(spread);
@@ -12023,6 +12102,7 @@ Font License Notices
                 this.drawCompletedSquares(game);
                 this.drawConnectionLines(game);
                 this.drawCrystals(game, timestamp);
+                this.drawTutorialCrystalValueLabels(game, timestamp);
                 if (game.vectorTrail) game.vectorTrail.update(timestamp);
                 this.drawPlayerTrail(game, timestamp);
                 this.drawPlayer(game.player, timestamp);
@@ -12035,8 +12115,7 @@ Font License Notices
                 this.drawExplosions(timestamp);
                 this.drawCosmicZapEffects(timestamp);
                 this.drawSectorRestoreEffect(game, timestamp);
-
-
+                this.drawTutorialCrystalValuePopups(game, timestamp);
 
                 this.context.restore();
                 this.ensurePlayerEffectFrame();
@@ -12672,6 +12751,8 @@ Font License Notices
                 this.tutorialZapTargetsSpawned = 0;
                 this.tutorialRelicCollected = false;
                 this.tutorialRadarColor = '';
+                this.tutorialCrystalValuePopups = [];
+                this.tutorialCrystalValuePopupDurationMs = GAME_CONFIG.tutorial.crystalValuePopupMs;
                 this.tutorialRelicReady = false;
                 this.resumeCountdownActive = false;   // Blocks repeated resume clicks during the short countdown.
                 this.updateGameTimer = null;          // Legacy compatibility token; spawn timing now runs in the live frame loop
@@ -17594,6 +17675,7 @@ Best Score: ${bestScore}${recoveredLine}` :
                 this.crystals.forEach(crystal => this.playfieldRenderer.removeCrystal(crystal));
                 this.crystals = [];
                 this.activeBlinkingCrystals = [];
+                this.tutorialCrystalValuePopups = [];
                 this.setTutorialState({ tutorialRelicReady: false });
                 if (this.prismRelic) {
                     this.playfieldRenderer.removePrismRelic(this.prismRelic);
@@ -17706,6 +17788,81 @@ Best Score: ${bestScore}${recoveredLine}` :
                 this.ui.updateAll();
             }
 
+            getTutorialCrystalValuePlacements() {
+                const gridSize = Math.max(1, Number(this.GRID_SIZE) || 1);
+                const gridCount = Math.max(2, Math.round(this.PLAYFIELD_SIZE / gridSize));
+                const playerCenterX = this.player.x + this.player.size / 2;
+                const playerCenterY = this.player.y + this.player.size / 2;
+                const minimumDistance = gridSize * 1.25;
+                const candidates = [];
+
+                for (let col = 1; col < gridCount; col += 1) {
+                    for (let row = 1; row < gridCount; row += 1) {
+                        const x = col * gridSize;
+                        const y = row * gridSize;
+                        const distance = Math.hypot(x - playerCenterX, y - playerCenterY);
+                        if (distance < minimumDistance) continue;
+                        candidates.push({ col, row, x, y, distance });
+                    }
+                }
+
+                candidates.sort((a, b) =>
+                    a.distance - b.distance ||
+                    a.row - b.row ||
+                    a.col - b.col
+                );
+
+                if (candidates.length < 3) return [];
+
+                const near = candidates[0];
+                const far = candidates[candidates.length - 1];
+                const targetDistance = (near.distance + far.distance) / 2;
+                const minimumCrystalSeparation = gridSize * 1.75;
+                const separatedMiddle = candidates.filter(candidate =>
+                    candidate !== near &&
+                    candidate !== far &&
+                    candidate.distance > near.distance + gridSize * 0.35 &&
+                    candidate.distance < far.distance - gridSize * 0.35 &&
+                    Math.hypot(candidate.x - near.x, candidate.y - near.y) >= minimumCrystalSeparation &&
+                    Math.hypot(candidate.x - far.x, candidate.y - far.y) >= minimumCrystalSeparation
+                );
+                const middlePool = separatedMiddle.length
+                    ? separatedMiddle
+                    : candidates.filter(candidate => candidate !== near && candidate !== far);
+                const middle = middlePool
+                    .slice()
+                    .sort((a, b) =>
+                        Math.abs(a.distance - targetDistance) - Math.abs(b.distance - targetDistance) ||
+                        a.row - b.row ||
+                        a.col - b.col
+                    )[0];
+
+                return [
+                    { ...near, valueRank: 1, pointValue: this.getCrystalPointValue(1), order: 1 },
+                    { ...middle, valueRank: 2, pointValue: this.getCrystalPointValue(2), order: 2 },
+                    { ...far, valueRank: 3, pointValue: this.getCrystalPointValue(3), order: 3 }
+                ];
+            }
+
+            showTutorialCrystalValuePopup(crystal, pointValue) {
+                if (!crystal || !this.tutorialActive) return;
+                const value = Math.max(0, Number(pointValue) || 0);
+                this.tutorialCrystalValuePopups.push({
+                    x: crystal.x + crystal.size / 2,
+                    y: crystal.y + crystal.size / 2,
+                    value,
+                    createdAt: performance.now(),
+                    durationMs: this.tutorialCrystalValuePopupDurationMs
+                });
+            }
+
+            updateTutorialCrystalValuePopups(timestamp) {
+                if (!Array.isArray(this.tutorialCrystalValuePopups) || !this.tutorialCrystalValuePopups.length) return;
+                this.tutorialCrystalValuePopups = this.tutorialCrystalValuePopups.filter(popup =>
+                    popup && timestamp - popup.createdAt < popup.durationMs
+                );
+            }
+
             beginTutorialPhase(phase) {
                 if (!this.tutorialActive || !phase) return;
                 this.clearTutorialStepTimer();
@@ -17720,22 +17877,22 @@ Best Score: ${bestScore}${recoveredLine}` :
                 } else if (phase === 'crystal') {
                     this.clearTutorialObjects();
                     this.cosmicZapsLeft = 0;
-                    const fixedCrystalCells = [
-                        { col: 3, row: 4, color: 'red', order: 1 },
-                        { col: 5, row: 6, color: 'green', order: 2 },
-                        { col: 7, row: 4, color: 'blue', order: 3 }
-                    ];
-                    this.crystals = fixedCrystalCells.map(cell => {
+                    const placements = this.getTutorialCrystalValuePlacements();
+                    this.crystals = placements.map(placement => {
                         const crystal = new Crystal(
                             this,
-                            this.GRID_SIZE * cell.col - this.CRYSTAL_OFFSET,
-                            this.GRID_SIZE * cell.row - this.CRYSTAL_OFFSET,
-                            cell.color,
-                            cell.order
+                            placement.x - this.CRYSTAL_OFFSET,
+                            placement.y - this.CRYSTAL_OFFSET,
+                            'red',
+                            placement.order
                         );
+                        crystal.isTutorialValueCrystal = true;
+                        crystal.tutorialPointValue = placement.pointValue;
                         crystal.setSelectable(true);
+                        crystal.setValueRank(placement.valueRank, placement.pointValue);
                         return crystal;
                     });
+                    this.activeBlinkingCrystals = this.crystals.slice();
                 } else if (phase === 'enemy') {
                     this.clearTutorialObjects();
                     this.cosmicZapsLeft = 0;
@@ -17996,6 +18153,7 @@ Best Score: ${bestScore}${recoveredLine}` :
                 }
                 const deltaTime = Math.max(0, Math.min(50, timestamp - this.tutorialLastFrameTime));
                 this.tutorialLastFrameTime = timestamp;
+                this.updateTutorialCrystalValuePopups(timestamp);
                 const segments = this.player.consumeMovementSegments();
 
                 if (this.tutorialStep === 'movement') {
@@ -18020,6 +18178,9 @@ Best Score: ${bestScore}${recoveredLine}` :
                             if (index < 0) return;
                             this.tutorialRadarColor = crystal.color;
                             this.ui.updateRadarColorIndicator();
+                            const earnedValue = Number(crystal.tutorialPointValue) ||
+                                this.getCrystalPointValue(crystal.valueRank);
+                            this.showTutorialCrystalValuePopup(crystal, earnedValue);
                             this.playCrystalCollectionEffect(crystal);
                             this.playfieldRenderer.removeCrystal(crystal);
                             this.crystals.splice(index, 1);
