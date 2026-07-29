@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Block-A-Zoids p214: rebuilds the campaign-ending lifecycle, restores the full Prism Grid restoration presentation, and repairs Final Gridlock death/restart recovery.
+Block-A-Zoids p215: rebuilds the campaign-ending lifecycle, restores the full Prism Grid restoration presentation, and repairs Final Gridlock death/restart recovery.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="p214">
+<html data-build-version="p215">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -13056,6 +13056,7 @@ Font License Notices
                 this.attractSquares = [];             // Squares for attract mode
                 this.level = 1;                       // Current level
                 this.selectedStartSector = 1;          // Settings selector for the next fresh run
+                this.lastNormalSelectedStartSector = 1; // Last valid campaign sector; developer END is never persisted here
                 this.progressSectorStorageKey = GAME_CONFIG.storage.highestSector;
                 this.enemyEncounterStorageKey = GAME_CONFIG.storage.enemyEncounters;
                 this.highestUnlockedSector = this.loadProgressUnlockValue(this.progressSectorStorageKey, this.MAX_LEVEL);
@@ -16895,6 +16896,30 @@ Best Score: ${bestScore}${recoveredLine}` :
                 return (this.MAX_LEVEL || GAME_CONFIG.campaign.maxLevels) + 1;
             }
 
+            rememberNormalStartSector(levelNumber) {
+                const normalSector = Math.max(1, Math.min(this.MAX_LEVEL, Number(levelNumber) || 1));
+                this.lastNormalSelectedStartSector = normalSector;
+                return normalSector;
+            }
+
+            getLastNormalStartSector() {
+                const selected = Number(this.selectedStartSector);
+                if (Number.isFinite(selected) && selected >= 1 && selected <= this.MAX_LEVEL) {
+                    return this.rememberNormalStartSector(selected);
+                }
+                return Math.max(
+                    1,
+                    Math.min(this.MAX_LEVEL, Number(this.lastNormalSelectedStartSector) || 1)
+                );
+            }
+
+            consumeDeveloperEndSelection() {
+                const normalSector = this.getLastNormalStartSector();
+                this.selectedStartSector = normalSector;
+                this.updateSettingsSectorLabel();
+                return normalSector;
+            }
+
             adjustSelectedStartSector(direction) {
                 if (!this.canChangeSectorSelection()) {
                     this.updateSettingsSectorLabel();
@@ -16902,7 +16927,11 @@ Best Score: ${bestScore}${recoveredLine}` :
                 }
                 const totalOptions = this.getSectorSelectOptionCount();
                 const current = Math.max(1, Math.min(totalOptions, this.selectedStartSector || this.level || 1));
+                if (current <= this.MAX_LEVEL) this.rememberNormalStartSector(current);
                 this.selectedStartSector = ((current - 1 + direction + totalOptions) % totalOptions) + 1;
+                if (this.selectedStartSector <= this.MAX_LEVEL) {
+                    this.rememberNormalStartSector(this.selectedStartSector);
+                }
                 this.updateSettingsSectorLabel();
             }
 
@@ -16915,6 +16944,7 @@ Best Score: ${bestScore}${recoveredLine}` :
                 const maxOption = this.getSectorSelectOptionCount();
                 const sector = Math.max(1, Math.min(maxOption, this.selectedStartSector || this.level || 1));
                 this.selectedStartSector = sector;
+                if (sector <= this.MAX_LEVEL) this.rememberNormalStartSector(sector);
                 this.settingsSectorValue.textContent = this.developerModeEnabled && sector === endOption ? 'END' : `${sector}`;
                 const canChange = this.canChangeSectorSelection();
                 const arrowsEnabled = canChange && maxOption > 1;
@@ -17633,6 +17663,9 @@ Best Score: ${bestScore}${recoveredLine}` :
 
             startFinalGridlockTest() {
                 if (!this.developerModeEnabled) return false;
+
+                // END is a one-shot developer command, never a persistent launch sector.
+                this.consumeDeveloperEndSelection();
                 this.hideLevelSelectMenu();
                 this.stopAttractMode();
                 this.prepareFreshRunLifecycle('developer-end-reset');
@@ -17896,7 +17929,7 @@ Best Score: ${bestScore}${recoveredLine}` :
             jumpToLevel(levelNumber, resetScore = true) {
                 const maximumLevel = this.developerModeEnabled ? this.MAX_LEVEL : this.getMaximumSelectableSector();
                 const targetLevel = Math.max(1, Math.min(maximumLevel, levelNumber));
-                this.selectedStartSector = targetLevel;
+                this.selectedStartSector = this.rememberNormalStartSector(targetLevel);
                 this.updateSettingsSectorLabel();
                 const loadToken = ++this.levelLoadToken;
 
