@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Block-A-Zoids p212: changes the tutorial crystal instruction text to COLLECT CRYSTALS.
+Block-A-Zoids p213: repairs Final Gridlock restart lifecycle, routes developer END through the restoration sequence, and preserves tutorial completion across builds.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="p212">
+<html data-build-version="p213">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -9483,8 +9483,11 @@ Font License Notices
                 game.container.classList.remove('crt-shutdown-blackout');
                 game.clearCrtEventEffects();
                 game.cancelGameplayScheduling();
+                game.scheduler.cancelScope('visual-effects');
                 game.releaseWakeLock();
-                game.resetTerminalState();
+                game.resetTerminalState({ clearGameOver: true, clearRestartReady: true });
+                game.container.classList.remove('shake');
+                game.container.style.animation = '';
                 game.instructionsWindow.style.display = 'none';
                 game.setGameOverlayVisible(false);
                 if (game.resumeButton) game.resumeButton.textContent = 'Resume';
@@ -15888,12 +15891,28 @@ Best Score: ${bestScore}${recoveredLine}` :
 
             resetTerminalState(options = {}) {
                 const clearGameOver = options.clearGameOver !== false;
-                const clearRestartReady = !!options.clearRestartReady;
+                const clearRestartReady = options.clearRestartReady !== false;
                 if (clearGameOver) this.setTerminalState({ isGameOver: false });
                 this.setTerminalState({ finalGridlockActive: false });
                 this.setTerminalState({ finalGridlockResultActive: false });
                 this.setTerminalState({ finalGridlockElapsedMs: 0 });
                 if (clearRestartReady) this.setTerminalState({ restartReady: false });
+            }
+
+            resetFreshRunLifecycle(reason = 'fresh-run-reset') {
+                this.cancelTransitionGroup(reason);
+                this.cancelGameplayScheduling();
+                this.scheduler.cancelScope('visual-effects');
+                this.resetTemporaryInteractionState();
+                this.resetTerminalState({ clearGameOver: true, clearRestartReady: true });
+                this.flow.enter(GAME_FLOW_STATES.ATTRACT, reason);
+                this.container.classList.remove('shake', 'crt-shutdown-blackout');
+                this.container.style.animation = '';
+                this.clearCrtEventEffects();
+                this.hideEnemyDeathCausePresentation();
+                this.setGameOverlayVisible(false);
+                if (this.gestures) this.gestures.reset(reason);
+                if (this.player) this.player.reset();
             }
 
             resetRunState(startLevel = this.level) {
@@ -15944,7 +15963,7 @@ Best Score: ${bestScore}${recoveredLine}` :
                     GAME_FLOW_STATES.SECTOR_RESTORE,
                     GAME_FLOW_STATES.FINAL_GRIDLOCK
                 );
-                const terminalNotReady = this.flow.is(GAME_FLOW_STATES.GAME_OVER) && !this.restartReady;
+                const terminalNotReady = this.flow.is(GAME_FLOW_STATES.GAME_OVER) && this.isGameOver && !this.restartReady;
                 if (!this.requireLifecycleAction(
                     'beginSector',
                     !incompatibleFlow && !terminalNotReady,
@@ -17329,15 +17348,52 @@ Best Score: ${bestScore}${recoveredLine}` :
 
             startFinalGridlockTest() {
                 if (!this.developerModeEnabled) return false;
+
                 this.hideLevelSelectMenu();
                 this.stopAttractMode();
+                this.resetFreshRunLifecycle('developer-end-reset');
+                this.systems.prepareSectorEntry();
                 this.clearEnemyDeathCause();
-                this.resetTerminalState({ clearGameOver: true, clearRestartReady: true });
+
                 this.level = this.MAX_LEVEL;
-                this.score = 0;
+                this.resetRunState(this.level);
+                this.resetSectorState();
+                this.setPrismRelicState({ prismRelicRecoveredThisSector: true });
+                this.cosmicZapsLeft = 0;
+                this.player.reset();
+                this.playfieldRenderer.setPlayerVisible(this.player, true);
+                this.buildFinalGridlockGrid();
+
+                this.setGameplayState({ active: false, levelActionStarted: false });
+                this.setTransitionState({ sectorTransitionActive: true, startInputLocked: true });
+                this.flow.enter(GAME_FLOW_STATES.SECTOR_RESTORE, 'developer-end-restoration');
                 this.audio.resume();
                 this.audio.stopBackgroundMusic();
-                void this.beginFinalGridlock('developer-end-test');
+                this.ui.updateAll();
+
+                const transitionToken = ++this.levelLoadToken;
+                this.beginTransitionGroup('developer-end-restoration', transitionToken);
+                this.runGridRestoreSequence(this.MAX_LEVEL, transitionToken, {
+                    bonusLines: [],
+                    totalBonus: 0,
+                    removeEnemies: true,
+                    fadeToBlack: true
+                }).then((sequenceCompleted) => {
+                    if (!sequenceCompleted || transitionToken !== this.levelLoadToken || this.isGameOver) {
+                        this.setTransitionState({ sectorTransitionActive: false, startInputLocked: false });
+                        this.resetFreshRunLifecycle('developer-end-cancelled');
+                        this.returnToAttractMode();
+                        this.ui.updateAll();
+                        return;
+                    }
+                    this.setTransitionState({ sectorTransitionActive: false });
+                    void this.beginFinalGridlock('developer-end-test');
+                }).catch(() => {
+                    this.setTransitionState({ sectorTransitionActive: false, startInputLocked: false });
+                    this.resetFreshRunLifecycle('developer-end-error');
+                    this.returnToAttractMode();
+                    this.ui.updateAll();
+                });
                 return true;
             }
 
@@ -17596,25 +17652,11 @@ Best Score: ${bestScore}${recoveredLine}` :
                 this.bonusTextElement.style.opacity = '0';
             }
 
-            // Grid Calibration completion is scoped to the current build. A new build clears only
-            // the tutorial completion markers; scores, unlocks, settings, and telemetry remain intact.
-            getCurrentTutorialBuildId() {
-                return String(document.documentElement.dataset.buildVersion || BUILD_VERSION || 'unknown-build');
-            }
-
+            // Tutorial completion persists across builds and is cleared only by Reset Tutorial in Settings.
             loadIntroCompletionFlag() {
                 try {
                     const completionKey = this.introCompletionStorageKey || 'blockazoidsIntroCompletedV1';
-                    const buildKey = this.introCompletionBuildStorageKey || 'blockazoidsGridCalibrationCompletedBuildV1';
-                    const completed = localStorage.getItem(completionKey) === '1';
-                    const completedBuild = localStorage.getItem(buildKey);
-                    const currentBuild = this.getCurrentTutorialBuildId();
-                    if (completed && completedBuild === currentBuild) return true;
-                    if (completed || completedBuild) {
-                        localStorage.removeItem(completionKey);
-                        localStorage.removeItem(buildKey);
-                    }
-                    return false;
+                    return localStorage.getItem(completionKey) === '1';
                 } catch (_) {
                     return false;
                 }
@@ -17623,7 +17665,8 @@ Best Score: ${bestScore}${recoveredLine}` :
             saveIntroCompletionFlag() {
                 try {
                     localStorage.setItem(this.introCompletionStorageKey, '1');
-                    localStorage.setItem(this.introCompletionBuildStorageKey, this.getCurrentTutorialBuildId());
+                    // Remove the retired build-scoped marker during migration.
+                    if (this.introCompletionBuildStorageKey) localStorage.removeItem(this.introCompletionBuildStorageKey);
                 } catch (_) {}
                 this.introCompleted = true;
                 this.tutorialRequiredOnFirstRun = false;
@@ -18453,13 +18496,12 @@ Best Score: ${bestScore}${recoveredLine}` :
                     this.tutorialRequiredOnFirstRun = !this.introCompleted;
                 }
 
-                this.cancelTransitionGroup('new-run');
                 this.suspendAttractEnemyCards();
                 const selectedOption = Math.max(1, Math.min(this.getSectorSelectOptionCount(), this.selectedStartSector || 1));
                 const endOption = this.getEndSectorOptionValue();
 
                 this.clearEnemyDeathCause();
-                this.resetTerminalState({ clearGameOver: false, clearRestartReady: true });
+                this.resetFreshRunLifecycle('new-run-reset');
                 this.hasStartedRun = true;
 
                 this.systems.activateRunStartAudio();
