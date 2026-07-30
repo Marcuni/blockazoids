@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Block-A-Zoids p235: removes the legacy Game compatibility surface and routes owned state and commands directly to their systems.
+Block-A-Zoids p236: repairs transition regressions and restores explicit dependency arguments after compatibility-surface removal.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="p235">
+<html data-build-version="p236">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -8619,15 +8619,15 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
         const BUILD_METADATA = window.BLOCKAZOIDS_BUILD = Object.freeze({
             version: document.documentElement.dataset.buildVersion || 'unknown',
             label: BUILD_VERSION,
-            architecturePhase: 'compatibility-surface-removal-1',
-            sourceBaseline: 'p234',
+            architecturePhase: 'transition-contract-repair-1',
+            sourceBaseline: 'p235',
             behaviorPolicy: 'architecture-only'
         });
 
         const SOURCE_LAYOUT = window.BLOCKAZOIDS_SOURCE_LAYOUT = Object.freeze({
             developmentModel: 'modular-source',
             releaseModel: 'single-html',
-            buildOutput: 'block-a-zoids-p235.html',
+            buildOutput: 'block-a-zoids-p236.html',
             categories: Object.freeze([
                 'build', 'config', 'content', 'rules', 'state', 'services', 'app', 'gameplay',
                 'presentation', 'platform', 'audio', 'ui', 'development'
@@ -10075,7 +10075,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
 
             saveCurrentRunPaceProfileIfRecord(score, runSession) {
                 const numericScore = Math.max(0, Math.floor(Number(score) || 0));
-                if (!runSession.paceProfileKey || numericScore <= 0) return false;
+                if (!runSession || typeof runSession !== 'object' || !runSession.paceProfileKey || numericScore <= 0) return false;
                 this.recordPaceProfiles = this.loadRecordPaceProfiles();
                 const previousProfile = this.recordPaceProfiles.profiles[runSession.paceProfileKey];
                 const previousScore = previousProfile ? Math.max(0, Number(previousProfile.score) || 0) : 0;
@@ -10093,6 +10093,10 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
             captureSectorRecordPace(score, completedLevel, runSession) {
                 const checkpointKey = this.getRecordPaceCheckpointKey(completedLevel);
                 const currentScore = Math.max(0, Math.floor(Number(score) || 0));
+                if (!runSession || typeof runSession !== 'object') {
+                    return Object.freeze({ hasTarget: false, delta: 0, currentScore, targetScore: 0, checkpointKey, saved: false });
+                }
+                if (!runSession.paceCheckpoints || typeof runSession.paceCheckpoints !== 'object') runSession.paceCheckpoints = {};
                 runSession.paceCheckpoints[checkpointKey] = currentScore;
                 const targetCheckpoints = this.recordPaceTargetProfile && this.recordPaceTargetProfile.checkpoints;
                 const rawTargetScore = targetCheckpoints ? Number(targetCheckpoints[checkpointKey]) : NaN;
@@ -11554,7 +11558,11 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                         return Object.freeze({ outcome: 'invincible-collision', enemy });
                     }
                     const deathCause = game.captureEnemyDeathCause(enemy);
-                    game.endRun({ deathEnemySize: enemy.type || null, deathCause });
+                    void game.endRun({ deathEnemySize: enemy.type || null, deathCause })
+                        .catch((error) => {
+                            console.error('[Block-A-Zoids] Game Over transition failed.', error);
+                            game.recoverFromEndingTransitionFailure('game-over-transition-error');
+                        });
                     return Object.freeze({ outcome: 'player-hit', enemy });
                 }
 
@@ -14368,7 +14376,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                     effectiveSpeeds: this.telemetrySystem.getEffectiveEnemySpeedsSnapshot(),
                     levelSpeedBoost: GAME_CONFIG.enemyMovement.levelSpeedBoost,
                     cosmicZapPressure: this.cosmicZapSystem.usesThisSector,
-                    cosmicZapsAvailable: this.cosmicZapSystem.getCapacity(),
+                    cosmicZapsAvailable: this.cosmicZapSystem.getCapacity(this.settings.difficultyMode),
                     blinkingCrystalCount: this.crystalSystem.currentBlinkingCrystalCount,
                     prismRelicSpawnMode: 'gridlock-only',
                     prismRelicSpawnEnemyThreshold: this.normalSwarmSize,
@@ -14776,7 +14784,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 const previousPosition = previousPickup ? { x: previousPickup.x, y: previousPickup.y } : center;
                 const currentPosition = position || (crystal ? { x: crystal.x + crystal.size / 2, y: crystal.y + crystal.size / 2 } : center);
                 const color = crystal && crystal.color ? crystal.color : (this.crystalSystem.colorOrder[this.crystalSystem.currentColorIndex] || null);
-                const gridPosition = crystal ? this.crystalSystem.getGridPosition(crystal) : {
+                const gridPosition = crystal ? this.crystalSystem.getGridPosition(crystal, this.GRID_SIZE) : {
                     col: Math.round(currentPosition.x / this.GRID_SIZE),
                     row: Math.round(currentPosition.y / this.GRID_SIZE)
                 };
@@ -14820,7 +14828,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 return this.crystalSystem.activeBlinkingCrystals.map(crystal => {
                     const centerX = crystal.x + crystal.size / 2;
                     const centerY = crystal.y + crystal.size / 2;
-                    const grid = this.crystalSystem.getGridPosition(crystal);
+                    const grid = this.crystalSystem.getGridPosition(crystal, this.GRID_SIZE);
                     return {
                         color: crystal.color,
                         order: crystal.order,
@@ -15732,6 +15740,9 @@ Best Score: ${bestScore}${recoveredLine}` :
                 records.resetRunPaceTracking(run, 2);
                 const pace = records.captureSectorRecordPace(75, 2, run);
                 this.assert('HighScoreSystem owns record-pace checkpoints', pace.currentScore === 75 && run.paceCheckpoints['2'] === 75);
+                const safeMissingPace = records.captureSectorRecordPace(75, 2, null);
+                this.assert('HighScoreSystem missing RunSession cannot freeze a transition', safeMissingPace.currentScore === 75 && safeMissingPace.hasTarget === false);
+                this.assert('HighScoreSystem missing RunSession pace save fails safely', records.saveCurrentRunPaceProfileIfRecord(75, null) === false);
 
 
                 testStorage.setItem(GAME_CONFIG.storage.highestSector, '3');
@@ -15864,6 +15875,17 @@ Best Score: ${bestScore}${recoveredLine}` :
 
                 this.assert('Legacy Game state proxy helper removed', typeof installOwnedStateProxy === 'undefined');
                 this.assert('Game command delegates removed', !Game.prototype.beginTelemetryRun && !Game.prototype.enableDeveloperMode && !Game.prototype.returnToAttractMode && !Game.prototype.renderPlayfieldFrame);
+
+                const restoreSource = Game.prototype.runGridRestoreSequence.toString();
+                const restartSource = Game.prototype.restartRun.toString();
+                const endRunSource = Game.prototype.endRun.toString();
+                const completeSectorSource = Game.prototype.completeSector.toString();
+                const topologySource = Game.prototype.connectToNearestIntersection.toString();
+                this.assert('Sector pace call supplies score, sector, and RunSession', restoreSource.includes('captureSectorRecordPace(this.scoreSystem.value, completedLevel, this.runSession)'));
+                this.assert('Restart pace save supplies score and RunSession', restartSource.includes('saveCurrentRunPaceProfileIfRecord(this.scoreSystem.value, this.runSession)'));
+                this.assert('Game Over pace save supplies score and RunSession', endRunSource.includes('saveCurrentRunPaceProfileIfRecord(this.scoreSystem.value, this.runSession)'));
+                this.assert('Sector restoration rejection has lifecycle recovery', completeSectorSource.includes('sector-restoration-error'));
+                this.assert('Crystal topology calls retain responsive grid size', topologySource.includes('normalizeGridPoint(currentPos, this.GRID_SIZE)') && topologySource.includes('hasCollectedGridPoint(target, this.GRID_SIZE)'));
             }
 
             validateFlow() {
@@ -21173,7 +21195,7 @@ Best Score: ${bestScore}${recoveredLine}` :
                 this.initializeResponsiveViewportHandling();
                 this.setupSplashIntro();
                 this.applyLevelParameters();
-                this.gridlockSystem.resetRelicTiming();
+                this.gridlockSystem.resetRelicTiming(this.normalSwarmSize);
                 this.highScoreScreen.update();
                 this.attractModeSystem.returnToAttractMode();
                 this.screenManager.refreshOverlay();
@@ -21343,7 +21365,7 @@ Best Score: ${bestScore}${recoveredLine}` :
                     const row = Number.isInteger(position.row)
                         ? position.row
                         : (oldGridSize ? Math.round((Number(position.y) || 0) / oldGridSize) : 0);
-                    return this.crystalSystem.createGridPoint(col, row);
+                    return this.crystalSystem.createGridPoint(col, row, this.GRID_SIZE);
                 });
 
                 (this.crystalSystem.lines || []).forEach(line => {
@@ -21354,7 +21376,7 @@ Best Score: ${bestScore}${recoveredLine}` :
                         const row = Number.isInteger(endpoint.row)
                             ? endpoint.row
                             : (oldGridSize ? Math.round((Number(endpoint.y) || 0) / oldGridSize) : 0);
-                        return this.crystalSystem.createGridPoint(col, row);
+                        return this.crystalSystem.createGridPoint(col, row, this.GRID_SIZE);
                     };
                     line.start = normalizeEndpoint(line.start);
                     line.end = normalizeEndpoint(line.end);
@@ -21738,7 +21760,7 @@ Best Score: ${bestScore}${recoveredLine}` :
                         behaviorType: pulseTeachingPlan[index] || ENEMY_BEHAVIOR_TYPES.DRIFTER
                     }));
                 } else {
-                    const sectorBehaviorPlan = this.campaign.getEnemyBehaviorPlan();
+                    const sectorBehaviorPlan = this.campaign.getEnemyBehaviorPlan(this.campaign.currentSector, this.normalSwarmSize);
                     this.enemySpawnSystem.spawnQueue = this.enemySpawnSystem.spawnQueue.map((type, index) => ({
                         type,
                         behaviorType: sectorBehaviorPlan[index] || ENEMY_BEHAVIOR_TYPES.DRIFTER
@@ -21956,7 +21978,7 @@ Best Score: ${bestScore}${recoveredLine}` :
                 this.sectorElapsedMs = 0;
                 if (this.audio && this.audio.setMaxSwarmBeatIntensity) this.audio.setMaxSwarmBeatIntensity(0);
                 this.applyLevelParameters();
-                this.gridlockSystem.resetRelicTiming();
+                this.gridlockSystem.resetRelicTiming(this.normalSwarmSize);
             }
 
             // Phase 4B lifecycle entry: prepare all state needed to enter a sector.
@@ -21986,7 +22008,7 @@ Best Score: ${bestScore}${recoveredLine}` :
                 this.campaign.currentSector = targetLevel;
                 this.recordProgressUnlocks(this.campaign.currentSector);
                 if (resetScore) this.resetRunState(this.campaign.currentSector);
-                this.runSession.updateProgress();
+                this.runSession.updateProgress(this.campaign.currentSector);
                 this.resetSectorState();
                 this.ui.updateAll();
                 this.diagnosticsSystem.validateStateInvariants('beginSector');
@@ -22076,7 +22098,7 @@ Best Score: ${bestScore}${recoveredLine}` :
 
                 this.telemetrySystem.ensureTelemetryRun('gameplay');
                 this.telemetrySystem.startTelemetrySector('sector-action-start');
-                this.runSession.updateProgress();
+                this.runSession.updateProgress(this.campaign.currentSector);
                 this.startRunRecordActionClock();
                 this.runtimeState.patchGameplay({ levelActionStarted: true });
                 this.runtimeState.patchTransition({ sectorTransitionActive: false });
@@ -22236,7 +22258,7 @@ Best Score: ${bestScore}${recoveredLine}` :
                 if (!this.settingsSectorValue) return;
                 const totalSectors = this.MAX_LEVEL || GameRules.getCampaignLength();
                 const endOption = this.campaign.getEndOptionValue();
-                const maxOption = this.campaign.getSectorSelectOptionCount();
+                const maxOption = this.campaign.getSectorSelectOptionCount({ developerMode: this.developerTools.developerModeEnabled });
                 const sector = Math.max(1, Math.min(maxOption, this.campaign.selectedStartSector || this.campaign.currentSector || 1));
                 this.campaign.selectedStartSector = sector;
                 if (sector <= this.MAX_LEVEL) this.campaign.rememberNormalStartSector(sector);
@@ -22386,13 +22408,13 @@ Best Score: ${bestScore}${recoveredLine}` :
 
 
             captureCurrentHighScoreDetails() {
-                this.runSession.updateProgress();
+                this.runSession.updateProgress(this.campaign.currentSector);
                 const sector = Math.max(1, this.runSession.highestSector || this.campaign.currentSector || 1);
                 return {
                     score: this.highScoreSystem.highScore,
                     highestSector: sector,
                     highestSectorName: this.campaign.getSectorName(sector),
-                    relics: this.runSession.getRecoveredRelicCount(),
+                    relics: this.runSession.getRecoveredRelicCount(this.MAX_LEVEL),
                     gameTimeMs: this.runSession.getElapsedMs()
                 };
             }
@@ -22517,7 +22539,11 @@ Best Score: ${bestScore}${recoveredLine}` :
                     this.player.invalidateDragSession('page-hidden');
                     this.lastMotionSample = null;
                     if (this.flow.isLiveAction() && this.runtimeState.active && this.runtimeState.levelActionStarted && !this.runtimeState.isGameOver) {
-                        void this.endRun({ deathCause: 'app-backgrounded' });
+                        void this.endRun({ deathCause: 'app-backgrounded' })
+                            .catch((error) => {
+                                console.error('[Block-A-Zoids] Background Game Over transition failed.', error);
+                                this.recoverFromEndingTransitionFailure('background-game-over-transition-error');
+                            });
                     }
                     return;
                 }
@@ -22618,7 +22644,7 @@ Best Score: ${bestScore}${recoveredLine}` :
 
             restartRun() {
                 this.resetRestartConfirmationState();
-                this.highScoreSystem.saveCurrentRunPaceProfileIfRecord();
+                this.highScoreSystem.saveCurrentRunPaceProfileIfRecord(this.scoreSystem.value, this.runSession);
                 if (this.telemetrySystem.currentTelemetryRun && !this.telemetrySystem.currentTelemetryRun.endedAt) this.telemetrySystem.finishTelemetryRun('restart');
                 this.audio.resume();
                 this.audio.stopBackgroundMusic();
@@ -22857,7 +22883,7 @@ Best Score: ${bestScore}${recoveredLine}` :
                 }
 
                 this.attractModeSystem.suspendAttractEnemyCards();
-                const selectedOption = Math.max(1, Math.min(this.campaign.getSectorSelectOptionCount(), this.campaign.selectedStartSector || 1));
+                const selectedOption = Math.max(1, Math.min(this.campaign.getSectorSelectOptionCount({ developerMode: this.developerTools.developerModeEnabled }), this.campaign.selectedStartSector || 1));
                 const endOption = this.campaign.getEndOptionValue();
 
                 this.clearEnemyDeathCause();
@@ -22939,7 +22965,7 @@ Best Score: ${bestScore}${recoveredLine}` :
                     gridSize: this.GRID_SIZE,
                     crystalOffset: this.CRYSTAL_OFFSET,
                     withIntro,
-                    getColor: (col, row) => this.campaign.getCrystalColorAt(col, row)
+                    getColor: (col, row) => this.campaign.getCrystalColorAt(col, row, this.campaign.currentSector)
                 });
                 if (withIntro) {
                     this.scheduler.scheduleTimeout('transitions', 'crystal-intro-cleanup', () => {
@@ -23083,7 +23109,7 @@ Best Score: ${bestScore}${recoveredLine}` :
                 if (!this.gridlockSystem.overtimeActive || !this.flow.isLiveAction()) return false;
                 const spawnRequest = {
                     type: this.chooseOvertimeEnemyType(),
-                    behaviorType: this.gridlockSystem.chooseBehavior()
+                    behaviorType: this.gridlockSystem.chooseBehavior(this.campaign.getEnemyBehaviorPlan(this.campaign.currentSector, this.normalSwarmSize))
                 };
                 const warningStarted = this.enemySpawnSystem.startWarning(spawnRequest, {
                     requeueOnCancel: false,
@@ -23131,8 +23157,8 @@ Best Score: ${bestScore}${recoveredLine}` :
 
                 this.removePrismRelic();
                 this.telemetrySystem.noteTelemetryPrismRelicCollected();
-                const relicSectorKey = this.gridlockSystem.getRelicSectorKey();
-                const sectorAlreadyRepresented = this.runSession.hasRecoveredRelic(this.campaign.currentSector);
+                const relicSectorKey = this.gridlockSystem.getRelicSectorKey(this.campaign.currentSector);
+                const sectorAlreadyRepresented = this.runSession.hasRecoveredRelic(this.campaign.currentSector, this.MAX_LEVEL);
                 if (!this.runSession.relicRecoveredBySector[relicSectorKey]) {
                     this.runSession.relicRecoveredBySector[relicSectorKey] = true;
                     if (!sectorAlreadyRepresented) {
@@ -23324,6 +23350,9 @@ Best Score: ${bestScore}${recoveredLine}` :
                     }
 
                     this.advanceToNextLevelAfterRestore(completedLevel + 1, transitionToken);
+                }).catch((error) => {
+                    console.error('[Block-A-Zoids] Sector restoration transition failed.', error);
+                    this.recoverFromEndingTransitionFailure('sector-restoration-error');
                 });
             }
 
@@ -23414,7 +23443,7 @@ Best Score: ${bestScore}${recoveredLine}` :
                 // Always explain the pace state. The first comparable checkpoint is visibly
                 // established; later runs compare against that saved Sector checkpoint.
                 if (stillCurrent) {
-                    const paceResult = this.highScoreSystem.captureSectorRecordPace(completedLevel);
+                    const paceResult = this.highScoreSystem.captureSectorRecordPace(this.scoreSystem.value, completedLevel, this.runSession);
                     const paceMarkup = paceResult.hasTarget
                         ? `<div class="bonus-score-row record-pace-row"><span>HIGH SCORE PACE</span><span>${this.formatRecordPaceDelta(paceResult.delta)}</span></div>`
                         : `<div class="bonus-score-row record-pace-row pace-established"><span>PACE ESTABLISHED</span></div>`;
@@ -23474,7 +23503,7 @@ Best Score: ${bestScore}${recoveredLine}` :
                 this.gridlockSystem.gridlockRelicAttemptNumber = 0;
                 this.enemySpawnSystem.spawnedCount = { small: 0, medium: 0, large: 0 };
                 this.applyLevelParameters();
-                this.gridlockSystem.resetRelicTiming();
+                this.gridlockSystem.resetRelicTiming(this.normalSwarmSize);
                 this.ui.updateAll();
 
                 this.stopRunRecordActionClock();
@@ -23552,7 +23581,7 @@ Best Score: ${bestScore}${recoveredLine}` :
 
             // Connect a collected crystal to neighboring collected grid intersections.
             connectToNearestIntersection(currentPos) {
-                const current = this.crystalSystem.normalizeGridPoint(currentPos);
+                const current = this.crystalSystem.normalizeGridPoint(currentPos, this.GRID_SIZE);
                 const directions = [
                     { dc: 0, dr: -1, horizontal: false }, // Up
                     { dc: 0, dr: 1, horizontal: false },  // Down
@@ -23563,9 +23592,10 @@ Best Score: ${bestScore}${recoveredLine}` :
                 directions.forEach(direction => {
                     const target = this.crystalSystem.createGridPoint(
                         current.col + direction.dc,
-                        current.row + direction.dr
+                        current.row + direction.dr,
+                        this.GRID_SIZE
                     );
-                    if (this.crystalSystem.hasCollectedGridPoint(target)) {
+                    if (this.crystalSystem.hasCollectedGridPoint(target, this.GRID_SIZE)) {
                         this.drawLine(current, target, direction.horizontal);
                         this.checkForCompletedSquare(current, target);
                     }
@@ -24250,7 +24280,7 @@ Best Score: ${bestScore}${recoveredLine}` :
                 if (this.vectorTrail) this.vectorTrail.clear();
                 this.beginTransitionGroup('game-over', transitionToken);
                 const endedInFinalGridlock = this.systems.prepareRunEnd(deathDetails);
-                this.highScoreSystem.saveCurrentRunPaceProfileIfRecord();
+                this.highScoreSystem.saveCurrentRunPaceProfileIfRecord(this.scoreSystem.value, this.runSession);
                 this.diagnosticsSystem.validateStateInvariants('endRun');
 
                 if (!await this.wait(GAME_CONFIG.transitions.gameOverRevealMs, transitionToken, 'game-over-reveal')) return;
@@ -24259,7 +24289,7 @@ Best Score: ${bestScore}${recoveredLine}` :
                 this.audio.resume();
 
                 if (endedInFinalGridlock) {
-                    const finalRelics = this.runSession.getRecoveredRelicCount();
+                    const finalRelics = this.runSession.getRecoveredRelicCount(this.MAX_LEVEL);
                     const finalCampaignTime = this.telemetrySystem.formatTelemetryDuration(this.runSession.getElapsedMs());
                     this.runtimeState.patchTerminal({ finalGridlockActive: false });
                     this.runtimeState.patchTerminal({ finalGridlockResultActive: true });
@@ -28403,7 +28433,7 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 const remainingZaps = Math.max(0, Math.floor(Number(this.game.cosmicZapSystem.remaining) || 0));
                 const zapIcons = this.cosmicZapIcons || [];
                 const zapCapacity = this.game.cosmicZapSystem.getCapacity
-                    ? Math.max(1, Math.floor(Number(this.game.cosmicZapSystem.getCapacity()) || 1))
+                    ? Math.max(1, Math.floor(Number(this.game.cosmicZapSystem.getCapacity(this.game.settings.difficultyMode)) || 1))
                     : Math.max(1, remainingZaps);
                 const visibleCapacity = Math.min(zapIcons.length, Math.max(zapCapacity, remainingZaps));
                 const litStartIndex = Math.max(0, visibleCapacity - Math.min(visibleCapacity, remainingZaps));
