@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Block-A-Zoids p218: rebuilds the campaign-ending lifecycle, restores the full Prism Grid restoration presentation, and repairs Final Gridlock death/restart recovery.
+Block-A-Zoids p215: rebuilds the campaign-ending lifecycle, restores the full Prism Grid restoration presentation, and repairs Final Gridlock death/restart recovery.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="p218">
+<html data-build-version="p215">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -2173,6 +2173,14 @@ Font License Notices
             line-height: 1;
         }
 
+        #bonusText.finalGridlockSummary .campaign-final-score-label {
+            display: block;
+            margin-bottom: 6px;
+            font-size: 0.82em;
+            letter-spacing: 2.2px;
+            opacity: 0.92;
+        }
+
         #bonusText.finalGridlockSummary .campaign-final-score-value {
             display: block;
             font-size: clamp(46px, 14vw, 82px);
@@ -2189,13 +2197,12 @@ Font License Notices
 
 
         #bonusText.finalGridlockSummary .campaign-final-stat-list {
-            --campaign-final-stat-gap: clamp(8px, 2.4vw, 14px);
             width: min(330px, 94%);
-            margin: calc(var(--campaign-final-stat-gap) + var(--campaign-final-stat-gap)) auto 0;
+            margin: 0 auto;
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: var(--campaign-final-stat-gap);
+            gap: clamp(8px, 2.4vw, 14px);
         }
 
         #bonusText.finalGridlockSummary .campaign-final-stat-line {
@@ -7956,21 +7963,6 @@ Font License Notices
             top: clamp(6px, 1.8vw, 10px) !important;
         }
 
-        /* p218: center the High Score value in the vertical space between
-           the HIGH SCORE heading and the fixed lower information block. */
-        html body #highScorePanel #highScorePanelValue {
-            position: absolute !important;
-            left: 0 !important;
-            right: 0 !important;
-            top: clamp(66px, 17.1vw, 104px) !important;
-            bottom: 52% !important;
-            margin: 0 !important;
-            display: flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-            transform: none !important;
-        }
-
 
         /* p185 bezel-off visual test. Preserve the p182 WebGL glass distortion and
            CRT/Vector screen effects, but remove every curved monitor-frame layer so
@@ -10372,19 +10364,10 @@ Font License Notices
                     startedAt: performance.now(),
                     durationMs: Math.max(1, Number(durationMs) || 6200)
                 };
-
-                if (this.game && typeof this.game.requestPlayfieldRender === 'function') {
-                    this.game.requestPlayfieldRender();
-                }
-                this.ensurePlayerEffectFrame();
             }
 
             stopCampaignCompletion() {
                 if (this.game.campaignCompletionEffect) this.game.campaignCompletionEffect.active = false;
-                if (this.game && this.game.scheduler) {
-                    this.game.scheduler.cancelScope('canvas-player-effects');
-                }
-                this.effectFrameScheduled = false;
             }
 
             clearRestorationPresentation() {
@@ -10974,7 +10957,6 @@ Font License Notices
             restorationEffectsNeedAnimation(timestamp = performance.now()) {
                 const effects = [
                     this.game && this.game.gridRestoreEffect,
-                    this.game && this.game.campaignCompletionEffect,
                 ];
                 return effects.some(effect => {
                     if (!effect || effect.active === false) return false;
@@ -21448,7 +21430,7 @@ Best Score: ${bestScore}${recoveredLine}` :
 
                 this.gameOverElement.classList.remove('finalGridlockGameOverText', 'campaign-completion-title');
                 this.gameOverElement.classList.add('finalGameCompleteText');
-                this.gameOverElement.textContent = 'PRISM\nRESTORED';
+                this.gameOverElement.textContent = 'PRISM GRID\nRESTORED';
                 this.gameOverElement.style.opacity = '0';
                 this.bonusTextElement.style.opacity = '0';
                 this.bonusTextElement.textContent = '';
@@ -21468,20 +21450,6 @@ Best Score: ${bestScore}${recoveredLine}` :
                 this.gameOverElement.classList.add('campaign-completion-title');
                 this.gameOverElement.style.opacity = '1';
                 this.playfieldRenderer.startCampaignCompletion(durationMs);
-                this.renderPlayfieldFrame(performance.now());
-
-                // Begin audio only after the restoration renderer owns a visible frame.
-                const firstPresentationFrame = await this.nextTransitionFrame(
-                    transitionToken,
-                    'campaign-completion-first-visible-frame'
-                );
-                if (firstPresentationFrame === null ||
-                    transitionToken !== this.levelLoadToken ||
-                    this.isGameOver) {
-                    this.clearCampaignCompletionPresentation();
-                    return false;
-                }
-
                 this.audio.playGridRestored();
                 if (!await this.wait(durationMs, transitionToken, 'campaign-completion-presentation')) {
                     this.clearCampaignCompletionPresentation();
@@ -21628,7 +21596,7 @@ Best Score: ${bestScore}${recoveredLine}` :
                     this.bonusTextElement.classList.remove('finalGameSummary');
                     this.bonusTextElement.classList.add('finalGridlockSummary');
                     this.gameOverElement.textContent = 'PRISM CAMPAIGN';
-                    this.bonusTextElement.innerHTML = `<span class="campaign-final-score"><span class="campaign-final-score-value">${this.score}</span></span><span class="campaign-final-stat-list"><span class="campaign-final-stat-line"><span class="campaign-final-stat-label">RELICS</span><span class="campaign-final-stat-value">${finalRelics}</span></span><span class="campaign-final-stat-line"><span class="campaign-final-stat-label">LEVEL</span><span class="campaign-final-stat-value">${this.FINAL_GRIDLOCK_LEVEL}</span></span><span class="campaign-final-stat-line"><span class="campaign-final-stat-label">TIME</span><span class="campaign-final-stat-value">${finalCampaignTime}</span></span></span>`;
+                    this.bonusTextElement.innerHTML = `<span class="campaign-final-score"><span class="campaign-final-score-label">FINAL SCORE</span><span class="campaign-final-score-value">${this.score}</span></span><span class="campaign-final-stat-list"><span class="campaign-final-stat-line"><span class="campaign-final-stat-label">RELICS</span><span class="campaign-final-stat-value">${finalRelics}</span></span><span class="campaign-final-stat-line"><span class="campaign-final-stat-label">LEVEL</span><span class="campaign-final-stat-value">${this.FINAL_GRIDLOCK_LEVEL}</span></span><span class="campaign-final-stat-line"><span class="campaign-final-stat-label">TIME</span><span class="campaign-final-stat-value">${finalCampaignTime}</span></span></span>`;
                     this.gameOverElement.style.opacity = '1';
                     this.bonusTextElement.style.opacity = '1';
                     this.setGameOverlayVisible(true);
