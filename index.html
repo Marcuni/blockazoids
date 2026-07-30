@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Block-A-Zoids p226: extracts settings, score, high-score persistence, and run-session state from the legacy Game coordinator.
+Block-A-Zoids p227: extracts campaign progression, sector selection, and Cosmic Zap resource state from the legacy Game coordinator.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="p226">
+<html data-build-version="p227">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -8619,17 +8619,17 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
         const BUILD_METADATA = window.BLOCKAZOIDS_BUILD = Object.freeze({
             version: document.documentElement.dataset.buildVersion || 'unknown',
             label: BUILD_VERSION,
-            architecturePhase: 'state-ownership-extraction-1',
-            sourceBaseline: 'p225',
+            architecturePhase: 'state-ownership-extraction-2',
+            sourceBaseline: 'p226',
             behaviorPolicy: 'architecture-only'
         });
 
         const SOURCE_LAYOUT = window.BLOCKAZOIDS_SOURCE_LAYOUT = Object.freeze({
             developmentModel: 'modular-source',
             releaseModel: 'single-html',
-            buildOutput: 'block-a-zoids-p226.html',
+            buildOutput: 'block-a-zoids-p227.html',
             categories: Object.freeze([
-                'build', 'config', 'content', 'rules', 'app', 'gameplay',
+                'build', 'config', 'content', 'rules', 'state', 'services', 'app', 'gameplay',
                 'presentation', 'platform', 'audio', 'ui', 'development'
             ])
         });
@@ -9354,6 +9354,8 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 scoring: Object.freeze({ owner: 'ScoreSystem', responsibility: 'Current score value and score arithmetic' }),
                 runSession: Object.freeze({ owner: 'RunSession', responsibility: 'Current-run timing, progress, pace checkpoints, and relic state' }),
                 records: Object.freeze({ owner: 'HighScoreSystem', responsibility: 'Difficulty-specific records, details, migration, and pace profiles' }),
+                campaign: Object.freeze({ owner: 'CampaignSystem', responsibility: 'Current sector, campaign content access, sector selection, and progression unlocks' }),
+                cosmicZaps: Object.freeze({ owner: 'CosmicZapSystem', responsibility: 'Zap capacity, remaining charges, usage count, cooldown, and protection window' }),
                 flow: Object.freeze({ owner: 'GameFlowController', responsibility: 'Authoritative major game-flow state' }),
                 scheduling: Object.freeze({ owner: 'SchedulingManager', responsibility: 'Named cancellable delayed work' }),
                 coordination: Object.freeze({ owner: 'GameSystemCoordinator', responsibility: 'Ordered cross-system lifecycle calls' }),
@@ -9389,7 +9391,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 canonicalCampaign: 'GAME_DATA.sectors',
                 explicitDifficultyResources: 'GAME_CONFIG.difficulty.profiles.*.cosmicZaps',
                 finalArtifact: 'single numbered HTML build',
-                extractedStateOwners: 'SettingsSystem / ScoreSystem / RunSession / HighScoreSystem'
+                extractedStateOwners: 'SettingsSystem / ScoreSystem / RunSession / HighScoreSystem / CampaignSystem / CosmicZapSystem'
             })
         });
 
@@ -10137,6 +10139,255 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
             });
         }
 
+/* Source: src/js/state/84-campaign-system.js */
+        class CampaignSystem {
+            constructor(storage, config, data) {
+                this.storage = storage;
+                this.config = config;
+                this.data = data;
+                this.progressKey = config.storage.highestSector;
+                this.campaignLength = GameRules.getCampaignLength();
+                this.finalGridlockSector = this.campaignLength + 1;
+                this._currentSector = 1;
+                this._selectedStartSector = 1;
+                this._lastNormalSelectedStartSector = 1;
+                this.highestUnlockedSector = this.loadHighestUnlockedSector();
+            }
+
+            normalizeCampaignSector(value) {
+                const numeric = Math.floor(Number(value) || 1);
+                return Math.max(1, Math.min(this.campaignLength, numeric));
+            }
+
+            normalizePlayableSector(value) {
+                const numeric = Math.floor(Number(value) || 1);
+                return Math.max(1, Math.min(this.finalGridlockSector, numeric));
+            }
+
+            get currentSector() {
+                return this._currentSector;
+            }
+
+            set currentSector(value) {
+                this._currentSector = this.normalizePlayableSector(value);
+            }
+
+            get selectedStartSector() {
+                return this._selectedStartSector;
+            }
+
+            set selectedStartSector(value) {
+                const numeric = Math.floor(Number(value) || 1);
+                this._selectedStartSector = Math.max(1, Math.min(this.finalGridlockSector, numeric));
+            }
+
+            get lastNormalSelectedStartSector() {
+                return this._lastNormalSelectedStartSector;
+            }
+
+            set lastNormalSelectedStartSector(value) {
+                this._lastNormalSelectedStartSector = this.normalizeCampaignSector(value);
+            }
+
+            loadHighestUnlockedSector() {
+                try {
+                    const stored = parseInt(this.storage.getItem(this.progressKey) || '1', 10);
+                    return this.normalizeCampaignSector(Number.isFinite(stored) ? stored : 1);
+                } catch (_) {
+                    return 1;
+                }
+            }
+
+            saveHighestUnlockedSector() {
+                try {
+                    this.storage.setItem(this.progressKey, String(this.highestUnlockedSector || 1));
+                    return true;
+                } catch (_) {
+                    return false;
+                }
+            }
+
+            recordProgressUnlock(levelNumber = this.currentSector, { developerMode = false } = {}) {
+                if (developerMode) return Object.freeze({ changed: false, highestUnlockedSector: this.highestUnlockedSector });
+                const nextSector = this.normalizeCampaignSector(levelNumber);
+                const changed = nextSector > (this.highestUnlockedSector || 1);
+                if (changed) {
+                    this.highestUnlockedSector = nextSector;
+                    this.saveHighestUnlockedSector();
+                }
+                return Object.freeze({ changed, highestUnlockedSector: this.highestUnlockedSector });
+            }
+
+            getSector(levelNumber = this.currentSector) {
+                return GameRules.getSector(this.normalizeCampaignSector(levelNumber));
+            }
+
+            getSectorName(levelNumber = this.currentSector) {
+                if (Number(levelNumber) >= this.finalGridlockSector) return 'Final Gridlock';
+                const sector = this.getSector(levelNumber);
+                return sector ? sector.name : '';
+            }
+
+            getSectorPattern(levelNumber = this.currentSector) {
+                const sector = this.getSector(levelNumber);
+                return sector && Array.isArray(sector.pattern) ? sector.pattern : [];
+            }
+
+            getEnemyBehaviorPlan(levelNumber = this.currentSector, fallbackCount = 0) {
+                const sector = this.getSector(levelNumber);
+                const plan = sector ? sector.enemyBehaviorPlan : null;
+                if (Array.isArray(plan) && plan.length > 0) return plan;
+                return Array(Math.max(0, Math.floor(Number(fallbackCount) || 0))).fill(ENEMY_BEHAVIOR_TYPES.DRIFTER);
+            }
+
+            getCrystalColorAt(col, row, levelNumber = this.currentSector) {
+                const rows = this.getSectorPattern(levelNumber);
+                if (!rows.length) return 'blue';
+                const normalizedRow = Math.max(1, Math.min(rows.length, Math.round(Number(row) || 1)));
+                const rowPattern = rows[normalizedRow - 1] || '';
+                if (!rowPattern.length) return 'blue';
+                const normalizedCol = Math.max(1, Math.min(rowPattern.length, Math.round(Number(col) || 1)));
+                const letter = rowPattern[normalizedCol - 1];
+                if (letter === 'R') return 'red';
+                if (letter === 'G') return 'green';
+                return 'blue';
+            }
+
+            getEndOptionValue() {
+                return this.finalGridlockSector;
+            }
+
+            getMaximumSelectableSector({ developerMode = false } = {}) {
+                if (developerMode) return this.getEndOptionValue();
+                return Math.max(1, Math.min(this.campaignLength, this.highestUnlockedSector || 1));
+            }
+
+            getSectorSelectOptionCount(options = {}) {
+                return this.getMaximumSelectableSector(options);
+            }
+
+            rememberNormalStartSector(levelNumber) {
+                const sector = this.normalizeCampaignSector(levelNumber);
+                this.lastNormalSelectedStartSector = sector;
+                return sector;
+            }
+
+            getLastNormalStartSector() {
+                const selected = Number(this.selectedStartSector);
+                if (Number.isFinite(selected) && selected >= 1 && selected <= this.campaignLength) {
+                    return this.rememberNormalStartSector(selected);
+                }
+                return this.normalizeCampaignSector(this.lastNormalSelectedStartSector);
+            }
+
+            consumeDeveloperEndSelection() {
+                const normalSector = this.getLastNormalStartSector();
+                this.selectedStartSector = normalSector;
+                return normalSector;
+            }
+
+            adjustSelectedStartSector(direction, { developerMode = false } = {}) {
+                const totalOptions = this.getSectorSelectOptionCount({ developerMode });
+                const current = Math.max(1, Math.min(totalOptions, this.selectedStartSector || this.currentSector || 1));
+                const step = Math.trunc(Number(direction) || 0);
+                if (current <= this.campaignLength) this.rememberNormalStartSector(current);
+                this.selectedStartSector = ((current - 1 + step + totalOptions) % totalOptions) + 1;
+                if (this.selectedStartSector <= this.campaignLength) {
+                    this.rememberNormalStartSector(this.selectedStartSector);
+                }
+                return this.selectedStartSector;
+            }
+
+            snapshot() {
+                return Object.freeze({
+                    currentSector: this.currentSector,
+                    selectedStartSector: this.selectedStartSector,
+                    lastNormalSelectedStartSector: this.lastNormalSelectedStartSector,
+                    highestUnlockedSector: this.highestUnlockedSector,
+                    campaignLength: this.campaignLength,
+                    finalGridlockSector: this.finalGridlockSector
+                });
+            }
+        }
+
+/* Source: src/js/state/85-cosmic-zap-system.js */
+        class CosmicZapSystem {
+            constructor(config) {
+                this.config = config;
+                this.remaining = 0;
+                this.usesThisSector = 0;
+                this.lastTriggerTime = 0;
+                this.protectionUntil = 0;
+                this.inputCooldownMs = config.input.cosmicZapCooldownMs;
+                this.protectionMs = config.input.cosmicZapProtectionMs;
+            }
+
+            normalizeCount(value) {
+                const numeric = Math.floor(Number(value) || 0);
+                return Math.max(0, numeric);
+            }
+
+            getCapacity(difficultyMode) {
+                return GameRules.getCosmicZapCapacity(difficultyMode);
+            }
+
+            resetSector(difficultyMode) {
+                this.remaining = this.getCapacity(difficultyMode);
+                this.usesThisSector = 0;
+                this.lastTriggerTime = 0;
+                this.protectionUntil = 0;
+                return this.remaining;
+            }
+
+            setRemaining(value) {
+                this.remaining = this.normalizeCount(value);
+                return this.remaining;
+            }
+
+            canPassCooldown(now = performance.now()) {
+                const timestamp = Number(now) || 0;
+                return timestamp - this.lastTriggerTime >= this.inputCooldownMs;
+            }
+
+            armTrigger(now = performance.now(), { protect = true } = {}) {
+                const timestamp = Number(now) || 0;
+                if (!this.canPassCooldown(timestamp)) return false;
+                this.lastTriggerTime = timestamp;
+                this.protectionUntil = protect ? timestamp + this.protectionMs : 0;
+                return true;
+            }
+
+            consume(now = performance.now(), { protect = true, countUse = true } = {}) {
+                if (this.remaining <= 0 || !this.armTrigger(now, { protect })) {
+                    return Object.freeze({ consumed: false, remaining: this.remaining, usesThisSector: this.usesThisSector });
+                }
+                this.remaining = Math.max(0, this.remaining - 1);
+                if (countUse) this.usesThisSector += 1;
+                return Object.freeze({ consumed: true, remaining: this.remaining, usesThisSector: this.usesThisSector });
+            }
+
+            isProtecting(now = performance.now()) {
+                return (Number(now) || 0) < this.protectionUntil;
+            }
+
+            requireNeutralReset(now = performance.now()) {
+                const timestamp = Number(now) || 0;
+                this.lastTriggerTime = timestamp;
+                this.protectionUntil = 0;
+            }
+
+            snapshot() {
+                return Object.freeze({
+                    remaining: this.remaining,
+                    usesThisSector: this.usesThisSector,
+                    lastTriggerTime: this.lastTriggerTime,
+                    protectionUntil: this.protectionUntil,
+                    inputCooldownMs: this.inputCooldownMs,
+                    protectionMs: this.protectionMs
+                });
+            }
+        }
+
 /* Source: src/js/development/90-architecture-validator.js */
         class ArchitectureValidator {
             constructor() {
@@ -10303,6 +10554,37 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 records.resetRunPaceTracking(run, 2);
                 const pace = records.captureSectorRecordPace(75, 2, run);
                 this.assert('HighScoreSystem owns record-pace checkpoints', pace.currentScore === 75 && run.paceCheckpoints['2'] === 75);
+
+
+                testStorage.setItem(GAME_CONFIG.storage.highestSector, '3');
+                const campaign = new CampaignSystem(testStorage, GAME_CONFIG, GAME_DATA);
+                this.assert('CampaignSystem owns campaign length', campaign.campaignLength === GameRules.getCampaignLength());
+                this.assert('CampaignSystem loads progression unlock', campaign.highestUnlockedSector === 3);
+                this.assert('CampaignSystem owns sector names', campaign.getSectorName(2) === GAME_DATA.sectors[1].name);
+                this.assert('CampaignSystem owns sector patterns', campaign.getSectorPattern(4) === GAME_DATA.sectors[3].pattern);
+                const firstPatternCell = GAME_DATA.sectors[0].pattern[0][0];
+                const expectedFirstColor = firstPatternCell === 'R' ? 'red' : (firstPatternCell === 'G' ? 'green' : 'blue');
+                this.assert('CampaignSystem maps pattern cells to colors', campaign.getCrystalColorAt(1, 1, 1) === expectedFirstColor);
+                const unlockResult = campaign.recordProgressUnlock(5);
+                this.assert('CampaignSystem persists progression unlock', unlockResult.changed && testStorage.getItem(GAME_CONFIG.storage.highestSector) === '5');
+                campaign.selectedStartSector = 5;
+                campaign.adjustSelectedStartSector(1);
+                this.assert('CampaignSystem wraps normal sector selection', campaign.selectedStartSector === 1);
+                campaign.selectedStartSector = campaign.campaignLength;
+                campaign.adjustSelectedStartSector(1, { developerMode: true });
+                this.assert('CampaignSystem exposes developer END selection', campaign.selectedStartSector === campaign.finalGridlockSector);
+                this.assert('CampaignSystem consumes END as a one-shot command', campaign.consumeDeveloperEndSelection() === campaign.campaignLength && campaign.selectedStartSector === campaign.campaignLength);
+
+                const zaps = new CosmicZapSystem(GAME_CONFIG);
+                this.assert('CosmicZapSystem owns difficulty capacity', zaps.resetSector('Hard') === GameRules.getCosmicZapCapacity('Hard'));
+                const zapTime = zaps.inputCooldownMs + 100;
+                const firstZap = zaps.consume(zapTime);
+                this.assert('CosmicZapSystem consumes one charge', firstZap.consumed && zaps.remaining === GameRules.getCosmicZapCapacity('Hard') - 1);
+                this.assert('CosmicZapSystem counts sector usage', zaps.usesThisSector === 1);
+                this.assert('CosmicZapSystem enforces input cooldown', zaps.consume(zapTime).consumed === false);
+                this.assert('CosmicZapSystem owns protection window', zaps.isProtecting(zapTime + 1) === true);
+                zaps.requireNeutralReset(zapTime + 2);
+                this.assert('CosmicZapSystem clears protection for neutral reset', zaps.isProtecting(zapTime + 3) === false);
             }
 
             validateFlow() {
@@ -14068,6 +14350,8 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 this.scoreSystem = new ScoreSystem();
                 this.runSession = new RunSession();
                 this.highScoreSystem = new HighScoreSystem(storageService);
+                this.campaign = new CampaignSystem(storageService, GAME_CONFIG, GAME_DATA);
+                this.cosmicZapSystem = new CosmicZapSystem(GAME_CONFIG);
 
                 // Compatibility properties keep existing call sites stable while state ownership
                 // moves out of the legacy Game coordinator one responsibility at a time.
@@ -14094,6 +14378,16 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 installOwnedStateProxy(this, 'runRecordHighestSector', this.runSession, 'highestSector');
                 installOwnedStateProxy(this, 'relicRecoveredBySector', this.runSession, 'relicRecoveredBySector');
                 installOwnedStateProxy(this, 'relicsCollectedThisRun', this.runSession, 'relicsCollected');
+                installOwnedStateProxy(this, 'level', this.campaign, 'currentSector');
+                installOwnedStateProxy(this, 'selectedStartSector', this.campaign, 'selectedStartSector');
+                installOwnedStateProxy(this, 'lastNormalSelectedStartSector', this.campaign, 'lastNormalSelectedStartSector');
+                installOwnedStateProxy(this, 'highestUnlockedSector', this.campaign, 'highestUnlockedSector');
+                installOwnedStateProxy(this, 'cosmicZapsLeft', this.cosmicZapSystem, 'remaining');
+                installOwnedStateProxy(this, 'cosmicZapPressure', this.cosmicZapSystem, 'usesThisSector');
+                installOwnedStateProxy(this, 'lastCosmicZapTriggerTime', this.cosmicZapSystem, 'lastTriggerTime');
+                installOwnedStateProxy(this, 'cosmicZapProtectionUntil', this.cosmicZapSystem, 'protectionUntil');
+                installOwnedStateProxy(this, 'cosmicZapInputCooldownMs', this.cosmicZapSystem, 'inputCooldownMs');
+                installOwnedStateProxy(this, 'cosmicZapProtectionMs', this.cosmicZapSystem, 'protectionMs');
                 this.visualEffectSequence = 0;
                 this.crystalCollectionFx = { lastPickupAt: -Infinity, chain: 0, halo: null };
                 this.gameplayTaskSequence = 0;
@@ -14349,8 +14643,8 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 this.configureResponsivePlayfield();
                 this.spawnDelay = GAME_CONFIG.enemySpawning.baseDelaySeconds;
                 this.normalSwarmSize = GAME_CONFIG.enemySpawning.normalSwarmSize;
-                this.MAX_LEVEL = GameRules.getCampaignLength(); // Campaign length is owned by GAME_DATA.sectors
-                this.FINAL_GRIDLOCK_LEVEL = this.MAX_LEVEL + 1; // Level 16: endless Final Gridlock
+                this.MAX_LEVEL = this.campaign.campaignLength; // Campaign length is owned by CampaignSystem / GAME_DATA.sectors
+                this.FINAL_GRIDLOCK_LEVEL = this.campaign.finalGridlockSector; // Endless Final Gridlock follows the authored campaign
                 this.BASE_BLINKING_CRYSTAL_COUNT = GAME_CONFIG.campaign.baseBlinkingCrystalCount; // Gameplay maintains three persistent blinking crystal choices
                 this.currentBlinkingCrystalCount = this.BASE_BLINKING_CRYSTAL_COUNT; // Fixed choice count; Cosmic Zaps reassess value without reducing options
 
@@ -14371,12 +14665,12 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 this.lines = [];                      // Connection lines between crystals
                 this.completedSquares = [];           // Completed one-cell squares; renderer owns presentation
                 this.attractSquares = [];             // Squares for attract mode
-                this.level = 1;                       // Current level
-                this.selectedStartSector = 1;          // Settings selector for the next fresh run
-                this.lastNormalSelectedStartSector = 1; // Last valid campaign sector; developer END is never persisted here
-                this.progressSectorStorageKey = GAME_CONFIG.storage.highestSector;
+                this.level = 1;                       // CampaignSystem owns the current sector
+                this.selectedStartSector = 1;          // CampaignSystem owns the next fresh-run sector
+                this.lastNormalSelectedStartSector = 1; // CampaignSystem preserves the last non-END selection
+                this.progressSectorStorageKey = this.campaign.progressKey;
                 this.enemyEncounterStorageKey = GAME_CONFIG.storage.enemyEncounters;
-                this.highestUnlockedSector = this.loadProgressUnlockValue(this.progressSectorStorageKey, this.MAX_LEVEL);
+                this.highestUnlockedSector = this.campaign.highestUnlockedSector;
                 this.enemyEncounterUnlocks = this.loadEnemyEncounterUnlocks();
                 this.difficultyOptions = this.settings.difficultyOptions.slice();
                 this.difficultyStorageKey = this.settings.keys.difficulty;
@@ -14399,8 +14693,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 this.runRecordActionStartedMs = null;
                 this.runRecordElapsedActionMs = 0;
                 this.runRecordHighestSector = 1;
-                this.cosmicZapsLeft = this.getCosmicZapsForCurrentSector(); // Remaining Cosmic Zaps
-                this.cosmicZapPressure = 0;                // Counts Zap use for no-Zap bonuses and telemetry; it no longer affects enemy speed
+                this.cosmicZapSystem.resetSector(this.difficultyMode); // Owns remaining Zaps and per-sector usage
                 this.active = false;                  // Game active state
                 this.levelActionStarted = false;      // Enemy spawning/game loop has started for the current level
                 this.showHudDuringSectorIntro = false; // Keep the top score/Zap HUD visible during sector introductions
@@ -14443,9 +14736,9 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 this.resumeCountdownActive = false;   // Blocks repeated resume clicks during the short countdown.
                 this.updateGameTimer = null;          // Legacy compatibility token; spawn timing now runs in the live frame loop
                 this.gameplayRunToken = 0;            // Revision for the one scheduler-owned live-gameplay animation loop
-                this.lastCosmicZapTriggerTime = 0;         // Prevents repeated Cosmic Zap triggers from one input
+                this.lastCosmicZapTriggerTime = 0;         // CosmicZapSystem prevents repeated triggers from one input
                 this.cosmicZapInputCooldownMs = GAME_CONFIG.input.cosmicZapCooldownMs;
-                this.cosmicZapProtectionUntil = 0;         // Protects the Orb immediately while the Zap confirms visually
+                this.cosmicZapProtectionUntil = 0;         // CosmicZapSystem owns immediate Orb protection
                 this.cosmicZapProtectionMs = GAME_CONFIG.input.cosmicZapProtectionMs;
                 this.motionPermissionGranted = false;       // Permission survives listener suspension during pause/no-Zap states
                 this.motionListenerAttached = false;        // True only while motion input can currently do useful work
@@ -17114,12 +17407,7 @@ Best Score: ${bestScore}${recoveredLine}` :
             }
 
             getSectorEnemyBehaviorPlan() {
-                const sector = GameRules.getSector(this.level);
-                const plan = sector ? sector.enemyBehaviorPlan : null;
-                if (!Array.isArray(plan) || plan.length === 0) {
-                    return Array(this.normalSwarmSize).fill(ENEMY_BEHAVIOR_TYPES.DRIFTER);
-                }
-                return plan;
+                return this.campaign.getEnemyBehaviorPlan(this.level, this.normalSwarmSize);
             }
 
             // Adjust spawn delay by level; enemy count stays capped at a constant value. Cosmic Zap use does not affect speed.
@@ -17203,7 +17491,7 @@ Best Score: ${bestScore}${recoveredLine}` :
             }
 
             getCosmicZapsForCurrentSector() {
-                return GameRules.getCosmicZapCapacity(this.difficultyMode);
+                return this.cosmicZapSystem.getCapacity(this.difficultyMode);
             }
 
             // Enemy speed follows the sector ladder and selected difficulty.
@@ -17482,9 +17770,8 @@ Best Score: ${bestScore}${recoveredLine}` :
                 this.setPrismRelicState({ prismRelicSpawnedThisSector: false });
                 this.setPrismRelicState({ prismRelicRecoveredThisSector: false });
                 this.gridlockRelicAttemptNumber = 0;
-                this.cosmicZapsLeft = this.getCosmicZapsForCurrentSector();
+                this.cosmicZapSystem.resetSector(this.difficultyMode);
                 this.currentBlinkingCrystalCount = this.BASE_BLINKING_CRYSTAL_COUNT;
-                this.cosmicZapPressure = 0;
                 this.enemySpawnElapsedMs = 0;
                 this.lastFrameTime = performance.now();
                 this.spawnedCount = { small: 0, medium: 0, large: 0 };
@@ -18079,35 +18366,18 @@ Best Score: ${bestScore}${recoveredLine}` :
                 }, durations[type]);
             }
 
-            loadProgressUnlockValue(storageKey, maximum) {
-                try {
-                    const stored = parseInt(storageService.getItem(storageKey) || '1', 10);
-                    return Math.max(1, Math.min(maximum, Number.isFinite(stored) ? stored : 1));
-                } catch (_) {
-                    return 1;
-                }
-            }
-
             saveProgressUnlocks() {
-                try {
-                    storageService.setItem(this.progressSectorStorageKey, String(this.highestUnlockedSector || 1));
-                } catch (_) {}
+                return this.campaign.saveHighestUnlockedSector();
             }
 
             recordProgressUnlocks(levelNumber = this.level) {
-                // Developer jumps bypass locks but never alter a player's genuine progression.
-                if (this.developerModeEnabled) return;
-                const nextSector = Math.max(1, Math.min(this.MAX_LEVEL, Number(levelNumber) || 1));
-                if (nextSector > (this.highestUnlockedSector || 1)) {
-                    this.highestUnlockedSector = nextSector;
-                    this.saveProgressUnlocks();
-                    this.updateLevelSelectUnlockState();
-                }
+                const result = this.campaign.recordProgressUnlock(levelNumber, { developerMode: this.developerModeEnabled });
+                if (result.changed) this.updateLevelSelectUnlockState();
+                return result.changed;
             }
 
             getMaximumSelectableSector() {
-                if (this.developerModeEnabled) return this.getEndSectorOptionValue();
-                return Math.max(1, Math.min(this.MAX_LEVEL, this.highestUnlockedSector || 1));
+                return this.campaign.getMaximumSelectableSector({ developerMode: this.developerModeEnabled });
             }
 
 
@@ -18117,33 +18387,23 @@ Best Score: ${bestScore}${recoveredLine}` :
             }
 
             getSectorSelectOptionCount() {
-                return this.getMaximumSelectableSector();
+                return this.campaign.getSectorSelectOptionCount({ developerMode: this.developerModeEnabled });
             }
 
             getEndSectorOptionValue() {
-                return (this.MAX_LEVEL || GameRules.getCampaignLength()) + 1;
+                return this.campaign.getEndOptionValue();
             }
 
             rememberNormalStartSector(levelNumber) {
-                const normalSector = Math.max(1, Math.min(this.MAX_LEVEL, Number(levelNumber) || 1));
-                this.lastNormalSelectedStartSector = normalSector;
-                return normalSector;
+                return this.campaign.rememberNormalStartSector(levelNumber);
             }
 
             getLastNormalStartSector() {
-                const selected = Number(this.selectedStartSector);
-                if (Number.isFinite(selected) && selected >= 1 && selected <= this.MAX_LEVEL) {
-                    return this.rememberNormalStartSector(selected);
-                }
-                return Math.max(
-                    1,
-                    Math.min(this.MAX_LEVEL, Number(this.lastNormalSelectedStartSector) || 1)
-                );
+                return this.campaign.getLastNormalStartSector();
             }
 
             consumeDeveloperEndSelection() {
-                const normalSector = this.getLastNormalStartSector();
-                this.selectedStartSector = normalSector;
+                const normalSector = this.campaign.consumeDeveloperEndSelection();
                 this.updateSettingsSectorLabel();
                 return normalSector;
             }
@@ -18153,13 +18413,7 @@ Best Score: ${bestScore}${recoveredLine}` :
                     this.updateSettingsSectorLabel();
                     return;
                 }
-                const totalOptions = this.getSectorSelectOptionCount();
-                const current = Math.max(1, Math.min(totalOptions, this.selectedStartSector || this.level || 1));
-                if (current <= this.MAX_LEVEL) this.rememberNormalStartSector(current);
-                this.selectedStartSector = ((current - 1 + direction + totalOptions) % totalOptions) + 1;
-                if (this.selectedStartSector <= this.MAX_LEVEL) {
-                    this.rememberNormalStartSector(this.selectedStartSector);
-                }
+                this.campaign.adjustSelectedStartSector(direction, { developerMode: this.developerModeEnabled });
                 this.updateSettingsSectorLabel();
             }
 
@@ -19682,10 +19936,9 @@ Best Score: ${bestScore}${recoveredLine}` :
                     !this.tutorialZapTargetsReady || this.cosmicZapsLeft <= 0 || this.enemies.length < 2) return;
                 const now = performance.now();
                 if (now - this.lastCosmicZapTriggerTime < this.cosmicZapInputCooldownMs) return;
-                this.lastCosmicZapTriggerTime = now;
-                this.cosmicZapProtectionUntil = now + this.cosmicZapProtectionMs;
+                if (!this.cosmicZapSystem.armTrigger(now)) return;
                 const clearedEnemies = this.enemies.slice();
-                this.cosmicZapsLeft = 0;
+                this.cosmicZapSystem.setRemaining(0);
                 this.setTutorialState({ tutorialZapTargetsReady: false });
                 this.requireShakeNeutralReset();
                 this.audio.playCosmicZapSound();
@@ -19868,28 +20121,20 @@ Best Score: ${bestScore}${recoveredLine}` :
 
             // Human-readable names for testing feedback.
             getLevelPatternName(levelNumber = this.level) {
-                if (levelNumber >= this.FINAL_GRIDLOCK_LEVEL) return 'Final Gridlock';
-                return GameRules.getSector(levelNumber).name;
+                return this.campaign.getSectorName(levelNumber);
             }
 
             // Every level uses the same red -> green -> blue collection rule.
             // Sector Maps are ordered easiest-to-hardest by movement difficulty.
             // Difficulty can later be adjusted with enemy count, enemy speed, and spawn timing.
             getLevelPatternRows(levelNumber = this.level) {
-                return GameRules.getSector(levelNumber).pattern;
+                return this.campaign.getSectorPattern(levelNumber);
             }
 
             // Return a crystal color for a grid cell. Responsive playfield sizing can
             // produce fractional pixel coordinates, so normalize cell coordinates before lookup.
             getCrystalColorForLevelPattern(col, row) {
-                const rows = this.getLevelPatternRows(this.level);
-                const normalizedRow = Math.max(1, Math.min(rows.length, Math.round(row)));
-                const rowPattern = rows[normalizedRow - 1];
-                const normalizedCol = Math.max(1, Math.min(rowPattern.length, Math.round(col)));
-                const letter = rowPattern[normalizedCol - 1];
-                if (letter === 'R') return 'red';
-                if (letter === 'G') return 'green';
-                return 'blue';
+                return this.campaign.getCrystalColorAt(col, row, this.level);
             }
 
             // Assign order numbers inside each color.
@@ -20949,7 +21194,7 @@ Best Score: ${bestScore}${recoveredLine}` :
                 this.level = nextLevel;
                 this.recordProgressUnlocks(this.level);
                 this.enemySpawnElapsedMs = 0;
-                this.cosmicZapsLeft = this.getCosmicZapsForCurrentSector();
+                this.cosmicZapSystem.resetSector(this.difficultyMode);
                 this.currentBlinkingCrystalCount = this.BASE_BLINKING_CRYSTAL_COUNT;
                 this.survivalScoreAccumulator = 0;
                 this.sectorElapsedMs = 0;
@@ -20961,7 +21206,6 @@ Best Score: ${bestScore}${recoveredLine}` :
                 this.setPrismRelicState({ prismRelicSpawnedThisSector: false });
                 this.setPrismRelicState({ prismRelicRecoveredThisSector: false });
                 this.gridlockRelicAttemptNumber = 0;
-                this.cosmicZapPressure = 0;
                 this.spawnedCount = { small: 0, medium: 0, large: 0 };
                 this.applyLevelParameters();
                 this.resetPrismRelicTiming();
@@ -21010,7 +21254,7 @@ Best Score: ${bestScore}${recoveredLine}` :
             }
 
             isCosmicZapProtectingOrb() {
-                return performance.now() < this.cosmicZapProtectionUntil;
+                return this.cosmicZapSystem.isProtecting(performance.now());
             }
 
             // Return the first normalized point at which a movement segment enters a rectangle.
@@ -21362,8 +21606,7 @@ Best Score: ${bestScore}${recoveredLine}` :
                 this.shakeNeutralStartTime = 0;
                 this.lastMotionSample = null;
                 this.lastShakeCosmicZapTime = now;
-                this.lastCosmicZapTriggerTime = now;
-                this.cosmicZapProtectionUntil = 0;
+                this.cosmicZapSystem.requireNeutralReset(now);
             }
 
             shouldListenForMotion() {
@@ -21422,7 +21665,7 @@ Best Score: ${bestScore}${recoveredLine}` :
                             this.shakeNeutralRequired = false;
                             this.shakeNeutralStartTime = 0;
                             this.lastShakeCosmicZapTime = now;
-                            this.lastCosmicZapTriggerTime = now;
+                            this.cosmicZapSystem.requireNeutralReset(now);
                         }
                     } else {
                         this.shakeNeutralStartTime = 0;
@@ -21538,18 +21781,15 @@ Best Score: ${bestScore}${recoveredLine}` :
                 if (this.cosmicZapsLeft > 0 && this.active && !this.isPaused && !this.isGameOver) {
                     const now = performance.now();
                     if (now - this.lastCosmicZapTriggerTime < this.cosmicZapInputCooldownMs) return;
-                    this.lastCosmicZapTriggerTime = now;
-                    this.cosmicZapProtectionUntil = now + this.cosmicZapProtectionMs;
-
                     const clearedEnemies = this.enemies.slice();
                     this.noteTelemetryCosmicZap(clearedEnemies);
                     if (!this.prismRelicRecoveredThisSector && (this.maxSwarmActive || this.prismRelic || this.prismRelicCueTimer)) {
                         this.cancelGridlockRelicAttempt('cosmic-zap');
                     }
 
-                    this.cosmicZapsLeft--;
+                    const zapUse = this.cosmicZapSystem.consume(now);
+                    if (!zapUse.consumed) return;
                     this.syncMotionListenerState();
-                    this.cosmicZapPressure++; // Usage count only; no enemy-speed increase.
                     this.ui.updateCosmicZapIndicators();
                     this.audio.playCosmicZapSound();
                     this.triggerCrtEvent('zap');
@@ -26869,7 +27109,9 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 settings: game.settings.snapshot(),
                 score: game.scoreSystem.snapshot(),
                 run: game.runSession.snapshot(),
-                records: game.highScoreSystem.snapshot()
+                records: game.highScoreSystem.snapshot(),
+                campaign: game.campaign.snapshot(),
+                cosmicZaps: game.cosmicZapSystem.snapshot()
             })
         });
     
