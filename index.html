@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Block-A-Zoids p231: gives menus, overlays, High Score presentation, Sector Select, and UI event binding dedicated presentation owners.
+Block-A-Zoids p232: gives tutorial and attract-mode lifecycle dedicated owners behind compatibility adapters.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="p231">
+<html data-build-version="p232">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -8619,15 +8619,15 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
         const BUILD_METADATA = window.BLOCKAZOIDS_BUILD = Object.freeze({
             version: document.documentElement.dataset.buildVersion || 'unknown',
             label: BUILD_VERSION,
-            architecturePhase: 'screen-ownership-1',
-            sourceBaseline: 'p230',
+            architecturePhase: 'tutorial-attract-ownership-1',
+            sourceBaseline: 'p231',
             behaviorPolicy: 'architecture-only'
         });
 
         const SOURCE_LAYOUT = window.BLOCKAZOIDS_SOURCE_LAYOUT = Object.freeze({
             developmentModel: 'modular-source',
             releaseModel: 'single-html',
-            buildOutput: 'block-a-zoids-p231.html',
+            buildOutput: 'block-a-zoids-p232.html',
             categories: Object.freeze([
                 'build', 'config', 'content', 'rules', 'state', 'services', 'app', 'gameplay',
                 'presentation', 'platform', 'audio', 'ui', 'development'
@@ -9369,6 +9369,8 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 input: Object.freeze({ owner: 'FullSurfaceGestureCoordinator / Player', responsibility: 'Pointer and motion translation' }),
                 audio: Object.freeze({ owner: 'AudioManager', responsibility: 'Sound and music playback' }),
                 screens: Object.freeze({ owner: 'ScreenManager / HighScoreScreenController / LevelSelectScreenController', responsibility: 'Menu visibility, overlays, screen event binding, High Score presentation, and Sector Select presentation' }),
+                tutorial: Object.freeze({ owner: 'TutorialSystem', responsibility: 'One-time tutorial persistence, step progression, tutorial objects, prompts, and tutorial scheduling' }),
+                attractMode: Object.freeze({ owner: 'AttractModeSystem', responsibility: 'Attract lifecycle, Game-of-Life state, enemy identity cards, attract scheduling, and cleanup' }),
                 interface: Object.freeze({ owner: 'UI', responsibility: 'HUD projection of mutable game state' }),
                 diagnostics: Object.freeze({ owner: 'ArchitectureValidator', responsibility: 'Startup contracts and migration safety' })
             }),
@@ -9397,7 +9399,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 canonicalCampaign: 'GAME_DATA.sectors',
                 explicitDifficultyResources: 'GAME_CONFIG.difficulty.profiles.*.cosmicZaps',
                 finalArtifact: 'single numbered HTML build',
-                extractedStateOwners: 'SettingsSystem / ScoreSystem / RunSession / HighScoreSystem / CampaignSystem / CosmicZapSystem / CrystalSystem / GridlockSystem / EnemySpawnSystem / CollisionSystem / RuntimeStateSystem'
+                extractedStateOwners: 'SettingsSystem / ScoreSystem / RunSession / HighScoreSystem / CampaignSystem / CosmicZapSystem / CrystalSystem / GridlockSystem / EnemySpawnSystem / CollisionSystem / RuntimeStateSystem / TutorialSystem / AttractModeSystem'
             })
         });
 
@@ -11592,6 +11594,1583 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
             }
         }
 
+
+/* Source: src/js/tutorial/120-tutorial-system.js */
+        // p232 transitional extraction: tutorial behavior now has one named owner.
+        // The proven method bodies execute against the Game compatibility context until later
+        // builds replace their remaining cross-system field access with explicit dependencies.
+        const TUTORIAL_COMPATIBILITY_IMPLEMENTATIONS = Object.freeze({
+            loadIntroCompletionFlag() {
+                try {
+                    return storageService.getItem(this.introCompletionStorageKey || 'blockazoidsIntroCompletedV1') === '1';
+                } catch (_) {
+                    return false;
+                }
+            },
+
+            saveIntroCompletionFlag() {
+                try {
+                    storageService.setItem(this.introCompletionStorageKey, '1');
+                    if (this.introCompletionBuildStorageKey) storageService.removeItem(this.introCompletionBuildStorageKey);
+                } catch (_) {}
+                this.introCompleted = true;
+                this.tutorialRequiredOnFirstRun = false;
+            },
+
+            resetIntroCompletionFlag() {
+                if (!TUTORIAL_ENABLED) {
+                    this.introCompleted = true;
+                    return;
+                }
+                try {
+                    storageService.removeItem(this.introCompletionStorageKey);
+                    storageService.removeItem(this.introCompletionBuildStorageKey);
+                } catch (_) {}
+                this.introCompleted = false;
+                this.tutorialRequiredOnFirstRun = true;
+            },
+
+            resetTutorialProgress() {
+                this.resetIntroCompletionFlag();
+                if (!this.resetTutorialButton) return;
+                this.resetTutorialButton.textContent = 'Tutorial Reset';
+                this.scheduler.scheduleTimeout('ui', 'reset-tutorial-label', () => {
+                    if (this.resetTutorialButton) this.resetTutorialButton.textContent = 'Reset Tutorial';
+                }, 1000);
+            },
+
+            showTutorialWindow(title, message, phase, stepIndex = 0) {
+                if (!this.tutorialPrompt) return;
+                this.tutorialWindowOpen = true;
+                this.tutorialWindowPhase = phase || '';
+                this.tutorialPrompt.classList.toggle('tutorial-enemy-window', phase === 'enemy');
+                this.tutorialPrompt.classList.toggle('tutorial-crystal-window', phase === 'crystal');
+                if (this.tutorialPromptTitle) {
+                    this.tutorialPromptTitle.textContent = title || '';
+                    this.tutorialPromptTitle.style.display = title ? 'block' : 'none';
+                }
+                if (this.tutorialPromptMessage) {
+                    this.tutorialPromptMessage.textContent = message || '';
+                    this.tutorialPromptMessage.style.display = message ? 'block' : 'none';
+                }
+                this.tutorialPrompt.classList.add('visible');
+                this.tutorialPrompt.setAttribute('aria-hidden', 'false');
+                this.setTransitionState({ startInputLocked: true });
+                this.player.invalidateDragSession(`tutorial-window:${phase || 'unknown'}`);
+                if (this.audio && typeof this.audio.playTutorialStepBeep === 'function') {
+                    this.audio.playTutorialStepBeep(stepIndex);
+                }
+                this.syncMotionListenerState();
+                if (this.ui) this.ui.updateAll();
+            },
+
+            hideTutorialWindow() {
+                this.tutorialWindowOpen = false;
+                this.tutorialWindowPhase = '';
+                if (!this.tutorialPrompt) return;
+                this.tutorialPrompt.classList.remove('visible', 'tutorial-enemy-window', 'tutorial-crystal-window');
+                this.tutorialPrompt.setAttribute('aria-hidden', 'true');
+            },
+
+            setTutorialPrompt(text = '') {
+                if (!text) {
+                    this.hideTutorialWindow();
+                    return;
+                }
+                this.showTutorialWindow(text, '', 'legacy', 0);
+            },
+
+            handleTutorialWindowContinue(e) {
+                if (e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                }
+                if (!this.tutorialActive || !this.tutorialWindowOpen) return;
+                const phase = this.tutorialWindowPhase;
+
+                if (this.audio) this.audio.resume(`tutorial-${phase || 'continue'}`);
+
+                this.hideTutorialWindow();
+                this.setTransitionState({ startInputLocked: false });
+                this.player.invalidateDragSession(`tutorial-window-continue:${phase || 'unknown'}`);
+                // The Continue press must not become the first half of a Zap double-tap.
+                if (this.gestures) this.gestures.reset('tutorial-window-continue');
+
+                if (phase === 'complete') {
+                    this.showTutorialComplete();
+                    return;
+                }
+
+                this.beginTutorialPhase(phase);
+            },
+
+            clearTutorialAnimationFrame() {
+                if (this.tutorialRafId) {
+                    this.scheduler.cancelTask(this.tutorialRafId);
+                    this.tutorialRafId = null;
+                }
+            },
+
+            scheduleTutorialAnimationFrame(token = this.tutorialToken) {
+                if (!this.tutorialActive || token !== this.tutorialToken) return null;
+                this.tutorialRafId = this.scheduler.scheduleAnimationFrame('tutorial', 'main-frame', (timestamp) => {
+                    this.tutorialRafId = null;
+                    this.updateTutorial(timestamp, token);
+                });
+                return this.tutorialRafId;
+            },
+
+            clearTutorialStepTimer() {
+                if (this.tutorialStepTimer) {
+                    this.scheduler.cancelTask(this.tutorialStepTimer);
+                    this.tutorialStepTimer = null;
+                }
+            },
+
+            scheduleTutorialStepTimer(callback, delayMs) {
+                this.clearTutorialStepTimer();
+                this.tutorialStepTimer = this.scheduler.scheduleTimeout('tutorial', 'step-timer', () => {
+                    this.tutorialStepTimer = null;
+                    callback();
+                }, delayMs);
+                return this.tutorialStepTimer;
+            },
+
+            cancelTutorialScheduling() {
+                const cancelledTasks = this.scheduler.cancelScope('tutorial');
+                this.tutorialRafId = null;
+                this.tutorialStepTimer = null;
+                return cancelledTasks;
+            },
+
+            clearTutorialObjects() {
+                this.clearTutorialStepTimer();
+                this.clearPendingSpawnWarnings(true);
+                this.enemies.forEach(enemy => this.playfieldRenderer.removeEnemy(enemy));
+                this.enemies = [];
+                this.tutorialEnemy = null;
+                this.crystals.forEach(crystal => this.playfieldRenderer.removeCrystal(crystal));
+                this.crystals = [];
+                this.activeBlinkingCrystals = [];
+                this.tutorialCrystalValuePopups = [];
+                this.setTutorialState({ tutorialRelicReady: false });
+                if (this.prismRelic) {
+                    this.playfieldRenderer.removePrismRelic(this.prismRelic);
+                    this.setPrismRelicState({ prismRelic: null });
+                }
+                this.setGridlockState({ maxSwarmActive: false });
+                this.setGridlockState({ overtimeActive: false });
+                if (this.audio) {
+                    this.audio.stopMaxSwarmBeat();
+                    this.audio.stopPrismRelicHum();
+                }
+            },
+
+            startOneTimeIntro() {
+                this.hasStartedRun = true;
+                this.stopAttractMode();
+                this.cancelTutorialScheduling();
+                this.clearGameplayObjects();
+                this.clearTutorialObjects();
+                this.audio.resume();
+                this.audio.stopBackgroundMusic();
+                this.score = 0;
+                this.level = 1;
+
+                this.setTerminalState({ isGameOver: false });
+                this.setGameplayState({ isPaused: false });
+                this.setTerminalState({ finalGridlockActive: false });
+                // The tutorial is live interaction, not a sector transition. Open the input window
+                // before entering the tutorial flow so the first touch cannot be discarded.
+                this.setTransitionState({ sectorTransitionActive: false });
+                this.setTransitionState({ startInputLocked: false });
+                this.setTutorialState({ tutorialActive: true });
+                this.setTutorialState({ tutorialStep: 'intro' });
+                this.flow.enter(GAME_FLOW_STATES.TUTORIAL, 'start-one-time-intro');
+                this.tutorialToken++;
+                this.tutorialMovementDistance = 0;
+                this.tutorialMovementQualified = false;
+                this.tutorialEnemyAvoidMs = 0;
+                this.tutorialEnemySpawned = false;
+                this.tutorialZapTargetsSpawned = 0;
+                this.setTutorialState({ tutorialZapTargetsReady: false });
+                this.tutorialRelicCollected = false;
+                this.tutorialRadarColor = '';
+                this.setTutorialState({ tutorialRelicReady: false });
+                this.cosmicZapsLeft = 0;
+                this.cosmicZapPressure = 0;
+                this.setGameplayState({ active: true });
+                this.setGameplayState({ levelActionStarted: true });
+                this.player.reset();
+                document.body.classList.add('tutorial-active');
+                this.screenFadeElement.classList.remove('visible');
+                this.setGameOverlayVisible(false);
+                this.setCrtUiSuspended(false);
+                this.setCrtPaused(false);
+                this.setTutorialStep('intro');
+                // Start with a clean, explicitly open pointer session. This also prevents a stale
+                // attract/menu pointer revision from delaying the first tutorial drag.
+                this.player.invalidateDragSession('tutorial-input-ready');
+                this.syncMotionListenerState();
+                this.ui.updateAll();
+                this.tutorialLastFrameTime = performance.now();
+                const token = this.tutorialToken;
+                this.scheduleTutorialAnimationFrame(token);
+                this.validateStateInvariants('beginNewRun:tutorial');
+            },
+
+            setTutorialStep(step) {
+                if (!this.tutorialActive) return;
+                this.clearTutorialStepTimer();
+                this.hideTutorialWindow();
+                this.setTutorialState({ tutorialStep: step });
+                this.player.consumeMovementSegments();
+
+                if (step === 'intro') {
+                    this.clearTutorialObjects();
+                    this.player.reset();
+                    this.cosmicZapsLeft = 0;
+                    this.tutorialMovementDistance = 0;
+                    this.tutorialMovementQualified = false;
+                    this.tutorialEnemyAvoidMs = 0;
+                    this.tutorialEnemySpawned = false;
+                    this.tutorialZapTargetsSpawned = 0;
+                    this.setTutorialState({ tutorialZapTargetsReady: false });
+                    this.showTutorialWindow(
+                        GAME_DATA.tutorialMessages.movement,
+                        '',
+                        'movement',
+                        0
+                    );
+                } else if (step === 'crystal') {
+                    this.clearTutorialObjects();
+                    this.cosmicZapsLeft = 0;
+                    this.showTutorialWindow(GAME_DATA.tutorialMessages.crystal, '', 'crystal', 2);
+                } else if (step === 'enemy') {
+                    this.clearTutorialObjects();
+                    this.cosmicZapsLeft = 0;
+                    this.tutorialEnemyAvoidMs = 0;
+                    this.tutorialEnemySpawned = false;
+                    this.showTutorialWindow(GAME_DATA.tutorialMessages.enemy, '', 'enemy', 3);
+                } else if (step === 'zap') {
+                    this.clearTutorialObjects();
+                    this.player.reset();
+                    this.cosmicZapsLeft = 0;
+                    this.tutorialZapTargetsSpawned = 0;
+                    this.setTutorialState({ tutorialZapTargetsReady: false });
+                    this.showTutorialWindow(GAME_DATA.tutorialMessages.zap, '', 'zap', 4);
+                }
+
+                this.syncMotionListenerState();
+                this.ui.updateAll();
+            },
+
+            getTutorialCrystalValuePlacements() {
+                const gridSize = Math.max(1, Number(this.GRID_SIZE) || 1);
+                const gridCount = Math.max(2, Math.round(this.PLAYFIELD_SIZE / gridSize));
+                const playerCenterX = this.player.x + this.player.size / 2;
+                const playerCenterY = this.player.y + this.player.size / 2;
+                const minimumDistance = gridSize * 1.25;
+                const candidates = [];
+
+                for (let col = 1; col < gridCount; col += 1) {
+                    for (let row = 1; row < gridCount; row += 1) {
+                        const x = col * gridSize;
+                        const y = row * gridSize;
+                        const distance = Math.hypot(x - playerCenterX, y - playerCenterY);
+                        if (distance < minimumDistance) continue;
+                        candidates.push({ col, row, x, y, distance });
+                    }
+                }
+
+                candidates.sort((a, b) =>
+                    a.distance - b.distance ||
+                    a.row - b.row ||
+                    a.col - b.col
+                );
+
+                if (candidates.length < 3) return [];
+
+                const near = candidates[0];
+                const far = candidates[candidates.length - 1];
+                const targetDistance = (near.distance + far.distance) / 2;
+                const minimumCrystalSeparation = gridSize * 1.75;
+                const separatedMiddle = candidates.filter(candidate =>
+                    candidate !== near &&
+                    candidate !== far &&
+                    candidate.distance > near.distance + gridSize * 0.35 &&
+                    candidate.distance < far.distance - gridSize * 0.35 &&
+                    Math.hypot(candidate.x - near.x, candidate.y - near.y) >= minimumCrystalSeparation &&
+                    Math.hypot(candidate.x - far.x, candidate.y - far.y) >= minimumCrystalSeparation
+                );
+                const middlePool = separatedMiddle.length
+                    ? separatedMiddle
+                    : candidates.filter(candidate => candidate !== near && candidate !== far);
+                const middle = middlePool
+                    .slice()
+                    .sort((a, b) =>
+                        Math.abs(a.distance - targetDistance) - Math.abs(b.distance - targetDistance) ||
+                        a.row - b.row ||
+                        a.col - b.col
+                    )[0];
+
+                return [
+                    { ...near, valueRank: 1, pointValue: this.getCrystalPointValue(1), order: 1 },
+                    { ...middle, valueRank: 2, pointValue: this.getCrystalPointValue(2), order: 2 },
+                    { ...far, valueRank: 3, pointValue: this.getCrystalPointValue(3), order: 3 }
+                ];
+            },
+
+            showTutorialCrystalValuePopup(crystal, pointValue) {
+                if (!crystal || !this.tutorialActive) return;
+                const value = Math.max(0, Number(pointValue) || 0);
+                this.tutorialCrystalValuePopups.push({
+                    x: crystal.x + crystal.size / 2,
+                    y: crystal.y + crystal.size / 2,
+                    value,
+                    createdAt: performance.now(),
+                    durationMs: this.tutorialCrystalValuePopupDurationMs
+                });
+            },
+
+            updateTutorialCrystalValuePopups(timestamp) {
+                if (!Array.isArray(this.tutorialCrystalValuePopups) || !this.tutorialCrystalValuePopups.length) return;
+                this.tutorialCrystalValuePopups = this.tutorialCrystalValuePopups.filter(popup =>
+                    popup && timestamp - popup.createdAt < popup.durationMs
+                );
+            },
+
+            beginTutorialPhase(phase) {
+                if (!this.tutorialActive || !phase) return;
+                this.clearTutorialStepTimer();
+                this.setTutorialState({ tutorialStep: phase });
+                this.player.consumeMovementSegments();
+
+                if (phase === 'movement') {
+                    this.clearTutorialObjects();
+                    this.tutorialMovementDistance = 0;
+                    this.tutorialMovementQualified = false;
+                    this.cosmicZapsLeft = 0;
+                } else if (phase === 'crystal') {
+                    this.clearTutorialObjects();
+                    this.cosmicZapsLeft = 0;
+                    const placements = this.getTutorialCrystalValuePlacements();
+                    this.crystals = placements.map(placement => {
+                        const crystal = new Crystal(
+                            this,
+                            placement.x - this.CRYSTAL_OFFSET,
+                            placement.y - this.CRYSTAL_OFFSET,
+                            'red',
+                            placement.order
+                        );
+                        crystal.isTutorialValueCrystal = true;
+                        crystal.tutorialPointValue = placement.pointValue;
+                        crystal.setSelectable(true);
+                        crystal.setValueRank(placement.valueRank, placement.pointValue);
+                        return crystal;
+                    });
+                    this.activeBlinkingCrystals = this.crystals.slice();
+                } else if (phase === 'enemy') {
+                    this.clearTutorialObjects();
+                    this.cosmicZapsLeft = 0;
+                    this.tutorialEnemyAvoidMs = 0;
+                    this.tutorialEnemySpawned = false;
+                    this.scheduleTutorialStepTimer(() => {
+                        if (!this.tutorialActive || this.tutorialStep !== 'enemy' || this.tutorialWindowOpen) return;
+                        this.spawnTutorialEnemy();
+                    }, this.tutorialEnemySpawnDelayMs);
+                } else if (phase === 'zap') {
+                    this.clearTutorialObjects();
+                    this.player.reset();
+                    this.cosmicZapsLeft = 0;
+                    this.tutorialZapTargetsSpawned = 0;
+                    this.setTutorialState({ tutorialZapTargetsReady: false });
+                    this.scheduleTutorialStepTimer(() => {
+                        if (!this.tutorialActive || this.tutorialStep !== 'zap' || this.tutorialWindowOpen) return;
+                        this.spawnTutorialZapTargets();
+                    }, this.tutorialZapTargetSpawnDelayMs);
+                }
+
+                this.setTransitionState({ startInputLocked: false });
+                this.syncMotionListenerState();
+                this.ui.updateAll();
+                this.tutorialLastFrameTime = performance.now();
+            },
+
+            startTutorialSpawnWarning(type, location, speedMultiplier, onSpawn) {
+                if (!this.tutorialActive || !location) return false;
+                const warning = new SpawnWarning(this, location.warningX, location.warningY, this.GRID_SIZE);
+                const pending = {
+                    type,
+                    warning,
+                    size: this.PLAYER_SIZE * 2,
+                    spawnX: location.x,
+                    spawnY: location.y,
+                    timeoutId: null,
+                    requeueOnCancel: false
+                };
+                pending.timeoutId = this.scheduler.scheduleTimeout(
+                    'tutorial',
+                    `spawn-warning-${++this.tutorialScheduleSequence}`,
+                    () => {
+                        this.pendingSpawnWarnings = this.pendingSpawnWarnings.filter(item => item !== pending);
+                        warning.remove();
+                        if (!this.tutorialActive || this.isPaused || this.isGameOver) return;
+
+                        const enemy = new Enemy(this, type, { x: location.x, y: location.y });
+                        const speed = this.BASE_SPEEDS[type] * speedMultiplier;
+                        const magnitude = Math.hypot(location.sx, location.sy) || 1;
+                        enemy.speed = speed;
+                        enemy.dx = location.sx / magnitude * speed;
+                        enemy.dy = location.sy / magnitude * speed;
+                        enemy.updatePosition();
+                        this.enemies.push(enemy);
+                        this.updateEnemyColors();
+                        if (typeof onSpawn === 'function') onSpawn(enemy);
+                    },
+                    this.spawnWarningDurationMs
+                );
+
+                this.pendingSpawnWarnings.push(pending);
+                return true;
+            },
+
+            spawnTutorialEnemy() {
+                if (this.tutorialEnemy && this.enemies.includes(this.tutorialEnemy)) return this.tutorialEnemy;
+                if (this.pendingSpawnWarnings.some(item => item.requeueOnCancel === false)) return null;
+                const grid = this.GRID_SIZE;
+                const size = this.PLAYER_SIZE * 2;
+                const warningY = grid * 6;
+                const location = {
+                    warningX: 0,
+                    warningY,
+                    x: 0,
+                    y: Math.max(0, Math.min(this.PLAYFIELD_SIZE - size, warningY + grid / 2 - size / 2)),
+                    sx: 1.0,
+                    sy: -0.72
+                };
+                this.startTutorialSpawnWarning('medium', location, this.tutorialEnemySpeedMultiplier, enemy => {
+                    if (!this.tutorialActive || (this.tutorialStep !== 'enemy' && this.tutorialStep !== 'zap')) {
+                        this.playfieldRenderer.removeEnemy(enemy);
+                        this.enemies = this.enemies.filter(item => item !== enemy);
+                        return;
+                    }
+                    this.tutorialEnemy = enemy;
+                    this.tutorialEnemySpawned = true;
+                });
+                return null;
+            },
+
+            spawnTutorialZapTargets() {
+                if (!this.tutorialActive || this.tutorialStep !== 'zap') return false;
+                const grid = this.GRID_SIZE;
+                const size = this.PLAYER_SIZE * 2;
+                const p = this.PLAYFIELD_SIZE;
+                const locations = [
+                    {
+                        warningX: grid,
+                        warningY: grid,
+                        x: Math.max(0, Math.min(p - size, grid * 1.5 - size / 2)),
+                        y: Math.max(0, Math.min(p - size, grid * 1.5 - size / 2)),
+                        sx: 1,
+                        sy: 0
+                    },
+                    {
+                        warningX: p - (grid * 2),
+                        warningY: p - (grid * 2),
+                        x: Math.max(0, Math.min(p - size, p - grid * 1.5 - size / 2)),
+                        y: Math.max(0, Math.min(p - size, p - grid * 1.5 - size / 2)),
+                        sx: -1,
+                        sy: 0
+                    }
+                ];
+
+                locations.forEach((location, index) => {
+                    this.startTutorialSpawnWarning('medium', location, 0, enemy => {
+                        if (!this.tutorialActive || this.tutorialStep !== 'zap') {
+                            this.playfieldRenderer.removeEnemy(enemy);
+                            this.enemies = this.enemies.filter(item => item !== enemy);
+                            return;
+                        }
+                        enemy.speed = 0;
+                        enemy.dx = 0;
+                        enemy.dy = 0;
+                        enemy.updatePosition();
+                        enemy.tutorialZapTarget = index + 1;
+                        this.tutorialZapTargetsSpawned += 1;
+                        if (this.tutorialZapTargetsSpawned >= locations.length) {
+                            this.cosmicZapsLeft = 1;
+                            this.setTutorialState({ tutorialZapTargetsReady: true });
+                            this.syncMotionListenerState();
+                            this.ui.updateAll();
+                        }
+                    });
+                });
+                return true;
+            },
+
+            spawnTutorialGridlockEnemy(index) {
+                if (!this.tutorialActive || this.tutorialStep !== 'gridlock') return false;
+                const p = this.PLAYFIELD_SIZE;
+                const size = this.PLAYER_SIZE * 2;
+                const grid = this.GRID_SIZE;
+                const fixedLocations = [
+                    {
+                        warningX: 0,
+                        warningY: grid * 3,
+                        x: 0,
+                        y: Math.max(0, Math.min(p - size, grid * 3.5 - size / 2)),
+                        sx: 1.00,
+                        sy: 0.62
+                    },
+                    {
+                        warningX: p - grid,
+                        warningY: grid * 6,
+                        x: p - size,
+                        y: Math.max(0, Math.min(p - size, grid * 6.5 - size / 2)),
+                        sx: -1.00,
+                        sy: -0.58
+                    },
+                    {
+                        warningX: grid * 6,
+                        warningY: 0,
+                        x: Math.max(0, Math.min(p - size, grid * 6.5 - size / 2)),
+                        y: 0,
+                        sx: -0.54,
+                        sy: 1.00
+                    }
+                ];
+                const location = fixedLocations[index];
+                if (!location) return false;
+                return this.startTutorialSpawnWarning('medium', location, this.tutorialGridlockSpeedMultiplier, enemy => {
+                    if (!this.tutorialActive || this.tutorialStep !== 'gridlock') {
+                        this.playfieldRenderer.removeEnemy(enemy);
+                        this.enemies = this.enemies.filter(item => item !== enemy);
+                    }
+                });
+            },
+
+            spawnTutorialGridlockSequence(index = 0) {
+                if (!this.tutorialActive || this.tutorialStep !== 'gridlock') return;
+
+                if (index < 3) {
+                    this.spawnTutorialGridlockEnemy(index);
+                    this.scheduleTutorialStepTimer(() => {
+                        this.spawnTutorialGridlockSequence(index + 1);
+                    }, this.tutorialGridlockSpawnIntervalMs);
+                    return;
+                }
+
+                // At the time a fourth warning would begin, reveal the center Relic instead.
+                this.setTutorialStep('relic');
+            },
+
+            restartTutorialAfterCollision() {
+                if (!this.tutorialActive || this.tutorialStep === 'retry') return;
+                if (this.audio) {
+                    this.audio.resume();
+                    this.audio.playExplosionSound();
+                }
+                this.triggerCrtEvent('death');
+                this.container.classList.add('shake');
+                this.scheduler.scheduleTimeout('visual-effects', 'tutorial-death-shake', () => this.container.classList.remove('shake'), GAME_CONFIG.visualTiming.gameOverShakeCleanupMs);
+                this.explosions.push(new Explosion(
+                    this,
+                    this.player.x + this.player.size / 2,
+                    this.player.y + this.player.size / 2,
+                    true
+                ));
+                this.tutorialToken++;
+                const retryToken = this.tutorialToken;
+                this.clearTutorialAnimationFrame();
+                this.clearTutorialStepTimer();
+                this.hideTutorialWindow();
+                this.tutorialEnemyAvoidMs = 0;
+                this.tutorialEnemySpawned = false;
+                this.tutorialZapTargetsSpawned = 0;
+                this.setTutorialState({ tutorialZapTargetsReady: false });
+                this.player.invalidateDragSession('tutorial-death');
+                this.setTransitionState({ startInputLocked: true });
+                this.setTutorialState({ tutorialStep: 'retry' });
+
+                // Let the collision read, then hide the reset behind a short black transition.
+                this.scheduleTutorialStepTimer(() => {
+                    if (!this.tutorialActive || this.tutorialStep !== 'retry' || retryToken !== this.tutorialToken) return;
+                    this.screenFadeElement.style.transition = `opacity ${this.tutorialRetryFadeMs}ms ease-in-out`;
+                    this.screenFadeElement.classList.add('visible');
+
+                    this.scheduleTutorialStepTimer(() => {
+                        if (!this.tutorialActive || this.tutorialStep !== 'retry' || retryToken !== this.tutorialToken) return;
+                        this.clearTutorialObjects();
+                        this.player.reset();
+                        this.tutorialRadarColor = '';
+                        this.ui.updateRadarColorIndicator();
+
+                        this.scheduleTutorialStepTimer(() => {
+                            if (!this.tutorialActive || this.tutorialStep !== 'retry' || retryToken !== this.tutorialToken) return;
+                            this.screenFadeElement.style.transition = `opacity ${this.tutorialRetryFadeMs}ms ease-in-out`;
+                            this.screenFadeElement.classList.remove('visible');
+                            this.setTransitionState({ startInputLocked: false });
+                            this.setTutorialStep('intro');
+                            this.tutorialLastFrameTime = performance.now();
+                            this.scheduleTutorialAnimationFrame(retryToken);
+                        }, this.tutorialRetryBlackHoldMs);
+                    }, this.tutorialRetryFadeMs);
+                }, this.tutorialCollisionFreezeMs);
+            },
+
+            updateTutorial(timestamp, token) {
+                if (!this.tutorialActive || token !== this.tutorialToken) return;
+                if (this.tutorialWindowOpen) {
+                    this.tutorialLastFrameTime = timestamp;
+                    this.player.consumeMovementSegments();
+                    this.renderPlayfieldFrame(timestamp);
+                    this.scheduleTutorialAnimationFrame(token);
+                    return;
+                }
+                const deltaTime = Math.max(0, Math.min(50, timestamp - this.tutorialLastFrameTime));
+                this.tutorialLastFrameTime = timestamp;
+                this.updateTutorialCrystalValuePopups(timestamp);
+                const segments = this.player.consumeMovementSegments();
+
+                if (this.tutorialStep === 'movement') {
+                    segments.forEach(segment => {
+                        this.tutorialMovementDistance += Math.hypot(segment.x2 - segment.x1, segment.y2 - segment.y1);
+                    });
+                    if (this.tutorialMovementDistance >= this.tutorialMovementRequired && !this.tutorialMovementQualified) {
+                        this.tutorialMovementQualified = true;
+                        this.scheduleTutorialStepTimer(() => {
+                            if (this.tutorialActive && this.tutorialStep === 'movement') this.setTutorialStep('crystal');
+                        }, this.tutorialMovementAdvanceDelayMs);
+                    }
+                } else if (this.tutorialStep === 'crystal') {
+                    const collected = this.crystals
+                        .map(crystal => ({ crystal, hit: this.getPlayerPathHitScore(crystal, segments) }))
+                        .filter(item => item.hit !== null)
+                        .sort((a, b) => a.hit - b.hit);
+
+                    if (collected.length) {
+                        collected.forEach(({ crystal }) => {
+                            const index = this.crystals.indexOf(crystal);
+                            if (index < 0) return;
+                            this.tutorialRadarColor = crystal.color;
+                            this.ui.updateRadarColorIndicator();
+                            const earnedValue = Number(crystal.tutorialPointValue) ||
+                                this.getCrystalPointValue(crystal.valueRank);
+                            this.showTutorialCrystalValuePopup(crystal, earnedValue);
+                            this.playCrystalCollectionEffect(crystal);
+                            this.playfieldRenderer.removeCrystal(crystal);
+                            this.crystals.splice(index, 1);
+                            this.audio.playCollect();
+                        });
+
+                        if (!this.crystals.length) {
+                            this.setTutorialState({ tutorialStep: 'crystal-wait' });
+                            this.scheduleTutorialStepTimer(() => {
+                                if (this.tutorialActive && this.tutorialStep === 'crystal-wait') this.setTutorialStep('enemy');
+                            }, this.tutorialCrystalAdvanceDelayMs);
+                        }
+                    }
+                } else if (this.tutorialStep === 'enemy' || this.tutorialStep === 'zap') {
+                    this.updateEnemies(deltaTime, timestamp);
+                    const hit = this.enemies.some(enemy =>
+                        enemy.isDangerousToPlayer() && this.getPlayerPathHitScore(enemy, segments) !== null
+                    );
+                    if (hit && !this.isCosmicZapProtectingOrb()) {
+                        this.restartTutorialAfterCollision();
+                        return;
+                    }
+
+                    if (this.tutorialStep === 'enemy' && this.tutorialEnemySpawned) {
+                        this.tutorialEnemyAvoidMs += deltaTime;
+                        if (this.tutorialEnemyAvoidMs >= this.tutorialEnemyAvoidRequiredMs) {
+                            this.setTutorialStep('zap');
+                        }
+                    }
+                }
+                this.renderPlayfieldFrame(timestamp);
+                this.scheduleTutorialAnimationFrame(token);
+            },
+
+            handleTutorialCosmicZap() {
+                if (!this.tutorialActive || this.tutorialStep !== 'zap' ||
+                    !this.tutorialZapTargetsReady || this.cosmicZapsLeft <= 0 || this.enemies.length < 2) return;
+                const now = performance.now();
+                if (now - this.lastCosmicZapTriggerTime < this.cosmicZapInputCooldownMs) return;
+                if (!this.cosmicZapSystem.armTrigger(now)) return;
+                const clearedEnemies = this.enemies.slice();
+                this.cosmicZapSystem.setRemaining(0);
+                this.setTutorialState({ tutorialZapTargetsReady: false });
+                this.requireShakeNeutralReset();
+                this.audio.playCosmicZapSound();
+                this.triggerCrtEvent('zap');
+                this.playCosmicZapDischarge(clearedEnemies);
+                clearedEnemies.forEach(enemy => {
+                    this.playfieldRenderer.setEnemyDissolving(enemy, true);
+                    this.scheduler.scheduleTimeout('visual-effects', this.nextVisualEffectTaskName('enemy-dissolve'), () => this.playfieldRenderer.removeEnemy(enemy), 170);
+                });
+                this.enemies = [];
+                this.tutorialEnemy = null;
+                this.syncMotionListenerState();
+                this.ui.updateCosmicZapIndicators();
+                this.scheduleTutorialStepTimer(() => {
+                    if (this.tutorialActive && this.tutorialStep === 'zap') this.completeOneTimeIntro();
+                }, 650);
+            },
+
+            completeOneTimeIntro() {
+                if (!this.tutorialActive || this.tutorialStep !== 'zap') return;
+                this.clearTutorialStepTimer();
+                this.setTutorialState({ tutorialStep: 'complete-message' });
+                this.showTutorialWindow(GAME_DATA.tutorialMessages.complete, '', 'complete', 6);
+            },
+
+            showTutorialComplete() {
+                if (!this.tutorialActive || this.tutorialStep !== 'complete-message') return;
+                this.hideTutorialWindow();
+                this.saveIntroCompletionFlag();
+                this.clearTutorialObjects();
+                this.setTutorialState({ tutorialStep: 'complete' });
+                this.tutorialToken++;
+                this.clearTutorialAnimationFrame();
+                this.setGameplayState({ active: false });
+                this.setGameplayState({ levelActionStarted: false });
+                this.setTransitionState({ sectorTransitionActive: true });
+                this.cosmicZapsLeft = 0;
+                this.syncMotionListenerState();
+                this.ui.updateAll();
+                this.scheduleTutorialStepTimer(() => {
+                    this.finishOneTimeIntroTransition();
+                }, 250);
+            },
+
+            finishOneTimeIntroTransition() {
+                if (!this.tutorialActive || this.tutorialStep !== 'complete') return;
+                this.setTutorialState({ tutorialActive: false });
+                this.setTutorialState({ tutorialStep: '' });
+                this.cancelTutorialScheduling();
+                this.hideTutorialWindow();
+                this.screenFadeElement.classList.remove('visible');
+                document.body.classList.remove('tutorial-active');
+                this.requireShakeNeutralReset();
+                this.syncMotionListenerState();
+                this.ui.updateAll();
+
+                const loadToken = ++this.levelLoadToken;
+                if (this.telemetryEnabled) this.beginTelemetryRun('start-game');
+                this.beginSector(1, true);
+                this.setTransitionState({ startInputLocked: true });
+                this.ui.updateAll();
+                this.startPreparedLevel(loadToken);
+            }
+        });
+
+        const TUTORIAL_SYSTEM_OWNED_FIELDS = Object.freeze(["tutorialPrompt", "tutorialPromptTitle", "tutorialPromptMessage", "tutorialWindowOpen", "tutorialWindowPhase", "tutorialContinuePointerId", "tutorialContinueClickBlockUntil", "introCompletionStorageKey", "introCompletionBuildStorageKey", "introCompleted", "tutorialRequiredOnFirstRun", "tutorialToken", "tutorialRafId", "tutorialScheduleSequence", "tutorialLastFrameTime", "tutorialMovementDistance", "tutorialMovementRequired", "tutorialMovementQualified", "tutorialMovementAdvanceDelayMs", "tutorialCrystalAdvanceDelayMs", "tutorialEnemySpawnDelayMs", "tutorialEnemyAvoidMs", "tutorialEnemyAvoidRequiredMs", "tutorialEnemySpeedMultiplier", "tutorialZapTargetSpawnDelayMs", "tutorialCollisionFreezeMs", "tutorialRetryFadeMs", "tutorialRetryBlackHoldMs", "tutorialStepTimer", "tutorialEnemy", "tutorialEnemySpawned", "tutorialZapTargetsSpawned", "tutorialRelicCollected", "tutorialRadarColor", "tutorialCrystalValuePopups", "tutorialCrystalValuePopupDurationMs"]);
+
+        class TutorialSystem {
+            constructor(game, storage, config) {
+                this.game = game;
+                this.storage = storage;
+                this.config = config;
+                this.tutorialPrompt = null;
+                this.tutorialPromptTitle = null;
+                this.tutorialPromptMessage = null;
+                this.tutorialWindowOpen = false;
+                this.tutorialWindowPhase = '';
+                this.tutorialContinuePointerId = null;
+                this.tutorialContinueClickBlockUntil = 0;
+                this.introCompletionStorageKey = config.storage.introCompletion;
+                this.introCompletionBuildStorageKey = config.storage.introCompletionBuild;
+                this.introCompleted = !TUTORIAL_ENABLED;
+                this.tutorialRequiredOnFirstRun = false;
+                this.tutorialToken = 0;
+                this.tutorialRafId = null;
+                this.tutorialScheduleSequence = 0;
+                this.tutorialLastFrameTime = 0;
+                this.tutorialMovementDistance = 0;
+                this.tutorialMovementRequired = config.tutorial.movementRequired;
+                this.tutorialMovementQualified = false;
+                this.tutorialMovementAdvanceDelayMs = config.tutorial.movementAdvanceDelayMs;
+                this.tutorialCrystalAdvanceDelayMs = config.tutorial.crystalAdvanceDelayMs;
+                this.tutorialEnemySpawnDelayMs = config.tutorial.enemySpawnDelayMs;
+                this.tutorialEnemyAvoidMs = 0;
+                this.tutorialEnemyAvoidRequiredMs = config.tutorial.enemyAvoidRequiredMs;
+                this.tutorialEnemySpeedMultiplier = config.tutorial.enemySpeedMultiplier;
+                this.tutorialZapTargetSpawnDelayMs = config.tutorial.zapTargetSpawnDelayMs;
+                this.tutorialCollisionFreezeMs = config.tutorial.collisionFreezeMs;
+                this.tutorialRetryFadeMs = config.tutorial.retryFadeMs;
+                this.tutorialRetryBlackHoldMs = config.tutorial.retryBlackHoldMs;
+                this.tutorialStepTimer = null;
+                this.tutorialEnemy = null;
+                this.tutorialEnemySpawned = false;
+                this.tutorialZapTargetsSpawned = 0;
+                this.tutorialRelicCollected = false;
+                this.tutorialRadarColor = '';
+                this.tutorialCrystalValuePopups = [];
+                this.tutorialCrystalValuePopupDurationMs = config.tutorial.crystalValuePopupMs;
+            }
+
+            static get ownedFields() { return TUTORIAL_SYSTEM_OWNED_FIELDS; }
+
+            hasImplementation(name) {
+                return typeof TUTORIAL_COMPATIBILITY_IMPLEMENTATIONS[name] === 'function';
+            }
+
+            invoke(name, args = []) {
+                const implementation = TUTORIAL_COMPATIBILITY_IMPLEMENTATIONS[name];
+                if (typeof implementation !== 'function') throw new Error(`Unknown TutorialSystem command: ${name}`);
+                return implementation.apply(this.game, args);
+            }
+
+            loadIntroCompletionFlag(...args) { return this.invoke('loadIntroCompletionFlag', args); }
+            saveIntroCompletionFlag(...args) { return this.invoke('saveIntroCompletionFlag', args); }
+            resetIntroCompletionFlag(...args) { return this.invoke('resetIntroCompletionFlag', args); }
+            resetTutorialProgress(...args) { return this.invoke('resetTutorialProgress', args); }
+            showTutorialWindow(...args) { return this.invoke('showTutorialWindow', args); }
+            hideTutorialWindow(...args) { return this.invoke('hideTutorialWindow', args); }
+            setTutorialPrompt(...args) { return this.invoke('setTutorialPrompt', args); }
+            handleTutorialWindowContinue(...args) { return this.invoke('handleTutorialWindowContinue', args); }
+            clearTutorialAnimationFrame(...args) { return this.invoke('clearTutorialAnimationFrame', args); }
+            scheduleTutorialAnimationFrame(...args) { return this.invoke('scheduleTutorialAnimationFrame', args); }
+            clearTutorialStepTimer(...args) { return this.invoke('clearTutorialStepTimer', args); }
+            scheduleTutorialStepTimer(...args) { return this.invoke('scheduleTutorialStepTimer', args); }
+            cancelTutorialScheduling(...args) { return this.invoke('cancelTutorialScheduling', args); }
+            clearTutorialObjects(...args) { return this.invoke('clearTutorialObjects', args); }
+            startOneTimeIntro(...args) { return this.invoke('startOneTimeIntro', args); }
+            setTutorialStep(...args) { return this.invoke('setTutorialStep', args); }
+            getTutorialCrystalValuePlacements(...args) { return this.invoke('getTutorialCrystalValuePlacements', args); }
+            showTutorialCrystalValuePopup(...args) { return this.invoke('showTutorialCrystalValuePopup', args); }
+            updateTutorialCrystalValuePopups(...args) { return this.invoke('updateTutorialCrystalValuePopups', args); }
+            beginTutorialPhase(...args) { return this.invoke('beginTutorialPhase', args); }
+            startTutorialSpawnWarning(...args) { return this.invoke('startTutorialSpawnWarning', args); }
+            spawnTutorialEnemy(...args) { return this.invoke('spawnTutorialEnemy', args); }
+            spawnTutorialZapTargets(...args) { return this.invoke('spawnTutorialZapTargets', args); }
+            spawnTutorialGridlockEnemy(...args) { return this.invoke('spawnTutorialGridlockEnemy', args); }
+            spawnTutorialGridlockSequence(...args) { return this.invoke('spawnTutorialGridlockSequence', args); }
+            restartTutorialAfterCollision(...args) { return this.invoke('restartTutorialAfterCollision', args); }
+            updateTutorial(...args) { return this.invoke('updateTutorial', args); }
+            handleTutorialCosmicZap(...args) { return this.invoke('handleTutorialCosmicZap', args); }
+            completeOneTimeIntro(...args) { return this.invoke('completeOneTimeIntro', args); }
+            showTutorialComplete(...args) { return this.invoke('showTutorialComplete', args); }
+            finishOneTimeIntroTransition(...args) { return this.invoke('finishOneTimeIntroTransition', args); }
+
+            snapshot() {
+                return Object.freeze({
+                    introCompleted: !!this.introCompleted,
+                    requiredOnFirstRun: !!this.tutorialRequiredOnFirstRun,
+                    windowOpen: !!this.tutorialWindowOpen,
+                    windowPhase: String(this.tutorialWindowPhase || ''),
+                    token: Number(this.tutorialToken) || 0,
+                    movementDistance: Number(this.tutorialMovementDistance) || 0,
+                    movementQualified: !!this.tutorialMovementQualified,
+                    enemySpawned: !!this.tutorialEnemySpawned,
+                    zapTargetsSpawned: Number(this.tutorialZapTargetsSpawned) || 0,
+                    relicCollected: !!this.tutorialRelicCollected,
+                    popupCount: Array.isArray(this.tutorialCrystalValuePopups) ? this.tutorialCrystalValuePopups.length : 0
+                });
+            }
+        }
+
+/* Source: src/js/presentation/130-attract-mode-system.js */
+        // p232 transitional extraction: attract lifecycle, cards, Game-of-Life state, and their
+        // scheduling now have one owner while rendering remains in the presentation layer.
+        const ATTRACT_MODE_COMPATIBILITY_IMPLEMENTATIONS = Object.freeze({
+            isAttractModeActive() {
+                const showingMenuPanel = !!this.getCurrentMenuContext();
+                const showingLevelSelect = this.levelSelectWindow && this.levelSelectWindow.style.display === 'flex';
+                return !!this.attractInterval && !this.active && !this.isPaused && !showingMenuPanel && !showingLevelSelect;
+            },
+
+            countNeighbors(grid, x, y) {
+                const width = 10;
+                const height = 10;
+                let count = 0;
+                for (let i = -1; i <= 1; i++) {
+                    for (let j = -1; j <= 1; j++) {
+                        if (i === 0 && j === 0) continue; // Skip self
+                        const newX = (x + i + width) % width; // Wrap around edges
+                        const newY = (y + j + height) % height;
+                        count += grid[newX][newY]; // Add neighbor state
+                    }
+                }
+                return count;
+            },
+
+            nextGeneration() {
+                const newGrid = Array(10).fill().map(() => Array(10).fill(0));
+                for (let x = 0; x < 10; x++) {
+                    for (let y = 0; y < 10; y++) {
+                        const neighbors = this.countNeighbors(this.lifeGrid, x, y);
+                        if (this.lifeGrid[x][y]) { // Live cell
+                            newGrid[x][y] = (neighbors === 2 || neighbors === 3) ? 1 : 0; // Survive or die
+                        } else { // Dead cell
+                            newGrid[x][y] = (neighbors === 3) ? 1 : 0; // Birth or stay dead
+                        }
+                    }
+                }
+                return newGrid;
+            },
+
+            isAttractEnemyCardAllowed() {
+                const menuOpen = !!(typeof this.getCurrentMenuContext === 'function' && this.getCurrentMenuContext());
+                const levelSelectOpen = !!(this.levelSelectWindow && this.levelSelectWindow.style.display === 'flex');
+                return !!(this.flow.is(GAME_FLOW_STATES.ATTRACT) && !this.active && !this.isPaused &&
+                    !this.splashIntroActive && !this.finalGridlockResultActive &&
+                    !menuOpen && !levelSelectOpen);
+            },
+
+            isAttractEnemyCardPresentationVisible() {
+                return !!(this.enemyIdentityCard && this.enemyIdentityCard.classList.contains('visible'));
+            },
+
+            scheduleAttractEnemyCardAutoStart(delayMs = this.attractScreenIntervalMs) {
+                this.scheduler.cancelTask('attract-mode', 'enemy-card-auto-start');
+                this.scheduler.cancelTask('attract-mode', 'enemy-card-auto-restart');
+                this.attractEnemyCardAutoInterval = null;
+                if (!this.flow.is(GAME_FLOW_STATES.ATTRACT) || !this.attractInterval) return null;
+                const delay = Math.max(0, Number(delayMs) || this.attractScreenIntervalMs || 0);
+                this.attractEnemyCardAutoInterval = this.scheduler.scheduleTimeout('attract-mode', 'enemy-card-auto-start', () => {
+                    this.attractEnemyCardAutoInterval = null;
+                    if (this.attractEnemyCardSequenceActive || !this.isAttractEnemyCardAllowed()) {
+                        if (this.flow.is(GAME_FLOW_STATES.ATTRACT) && this.attractInterval) {
+                            this.scheduleAttractEnemyCardAutoStart(this.attractScreenIntervalMs);
+                        }
+                        return;
+                    }
+                    this.startAttractEnemyCardSequence();
+                }, delay);
+                return this.attractEnemyCardAutoInterval;
+            },
+
+            cancelAttractEnemyCardPresentation(source = 'tap') {
+                if (!(this.attractEnemyCardSequenceActive || this.isAttractEnemyCardPresentationVisible())) return false;
+                this.suspendAttractEnemyCards();
+                this.scheduleAttractEnemyCardAutoStart(this.attractScreenIntervalMs);
+                if (this.ui && typeof this.ui.updateAll === 'function') this.ui.updateAll();
+                return true;
+            },
+
+            stopAttractEnemyCardSimulation() {
+                this.attractEnemyCardSimulationToken++;
+                if (this.attractEnemyCardFrame !== null) {
+                    cancelAnimationFrame(this.attractEnemyCardFrame);
+                    this.attractEnemyCardFrame = null;
+                }
+                this.scheduler.cancelScope('attract-enemy-card-sim');
+                if (this.enemyIdentityCardTrailLayer) this.enemyIdentityCardTrailLayer.replaceChildren();
+                if (this.audio && typeof this.audio.cancelEnemySpawnAudio === 'function') this.audio.cancelEnemySpawnAudio();
+            },
+
+            resetAttractEnemyCardStage() {
+                const elements = [
+                    this.enemyIdentityCardPrimary,
+                    this.enemyIdentityCardZig,
+                    this.enemyIdentityCardDash,
+                    this.enemyIdentityCardEcho,
+                    this.enemyIdentityCardOrb,
+                    this.enemyIdentityCardLockLine,
+                    this.enemyIdentityCardWarningRing,
+                    this.enemyIdentityCardAfterimage
+                ];
+                elements.forEach(element => {
+                    if (!element) return;
+                    element.style.removeProperty('left');
+                    element.style.removeProperty('top');
+                    element.style.removeProperty('opacity');
+                    element.style.removeProperty('transform');
+                    element.style.removeProperty('filter');
+                    element.style.removeProperty('width');
+                });
+                if (this.enemyIdentityCardTrailLayer) this.enemyIdentityCardTrailLayer.replaceChildren();
+                if (this.enemyIdentityCard) this.enemyIdentityCard.classList.remove('full-cast-brighten', 'transition-prelude', 'transition-color');
+            },
+
+            addAttractEnemyTrailDot(x, y, color) {
+                if (!this.enemyIdentityCardTrailLayer) return;
+                const dot = document.createElement('div');
+                dot.className = 'enemy-card-trail-dot';
+                dot.style.left = `${x}px`;
+                dot.style.top = `${y}px`;
+                dot.style.setProperty('--trail-color', color || '#fff');
+                this.enemyIdentityCardTrailLayer.appendChild(dot);
+                this.scheduler.scheduleTimeout('attract-enemy-card-sim', `trail-${performance.now()}-${Math.random()}`, () => dot.remove(), 680);
+            },
+
+            positionAttractCardElement(element, x, y, opacity = 1, transform = '') {
+                if (!element) return;
+                element.style.left = `${x}px`;
+                element.style.top = `${y}px`;
+                element.style.opacity = String(opacity);
+                element.style.transform = `translate(-50%, -50%)${transform ? ` ${transform}` : ''}`;
+            },
+
+            updateAttractLockLine(fromX, fromY, toX, toY, opacity = 1) {
+                if (!this.enemyIdentityCardLockLine) return;
+                const dx = toX - fromX;
+                const dy = toY - fromY;
+                const length = Math.hypot(dx, dy);
+                this.enemyIdentityCardLockLine.style.left = `${fromX}px`;
+                this.enemyIdentityCardLockLine.style.top = `${fromY}px`;
+                this.enemyIdentityCardLockLine.style.width = `${length}px`;
+                this.enemyIdentityCardLockLine.style.opacity = String(opacity);
+                this.enemyIdentityCardLockLine.style.transform = `rotate(${Math.atan2(dy, dx)}rad)`;
+            },
+
+            startAttractEnemyCardSimulation(cardKey) {
+                this.stopAttractEnemyCardSimulation();
+                this.resetAttractEnemyCardStage();
+                const stage = this.enemyIdentityCardStage;
+                if (!stage) return;
+                const token = ++this.attractEnemyCardSimulationToken;
+                const startedAt = performance.now();
+                const zigState = { x: 0, y: 0, vx: 96, vy: 74, initialized: false, bounceCount: 0 };
+                const fullZigState = { x: 0, y: 0, vx: 92, vy: 71, initialized: false, bounceCount: 0 };
+
+                const animate = now => {
+                    if (token !== this.attractEnemyCardSimulationToken || !this.enemyIdentityCard || !this.enemyIdentityCard.classList.contains('visible')) return;
+                    const rect = stage.getBoundingClientRect();
+                    const width = Math.max(1, rect.width);
+                    const height = Math.max(1, rect.height);
+                    const elapsed = Math.max(0, (now - startedAt) / 1000);
+                    const blockHalf = Math.max(10, Math.min(width, height) * 0.045);
+
+                    if (cardKey === 'drifter') {
+                        if (!zigState.initialized) {
+                            zigState.x = width * 0.14;
+                            zigState.y = height * 0.25;
+                            zigState.initialized = true;
+                        }
+                        const dt = Math.min(0.032, Math.max(0.001, (now - (zigState.lastAt || now - 16)) / 1000));
+                        zigState.lastAt = now;
+                        zigState.x += zigState.vx * dt;
+                        zigState.y += zigState.vy * dt;
+                        let bounced = false;
+                        if (zigState.x <= blockHalf || zigState.x >= width - blockHalf) {
+                            zigState.x = Math.max(blockHalf, Math.min(width - blockHalf, zigState.x));
+                            zigState.vx *= -1;
+                            zigState.vy *= zigState.bounceCount % 2 ? 0.84 : 1.12;
+                            bounced = true;
+                        }
+                        if (zigState.y <= blockHalf || zigState.y >= height - blockHalf) {
+                            zigState.y = Math.max(blockHalf, Math.min(height - blockHalf, zigState.y));
+                            zigState.vy *= -1;
+                            zigState.vx *= zigState.bounceCount % 2 ? 1.10 : 0.88;
+                            bounced = true;
+                        }
+                        if (bounced) {
+                            zigState.bounceCount++;
+                            const speed = Math.max(88, Math.min(132, Math.hypot(zigState.vx, zigState.vy)));
+                            const angle = Math.atan2(zigState.vy, zigState.vx) + (zigState.bounceCount % 2 ? 0.12 : -0.10);
+                            zigState.vx = Math.cos(angle) * speed;
+                            zigState.vy = Math.sin(angle) * speed;
+                            this.addAttractEnemyTrailDot(zigState.x, zigState.y, GAME_CONFIG.palette.red);
+                        }
+                        this.positionAttractCardElement(this.enemyIdentityCardPrimary, zigState.x, zigState.y, 1);
+                    } else if (cardKey === 'charger') {
+                        const orbX = width * 0.66;
+                        const orbY = height * 0.52;
+                        this.positionAttractCardElement(this.enemyIdentityCardOrb, orbX, orbY, 1);
+                        let x = width * 0.12;
+                        const y = height * 0.52;
+                        let opacity = 1;
+                        let transform = '';
+                        if (elapsed < 0.72) {
+                            x = width * (0.12 + (0.28 - 0.12) * (elapsed / 0.72));
+                        } else if (elapsed < 1.48) {
+                            x = width * 0.28;
+                            const lockProgress = (elapsed - 0.72) / 0.76;
+                            this.updateAttractLockLine(x, y, orbX, orbY, Math.min(1, lockProgress * 1.8));
+                            transform = `scale(${1 + Math.sin(lockProgress * Math.PI * 5) * 0.05})`;
+                        } else if (elapsed < 2.02) {
+                            const chargeProgress = (elapsed - 1.48) / 0.54;
+                            x = width * (0.28 + (0.88 - 0.28) * Math.min(1, chargeProgress * chargeProgress));
+                            transform = 'scale(1.10)';
+                            this.updateAttractLockLine(x, y, orbX, orbY, 0);
+                        } else if (elapsed < 2.82) {
+                            x = width * (0.88 - 0.07 * ((elapsed - 2.02) / 0.80));
+                            opacity = 0.62;
+                            transform = 'scale(0.92)';
+                        } else {
+                            x = width * 0.81;
+                            opacity = 0.76;
+                            transform = 'scale(0.95)';
+                        }
+                        this.positionAttractCardElement(this.enemyIdentityCardPrimary, x, y, opacity, transform);
+                    } else if (cardKey === 'pulse') {
+                        const startX = width * 0.15;
+                        const endX = width * 0.80;
+                        const x = startX + (endX - startX) * Math.min(1, elapsed / 3.25);
+                        const y = height * (0.36 + Math.sin(elapsed * 2.2) * 0.17);
+                        let opacity = 1;
+                        let filter = 'brightness(1.08)';
+                        if (elapsed < 0.82) {
+                            opacity = 1;
+                        } else if (elapsed < 1.12) {
+                            opacity = Math.max(0.08, 1 - ((elapsed - 0.82) / 0.30) * 0.92);
+                            if (this.enemyIdentityCardAfterimage) {
+                                this.positionAttractCardElement(this.enemyIdentityCardAfterimage, width * 0.31, height * 0.49, 0.34);
+                            }
+                        } else if (elapsed < 2.20) {
+                            const flashCycle = Math.floor((elapsed - 1.12) / 0.35);
+                            const flashLocal = (elapsed - 1.12) % 0.35;
+                            opacity = flashLocal < 0.07 ? 0.58 : 0.055;
+                            filter = 'brightness(0.58)';
+                            if (this.enemyIdentityCardAfterimage) {
+                                const fade = Math.max(0, 0.34 * (1 - (elapsed - 1.12) / 0.82));
+                                this.enemyIdentityCardAfterimage.style.opacity = String(fade);
+                            }
+                        } else if (elapsed < 2.76) {
+                            const pulse = (Math.sin((elapsed - 2.20) * 24) + 1) * 0.5;
+                            opacity = 0.38 + pulse * 0.62;
+                            filter = `brightness(${1.05 + pulse * 0.85})`;
+                            if (this.enemyIdentityCardWarningRing) {
+                                this.positionAttractCardElement(this.enemyIdentityCardWarningRing, x, y, 0.35 + pulse * 0.65, `scale(${0.82 + pulse * 0.28})`);
+                            }
+                        } else if (elapsed < 3.14) {
+                            opacity = 1;
+                            filter = 'brightness(1.14)';
+                            if (this.enemyIdentityCardWarningRing) this.enemyIdentityCardWarningRing.style.opacity = '0';
+                        } else {
+                            opacity = Math.max(0.04, 1 - ((elapsed - 3.14) / 0.36) * 0.96);
+                        }
+                        this.positionAttractCardElement(this.enemyIdentityCardPrimary, x, y, opacity);
+                        if (this.enemyIdentityCardPrimary) this.enemyIdentityCardPrimary.style.filter = filter;
+                    } else if (cardKey === 'full-cast') {
+                        const orbX = width * 0.50;
+                        const orbY = height * 0.52;
+                        this.positionAttractCardElement(this.enemyIdentityCardOrb, orbX, orbY, 1);
+
+                        // ZIG keeps its authentic drifting behavior and redirects whenever it reaches a boundary.
+                        if (!fullZigState.initialized) {
+                            fullZigState.x = width * 0.13;
+                            fullZigState.y = height * 0.22;
+                            fullZigState.initialized = true;
+                        }
+                        const fullDt = Math.min(0.032, Math.max(0.001, (now - (fullZigState.lastAt || now - 16)) / 1000));
+                        fullZigState.lastAt = now;
+                        fullZigState.x += fullZigState.vx * fullDt;
+                        fullZigState.y += fullZigState.vy * fullDt;
+                        let fullZigBounced = false;
+                        if (fullZigState.x <= blockHalf || fullZigState.x >= width - blockHalf) {
+                            fullZigState.x = Math.max(blockHalf, Math.min(width - blockHalf, fullZigState.x));
+                            fullZigState.vx *= -1;
+                            fullZigBounced = true;
+                        }
+                        if (fullZigState.y <= blockHalf || fullZigState.y >= height - blockHalf) {
+                            fullZigState.y = Math.max(blockHalf, Math.min(height - blockHalf, fullZigState.y));
+                            fullZigState.vy *= -1;
+                            fullZigBounced = true;
+                        }
+                        if (fullZigBounced) {
+                            fullZigState.bounceCount++;
+                            const speed = Math.max(82, Math.min(124, Math.hypot(fullZigState.vx, fullZigState.vy)));
+                            const angle = Math.atan2(fullZigState.vy, fullZigState.vx) + (fullZigState.bounceCount % 2 ? 0.14 : -0.11);
+                            fullZigState.vx = Math.cos(angle) * speed;
+                            fullZigState.vy = Math.sin(angle) * speed;
+                        }
+                        this.positionAttractCardElement(this.enemyIdentityCardZig, fullZigState.x, fullZigState.y, 1);
+
+                        // DASH cruises, locks onto the Orb, charges past it, then visibly loses energy in recovery.
+                        const dashPhase = elapsed % 3.60;
+                        let dashX = width * 0.14;
+                        let dashY = height * 0.34;
+                        let dashOpacity = 1;
+                        let dashTransform = '';
+                        let dashFilter = 'brightness(1)';
+                        if (dashPhase < 0.88) {
+                            const p = dashPhase / 0.88;
+                            dashX = width * (0.14 + 0.16 * p);
+                            dashY = height * (0.34 + 0.04 * p);
+                        } else if (dashPhase < 1.56) {
+                            const p = (dashPhase - 0.88) / 0.68;
+                            dashX = width * 0.30;
+                            dashY = height * 0.38;
+                            dashTransform = `scale(${1 + Math.sin(p * Math.PI * 6) * 0.055})`;
+                            dashFilter = `brightness(${1.05 + p * 0.55})`;
+                            this.updateAttractLockLine(dashX, dashY, orbX, orbY, Math.min(1, p * 1.9));
+                        } else if (dashPhase < 2.12) {
+                            const p = Math.min(1, (dashPhase - 1.56) / 0.56);
+                            const eased = p * p;
+                            dashX = width * (0.30 + 0.48 * eased);
+                            dashY = height * (0.38 + 0.22 * eased);
+                            dashTransform = 'scale(1.12)';
+                            dashFilter = 'brightness(1.48)';
+                            this.updateAttractLockLine(dashX, dashY, orbX, orbY, 0);
+                        } else if (dashPhase < 2.92) {
+                            const p = (dashPhase - 2.12) / 0.80;
+                            dashX = width * (0.78 + 0.055 * p);
+                            dashY = height * (0.60 + 0.025 * p);
+                            dashOpacity = 0.58 + p * 0.16;
+                            dashTransform = `scale(${0.90 + p * 0.04})`;
+                            dashFilter = `brightness(${0.62 + p * 0.14})`;
+                        } else {
+                            const p = (dashPhase - 2.92) / 0.68;
+                            dashX = width * (0.835 - 0.035 * p);
+                            dashY = height * (0.625 - 0.035 * p);
+                            dashOpacity = 0.74 + p * 0.20;
+                            dashTransform = `scale(${0.94 + p * 0.04})`;
+                            dashFilter = `brightness(${0.78 + p * 0.20})`;
+                        }
+                        this.positionAttractCardElement(this.enemyIdentityCardDash, dashX, dashY, dashOpacity, dashTransform);
+                        if (this.enemyIdentityCardDash) this.enemyIdentityCardDash.style.filter = dashFilter;
+
+                        // ECHO continues moving through every phase: active, fading, dormant flashes, and reactivation.
+                        const echoPhase = elapsed % 3.60;
+                        const echoProgress = echoPhase / 3.60;
+                        const echoX = width * (0.84 - 0.66 * echoProgress);
+                        const echoY = height * (0.72 - Math.sin(echoPhase * 2.35) * 0.16);
+                        let echoOpacity = 1;
+                        let echoFilter = 'brightness(1.08)';
+                        if (echoPhase < 0.76) {
+                            echoOpacity = 1;
+                        } else if (echoPhase < 1.08) {
+                            const p = (echoPhase - 0.76) / 0.32;
+                            echoOpacity = Math.max(0.07, 1 - p * 0.93);
+                            echoFilter = `brightness(${1.08 - p * 0.44})`;
+                        } else if (echoPhase < 2.22) {
+                            const local = (echoPhase - 1.08) % 0.34;
+                            echoOpacity = local < 0.07 ? 0.56 : 0.05;
+                            echoFilter = 'brightness(0.56)';
+                        } else if (echoPhase < 2.78) {
+                            const p = (echoPhase - 2.22) / 0.56;
+                            const pulse = (Math.sin(p * Math.PI * 7) + 1) * 0.5;
+                            echoOpacity = 0.30 + pulse * 0.70;
+                            echoFilter = `brightness(${1.00 + pulse * 0.82})`;
+                            if (this.enemyIdentityCardWarningRing) {
+                                this.positionAttractCardElement(this.enemyIdentityCardWarningRing, echoX, echoY, 0.28 + pulse * 0.66, `scale(${0.80 + pulse * 0.30})`);
+                            }
+                        } else {
+                            echoOpacity = 1;
+                            echoFilter = 'brightness(1.16)';
+                            if (this.enemyIdentityCardWarningRing) this.enemyIdentityCardWarningRing.style.opacity = '0';
+                        }
+                        this.positionAttractCardElement(this.enemyIdentityCardEcho, echoX, echoY, echoOpacity);
+                        if (this.enemyIdentityCardEcho) this.enemyIdentityCardEcho.style.filter = echoFilter;
+
+                        if (elapsed >= 3.72 && this.enemyIdentityCard) this.enemyIdentityCard.classList.add('full-cast-brighten');
+                    }
+
+                    this.attractEnemyCardFrame = requestAnimationFrame(animate);
+                };
+                this.attractEnemyCardFrame = requestAnimationFrame(animate);
+            },
+
+            hideAttractEnemyCard(options = {}) {
+                if (!this.enemyIdentityCard) return;
+                this.stopAttractEnemyCardSimulation();
+                if (this.enemyIdentityCardHideCleanupTimer) {
+                    clearTimeout(this.enemyIdentityCardHideCleanupTimer);
+                    this.enemyIdentityCardHideCleanupTimer = null;
+                }
+                this.enemyIdentityCard.classList.remove('visible', 'transition-prelude', 'transition-color', 'full-cast-brighten');
+                this.enemyIdentityCard.setAttribute('aria-hidden', 'true');
+                this.enemyIdentityCardHideCleanupTimer = setTimeout(() => {
+                    if (!this.enemyIdentityCard || this.enemyIdentityCard.classList.contains('visible')) return;
+                    delete this.enemyIdentityCard.dataset.card;
+                    if (this.enemyIdentityCardName) this.enemyIdentityCardName.textContent = '';
+                    if (this.enemyIdentityCardClass) this.enemyIdentityCardClass.textContent = '';
+                    if (this.enemyIdentityCardPersonality) this.enemyIdentityCardPersonality.textContent = '';
+                    if (this.enemyIdentityCardBehavior) this.enemyIdentityCardBehavior.textContent = '';
+                    if (!options.keepColor) this.enemyIdentityCard.style.removeProperty('--enemy-card-color');
+                    this.enemyIdentityCardHideCleanupTimer = null;
+                }, 180);
+            },
+
+            suspendAttractEnemyCards() {
+                this.attractEnemyCardSequenceToken++;
+                this.attractEnemyCardSequenceActive = false;
+                this.scheduler.cancelScope('attract-enemy-cards');
+                this.attractEnemyCardIndex = -1;
+                this.hideAttractEnemyCard();
+            },
+
+            showAttractTransitionFrame(color = '#fff', prelude = false) {
+                if (!this.enemyIdentityCard) return;
+                this.stopAttractEnemyCardSimulation();
+                if (this.enemyIdentityCardHideCleanupTimer) {
+                    clearTimeout(this.enemyIdentityCardHideCleanupTimer);
+                    this.enemyIdentityCardHideCleanupTimer = null;
+                }
+                this.enemyIdentityCard.dataset.card = 'transition';
+                this.enemyIdentityCard.style.setProperty('--enemy-card-transition-color', color || '#fff');
+                this.enemyIdentityCard.setAttribute('aria-hidden', 'false');
+                this.enemyIdentityCard.classList.remove('transition-prelude', 'transition-color', 'full-cast-brighten');
+                void this.enemyIdentityCard.offsetWidth;
+                this.enemyIdentityCard.classList.add('visible', prelude ? 'transition-prelude' : 'transition-color');
+            },
+
+            showAttractEnemyCard(identityKey) {
+                if (!this.enemyIdentityCard) return;
+                if (this.enemyIdentityCardHideCleanupTimer) {
+                    clearTimeout(this.enemyIdentityCardHideCleanupTimer);
+                    this.enemyIdentityCardHideCleanupTimer = null;
+                }
+                const isCompany = identityKey === 'company';
+                const isCastIntro = identityKey === 'cast-intro';
+                const isFullCast = identityKey === 'full-cast';
+                const isPresentationCard = isCompany || isCastIntro;
+                const identity = isPresentationCard || isFullCast ? null : getEnemyIdentity(identityKey);
+                const cardType = isCompany ? 'company' : isCastIntro ? 'cast-intro' : isFullCast ? 'full-cast' : identity.key;
+                const cardColor = isPresentationCard || isFullCast ? '#fff' : identity.color;
+                this.enemyIdentityCard.dataset.card = cardType;
+                this.enemyIdentityCard.style.setProperty('--enemy-card-color', cardColor);
+                this.enemyIdentityCard.classList.remove('transition-prelude', 'transition-color', 'full-cast-brighten');
+
+                if (isCompany) {
+                    if (this.enemyIdentityCardName) this.enemyIdentityCardName.textContent = 'ARKOM PRESENTS';
+                    if (this.enemyIdentityCardClass) this.enemyIdentityCardClass.textContent = '';
+                    if (this.enemyIdentityCardPersonality) this.enemyIdentityCardPersonality.textContent = '';
+                    if (this.enemyIdentityCardBehavior) this.enemyIdentityCardBehavior.textContent = '';
+                    this.enemyIdentityCard.setAttribute('aria-label', 'Arkom presents.');
+                } else if (isCastIntro) {
+                    if (this.enemyIdentityCardName) {
+                        this.enemyIdentityCardName.innerHTML = '<span class="attract-title-line attract-title-block">BLOCK</span><span class="attract-title-line attract-title-a">-A-</span><span class="attract-title-line attract-title-zoids">ZOIDS</span>';
+                    }
+                    if (this.enemyIdentityCardClass) this.enemyIdentityCardClass.textContent = '';
+                    if (this.enemyIdentityCardPersonality) this.enemyIdentityCardPersonality.textContent = '';
+                    if (this.enemyIdentityCardBehavior) this.enemyIdentityCardBehavior.textContent = '';
+                    this.enemyIdentityCard.setAttribute('aria-label', 'Block-A-Zoids.');
+                } else if (isFullCast) {
+                    if (this.enemyIdentityCardName) this.enemyIdentityCardName.textContent = 'YOU’VE MET THEM';
+                    if (this.enemyIdentityCardClass) this.enemyIdentityCardClass.textContent = '';
+                    if (this.enemyIdentityCardPersonality) this.enemyIdentityCardPersonality.textContent = 'NOW SURVIVE THEM';
+                    if (this.enemyIdentityCardBehavior) this.enemyIdentityCardBehavior.textContent = '';
+                    this.enemyIdentityCard.setAttribute('aria-label', 'You’ve met them. Now survive them.');
+                } else {
+                    if (this.enemyIdentityCardName) this.enemyIdentityCardName.textContent = identity.displayName;
+                    if (this.enemyIdentityCardClass) this.enemyIdentityCardClass.textContent = `“${identity.className.toUpperCase()}”`;
+                    if (this.enemyIdentityCardPersonality) this.enemyIdentityCardPersonality.textContent = identity.attractPersonality;
+                    if (this.enemyIdentityCardBehavior) this.enemyIdentityCardBehavior.textContent = '';
+                    this.enemyIdentityCard.setAttribute('aria-label', `${identity.displayName}, ${identity.className}. ${identity.attractPersonality}`);
+                }
+
+                this.enemyIdentityCard.setAttribute('aria-hidden', 'false');
+                this.enemyIdentityCard.classList.add('visible');
+                if (isPresentationCard) {
+                    this.stopAttractEnemyCardSimulation();
+                    return;
+                }
+
+                this.startAttractEnemyCardSimulation(isFullCast ? 'full-cast' : identity.key);
+            },
+
+            startAttractEnemyCardSequence() {
+                if (this.attractEnemyCardSequenceActive || !this.isAttractEnemyCardAllowed()) return false;
+
+                this.suspendAttractEnemyCards();
+                const token = ++this.attractEnemyCardSequenceToken;
+                this.attractEnemyCardSequenceActive = true;
+                // Attract screens are timer-driven and intentionally silent. Never call resume()
+                // here: Safari requires the AudioContext unlock to happen inside a real player gesture.
+                // The attract presentation introduces the complete cast independently of
+                // campaign unlock progress, so it never stops halfway through on a fresh save.
+                const cards = ['company', 'cast-intro', ...ENEMY_IDENTITY_ORDER, 'full-cast'];
+                const transitionDurationMs = 250;
+                const getCardDurationMs = key => {
+                    if (key === 'company') return 3000;
+                    if (key === 'cast-intro') return 7000;
+                    return this.attractScreenIntervalMs;
+                };
+
+                const cancelIfUnavailable = () => {
+                    if (token !== this.attractEnemyCardSequenceToken) return true;
+                    if (this.isAttractEnemyCardAllowed()) return false;
+                    this.suspendAttractEnemyCards();
+                    return true;
+                };
+
+                const showIndex = index => {
+                    if (cancelIfUnavailable()) return;
+                    if (index >= cards.length) {
+                        this.hideAttractEnemyCard();
+                        this.attractEnemyCardSequenceActive = false;
+                        this.attractEnemyCardIndex = -1;
+                        if (this.container) {
+                            this.container.classList.remove('attract-grid-rebuild');
+                            void this.container.offsetWidth;
+                            this.container.classList.add('attract-grid-rebuild');
+                            this.scheduler.scheduleTimeout('attract-enemy-cards', 'grid-rebuild-clear', () => this.container && this.container.classList.remove('attract-grid-rebuild'), 500);
+                        }
+                        this.scheduleAttractEnemyCardAutoStart(this.attractScreenIntervalMs);
+                        return;
+                    }
+
+                    this.attractEnemyCardIndex = index;
+                    const key = cards[index];
+                    const cardHoldDurationMs = Math.max(0, getCardDurationMs(key) - transitionDurationMs);
+                    this.showAttractEnemyCard(key);
+                    this.scheduler.scheduleTimeout('attract-enemy-cards', `card-${index}-hold`, () => {
+                        if (cancelIfUnavailable()) return;
+                        const color = key === 'full-cast' || key === 'company' || key === 'cast-intro'
+                            ? '#fff'
+                            : getEnemyIdentity(key).color;
+                        this.showAttractTransitionFrame(color, false);
+                        this.scheduler.scheduleTimeout('attract-enemy-cards', `card-${index}-transition`, () => showIndex(index + 1), transitionDurationMs);
+                    }, cardHoldDurationMs);
+                };
+
+                this.showAttractTransitionFrame('#fff', true);
+                this.scheduler.scheduleTimeout('attract-enemy-cards', 'prelude-frame', () => showIndex(0), 240);
+                return true;
+            },
+
+            returnToAttractMode() {
+                const allowedFlow = this.flow.isAny(
+                    GAME_FLOW_STATES.SPLASH,
+                    GAME_FLOW_STATES.GAME_OVER,
+                ) || (this.flow.is(GAME_FLOW_STATES.ATTRACT) && !this.attractInterval);
+                if (!this.requireLifecycleAction(
+                    'returnToAttractMode',
+                    allowedFlow && !this.active && !this.isPaused && !this.resumeCountdownActive,
+                    this.flow.is(GAME_FLOW_STATES.ATTRACT) ? 'attract-mode-already-running' : 'attract-mode-not-available'
+                )) return false;
+
+                this.flow.enter(GAME_FLOW_STATES.ATTRACT, 'start-attract-mode');
+                this.systems.prepareAttractMode();
+                const gridSize = this.GRID_SIZE; // Grid cell size
+                const gridWidth = this.PLAYFIELD_SIZE / gridSize; // 10
+                const gridHeight = this.PLAYFIELD_SIZE / gridSize; // 10
+
+                const reseedAttractGrid = () => {
+                    this.lifeGrid = Array(10).fill().map(() =>
+                        Array(10).fill().map(() => Math.random() < 0.15 ? 1 : 0)
+                    );
+                    this.attractModeStartedAt = performance.now();
+                };
+
+                // Initialize grid with 15% chance of life for a sparser pattern
+                reseedAttractGrid();
+
+                const updatePattern = () => {
+                    this.playfieldRenderer.removeAttractSquares(this.attractSquares);
+                    this.attractSquares = [];
+
+                    if (performance.now() - this.attractModeStartedAt >= this.attractReseedIntervalMs) {
+                        reseedAttractGrid();
+                    } else {
+                        this.lifeGrid = this.nextGeneration(); // Compute next generation
+                    }
+
+                    // Display live cells as flashing squares. The same state drives either renderer.
+                    const createdAt = performance.now();
+                    for (let x = 0; x < gridWidth; x++) {
+                        for (let y = 0; y < gridHeight; y++) {
+                            if (this.lifeGrid[x][y]) {
+                                const square = {
+                                    x: x * gridSize,
+                                    y: y * gridSize,
+                                    size: gridSize,
+                                    createdAt,
+                                    animationDelayMs: Math.random() * 500,
+                                    isActive: true,
+                                    element: null
+                                };
+                                this.playfieldRenderer.createAttractSquare(square);
+                                this.attractSquares.push(square);
+                            }
+                        }
+                    }
+
+                    // Reset grid if all cells die
+                    const totalLive = this.lifeGrid.flat().reduce((sum, val) => sum + val, 0);
+                    if (totalLive === 0) {
+                        reseedAttractGrid();
+                    }
+                    this.requestPlayfieldRender();
+                };
+
+                updatePattern(); // Initial pattern
+                this.attractInterval = this.scheduler.scheduleInterval('attract-mode', 'life-grid', updatePattern, 1000); // Update every second
+                this.scheduleAttractEnemyCardAutoStart(this.attractScreenIntervalMs);
+                this.validateStateInvariants('returnToAttractMode');
+                return true;
+            },
+
+            stopAttractMode() {
+                if (this.gestures && typeof this.gestures.cancelAttractOrbHold === 'function') {
+                    this.gestures.cancelAttractOrbHold('stop-attract-mode');
+                }
+                this.suspendAttractEnemyCards();
+                this.scheduler.cancelScope('attract-mode');
+                this.attractInterval = null;
+                this.attractEnemyCardAutoInterval = null;
+                this.attractModeStartedAt = 0;
+                if (this.player) this.playfieldRenderer.setPlayerEffect(this.player, 'attract-orb-pulse', false);
+                this.playfieldRenderer.removeAttractSquares(this.attractSquares);
+                this.attractSquares = [];
+                this.lifeGrid = []; // Clear grid
+                this.requestPlayfieldRender();
+            }
+        });
+
+        const ATTRACT_MODE_OWNED_FIELDS = Object.freeze(["attractSquares", "attractInterval", "attractEnemyCardAutoInterval", "attractScreenIntervalMs", "lifeGrid", "attractModeStartedAt", "attractReseedIntervalMs", "attractEnemyCardSequenceToken", "attractEnemyCardSequenceActive", "attractEnemyCardIndex", "attractEnemyCardFrame", "attractEnemyCardSimulationToken", "enemyIdentityCardHideCleanupTimer"]);
+
+        class AttractModeSystem {
+            constructor(game, config) {
+                this.game = game;
+                this.config = config;
+                this.attractSquares = [];
+                this.attractInterval = null;
+                this.attractEnemyCardAutoInterval = null;
+                this.attractScreenIntervalMs = 10000;
+                this.lifeGrid = [];
+                this.attractModeStartedAt = 0;
+                this.attractReseedIntervalMs = 20000;
+                this.attractEnemyCardSequenceToken = 0;
+                this.attractEnemyCardSequenceActive = false;
+                this.attractEnemyCardIndex = -1;
+                this.attractEnemyCardFrame = null;
+                this.attractEnemyCardSimulationToken = 0;
+                this.enemyIdentityCardHideCleanupTimer = null;
+            }
+
+            static get ownedFields() { return ATTRACT_MODE_OWNED_FIELDS; }
+
+            hasImplementation(name) {
+                return typeof ATTRACT_MODE_COMPATIBILITY_IMPLEMENTATIONS[name] === 'function';
+            }
+
+            invoke(name, args = []) {
+                const implementation = ATTRACT_MODE_COMPATIBILITY_IMPLEMENTATIONS[name];
+                if (typeof implementation !== 'function') throw new Error(`Unknown AttractModeSystem command: ${name}`);
+                return implementation.apply(this.game, args);
+            }
+
+            isAttractModeActive(...args) { return this.invoke('isAttractModeActive', args); }
+            countNeighbors(...args) { return this.invoke('countNeighbors', args); }
+            nextGeneration(...args) { return this.invoke('nextGeneration', args); }
+            isAttractEnemyCardAllowed(...args) { return this.invoke('isAttractEnemyCardAllowed', args); }
+            isAttractEnemyCardPresentationVisible(...args) { return this.invoke('isAttractEnemyCardPresentationVisible', args); }
+            scheduleAttractEnemyCardAutoStart(...args) { return this.invoke('scheduleAttractEnemyCardAutoStart', args); }
+            cancelAttractEnemyCardPresentation(...args) { return this.invoke('cancelAttractEnemyCardPresentation', args); }
+            stopAttractEnemyCardSimulation(...args) { return this.invoke('stopAttractEnemyCardSimulation', args); }
+            resetAttractEnemyCardStage(...args) { return this.invoke('resetAttractEnemyCardStage', args); }
+            addAttractEnemyTrailDot(...args) { return this.invoke('addAttractEnemyTrailDot', args); }
+            positionAttractCardElement(...args) { return this.invoke('positionAttractCardElement', args); }
+            updateAttractLockLine(...args) { return this.invoke('updateAttractLockLine', args); }
+            startAttractEnemyCardSimulation(...args) { return this.invoke('startAttractEnemyCardSimulation', args); }
+            hideAttractEnemyCard(...args) { return this.invoke('hideAttractEnemyCard', args); }
+            suspendAttractEnemyCards(...args) { return this.invoke('suspendAttractEnemyCards', args); }
+            showAttractTransitionFrame(...args) { return this.invoke('showAttractTransitionFrame', args); }
+            showAttractEnemyCard(...args) { return this.invoke('showAttractEnemyCard', args); }
+            startAttractEnemyCardSequence(...args) { return this.invoke('startAttractEnemyCardSequence', args); }
+            returnToAttractMode(...args) { return this.invoke('returnToAttractMode', args); }
+            stopAttractMode(...args) { return this.invoke('stopAttractMode', args); }
+
+            snapshot() {
+                return Object.freeze({
+                    active: !!this.attractInterval,
+                    modeStartedAt: Number(this.attractModeStartedAt) || 0,
+                    squareCount: Array.isArray(this.attractSquares) ? this.attractSquares.length : 0,
+                    lifeGridRows: Array.isArray(this.lifeGrid) ? this.lifeGrid.length : 0,
+                    cardSequenceActive: !!this.attractEnemyCardSequenceActive,
+                    cardIndex: Number(this.attractEnemyCardIndex),
+                    cardSimulationRevision: Number(this.attractEnemyCardSimulationToken) || 0,
+                    autoStartScheduled: !!this.attractEnemyCardAutoInterval
+                });
+            }
+        }
+
 /* Source: src/js/development/90-architecture-validator.js */
         class ArchitectureValidator {
             constructor() {
@@ -11869,6 +13448,14 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                     { x: 6, y: 0, size: 2 }
                 );
                 this.assert('CollisionSystem owns swept Orb hit testing', sweptScore !== null && sweptScore >= 0);
+
+                const tutorialOwner = new TutorialSystem({}, testStorage, GAME_CONFIG);
+                this.assert('TutorialSystem owns tutorial compatibility surface', TutorialSystem.ownedFields.length >= 30 && tutorialOwner.hasImplementation('startOneTimeIntro') && tutorialOwner.hasImplementation('finishOneTimeIntroTransition'));
+                this.assert('TutorialSystem snapshot is read-only', Object.isFrozen(tutorialOwner.snapshot()));
+
+                const attractOwner = new AttractModeSystem({}, GAME_CONFIG);
+                this.assert('AttractModeSystem owns attract compatibility surface', AttractModeSystem.ownedFields.length >= 10 && attractOwner.hasImplementation('returnToAttractMode') && attractOwner.hasImplementation('stopAttractMode'));
+                this.assert('AttractModeSystem snapshot is read-only', Object.isFrozen(attractOwner.snapshot()));
             }
 
             validateFlow() {
@@ -11910,6 +13497,8 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 this.assert('ScreenManager presentation owner is available', typeof ScreenManager === 'function');
                 this.assert('High Score screen owner is available', typeof HighScoreScreenController === 'function');
                 this.assert('Sector Select screen owner is available', typeof LevelSelectScreenController === 'function');
+                this.assert('TutorialSystem owner is available', typeof TutorialSystem === 'function');
+                this.assert('AttractModeSystem owner is available', typeof AttractModeSystem === 'function');
             }
 
             run() {
@@ -16533,6 +18122,8 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 this.enemySpawnSystem = new EnemySpawnSystem(this, GAME_CONFIG);
                 this.collisionSystem = new CollisionSystem(this, GAME_CONFIG);
                 this.runtimeState = new RuntimeStateSystem();
+                this.tutorialSystem = new TutorialSystem(this, storageService, GAME_CONFIG);
+                this.attractModeSystem = new AttractModeSystem(this, GAME_CONFIG);
 
                 // Compatibility properties keep existing call sites stable while state ownership
                 // moves out of the legacy Game coordinator one responsibility at a time.
@@ -16617,6 +18208,8 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 installOwnedStateProxy(this, 'finalGridlockActive', this.runtimeState, 'finalGridlockActive');
                 installOwnedStateProxy(this, 'finalGridlockResultActive', this.runtimeState, 'finalGridlockResultActive');
                 installOwnedStateProxy(this, 'finalGridlockElapsedMs', this.runtimeState, 'finalGridlockElapsedMs');
+                TutorialSystem.ownedFields.forEach((field) => installOwnedStateProxy(this, field, this.tutorialSystem, field));
+                AttractModeSystem.ownedFields.forEach((field) => installOwnedStateProxy(this, field, this.attractModeSystem, field));
                 this.visualEffectSequence = 0;
                 this.crystalCollectionFx = { lastPickupAt: -Infinity, chain: 0, halo: null };
                 this.gameplayTaskSequence = 0;
@@ -18828,6 +20421,8 @@ Best Score: ${bestScore}${recoveredLine}` :
                         tutorialReady: !!this.tutorialRelicReady,
                         tutorialCollected: !!this.tutorialRelicCollected
                     },
+                    tutorialOwner: this.tutorialSystem ? this.tutorialSystem.snapshot() : null,
+                    attractOwner: this.attractModeSystem ? this.attractModeSystem.snapshot() : null,
                     tutorial: {
                         introCompleted: !!this.introCompleted,
                         active: !!this.tutorialActive,
@@ -19028,11 +20623,7 @@ Best Score: ${bestScore}${recoveredLine}` :
             }
 
 
-            isAttractModeActive() {
-                const showingMenuPanel = !!this.getCurrentMenuContext();
-                const showingLevelSelect = this.levelSelectWindow && this.levelSelectWindow.style.display === 'flex';
-                return !!this.attractInterval && !this.active && !this.isPaused && !showingMenuPanel && !showingLevelSelect;
-            }
+            isAttractModeActive(...args) { return this.attractModeSystem.isAttractModeActive(...args); }
 
 
             // Resolve all presentation geometry in one place. The frame size is the p010
@@ -20640,44 +22231,13 @@ Best Score: ${bestScore}${recoveredLine}` :
             }
 
             // Tutorial completion persists across numbered builds and is cleared only through Settings.
-            loadIntroCompletionFlag() {
-                try {
-                    return storageService.getItem(this.introCompletionStorageKey || 'blockazoidsIntroCompletedV1') === '1';
-                } catch (_) {
-                    return false;
-                }
-            }
+            loadIntroCompletionFlag(...args) { return this.tutorialSystem.loadIntroCompletionFlag(...args); }
 
-            saveIntroCompletionFlag() {
-                try {
-                    storageService.setItem(this.introCompletionStorageKey, '1');
-                    if (this.introCompletionBuildStorageKey) storageService.removeItem(this.introCompletionBuildStorageKey);
-                } catch (_) {}
-                this.introCompleted = true;
-                this.tutorialRequiredOnFirstRun = false;
-            }
+            saveIntroCompletionFlag(...args) { return this.tutorialSystem.saveIntroCompletionFlag(...args); }
 
-            resetIntroCompletionFlag() {
-                if (!TUTORIAL_ENABLED) {
-                    this.introCompleted = true;
-                    return;
-                }
-                try {
-                    storageService.removeItem(this.introCompletionStorageKey);
-                    storageService.removeItem(this.introCompletionBuildStorageKey);
-                } catch (_) {}
-                this.introCompleted = false;
-                this.tutorialRequiredOnFirstRun = true;
-            }
+            resetIntroCompletionFlag(...args) { return this.tutorialSystem.resetIntroCompletionFlag(...args); }
 
-            resetTutorialProgress() {
-                this.resetIntroCompletionFlag();
-                if (!this.resetTutorialButton) return;
-                this.resetTutorialButton.textContent = 'Tutorial Reset';
-                this.scheduler.scheduleTimeout('ui', 'reset-tutorial-label', () => {
-                    if (this.resetTutorialButton) this.resetTutorialButton.textContent = 'Reset Tutorial';
-                }, 1000);
-            }
+            resetTutorialProgress(...args) { return this.tutorialSystem.resetTutorialProgress(...args); }
 
             updateInvincibilityToggleLabel() {
                 if (!this.invincibilityToggleButton) return;
@@ -20694,730 +22254,59 @@ Best Score: ${bestScore}${recoveredLine}` :
                 this.setTelemetryStatus(`Invincibility ${this.invincibilityEnabled ? 'enabled' : 'disabled'}.`);
             }
 
-            showTutorialWindow(title, message, phase, stepIndex = 0) {
-                if (!this.tutorialPrompt) return;
-                this.tutorialWindowOpen = true;
-                this.tutorialWindowPhase = phase || '';
-                this.tutorialPrompt.classList.toggle('tutorial-enemy-window', phase === 'enemy');
-                this.tutorialPrompt.classList.toggle('tutorial-crystal-window', phase === 'crystal');
-                if (this.tutorialPromptTitle) {
-                    this.tutorialPromptTitle.textContent = title || '';
-                    this.tutorialPromptTitle.style.display = title ? 'block' : 'none';
-                }
-                if (this.tutorialPromptMessage) {
-                    this.tutorialPromptMessage.textContent = message || '';
-                    this.tutorialPromptMessage.style.display = message ? 'block' : 'none';
-                }
-                this.tutorialPrompt.classList.add('visible');
-                this.tutorialPrompt.setAttribute('aria-hidden', 'false');
-                this.setTransitionState({ startInputLocked: true });
-                this.player.invalidateDragSession(`tutorial-window:${phase || 'unknown'}`);
-                if (this.audio && typeof this.audio.playTutorialStepBeep === 'function') {
-                    this.audio.playTutorialStepBeep(stepIndex);
-                }
-                this.syncMotionListenerState();
-                if (this.ui) this.ui.updateAll();
-            }
+            showTutorialWindow(...args) { return this.tutorialSystem.showTutorialWindow(...args); }
 
-            hideTutorialWindow() {
-                this.tutorialWindowOpen = false;
-                this.tutorialWindowPhase = '';
-                if (!this.tutorialPrompt) return;
-                this.tutorialPrompt.classList.remove('visible', 'tutorial-enemy-window', 'tutorial-crystal-window');
-                this.tutorialPrompt.setAttribute('aria-hidden', 'true');
-            }
+            hideTutorialWindow(...args) { return this.tutorialSystem.hideTutorialWindow(...args); }
 
-            setTutorialPrompt(text = '') {
-                if (!text) {
-                    this.hideTutorialWindow();
-                    return;
-                }
-                this.showTutorialWindow(text, '', 'legacy', 0);
-            }
+            setTutorialPrompt(...args) { return this.tutorialSystem.setTutorialPrompt(...args); }
 
-            handleTutorialWindowContinue(e) {
-                if (e) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                }
-                if (!this.tutorialActive || !this.tutorialWindowOpen) return;
-                const phase = this.tutorialWindowPhase;
+            handleTutorialWindowContinue(...args) { return this.tutorialSystem.handleTutorialWindowContinue(...args); }
 
-                if (this.audio) this.audio.resume(`tutorial-${phase || 'continue'}`);
+            clearTutorialAnimationFrame(...args) { return this.tutorialSystem.clearTutorialAnimationFrame(...args); }
 
-                this.hideTutorialWindow();
-                this.setTransitionState({ startInputLocked: false });
-                this.player.invalidateDragSession(`tutorial-window-continue:${phase || 'unknown'}`);
-                // The Continue press must not become the first half of a Zap double-tap.
-                if (this.gestures) this.gestures.reset('tutorial-window-continue');
+            scheduleTutorialAnimationFrame(...args) { return this.tutorialSystem.scheduleTutorialAnimationFrame(...args); }
 
-                if (phase === 'complete') {
-                    this.showTutorialComplete();
-                    return;
-                }
+            clearTutorialStepTimer(...args) { return this.tutorialSystem.clearTutorialStepTimer(...args); }
 
-                this.beginTutorialPhase(phase);
-            }
+            scheduleTutorialStepTimer(...args) { return this.tutorialSystem.scheduleTutorialStepTimer(...args); }
 
-            clearTutorialAnimationFrame() {
-                if (this.tutorialRafId) {
-                    this.scheduler.cancelTask(this.tutorialRafId);
-                    this.tutorialRafId = null;
-                }
-            }
+            cancelTutorialScheduling(...args) { return this.tutorialSystem.cancelTutorialScheduling(...args); }
 
-            scheduleTutorialAnimationFrame(token = this.tutorialToken) {
-                if (!this.tutorialActive || token !== this.tutorialToken) return null;
-                this.tutorialRafId = this.scheduler.scheduleAnimationFrame('tutorial', 'main-frame', (timestamp) => {
-                    this.tutorialRafId = null;
-                    this.updateTutorial(timestamp, token);
-                });
-                return this.tutorialRafId;
-            }
+            clearTutorialObjects(...args) { return this.tutorialSystem.clearTutorialObjects(...args); }
 
-            clearTutorialStepTimer() {
-                if (this.tutorialStepTimer) {
-                    this.scheduler.cancelTask(this.tutorialStepTimer);
-                    this.tutorialStepTimer = null;
-                }
-            }
+            startOneTimeIntro(...args) { return this.tutorialSystem.startOneTimeIntro(...args); }
 
-            scheduleTutorialStepTimer(callback, delayMs) {
-                this.clearTutorialStepTimer();
-                this.tutorialStepTimer = this.scheduler.scheduleTimeout('tutorial', 'step-timer', () => {
-                    this.tutorialStepTimer = null;
-                    callback();
-                }, delayMs);
-                return this.tutorialStepTimer;
-            }
+            setTutorialStep(...args) { return this.tutorialSystem.setTutorialStep(...args); }
 
-            cancelTutorialScheduling() {
-                const cancelledTasks = this.scheduler.cancelScope('tutorial');
-                this.tutorialRafId = null;
-                this.tutorialStepTimer = null;
-                return cancelledTasks;
-            }
+            getTutorialCrystalValuePlacements(...args) { return this.tutorialSystem.getTutorialCrystalValuePlacements(...args); }
 
-            clearTutorialObjects() {
-                this.clearTutorialStepTimer();
-                this.clearPendingSpawnWarnings(true);
-                this.enemies.forEach(enemy => this.playfieldRenderer.removeEnemy(enemy));
-                this.enemies = [];
-                this.tutorialEnemy = null;
-                this.crystals.forEach(crystal => this.playfieldRenderer.removeCrystal(crystal));
-                this.crystals = [];
-                this.activeBlinkingCrystals = [];
-                this.tutorialCrystalValuePopups = [];
-                this.setTutorialState({ tutorialRelicReady: false });
-                if (this.prismRelic) {
-                    this.playfieldRenderer.removePrismRelic(this.prismRelic);
-                    this.setPrismRelicState({ prismRelic: null });
-                }
-                this.setGridlockState({ maxSwarmActive: false });
-                this.setGridlockState({ overtimeActive: false });
-                if (this.audio) {
-                    this.audio.stopMaxSwarmBeat();
-                    this.audio.stopPrismRelicHum();
-                }
-            }
+            showTutorialCrystalValuePopup(...args) { return this.tutorialSystem.showTutorialCrystalValuePopup(...args); }
 
-            startOneTimeIntro() {
-                this.hasStartedRun = true;
-                this.stopAttractMode();
-                this.cancelTutorialScheduling();
-                this.clearGameplayObjects();
-                this.clearTutorialObjects();
-                this.audio.resume();
-                this.audio.stopBackgroundMusic();
-                this.score = 0;
-                this.level = 1;
+            updateTutorialCrystalValuePopups(...args) { return this.tutorialSystem.updateTutorialCrystalValuePopups(...args); }
 
-                this.setTerminalState({ isGameOver: false });
-                this.setGameplayState({ isPaused: false });
-                this.setTerminalState({ finalGridlockActive: false });
-                // The tutorial is live interaction, not a sector transition. Open the input window
-                // before entering the tutorial flow so the first touch cannot be discarded.
-                this.setTransitionState({ sectorTransitionActive: false });
-                this.setTransitionState({ startInputLocked: false });
-                this.setTutorialState({ tutorialActive: true });
-                this.setTutorialState({ tutorialStep: 'intro' });
-                this.flow.enter(GAME_FLOW_STATES.TUTORIAL, 'start-one-time-intro');
-                this.tutorialToken++;
-                this.tutorialMovementDistance = 0;
-                this.tutorialMovementQualified = false;
-                this.tutorialEnemyAvoidMs = 0;
-                this.tutorialEnemySpawned = false;
-                this.tutorialZapTargetsSpawned = 0;
-                this.setTutorialState({ tutorialZapTargetsReady: false });
-                this.tutorialRelicCollected = false;
-                this.tutorialRadarColor = '';
-                this.setTutorialState({ tutorialRelicReady: false });
-                this.cosmicZapsLeft = 0;
-                this.cosmicZapPressure = 0;
-                this.setGameplayState({ active: true });
-                this.setGameplayState({ levelActionStarted: true });
-                this.player.reset();
-                document.body.classList.add('tutorial-active');
-                this.screenFadeElement.classList.remove('visible');
-                this.setGameOverlayVisible(false);
-                this.setCrtUiSuspended(false);
-                this.setCrtPaused(false);
-                this.setTutorialStep('intro');
-                // Start with a clean, explicitly open pointer session. This also prevents a stale
-                // attract/menu pointer revision from delaying the first tutorial drag.
-                this.player.invalidateDragSession('tutorial-input-ready');
-                this.syncMotionListenerState();
-                this.ui.updateAll();
-                this.tutorialLastFrameTime = performance.now();
-                const token = this.tutorialToken;
-                this.scheduleTutorialAnimationFrame(token);
-                this.validateStateInvariants('beginNewRun:tutorial');
-            }
+            beginTutorialPhase(...args) { return this.tutorialSystem.beginTutorialPhase(...args); }
 
-            setTutorialStep(step) {
-                if (!this.tutorialActive) return;
-                this.clearTutorialStepTimer();
-                this.hideTutorialWindow();
-                this.setTutorialState({ tutorialStep: step });
-                this.player.consumeMovementSegments();
+            startTutorialSpawnWarning(...args) { return this.tutorialSystem.startTutorialSpawnWarning(...args); }
 
-                if (step === 'intro') {
-                    this.clearTutorialObjects();
-                    this.player.reset();
-                    this.cosmicZapsLeft = 0;
-                    this.tutorialMovementDistance = 0;
-                    this.tutorialMovementQualified = false;
-                    this.tutorialEnemyAvoidMs = 0;
-                    this.tutorialEnemySpawned = false;
-                    this.tutorialZapTargetsSpawned = 0;
-                    this.setTutorialState({ tutorialZapTargetsReady: false });
-                    this.showTutorialWindow(
-                        GAME_DATA.tutorialMessages.movement,
-                        '',
-                        'movement',
-                        0
-                    );
-                } else if (step === 'crystal') {
-                    this.clearTutorialObjects();
-                    this.cosmicZapsLeft = 0;
-                    this.showTutorialWindow(GAME_DATA.tutorialMessages.crystal, '', 'crystal', 2);
-                } else if (step === 'enemy') {
-                    this.clearTutorialObjects();
-                    this.cosmicZapsLeft = 0;
-                    this.tutorialEnemyAvoidMs = 0;
-                    this.tutorialEnemySpawned = false;
-                    this.showTutorialWindow(GAME_DATA.tutorialMessages.enemy, '', 'enemy', 3);
-                } else if (step === 'zap') {
-                    this.clearTutorialObjects();
-                    this.player.reset();
-                    this.cosmicZapsLeft = 0;
-                    this.tutorialZapTargetsSpawned = 0;
-                    this.setTutorialState({ tutorialZapTargetsReady: false });
-                    this.showTutorialWindow(GAME_DATA.tutorialMessages.zap, '', 'zap', 4);
-                }
+            spawnTutorialEnemy(...args) { return this.tutorialSystem.spawnTutorialEnemy(...args); }
 
-                this.syncMotionListenerState();
-                this.ui.updateAll();
-            }
+            spawnTutorialZapTargets(...args) { return this.tutorialSystem.spawnTutorialZapTargets(...args); }
 
-            getTutorialCrystalValuePlacements() {
-                const gridSize = Math.max(1, Number(this.GRID_SIZE) || 1);
-                const gridCount = Math.max(2, Math.round(this.PLAYFIELD_SIZE / gridSize));
-                const playerCenterX = this.player.x + this.player.size / 2;
-                const playerCenterY = this.player.y + this.player.size / 2;
-                const minimumDistance = gridSize * 1.25;
-                const candidates = [];
+            spawnTutorialGridlockEnemy(...args) { return this.tutorialSystem.spawnTutorialGridlockEnemy(...args); }
 
-                for (let col = 1; col < gridCount; col += 1) {
-                    for (let row = 1; row < gridCount; row += 1) {
-                        const x = col * gridSize;
-                        const y = row * gridSize;
-                        const distance = Math.hypot(x - playerCenterX, y - playerCenterY);
-                        if (distance < minimumDistance) continue;
-                        candidates.push({ col, row, x, y, distance });
-                    }
-                }
+            spawnTutorialGridlockSequence(...args) { return this.tutorialSystem.spawnTutorialGridlockSequence(...args); }
 
-                candidates.sort((a, b) =>
-                    a.distance - b.distance ||
-                    a.row - b.row ||
-                    a.col - b.col
-                );
+            restartTutorialAfterCollision(...args) { return this.tutorialSystem.restartTutorialAfterCollision(...args); }
 
-                if (candidates.length < 3) return [];
+            updateTutorial(...args) { return this.tutorialSystem.updateTutorial(...args); }
 
-                const near = candidates[0];
-                const far = candidates[candidates.length - 1];
-                const targetDistance = (near.distance + far.distance) / 2;
-                const minimumCrystalSeparation = gridSize * 1.75;
-                const separatedMiddle = candidates.filter(candidate =>
-                    candidate !== near &&
-                    candidate !== far &&
-                    candidate.distance > near.distance + gridSize * 0.35 &&
-                    candidate.distance < far.distance - gridSize * 0.35 &&
-                    Math.hypot(candidate.x - near.x, candidate.y - near.y) >= minimumCrystalSeparation &&
-                    Math.hypot(candidate.x - far.x, candidate.y - far.y) >= minimumCrystalSeparation
-                );
-                const middlePool = separatedMiddle.length
-                    ? separatedMiddle
-                    : candidates.filter(candidate => candidate !== near && candidate !== far);
-                const middle = middlePool
-                    .slice()
-                    .sort((a, b) =>
-                        Math.abs(a.distance - targetDistance) - Math.abs(b.distance - targetDistance) ||
-                        a.row - b.row ||
-                        a.col - b.col
-                    )[0];
+            handleTutorialCosmicZap(...args) { return this.tutorialSystem.handleTutorialCosmicZap(...args); }
 
-                return [
-                    { ...near, valueRank: 1, pointValue: this.getCrystalPointValue(1), order: 1 },
-                    { ...middle, valueRank: 2, pointValue: this.getCrystalPointValue(2), order: 2 },
-                    { ...far, valueRank: 3, pointValue: this.getCrystalPointValue(3), order: 3 }
-                ];
-            }
+            completeOneTimeIntro(...args) { return this.tutorialSystem.completeOneTimeIntro(...args); }
 
-            showTutorialCrystalValuePopup(crystal, pointValue) {
-                if (!crystal || !this.tutorialActive) return;
-                const value = Math.max(0, Number(pointValue) || 0);
-                this.tutorialCrystalValuePopups.push({
-                    x: crystal.x + crystal.size / 2,
-                    y: crystal.y + crystal.size / 2,
-                    value,
-                    createdAt: performance.now(),
-                    durationMs: this.tutorialCrystalValuePopupDurationMs
-                });
-            }
+            showTutorialComplete(...args) { return this.tutorialSystem.showTutorialComplete(...args); }
 
-            updateTutorialCrystalValuePopups(timestamp) {
-                if (!Array.isArray(this.tutorialCrystalValuePopups) || !this.tutorialCrystalValuePopups.length) return;
-                this.tutorialCrystalValuePopups = this.tutorialCrystalValuePopups.filter(popup =>
-                    popup && timestamp - popup.createdAt < popup.durationMs
-                );
-            }
-
-            beginTutorialPhase(phase) {
-                if (!this.tutorialActive || !phase) return;
-                this.clearTutorialStepTimer();
-                this.setTutorialState({ tutorialStep: phase });
-                this.player.consumeMovementSegments();
-
-                if (phase === 'movement') {
-                    this.clearTutorialObjects();
-                    this.tutorialMovementDistance = 0;
-                    this.tutorialMovementQualified = false;
-                    this.cosmicZapsLeft = 0;
-                } else if (phase === 'crystal') {
-                    this.clearTutorialObjects();
-                    this.cosmicZapsLeft = 0;
-                    const placements = this.getTutorialCrystalValuePlacements();
-                    this.crystals = placements.map(placement => {
-                        const crystal = new Crystal(
-                            this,
-                            placement.x - this.CRYSTAL_OFFSET,
-                            placement.y - this.CRYSTAL_OFFSET,
-                            'red',
-                            placement.order
-                        );
-                        crystal.isTutorialValueCrystal = true;
-                        crystal.tutorialPointValue = placement.pointValue;
-                        crystal.setSelectable(true);
-                        crystal.setValueRank(placement.valueRank, placement.pointValue);
-                        return crystal;
-                    });
-                    this.activeBlinkingCrystals = this.crystals.slice();
-                } else if (phase === 'enemy') {
-                    this.clearTutorialObjects();
-                    this.cosmicZapsLeft = 0;
-                    this.tutorialEnemyAvoidMs = 0;
-                    this.tutorialEnemySpawned = false;
-                    this.scheduleTutorialStepTimer(() => {
-                        if (!this.tutorialActive || this.tutorialStep !== 'enemy' || this.tutorialWindowOpen) return;
-                        this.spawnTutorialEnemy();
-                    }, this.tutorialEnemySpawnDelayMs);
-                } else if (phase === 'zap') {
-                    this.clearTutorialObjects();
-                    this.player.reset();
-                    this.cosmicZapsLeft = 0;
-                    this.tutorialZapTargetsSpawned = 0;
-                    this.setTutorialState({ tutorialZapTargetsReady: false });
-                    this.scheduleTutorialStepTimer(() => {
-                        if (!this.tutorialActive || this.tutorialStep !== 'zap' || this.tutorialWindowOpen) return;
-                        this.spawnTutorialZapTargets();
-                    }, this.tutorialZapTargetSpawnDelayMs);
-                }
-
-                this.setTransitionState({ startInputLocked: false });
-                this.syncMotionListenerState();
-                this.ui.updateAll();
-                this.tutorialLastFrameTime = performance.now();
-            }
-
-            startTutorialSpawnWarning(type, location, speedMultiplier, onSpawn) {
-                if (!this.tutorialActive || !location) return false;
-                const warning = new SpawnWarning(this, location.warningX, location.warningY, this.GRID_SIZE);
-                const pending = {
-                    type,
-                    warning,
-                    size: this.PLAYER_SIZE * 2,
-                    spawnX: location.x,
-                    spawnY: location.y,
-                    timeoutId: null,
-                    requeueOnCancel: false
-                };
-                pending.timeoutId = this.scheduler.scheduleTimeout(
-                    'tutorial',
-                    `spawn-warning-${++this.tutorialScheduleSequence}`,
-                    () => {
-                        this.pendingSpawnWarnings = this.pendingSpawnWarnings.filter(item => item !== pending);
-                        warning.remove();
-                        if (!this.tutorialActive || this.isPaused || this.isGameOver) return;
-
-                        const enemy = new Enemy(this, type, { x: location.x, y: location.y });
-                        const speed = this.BASE_SPEEDS[type] * speedMultiplier;
-                        const magnitude = Math.hypot(location.sx, location.sy) || 1;
-                        enemy.speed = speed;
-                        enemy.dx = location.sx / magnitude * speed;
-                        enemy.dy = location.sy / magnitude * speed;
-                        enemy.updatePosition();
-                        this.enemies.push(enemy);
-                        this.updateEnemyColors();
-                        if (typeof onSpawn === 'function') onSpawn(enemy);
-                    },
-                    this.spawnWarningDurationMs
-                );
-
-                this.pendingSpawnWarnings.push(pending);
-                return true;
-            }
-
-            spawnTutorialEnemy() {
-                if (this.tutorialEnemy && this.enemies.includes(this.tutorialEnemy)) return this.tutorialEnemy;
-                if (this.pendingSpawnWarnings.some(item => item.requeueOnCancel === false)) return null;
-                const grid = this.GRID_SIZE;
-                const size = this.PLAYER_SIZE * 2;
-                const warningY = grid * 6;
-                const location = {
-                    warningX: 0,
-                    warningY,
-                    x: 0,
-                    y: Math.max(0, Math.min(this.PLAYFIELD_SIZE - size, warningY + grid / 2 - size / 2)),
-                    sx: 1.0,
-                    sy: -0.72
-                };
-                this.startTutorialSpawnWarning('medium', location, this.tutorialEnemySpeedMultiplier, enemy => {
-                    if (!this.tutorialActive || (this.tutorialStep !== 'enemy' && this.tutorialStep !== 'zap')) {
-                        this.playfieldRenderer.removeEnemy(enemy);
-                        this.enemies = this.enemies.filter(item => item !== enemy);
-                        return;
-                    }
-                    this.tutorialEnemy = enemy;
-                    this.tutorialEnemySpawned = true;
-                });
-                return null;
-            }
-
-            spawnTutorialZapTargets() {
-                if (!this.tutorialActive || this.tutorialStep !== 'zap') return false;
-                const grid = this.GRID_SIZE;
-                const size = this.PLAYER_SIZE * 2;
-                const p = this.PLAYFIELD_SIZE;
-                const locations = [
-                    {
-                        warningX: grid,
-                        warningY: grid,
-                        x: Math.max(0, Math.min(p - size, grid * 1.5 - size / 2)),
-                        y: Math.max(0, Math.min(p - size, grid * 1.5 - size / 2)),
-                        sx: 1,
-                        sy: 0
-                    },
-                    {
-                        warningX: p - (grid * 2),
-                        warningY: p - (grid * 2),
-                        x: Math.max(0, Math.min(p - size, p - grid * 1.5 - size / 2)),
-                        y: Math.max(0, Math.min(p - size, p - grid * 1.5 - size / 2)),
-                        sx: -1,
-                        sy: 0
-                    }
-                ];
-
-                locations.forEach((location, index) => {
-                    this.startTutorialSpawnWarning('medium', location, 0, enemy => {
-                        if (!this.tutorialActive || this.tutorialStep !== 'zap') {
-                            this.playfieldRenderer.removeEnemy(enemy);
-                            this.enemies = this.enemies.filter(item => item !== enemy);
-                            return;
-                        }
-                        enemy.speed = 0;
-                        enemy.dx = 0;
-                        enemy.dy = 0;
-                        enemy.updatePosition();
-                        enemy.tutorialZapTarget = index + 1;
-                        this.tutorialZapTargetsSpawned += 1;
-                        if (this.tutorialZapTargetsSpawned >= locations.length) {
-                            this.cosmicZapsLeft = 1;
-                            this.setTutorialState({ tutorialZapTargetsReady: true });
-                            this.syncMotionListenerState();
-                            this.ui.updateAll();
-                        }
-                    });
-                });
-                return true;
-            }
-
-            spawnTutorialGridlockEnemy(index) {
-                if (!this.tutorialActive || this.tutorialStep !== 'gridlock') return false;
-                const p = this.PLAYFIELD_SIZE;
-                const size = this.PLAYER_SIZE * 2;
-                const grid = this.GRID_SIZE;
-                const fixedLocations = [
-                    {
-                        warningX: 0,
-                        warningY: grid * 3,
-                        x: 0,
-                        y: Math.max(0, Math.min(p - size, grid * 3.5 - size / 2)),
-                        sx: 1.00,
-                        sy: 0.62
-                    },
-                    {
-                        warningX: p - grid,
-                        warningY: grid * 6,
-                        x: p - size,
-                        y: Math.max(0, Math.min(p - size, grid * 6.5 - size / 2)),
-                        sx: -1.00,
-                        sy: -0.58
-                    },
-                    {
-                        warningX: grid * 6,
-                        warningY: 0,
-                        x: Math.max(0, Math.min(p - size, grid * 6.5 - size / 2)),
-                        y: 0,
-                        sx: -0.54,
-                        sy: 1.00
-                    }
-                ];
-                const location = fixedLocations[index];
-                if (!location) return false;
-                return this.startTutorialSpawnWarning('medium', location, this.tutorialGridlockSpeedMultiplier, enemy => {
-                    if (!this.tutorialActive || this.tutorialStep !== 'gridlock') {
-                        this.playfieldRenderer.removeEnemy(enemy);
-                        this.enemies = this.enemies.filter(item => item !== enemy);
-                    }
-                });
-            }
-
-            spawnTutorialGridlockSequence(index = 0) {
-                if (!this.tutorialActive || this.tutorialStep !== 'gridlock') return;
-
-                if (index < 3) {
-                    this.spawnTutorialGridlockEnemy(index);
-                    this.scheduleTutorialStepTimer(() => {
-                        this.spawnTutorialGridlockSequence(index + 1);
-                    }, this.tutorialGridlockSpawnIntervalMs);
-                    return;
-                }
-
-                // At the time a fourth warning would begin, reveal the center Relic instead.
-                this.setTutorialStep('relic');
-            }
-
-            restartTutorialAfterCollision() {
-                if (!this.tutorialActive || this.tutorialStep === 'retry') return;
-                if (this.audio) {
-                    this.audio.resume();
-                    this.audio.playExplosionSound();
-                }
-                this.triggerCrtEvent('death');
-                this.container.classList.add('shake');
-                this.scheduler.scheduleTimeout('visual-effects', 'tutorial-death-shake', () => this.container.classList.remove('shake'), GAME_CONFIG.visualTiming.gameOverShakeCleanupMs);
-                this.explosions.push(new Explosion(
-                    this,
-                    this.player.x + this.player.size / 2,
-                    this.player.y + this.player.size / 2,
-                    true
-                ));
-                this.tutorialToken++;
-                const retryToken = this.tutorialToken;
-                this.clearTutorialAnimationFrame();
-                this.clearTutorialStepTimer();
-                this.hideTutorialWindow();
-                this.tutorialEnemyAvoidMs = 0;
-                this.tutorialEnemySpawned = false;
-                this.tutorialZapTargetsSpawned = 0;
-                this.setTutorialState({ tutorialZapTargetsReady: false });
-                this.player.invalidateDragSession('tutorial-death');
-                this.setTransitionState({ startInputLocked: true });
-                this.setTutorialState({ tutorialStep: 'retry' });
-
-                // Let the collision read, then hide the reset behind a short black transition.
-                this.scheduleTutorialStepTimer(() => {
-                    if (!this.tutorialActive || this.tutorialStep !== 'retry' || retryToken !== this.tutorialToken) return;
-                    this.screenFadeElement.style.transition = `opacity ${this.tutorialRetryFadeMs}ms ease-in-out`;
-                    this.screenFadeElement.classList.add('visible');
-
-                    this.scheduleTutorialStepTimer(() => {
-                        if (!this.tutorialActive || this.tutorialStep !== 'retry' || retryToken !== this.tutorialToken) return;
-                        this.clearTutorialObjects();
-                        this.player.reset();
-                        this.tutorialRadarColor = '';
-                        this.ui.updateRadarColorIndicator();
-
-                        this.scheduleTutorialStepTimer(() => {
-                            if (!this.tutorialActive || this.tutorialStep !== 'retry' || retryToken !== this.tutorialToken) return;
-                            this.screenFadeElement.style.transition = `opacity ${this.tutorialRetryFadeMs}ms ease-in-out`;
-                            this.screenFadeElement.classList.remove('visible');
-                            this.setTransitionState({ startInputLocked: false });
-                            this.setTutorialStep('intro');
-                            this.tutorialLastFrameTime = performance.now();
-                            this.scheduleTutorialAnimationFrame(retryToken);
-                        }, this.tutorialRetryBlackHoldMs);
-                    }, this.tutorialRetryFadeMs);
-                }, this.tutorialCollisionFreezeMs);
-            }
-
-            updateTutorial(timestamp, token) {
-                if (!this.tutorialActive || token !== this.tutorialToken) return;
-                if (this.tutorialWindowOpen) {
-                    this.tutorialLastFrameTime = timestamp;
-                    this.player.consumeMovementSegments();
-                    this.renderPlayfieldFrame(timestamp);
-                    this.scheduleTutorialAnimationFrame(token);
-                    return;
-                }
-                const deltaTime = Math.max(0, Math.min(50, timestamp - this.tutorialLastFrameTime));
-                this.tutorialLastFrameTime = timestamp;
-                this.updateTutorialCrystalValuePopups(timestamp);
-                const segments = this.player.consumeMovementSegments();
-
-                if (this.tutorialStep === 'movement') {
-                    segments.forEach(segment => {
-                        this.tutorialMovementDistance += Math.hypot(segment.x2 - segment.x1, segment.y2 - segment.y1);
-                    });
-                    if (this.tutorialMovementDistance >= this.tutorialMovementRequired && !this.tutorialMovementQualified) {
-                        this.tutorialMovementQualified = true;
-                        this.scheduleTutorialStepTimer(() => {
-                            if (this.tutorialActive && this.tutorialStep === 'movement') this.setTutorialStep('crystal');
-                        }, this.tutorialMovementAdvanceDelayMs);
-                    }
-                } else if (this.tutorialStep === 'crystal') {
-                    const collected = this.crystals
-                        .map(crystal => ({ crystal, hit: this.getPlayerPathHitScore(crystal, segments) }))
-                        .filter(item => item.hit !== null)
-                        .sort((a, b) => a.hit - b.hit);
-
-                    if (collected.length) {
-                        collected.forEach(({ crystal }) => {
-                            const index = this.crystals.indexOf(crystal);
-                            if (index < 0) return;
-                            this.tutorialRadarColor = crystal.color;
-                            this.ui.updateRadarColorIndicator();
-                            const earnedValue = Number(crystal.tutorialPointValue) ||
-                                this.getCrystalPointValue(crystal.valueRank);
-                            this.showTutorialCrystalValuePopup(crystal, earnedValue);
-                            this.playCrystalCollectionEffect(crystal);
-                            this.playfieldRenderer.removeCrystal(crystal);
-                            this.crystals.splice(index, 1);
-                            this.audio.playCollect();
-                        });
-
-                        if (!this.crystals.length) {
-                            this.setTutorialState({ tutorialStep: 'crystal-wait' });
-                            this.scheduleTutorialStepTimer(() => {
-                                if (this.tutorialActive && this.tutorialStep === 'crystal-wait') this.setTutorialStep('enemy');
-                            }, this.tutorialCrystalAdvanceDelayMs);
-                        }
-                    }
-                } else if (this.tutorialStep === 'enemy' || this.tutorialStep === 'zap') {
-                    this.updateEnemies(deltaTime, timestamp);
-                    const hit = this.enemies.some(enemy =>
-                        enemy.isDangerousToPlayer() && this.getPlayerPathHitScore(enemy, segments) !== null
-                    );
-                    if (hit && !this.isCosmicZapProtectingOrb()) {
-                        this.restartTutorialAfterCollision();
-                        return;
-                    }
-
-                    if (this.tutorialStep === 'enemy' && this.tutorialEnemySpawned) {
-                        this.tutorialEnemyAvoidMs += deltaTime;
-                        if (this.tutorialEnemyAvoidMs >= this.tutorialEnemyAvoidRequiredMs) {
-                            this.setTutorialStep('zap');
-                        }
-                    }
-                }
-                this.renderPlayfieldFrame(timestamp);
-                this.scheduleTutorialAnimationFrame(token);
-            }
-
-            handleTutorialCosmicZap() {
-                if (!this.tutorialActive || this.tutorialStep !== 'zap' ||
-                    !this.tutorialZapTargetsReady || this.cosmicZapsLeft <= 0 || this.enemies.length < 2) return;
-                const now = performance.now();
-                if (now - this.lastCosmicZapTriggerTime < this.cosmicZapInputCooldownMs) return;
-                if (!this.cosmicZapSystem.armTrigger(now)) return;
-                const clearedEnemies = this.enemies.slice();
-                this.cosmicZapSystem.setRemaining(0);
-                this.setTutorialState({ tutorialZapTargetsReady: false });
-                this.requireShakeNeutralReset();
-                this.audio.playCosmicZapSound();
-                this.triggerCrtEvent('zap');
-                this.playCosmicZapDischarge(clearedEnemies);
-                clearedEnemies.forEach(enemy => {
-                    this.playfieldRenderer.setEnemyDissolving(enemy, true);
-                    this.scheduler.scheduleTimeout('visual-effects', this.nextVisualEffectTaskName('enemy-dissolve'), () => this.playfieldRenderer.removeEnemy(enemy), 170);
-                });
-                this.enemies = [];
-                this.tutorialEnemy = null;
-                this.syncMotionListenerState();
-                this.ui.updateCosmicZapIndicators();
-                this.scheduleTutorialStepTimer(() => {
-                    if (this.tutorialActive && this.tutorialStep === 'zap') this.completeOneTimeIntro();
-                }, 650);
-            }
-
-            completeOneTimeIntro() {
-                if (!this.tutorialActive || this.tutorialStep !== 'zap') return;
-                this.clearTutorialStepTimer();
-                this.setTutorialState({ tutorialStep: 'complete-message' });
-                this.showTutorialWindow(GAME_DATA.tutorialMessages.complete, '', 'complete', 6);
-            }
-
-            showTutorialComplete() {
-                if (!this.tutorialActive || this.tutorialStep !== 'complete-message') return;
-                this.hideTutorialWindow();
-                this.saveIntroCompletionFlag();
-                this.clearTutorialObjects();
-                this.setTutorialState({ tutorialStep: 'complete' });
-                this.tutorialToken++;
-                this.clearTutorialAnimationFrame();
-                this.setGameplayState({ active: false });
-                this.setGameplayState({ levelActionStarted: false });
-                this.setTransitionState({ sectorTransitionActive: true });
-                this.cosmicZapsLeft = 0;
-                this.syncMotionListenerState();
-                this.ui.updateAll();
-                this.scheduleTutorialStepTimer(() => {
-                    this.finishOneTimeIntroTransition();
-                }, 250);
-            }
-
-            finishOneTimeIntroTransition() {
-                if (!this.tutorialActive || this.tutorialStep !== 'complete') return;
-                this.setTutorialState({ tutorialActive: false });
-                this.setTutorialState({ tutorialStep: '' });
-                this.cancelTutorialScheduling();
-                this.hideTutorialWindow();
-                this.screenFadeElement.classList.remove('visible');
-                document.body.classList.remove('tutorial-active');
-                this.requireShakeNeutralReset();
-                this.syncMotionListenerState();
-                this.ui.updateAll();
-
-                const loadToken = ++this.levelLoadToken;
-                if (this.telemetryEnabled) this.beginTelemetryRun('start-game');
-                this.beginSector(1, true);
-                this.setTransitionState({ startInputLocked: true });
-                this.ui.updateAll();
-                this.startPreparedLevel(loadToken);
-            }
+            finishOneTimeIntroTransition(...args) { return this.tutorialSystem.finishOneTimeIntroTransition(...args); }
 
             // Phase 4B lifecycle commands route player-facing state changes through explicit entry points.
 
@@ -22570,36 +23459,10 @@ Best Score: ${bestScore}${recoveredLine}` :
             }
 
             // Count live neighbors for a cell in the Game of Life grid
-            countNeighbors(grid, x, y) {
-                const width = 10;
-                const height = 10;
-                let count = 0;
-                for (let i = -1; i <= 1; i++) {
-                    for (let j = -1; j <= 1; j++) {
-                        if (i === 0 && j === 0) continue; // Skip self
-                        const newX = (x + i + width) % width; // Wrap around edges
-                        const newY = (y + j + height) % height;
-                        count += grid[newX][newY]; // Add neighbor state
-                    }
-                }
-                return count;
-            }
+            countNeighbors(...args) { return this.attractModeSystem.countNeighbors(...args); }
 
             // Compute the next generation of the Game of Life grid
-            nextGeneration() {
-                const newGrid = Array(10).fill().map(() => Array(10).fill(0));
-                for (let x = 0; x < 10; x++) {
-                    for (let y = 0; y < 10; y++) {
-                        const neighbors = this.countNeighbors(this.lifeGrid, x, y);
-                        if (this.lifeGrid[x][y]) { // Live cell
-                            newGrid[x][y] = (neighbors === 2 || neighbors === 3) ? 1 : 0; // Survive or die
-                        } else { // Dead cell
-                            newGrid[x][y] = (neighbors === 3) ? 1 : 0; // Birth or stay dead
-                        }
-                    }
-                }
-                return newGrid;
-            }
+            nextGeneration(...args) { return this.attractModeSystem.nextGeneration(...args); }
 
 
             loadEnemyEncounterUnlocks() {
@@ -22656,508 +23519,35 @@ Best Score: ${bestScore}${recoveredLine}` :
                 this.enemyIdentityHelpList.replaceChildren(fragment);
             }
 
-            isAttractEnemyCardAllowed() {
-                const menuOpen = !!(typeof this.getCurrentMenuContext === 'function' && this.getCurrentMenuContext());
-                const levelSelectOpen = !!(this.levelSelectWindow && this.levelSelectWindow.style.display === 'flex');
-                return !!(this.flow.is(GAME_FLOW_STATES.ATTRACT) && !this.active && !this.isPaused &&
-                    !this.splashIntroActive && !this.finalGridlockResultActive &&
-                    !menuOpen && !levelSelectOpen);
-            }
+            isAttractEnemyCardAllowed(...args) { return this.attractModeSystem.isAttractEnemyCardAllowed(...args); }
 
-            isAttractEnemyCardPresentationVisible() {
-                return !!(this.enemyIdentityCard && this.enemyIdentityCard.classList.contains('visible'));
-            }
+            isAttractEnemyCardPresentationVisible(...args) { return this.attractModeSystem.isAttractEnemyCardPresentationVisible(...args); }
 
-            scheduleAttractEnemyCardAutoStart(delayMs = this.attractScreenIntervalMs) {
-                this.scheduler.cancelTask('attract-mode', 'enemy-card-auto-start');
-                this.scheduler.cancelTask('attract-mode', 'enemy-card-auto-restart');
-                this.attractEnemyCardAutoInterval = null;
-                if (!this.flow.is(GAME_FLOW_STATES.ATTRACT) || !this.attractInterval) return null;
-                const delay = Math.max(0, Number(delayMs) || this.attractScreenIntervalMs || 0);
-                this.attractEnemyCardAutoInterval = this.scheduler.scheduleTimeout('attract-mode', 'enemy-card-auto-start', () => {
-                    this.attractEnemyCardAutoInterval = null;
-                    if (this.attractEnemyCardSequenceActive || !this.isAttractEnemyCardAllowed()) {
-                        if (this.flow.is(GAME_FLOW_STATES.ATTRACT) && this.attractInterval) {
-                            this.scheduleAttractEnemyCardAutoStart(this.attractScreenIntervalMs);
-                        }
-                        return;
-                    }
-                    this.startAttractEnemyCardSequence();
-                }, delay);
-                return this.attractEnemyCardAutoInterval;
-            }
+            scheduleAttractEnemyCardAutoStart(...args) { return this.attractModeSystem.scheduleAttractEnemyCardAutoStart(...args); }
 
-            cancelAttractEnemyCardPresentation(source = 'tap') {
-                if (!(this.attractEnemyCardSequenceActive || this.isAttractEnemyCardPresentationVisible())) return false;
-                this.suspendAttractEnemyCards();
-                this.scheduleAttractEnemyCardAutoStart(this.attractScreenIntervalMs);
-                if (this.ui && typeof this.ui.updateAll === 'function') this.ui.updateAll();
-                return true;
-            }
+            cancelAttractEnemyCardPresentation(...args) { return this.attractModeSystem.cancelAttractEnemyCardPresentation(...args); }
 
-            stopAttractEnemyCardSimulation() {
-                this.attractEnemyCardSimulationToken++;
-                if (this.attractEnemyCardFrame !== null) {
-                    cancelAnimationFrame(this.attractEnemyCardFrame);
-                    this.attractEnemyCardFrame = null;
-                }
-                this.scheduler.cancelScope('attract-enemy-card-sim');
-                if (this.enemyIdentityCardTrailLayer) this.enemyIdentityCardTrailLayer.replaceChildren();
-                if (this.audio && typeof this.audio.cancelEnemySpawnAudio === 'function') this.audio.cancelEnemySpawnAudio();
-            }
+            stopAttractEnemyCardSimulation(...args) { return this.attractModeSystem.stopAttractEnemyCardSimulation(...args); }
 
-            resetAttractEnemyCardStage() {
-                const elements = [
-                    this.enemyIdentityCardPrimary,
-                    this.enemyIdentityCardZig,
-                    this.enemyIdentityCardDash,
-                    this.enemyIdentityCardEcho,
-                    this.enemyIdentityCardOrb,
-                    this.enemyIdentityCardLockLine,
-                    this.enemyIdentityCardWarningRing,
-                    this.enemyIdentityCardAfterimage
-                ];
-                elements.forEach(element => {
-                    if (!element) return;
-                    element.style.removeProperty('left');
-                    element.style.removeProperty('top');
-                    element.style.removeProperty('opacity');
-                    element.style.removeProperty('transform');
-                    element.style.removeProperty('filter');
-                    element.style.removeProperty('width');
-                });
-                if (this.enemyIdentityCardTrailLayer) this.enemyIdentityCardTrailLayer.replaceChildren();
-                if (this.enemyIdentityCard) this.enemyIdentityCard.classList.remove('full-cast-brighten', 'transition-prelude', 'transition-color');
-            }
+            resetAttractEnemyCardStage(...args) { return this.attractModeSystem.resetAttractEnemyCardStage(...args); }
 
-            addAttractEnemyTrailDot(x, y, color) {
-                if (!this.enemyIdentityCardTrailLayer) return;
-                const dot = document.createElement('div');
-                dot.className = 'enemy-card-trail-dot';
-                dot.style.left = `${x}px`;
-                dot.style.top = `${y}px`;
-                dot.style.setProperty('--trail-color', color || '#fff');
-                this.enemyIdentityCardTrailLayer.appendChild(dot);
-                this.scheduler.scheduleTimeout('attract-enemy-card-sim', `trail-${performance.now()}-${Math.random()}`, () => dot.remove(), 680);
-            }
+            addAttractEnemyTrailDot(...args) { return this.attractModeSystem.addAttractEnemyTrailDot(...args); }
 
-            positionAttractCardElement(element, x, y, opacity = 1, transform = '') {
-                if (!element) return;
-                element.style.left = `${x}px`;
-                element.style.top = `${y}px`;
-                element.style.opacity = String(opacity);
-                element.style.transform = `translate(-50%, -50%)${transform ? ` ${transform}` : ''}`;
-            }
+            positionAttractCardElement(...args) { return this.attractModeSystem.positionAttractCardElement(...args); }
 
-            updateAttractLockLine(fromX, fromY, toX, toY, opacity = 1) {
-                if (!this.enemyIdentityCardLockLine) return;
-                const dx = toX - fromX;
-                const dy = toY - fromY;
-                const length = Math.hypot(dx, dy);
-                this.enemyIdentityCardLockLine.style.left = `${fromX}px`;
-                this.enemyIdentityCardLockLine.style.top = `${fromY}px`;
-                this.enemyIdentityCardLockLine.style.width = `${length}px`;
-                this.enemyIdentityCardLockLine.style.opacity = String(opacity);
-                this.enemyIdentityCardLockLine.style.transform = `rotate(${Math.atan2(dy, dx)}rad)`;
-            }
+            updateAttractLockLine(...args) { return this.attractModeSystem.updateAttractLockLine(...args); }
 
-            startAttractEnemyCardSimulation(cardKey) {
-                this.stopAttractEnemyCardSimulation();
-                this.resetAttractEnemyCardStage();
-                const stage = this.enemyIdentityCardStage;
-                if (!stage) return;
-                const token = ++this.attractEnemyCardSimulationToken;
-                const startedAt = performance.now();
-                const zigState = { x: 0, y: 0, vx: 96, vy: 74, initialized: false, bounceCount: 0 };
-                const fullZigState = { x: 0, y: 0, vx: 92, vy: 71, initialized: false, bounceCount: 0 };
+            startAttractEnemyCardSimulation(...args) { return this.attractModeSystem.startAttractEnemyCardSimulation(...args); }
 
-                const animate = now => {
-                    if (token !== this.attractEnemyCardSimulationToken || !this.enemyIdentityCard || !this.enemyIdentityCard.classList.contains('visible')) return;
-                    const rect = stage.getBoundingClientRect();
-                    const width = Math.max(1, rect.width);
-                    const height = Math.max(1, rect.height);
-                    const elapsed = Math.max(0, (now - startedAt) / 1000);
-                    const blockHalf = Math.max(10, Math.min(width, height) * 0.045);
+            hideAttractEnemyCard(...args) { return this.attractModeSystem.hideAttractEnemyCard(...args); }
 
-                    if (cardKey === 'drifter') {
-                        if (!zigState.initialized) {
-                            zigState.x = width * 0.14;
-                            zigState.y = height * 0.25;
-                            zigState.initialized = true;
-                        }
-                        const dt = Math.min(0.032, Math.max(0.001, (now - (zigState.lastAt || now - 16)) / 1000));
-                        zigState.lastAt = now;
-                        zigState.x += zigState.vx * dt;
-                        zigState.y += zigState.vy * dt;
-                        let bounced = false;
-                        if (zigState.x <= blockHalf || zigState.x >= width - blockHalf) {
-                            zigState.x = Math.max(blockHalf, Math.min(width - blockHalf, zigState.x));
-                            zigState.vx *= -1;
-                            zigState.vy *= zigState.bounceCount % 2 ? 0.84 : 1.12;
-                            bounced = true;
-                        }
-                        if (zigState.y <= blockHalf || zigState.y >= height - blockHalf) {
-                            zigState.y = Math.max(blockHalf, Math.min(height - blockHalf, zigState.y));
-                            zigState.vy *= -1;
-                            zigState.vx *= zigState.bounceCount % 2 ? 1.10 : 0.88;
-                            bounced = true;
-                        }
-                        if (bounced) {
-                            zigState.bounceCount++;
-                            const speed = Math.max(88, Math.min(132, Math.hypot(zigState.vx, zigState.vy)));
-                            const angle = Math.atan2(zigState.vy, zigState.vx) + (zigState.bounceCount % 2 ? 0.12 : -0.10);
-                            zigState.vx = Math.cos(angle) * speed;
-                            zigState.vy = Math.sin(angle) * speed;
-                            this.addAttractEnemyTrailDot(zigState.x, zigState.y, GAME_CONFIG.palette.red);
-                        }
-                        this.positionAttractCardElement(this.enemyIdentityCardPrimary, zigState.x, zigState.y, 1);
-                    } else if (cardKey === 'charger') {
-                        const orbX = width * 0.66;
-                        const orbY = height * 0.52;
-                        this.positionAttractCardElement(this.enemyIdentityCardOrb, orbX, orbY, 1);
-                        let x = width * 0.12;
-                        const y = height * 0.52;
-                        let opacity = 1;
-                        let transform = '';
-                        if (elapsed < 0.72) {
-                            x = width * (0.12 + (0.28 - 0.12) * (elapsed / 0.72));
-                        } else if (elapsed < 1.48) {
-                            x = width * 0.28;
-                            const lockProgress = (elapsed - 0.72) / 0.76;
-                            this.updateAttractLockLine(x, y, orbX, orbY, Math.min(1, lockProgress * 1.8));
-                            transform = `scale(${1 + Math.sin(lockProgress * Math.PI * 5) * 0.05})`;
-                        } else if (elapsed < 2.02) {
-                            const chargeProgress = (elapsed - 1.48) / 0.54;
-                            x = width * (0.28 + (0.88 - 0.28) * Math.min(1, chargeProgress * chargeProgress));
-                            transform = 'scale(1.10)';
-                            this.updateAttractLockLine(x, y, orbX, orbY, 0);
-                        } else if (elapsed < 2.82) {
-                            x = width * (0.88 - 0.07 * ((elapsed - 2.02) / 0.80));
-                            opacity = 0.62;
-                            transform = 'scale(0.92)';
-                        } else {
-                            x = width * 0.81;
-                            opacity = 0.76;
-                            transform = 'scale(0.95)';
-                        }
-                        this.positionAttractCardElement(this.enemyIdentityCardPrimary, x, y, opacity, transform);
-                    } else if (cardKey === 'pulse') {
-                        const startX = width * 0.15;
-                        const endX = width * 0.80;
-                        const x = startX + (endX - startX) * Math.min(1, elapsed / 3.25);
-                        const y = height * (0.36 + Math.sin(elapsed * 2.2) * 0.17);
-                        let opacity = 1;
-                        let filter = 'brightness(1.08)';
-                        if (elapsed < 0.82) {
-                            opacity = 1;
-                        } else if (elapsed < 1.12) {
-                            opacity = Math.max(0.08, 1 - ((elapsed - 0.82) / 0.30) * 0.92);
-                            if (this.enemyIdentityCardAfterimage) {
-                                this.positionAttractCardElement(this.enemyIdentityCardAfterimage, width * 0.31, height * 0.49, 0.34);
-                            }
-                        } else if (elapsed < 2.20) {
-                            const flashCycle = Math.floor((elapsed - 1.12) / 0.35);
-                            const flashLocal = (elapsed - 1.12) % 0.35;
-                            opacity = flashLocal < 0.07 ? 0.58 : 0.055;
-                            filter = 'brightness(0.58)';
-                            if (this.enemyIdentityCardAfterimage) {
-                                const fade = Math.max(0, 0.34 * (1 - (elapsed - 1.12) / 0.82));
-                                this.enemyIdentityCardAfterimage.style.opacity = String(fade);
-                            }
-                        } else if (elapsed < 2.76) {
-                            const pulse = (Math.sin((elapsed - 2.20) * 24) + 1) * 0.5;
-                            opacity = 0.38 + pulse * 0.62;
-                            filter = `brightness(${1.05 + pulse * 0.85})`;
-                            if (this.enemyIdentityCardWarningRing) {
-                                this.positionAttractCardElement(this.enemyIdentityCardWarningRing, x, y, 0.35 + pulse * 0.65, `scale(${0.82 + pulse * 0.28})`);
-                            }
-                        } else if (elapsed < 3.14) {
-                            opacity = 1;
-                            filter = 'brightness(1.14)';
-                            if (this.enemyIdentityCardWarningRing) this.enemyIdentityCardWarningRing.style.opacity = '0';
-                        } else {
-                            opacity = Math.max(0.04, 1 - ((elapsed - 3.14) / 0.36) * 0.96);
-                        }
-                        this.positionAttractCardElement(this.enemyIdentityCardPrimary, x, y, opacity);
-                        if (this.enemyIdentityCardPrimary) this.enemyIdentityCardPrimary.style.filter = filter;
-                    } else if (cardKey === 'full-cast') {
-                        const orbX = width * 0.50;
-                        const orbY = height * 0.52;
-                        this.positionAttractCardElement(this.enemyIdentityCardOrb, orbX, orbY, 1);
+            suspendAttractEnemyCards(...args) { return this.attractModeSystem.suspendAttractEnemyCards(...args); }
 
-                        // ZIG keeps its authentic drifting behavior and redirects whenever it reaches a boundary.
-                        if (!fullZigState.initialized) {
-                            fullZigState.x = width * 0.13;
-                            fullZigState.y = height * 0.22;
-                            fullZigState.initialized = true;
-                        }
-                        const fullDt = Math.min(0.032, Math.max(0.001, (now - (fullZigState.lastAt || now - 16)) / 1000));
-                        fullZigState.lastAt = now;
-                        fullZigState.x += fullZigState.vx * fullDt;
-                        fullZigState.y += fullZigState.vy * fullDt;
-                        let fullZigBounced = false;
-                        if (fullZigState.x <= blockHalf || fullZigState.x >= width - blockHalf) {
-                            fullZigState.x = Math.max(blockHalf, Math.min(width - blockHalf, fullZigState.x));
-                            fullZigState.vx *= -1;
-                            fullZigBounced = true;
-                        }
-                        if (fullZigState.y <= blockHalf || fullZigState.y >= height - blockHalf) {
-                            fullZigState.y = Math.max(blockHalf, Math.min(height - blockHalf, fullZigState.y));
-                            fullZigState.vy *= -1;
-                            fullZigBounced = true;
-                        }
-                        if (fullZigBounced) {
-                            fullZigState.bounceCount++;
-                            const speed = Math.max(82, Math.min(124, Math.hypot(fullZigState.vx, fullZigState.vy)));
-                            const angle = Math.atan2(fullZigState.vy, fullZigState.vx) + (fullZigState.bounceCount % 2 ? 0.14 : -0.11);
-                            fullZigState.vx = Math.cos(angle) * speed;
-                            fullZigState.vy = Math.sin(angle) * speed;
-                        }
-                        this.positionAttractCardElement(this.enemyIdentityCardZig, fullZigState.x, fullZigState.y, 1);
+            showAttractTransitionFrame(...args) { return this.attractModeSystem.showAttractTransitionFrame(...args); }
 
-                        // DASH cruises, locks onto the Orb, charges past it, then visibly loses energy in recovery.
-                        const dashPhase = elapsed % 3.60;
-                        let dashX = width * 0.14;
-                        let dashY = height * 0.34;
-                        let dashOpacity = 1;
-                        let dashTransform = '';
-                        let dashFilter = 'brightness(1)';
-                        if (dashPhase < 0.88) {
-                            const p = dashPhase / 0.88;
-                            dashX = width * (0.14 + 0.16 * p);
-                            dashY = height * (0.34 + 0.04 * p);
-                        } else if (dashPhase < 1.56) {
-                            const p = (dashPhase - 0.88) / 0.68;
-                            dashX = width * 0.30;
-                            dashY = height * 0.38;
-                            dashTransform = `scale(${1 + Math.sin(p * Math.PI * 6) * 0.055})`;
-                            dashFilter = `brightness(${1.05 + p * 0.55})`;
-                            this.updateAttractLockLine(dashX, dashY, orbX, orbY, Math.min(1, p * 1.9));
-                        } else if (dashPhase < 2.12) {
-                            const p = Math.min(1, (dashPhase - 1.56) / 0.56);
-                            const eased = p * p;
-                            dashX = width * (0.30 + 0.48 * eased);
-                            dashY = height * (0.38 + 0.22 * eased);
-                            dashTransform = 'scale(1.12)';
-                            dashFilter = 'brightness(1.48)';
-                            this.updateAttractLockLine(dashX, dashY, orbX, orbY, 0);
-                        } else if (dashPhase < 2.92) {
-                            const p = (dashPhase - 2.12) / 0.80;
-                            dashX = width * (0.78 + 0.055 * p);
-                            dashY = height * (0.60 + 0.025 * p);
-                            dashOpacity = 0.58 + p * 0.16;
-                            dashTransform = `scale(${0.90 + p * 0.04})`;
-                            dashFilter = `brightness(${0.62 + p * 0.14})`;
-                        } else {
-                            const p = (dashPhase - 2.92) / 0.68;
-                            dashX = width * (0.835 - 0.035 * p);
-                            dashY = height * (0.625 - 0.035 * p);
-                            dashOpacity = 0.74 + p * 0.20;
-                            dashTransform = `scale(${0.94 + p * 0.04})`;
-                            dashFilter = `brightness(${0.78 + p * 0.20})`;
-                        }
-                        this.positionAttractCardElement(this.enemyIdentityCardDash, dashX, dashY, dashOpacity, dashTransform);
-                        if (this.enemyIdentityCardDash) this.enemyIdentityCardDash.style.filter = dashFilter;
+            showAttractEnemyCard(...args) { return this.attractModeSystem.showAttractEnemyCard(...args); }
 
-                        // ECHO continues moving through every phase: active, fading, dormant flashes, and reactivation.
-                        const echoPhase = elapsed % 3.60;
-                        const echoProgress = echoPhase / 3.60;
-                        const echoX = width * (0.84 - 0.66 * echoProgress);
-                        const echoY = height * (0.72 - Math.sin(echoPhase * 2.35) * 0.16);
-                        let echoOpacity = 1;
-                        let echoFilter = 'brightness(1.08)';
-                        if (echoPhase < 0.76) {
-                            echoOpacity = 1;
-                        } else if (echoPhase < 1.08) {
-                            const p = (echoPhase - 0.76) / 0.32;
-                            echoOpacity = Math.max(0.07, 1 - p * 0.93);
-                            echoFilter = `brightness(${1.08 - p * 0.44})`;
-                        } else if (echoPhase < 2.22) {
-                            const local = (echoPhase - 1.08) % 0.34;
-                            echoOpacity = local < 0.07 ? 0.56 : 0.05;
-                            echoFilter = 'brightness(0.56)';
-                        } else if (echoPhase < 2.78) {
-                            const p = (echoPhase - 2.22) / 0.56;
-                            const pulse = (Math.sin(p * Math.PI * 7) + 1) * 0.5;
-                            echoOpacity = 0.30 + pulse * 0.70;
-                            echoFilter = `brightness(${1.00 + pulse * 0.82})`;
-                            if (this.enemyIdentityCardWarningRing) {
-                                this.positionAttractCardElement(this.enemyIdentityCardWarningRing, echoX, echoY, 0.28 + pulse * 0.66, `scale(${0.80 + pulse * 0.30})`);
-                            }
-                        } else {
-                            echoOpacity = 1;
-                            echoFilter = 'brightness(1.16)';
-                            if (this.enemyIdentityCardWarningRing) this.enemyIdentityCardWarningRing.style.opacity = '0';
-                        }
-                        this.positionAttractCardElement(this.enemyIdentityCardEcho, echoX, echoY, echoOpacity);
-                        if (this.enemyIdentityCardEcho) this.enemyIdentityCardEcho.style.filter = echoFilter;
-
-                        if (elapsed >= 3.72 && this.enemyIdentityCard) this.enemyIdentityCard.classList.add('full-cast-brighten');
-                    }
-
-                    this.attractEnemyCardFrame = requestAnimationFrame(animate);
-                };
-                this.attractEnemyCardFrame = requestAnimationFrame(animate);
-            }
-
-            hideAttractEnemyCard(options = {}) {
-                if (!this.enemyIdentityCard) return;
-                this.stopAttractEnemyCardSimulation();
-                if (this.enemyIdentityCardHideCleanupTimer) {
-                    clearTimeout(this.enemyIdentityCardHideCleanupTimer);
-                    this.enemyIdentityCardHideCleanupTimer = null;
-                }
-                this.enemyIdentityCard.classList.remove('visible', 'transition-prelude', 'transition-color', 'full-cast-brighten');
-                this.enemyIdentityCard.setAttribute('aria-hidden', 'true');
-                this.enemyIdentityCardHideCleanupTimer = setTimeout(() => {
-                    if (!this.enemyIdentityCard || this.enemyIdentityCard.classList.contains('visible')) return;
-                    delete this.enemyIdentityCard.dataset.card;
-                    if (this.enemyIdentityCardName) this.enemyIdentityCardName.textContent = '';
-                    if (this.enemyIdentityCardClass) this.enemyIdentityCardClass.textContent = '';
-                    if (this.enemyIdentityCardPersonality) this.enemyIdentityCardPersonality.textContent = '';
-                    if (this.enemyIdentityCardBehavior) this.enemyIdentityCardBehavior.textContent = '';
-                    if (!options.keepColor) this.enemyIdentityCard.style.removeProperty('--enemy-card-color');
-                    this.enemyIdentityCardHideCleanupTimer = null;
-                }, 180);
-            }
-
-            suspendAttractEnemyCards() {
-                this.attractEnemyCardSequenceToken++;
-                this.attractEnemyCardSequenceActive = false;
-                this.scheduler.cancelScope('attract-enemy-cards');
-                this.attractEnemyCardIndex = -1;
-                this.hideAttractEnemyCard();
-            }
-
-            showAttractTransitionFrame(color = '#fff', prelude = false) {
-                if (!this.enemyIdentityCard) return;
-                this.stopAttractEnemyCardSimulation();
-                if (this.enemyIdentityCardHideCleanupTimer) {
-                    clearTimeout(this.enemyIdentityCardHideCleanupTimer);
-                    this.enemyIdentityCardHideCleanupTimer = null;
-                }
-                this.enemyIdentityCard.dataset.card = 'transition';
-                this.enemyIdentityCard.style.setProperty('--enemy-card-transition-color', color || '#fff');
-                this.enemyIdentityCard.setAttribute('aria-hidden', 'false');
-                this.enemyIdentityCard.classList.remove('transition-prelude', 'transition-color', 'full-cast-brighten');
-                void this.enemyIdentityCard.offsetWidth;
-                this.enemyIdentityCard.classList.add('visible', prelude ? 'transition-prelude' : 'transition-color');
-            }
-
-            showAttractEnemyCard(identityKey) {
-                if (!this.enemyIdentityCard) return;
-                if (this.enemyIdentityCardHideCleanupTimer) {
-                    clearTimeout(this.enemyIdentityCardHideCleanupTimer);
-                    this.enemyIdentityCardHideCleanupTimer = null;
-                }
-                const isCompany = identityKey === 'company';
-                const isCastIntro = identityKey === 'cast-intro';
-                const isFullCast = identityKey === 'full-cast';
-                const isPresentationCard = isCompany || isCastIntro;
-                const identity = isPresentationCard || isFullCast ? null : getEnemyIdentity(identityKey);
-                const cardType = isCompany ? 'company' : isCastIntro ? 'cast-intro' : isFullCast ? 'full-cast' : identity.key;
-                const cardColor = isPresentationCard || isFullCast ? '#fff' : identity.color;
-                this.enemyIdentityCard.dataset.card = cardType;
-                this.enemyIdentityCard.style.setProperty('--enemy-card-color', cardColor);
-                this.enemyIdentityCard.classList.remove('transition-prelude', 'transition-color', 'full-cast-brighten');
-
-                if (isCompany) {
-                    if (this.enemyIdentityCardName) this.enemyIdentityCardName.textContent = 'ARKOM PRESENTS';
-                    if (this.enemyIdentityCardClass) this.enemyIdentityCardClass.textContent = '';
-                    if (this.enemyIdentityCardPersonality) this.enemyIdentityCardPersonality.textContent = '';
-                    if (this.enemyIdentityCardBehavior) this.enemyIdentityCardBehavior.textContent = '';
-                    this.enemyIdentityCard.setAttribute('aria-label', 'Arkom presents.');
-                } else if (isCastIntro) {
-                    if (this.enemyIdentityCardName) {
-                        this.enemyIdentityCardName.innerHTML = '<span class="attract-title-line attract-title-block">BLOCK</span><span class="attract-title-line attract-title-a">-A-</span><span class="attract-title-line attract-title-zoids">ZOIDS</span>';
-                    }
-                    if (this.enemyIdentityCardClass) this.enemyIdentityCardClass.textContent = '';
-                    if (this.enemyIdentityCardPersonality) this.enemyIdentityCardPersonality.textContent = '';
-                    if (this.enemyIdentityCardBehavior) this.enemyIdentityCardBehavior.textContent = '';
-                    this.enemyIdentityCard.setAttribute('aria-label', 'Block-A-Zoids.');
-                } else if (isFullCast) {
-                    if (this.enemyIdentityCardName) this.enemyIdentityCardName.textContent = 'YOU’VE MET THEM';
-                    if (this.enemyIdentityCardClass) this.enemyIdentityCardClass.textContent = '';
-                    if (this.enemyIdentityCardPersonality) this.enemyIdentityCardPersonality.textContent = 'NOW SURVIVE THEM';
-                    if (this.enemyIdentityCardBehavior) this.enemyIdentityCardBehavior.textContent = '';
-                    this.enemyIdentityCard.setAttribute('aria-label', 'You’ve met them. Now survive them.');
-                } else {
-                    if (this.enemyIdentityCardName) this.enemyIdentityCardName.textContent = identity.displayName;
-                    if (this.enemyIdentityCardClass) this.enemyIdentityCardClass.textContent = `“${identity.className.toUpperCase()}”`;
-                    if (this.enemyIdentityCardPersonality) this.enemyIdentityCardPersonality.textContent = identity.attractPersonality;
-                    if (this.enemyIdentityCardBehavior) this.enemyIdentityCardBehavior.textContent = '';
-                    this.enemyIdentityCard.setAttribute('aria-label', `${identity.displayName}, ${identity.className}. ${identity.attractPersonality}`);
-                }
-
-                this.enemyIdentityCard.setAttribute('aria-hidden', 'false');
-                this.enemyIdentityCard.classList.add('visible');
-                if (isPresentationCard) {
-                    this.stopAttractEnemyCardSimulation();
-                    return;
-                }
-
-                this.startAttractEnemyCardSimulation(isFullCast ? 'full-cast' : identity.key);
-            }
-
-            startAttractEnemyCardSequence() {
-                if (this.attractEnemyCardSequenceActive || !this.isAttractEnemyCardAllowed()) return false;
-
-                this.suspendAttractEnemyCards();
-                const token = ++this.attractEnemyCardSequenceToken;
-                this.attractEnemyCardSequenceActive = true;
-                // Attract screens are timer-driven and intentionally silent. Never call resume()
-                // here: Safari requires the AudioContext unlock to happen inside a real player gesture.
-                // The attract presentation introduces the complete cast independently of
-                // campaign unlock progress, so it never stops halfway through on a fresh save.
-                const cards = ['company', 'cast-intro', ...ENEMY_IDENTITY_ORDER, 'full-cast'];
-                const transitionDurationMs = 250;
-                const getCardDurationMs = key => {
-                    if (key === 'company') return 3000;
-                    if (key === 'cast-intro') return 7000;
-                    return this.attractScreenIntervalMs;
-                };
-
-                const cancelIfUnavailable = () => {
-                    if (token !== this.attractEnemyCardSequenceToken) return true;
-                    if (this.isAttractEnemyCardAllowed()) return false;
-                    this.suspendAttractEnemyCards();
-                    return true;
-                };
-
-                const showIndex = index => {
-                    if (cancelIfUnavailable()) return;
-                    if (index >= cards.length) {
-                        this.hideAttractEnemyCard();
-                        this.attractEnemyCardSequenceActive = false;
-                        this.attractEnemyCardIndex = -1;
-                        if (this.container) {
-                            this.container.classList.remove('attract-grid-rebuild');
-                            void this.container.offsetWidth;
-                            this.container.classList.add('attract-grid-rebuild');
-                            this.scheduler.scheduleTimeout('attract-enemy-cards', 'grid-rebuild-clear', () => this.container && this.container.classList.remove('attract-grid-rebuild'), 500);
-                        }
-                        this.scheduleAttractEnemyCardAutoStart(this.attractScreenIntervalMs);
-                        return;
-                    }
-
-                    this.attractEnemyCardIndex = index;
-                    const key = cards[index];
-                    const cardHoldDurationMs = Math.max(0, getCardDurationMs(key) - transitionDurationMs);
-                    this.showAttractEnemyCard(key);
-                    this.scheduler.scheduleTimeout('attract-enemy-cards', `card-${index}-hold`, () => {
-                        if (cancelIfUnavailable()) return;
-                        const color = key === 'full-cast' || key === 'company' || key === 'cast-intro'
-                            ? '#fff'
-                            : getEnemyIdentity(key).color;
-                        this.showAttractTransitionFrame(color, false);
-                        this.scheduler.scheduleTimeout('attract-enemy-cards', `card-${index}-transition`, () => showIndex(index + 1), transitionDurationMs);
-                    }, cardHoldDurationMs);
-                };
-
-                this.showAttractTransitionFrame('#fff', true);
-                this.scheduler.scheduleTimeout('attract-enemy-cards', 'prelude-frame', () => showIndex(0), 240);
-                return true;
-            }
+            startAttractEnemyCardSequence(...args) { return this.attractModeSystem.startAttractEnemyCardSequence(...args); }
 
             clearEnemyDeathCause() {
                 this.lastDeathCause = null;
@@ -23248,77 +23638,7 @@ Best Score: ${bestScore}${recoveredLine}` :
             }
 
             // Canonical lifecycle entry for attract mode, including its scheduler and audio ownership.
-            returnToAttractMode() {
-                const allowedFlow = this.flow.isAny(
-                    GAME_FLOW_STATES.SPLASH,
-                    GAME_FLOW_STATES.GAME_OVER,
-                ) || (this.flow.is(GAME_FLOW_STATES.ATTRACT) && !this.attractInterval);
-                if (!this.requireLifecycleAction(
-                    'returnToAttractMode',
-                    allowedFlow && !this.active && !this.isPaused && !this.resumeCountdownActive,
-                    this.flow.is(GAME_FLOW_STATES.ATTRACT) ? 'attract-mode-already-running' : 'attract-mode-not-available'
-                )) return false;
-
-                this.flow.enter(GAME_FLOW_STATES.ATTRACT, 'start-attract-mode');
-                this.systems.prepareAttractMode();
-                const gridSize = this.GRID_SIZE; // Grid cell size
-                const gridWidth = this.PLAYFIELD_SIZE / gridSize; // 10
-                const gridHeight = this.PLAYFIELD_SIZE / gridSize; // 10
-
-                const reseedAttractGrid = () => {
-                    this.lifeGrid = Array(10).fill().map(() =>
-                        Array(10).fill().map(() => Math.random() < 0.15 ? 1 : 0)
-                    );
-                    this.attractModeStartedAt = performance.now();
-                };
-
-                // Initialize grid with 15% chance of life for a sparser pattern
-                reseedAttractGrid();
-
-                const updatePattern = () => {
-                    this.playfieldRenderer.removeAttractSquares(this.attractSquares);
-                    this.attractSquares = [];
-
-                    if (performance.now() - this.attractModeStartedAt >= this.attractReseedIntervalMs) {
-                        reseedAttractGrid();
-                    } else {
-                        this.lifeGrid = this.nextGeneration(); // Compute next generation
-                    }
-
-                    // Display live cells as flashing squares. The same state drives either renderer.
-                    const createdAt = performance.now();
-                    for (let x = 0; x < gridWidth; x++) {
-                        for (let y = 0; y < gridHeight; y++) {
-                            if (this.lifeGrid[x][y]) {
-                                const square = {
-                                    x: x * gridSize,
-                                    y: y * gridSize,
-                                    size: gridSize,
-                                    createdAt,
-                                    animationDelayMs: Math.random() * 500,
-                                    isActive: true,
-                                    element: null
-                                };
-                                this.playfieldRenderer.createAttractSquare(square);
-                                this.attractSquares.push(square);
-                            }
-                        }
-                    }
-
-                    // Reset grid if all cells die
-                    const totalLive = this.lifeGrid.flat().reduce((sum, val) => sum + val, 0);
-                    if (totalLive === 0) {
-                        reseedAttractGrid();
-                    }
-                    this.requestPlayfieldRender();
-                };
-
-                updatePattern(); // Initial pattern
-                this.attractInterval = this.scheduler.scheduleInterval('attract-mode', 'life-grid', updatePattern, 1000); // Update every second
-                this.scheduleAttractEnemyCardAutoStart(this.attractScreenIntervalMs);
-                this.validateStateInvariants('returnToAttractMode');
-                return true;
-            }
+            returnToAttractMode(...args) { return this.attractModeSystem.returnToAttractMode(...args); }
 
             // Stop attract mode and clean up
             removeCampaignRestorePresentation() {
@@ -23403,21 +23723,7 @@ Best Score: ${bestScore}${recoveredLine}` :
                 return false;
             }
 
-            stopAttractMode() {
-                if (this.gestures && typeof this.gestures.cancelAttractOrbHold === 'function') {
-                    this.gestures.cancelAttractOrbHold('stop-attract-mode');
-                }
-                this.suspendAttractEnemyCards();
-                this.scheduler.cancelScope('attract-mode');
-                this.attractInterval = null;
-                this.attractEnemyCardAutoInterval = null;
-                this.attractModeStartedAt = 0;
-                if (this.player) this.playfieldRenderer.setPlayerEffect(this.player, 'attract-orb-pulse', false);
-                this.playfieldRenderer.removeAttractSquares(this.attractSquares);
-                this.attractSquares = [];
-                this.lifeGrid = []; // Clear grid
-                this.requestPlayfieldRender();
-            }
+            stopAttractMode(...args) { return this.attractModeSystem.stopAttractMode(...args); }
 
 
             async runCampaignCompletionSequence(transitionToken = this.levelLoadToken, source = 'campaign-complete') {
@@ -27863,6 +28169,8 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 enemySpawning: game.enemySpawnSystem.snapshot(),
                 collision: game.collisionSystem.snapshot(),
                 runtimeState: game.runtimeState.snapshot(),
+                tutorial: game.tutorialSystem.snapshot(),
+                attractMode: game.attractModeSystem.snapshot(),
                 screens: game.screenManager.snapshot()
             })
         });
