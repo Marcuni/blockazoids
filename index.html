@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Block-A-Zoids p237: removes verified dead JavaScript and retired loop compatibility code without changing game behavior.
+Block-A-Zoids p238: consolidates the global CSS foundation and cabinet geometry into single authoritative owners without changing presentation.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="p237">
+<html data-build-version="p238">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -58,28 +58,23 @@ Font License Notices
             font-display: swap;
         }
 
-        /* Reset default body styling and center game content */
-        html {
+        /* p238 global page foundation. The full-viewport cabinet owns layout; the page
+           only supplies a stable, non-scrolling input surface. */
+        html,
+        body {
             width: 100%;
             height: 100%;
+            min-height: 100%;
+            margin: 0;
+            padding: 0;
             overflow: hidden;
             background: #000;
         }
 
         body {
             --default-glow: var(--glow-default);
-            margin: 0;
-            padding: max(6px, env(safe-area-inset-top)) 0 max(6px, env(safe-area-inset-bottom)) 0;
-            background: #000;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: flex-start;
-            overflow: hidden;
+            display: block;
             position: relative;
-            width: 100%;
-            height: 100%;
-            min-height: 100%;
             box-sizing: border-box;
             touch-action: none;
             overscroll-behavior: none;
@@ -92,21 +87,8 @@ Font License Notices
 
         body::before,
         body::after {
-            content: "";
-            position: fixed;
-            inset: 0;
-            pointer-events: none;
-            z-index: 0;
-        }
-
-        /* Flat cabinet background outside the playfield. */
-        body::before {
-            background: #000;
-            opacity: 1;
-        }
-
-        body::after {
             display: none;
+            content: none;
         }
 
         body > * {
@@ -116,13 +98,9 @@ Font License Notices
         
         /* Game container with grid background */
         #gameContainer {
-            width: min(600px, calc(100vw - 8px));
-            height: min(600px, calc(100vw - 8px));
             background: #000;
             position: relative;
             overflow: hidden;
-            border: 2px solid #fff;
-            box-shadow: 0 0 calc(var(--default-glow) * 1px) #fff;
             margin-left: 0;
             margin-right: 0;
             --default-glow: var(--glow-playfield);
@@ -3571,10 +3549,6 @@ Font License Notices
             isolation: isolate;
         }
 
-        #playfieldShell > #gameContainer {
-            position: relative;
-            z-index: 1;
-        }
 
         .playfield-crt-outer-glow {
             position: absolute;
@@ -5648,9 +5622,6 @@ Font License Notices
         #scoringPanel #scoringHighScoreLabel, #scoringPanel #scoringHighScoreValue{
             font-weight: 700 !important;
         }
-
-
-        /* p017: one full-viewport cabinet coordinate map. The cropped master art is 853 x 1663. */
         :root {
             --skin-master-width: 941;
             --skin-master-height: 1672;
@@ -5679,50 +5650,55 @@ Font License Notices
             --skin-lower-controls-top: 92.224880%;
         }
 
-        html,
-        body {
-            width: 100%;
-            height: 100%;
-            min-height: 100%;
-            margin: 0;
-            padding: 0;
-            overflow: hidden;
-            background: #000;
-        }
-
-        body {
-            display: block;
-        }
-
-        body::before,
-        body::after {
-            display: none !important;
-            content: none !important;
-        }
-
-        #skinShell {
+        /* p238 cabinet foundation. Geometry and cabinet presentation have one owner.
+           Runtime layout changes only the custom properties consumed here. */
+        html body #skinShell {
             position: fixed;
-            inset: 0;
-            width: 100vw;
-            height: 100vh;
-            height: 100dvh;
-            overflow: hidden;
+            inset: auto;
+            left: var(--skin-left, 0px);
+            top: var(--skin-top, 0px);
+            right: auto;
+            bottom: auto;
+            width: var(--skin-width, 100vw);
+            height: var(--skin-height, 100dvh);
+            overflow: visible;
             isolation: isolate;
             z-index: 1;
             touch-action: none;
+            transform: none;
+            background-color: #000;
+            background-image:
+                url("blockazoids-skin-vector-frame.png"),
+                radial-gradient(ellipse at 50% 37%, rgba(255,255,255,0.072) 0%, rgba(255,255,255,0.028) 28%, rgba(255,255,255,0) 52%),
+                radial-gradient(ellipse at 50% 82%, rgba(255,255,255,0.052) 0%, rgba(255,255,255,0.018) 22%, rgba(255,255,255,0) 38%),
+                radial-gradient(ellipse at 50% 48%, rgba(0,0,0,0) 50%, rgba(0,0,0,0.18) 76%, rgba(0,0,0,0.68) 100%),
+                linear-gradient(180deg, #0c0c0c 0%, #070707 43%, #030303 72%, #000 100%);
+            background-repeat: no-repeat;
+            background-position: center top;
+            background-size: 100% 100%;
+            background-blend-mode: screen, screen, screen, multiply, normal;
         }
 
-        #skinFrameImage {
-            position: absolute;
-            inset: 0;
+        html body #skinShell > #playfieldShell {
+            box-sizing: border-box;
+            left: var(--skin-playfield-left, 4.904171%);
+            top: var(--skin-playfield-top, 10.800000%);
+            width: var(--playfield-render-size);
+            height: var(--playfield-render-size);
+            z-index: 2;
+        }
+
+        html body #playfieldShell > #gameContainer {
+            position: relative;
+            box-sizing: border-box;
             width: 100%;
             height: 100%;
-            object-fit: fill;
-            display: block;
-            pointer-events: none;
-            user-select: none;
-            z-index: 0;
+            z-index: 1;
+            border: max(1px, calc(var(--skin-scale, 1) * 2px)) solid rgba(255,255,255,0.92);
+            box-shadow: 0 0 calc(var(--skin-scale, 1) * 8px) rgba(255,255,255,0.42);
         }
+
+
 
         #skinShell > #scoreHud,
         #skinShell > #cosmicZapHud,
@@ -5735,19 +5711,7 @@ Font License Notices
         }
 
         /* Main live square: x=97, y=282, size=655 in the cropped 853x1663 master. */
-        #skinShell > #playfieldShell {
-            box-sizing: border-box;
-            left: 11.371629%;
-            top: 16.957306%;
-            width: var(--playfield-render-size) !important;
-            height: var(--playfield-render-size) !important;
-            z-index: 2;
-        }
 
-        #playfieldShell > #gameContainer {
-            width: 100% !important;
-            height: 100% !important;
-        }
 
         /* Top score window. */
         #skinShell > #scoreHud {
@@ -6036,45 +6000,6 @@ Font License Notices
             display: none !important;
         }
 
-        }
-
-
-        /* p019: One uniform, undistorted cover scale for the approved 941 x 1672 cabinet and all live slots. */
-        #skinShell {
-            position: fixed;
-            inset: auto;
-            left: var(--skin-left, 0px);
-            top: var(--skin-top, 0px);
-            right: auto;
-            bottom: auto;
-            width: var(--skin-width, 100vw);
-            height: var(--skin-height, 100dvh);
-            overflow: visible;
-            transform: none;
-        }
-
-        #skinFrameImage {
-            inset: 0;
-            width: 100%;
-            height: 100%;
-            object-fit: fill;
-            object-position: center top;
-        }
-
-        #skinShell > #playfieldShell {
-            box-sizing: border-box;
-            left: var(--skin-playfield-left, 10.201913%);
-            top: var(--skin-playfield-top, 18.779904%);
-            width: var(--playfield-render-size) !important;
-            height: var(--playfield-render-size) !important;
-        }
-
-        #playfieldShell > #gameContainer {
-            box-sizing: border-box !important;
-            width: 100% !important;
-            height: 100% !important;
-        }
-
         #skinShell > #scoreHud {
             left: var(--skin-score-left, 25.717322%);
             top: var(--skin-score-top, 5.681818%);
@@ -6163,40 +6088,6 @@ Font License Notices
             font-size: calc(var(--skin-scale, 1) * 50px);
         }
 
-
-        /* p018 final shell authority: placed last for CSS parser recovery and Safari. */
-        html body #skinShell {
-            position: fixed !important;
-            inset: auto !important;
-            left: var(--skin-left, 0px) !important;
-            top: var(--skin-top, 0px) !important;
-            right: auto !important;
-            bottom: auto !important;
-            width: var(--skin-width, 100vw) !important;
-            height: var(--skin-height, 100dvh) !important;
-            overflow: visible !important;
-            transform: none !important;
-        }
-
-        html body #skinFrameImage {
-            position: absolute !important;
-            inset: 0 !important;
-            width: 100% !important;
-            height: 100% !important;
-            object-fit: fill !important;
-            object-position: center top !important;
-        }
-
-        /* p019 final square aperture authority. Keep the cabinet bezel visible around the live grid. */
-        html body #skinShell > #playfieldShell {
-            left: var(--skin-playfield-left, 10.201913%) !important;
-            top: var(--skin-playfield-top, 18.779904%) !important;
-        }
-
-        html body #playfieldShell > #gameContainer {
-            border: 0 !important;
-            box-shadow: none;
-        }
 
 
         /* p022 lower-HUD component tokens. The Star control is the visual reference for all four shortcuts. */
@@ -7166,12 +7057,8 @@ Font License Notices
         }
 
         /* p100 approved six-window cabinet overlay. The artwork masks spill while every live control remains independently interactive. */
-        html body #skinFrameImage {
-            z-index: 100 !important;
-            pointer-events: none !important;
-        }
 
-        html body #skinShell > #playfieldShell,
+
         html body #skinShell > #scoreHud,
         html body #skinShell > #cosmicZapHud,
         html body #skinShell > #bottomStatusHud,
@@ -7179,17 +7066,11 @@ Font License Notices
             z-index: 4 !important;
         }
 
-        html body #skinShell > #playfieldShell {
-            z-index: 2 !important;
-        }
 
         html body #skinShell > #pauseGridMenu {
             z-index: 1200 !important;
         }
 
-        html body #skinShell.skin-frame-disabled #skinFrameImage {
-            display: none !important;
-        }
 
 
         /* p104: the external skin no longer supplies a main playfield bezel.
@@ -7220,39 +7101,6 @@ Font License Notices
             stroke-width: 1.08 !important;
         }
 
-    
-
-        /* p202: perceptible but restrained cabinet depth. The center gains a soft
-           charcoal lift behind the playfield and trackball while the outer edges remain black. */
-        html body #skinShell {
-            background-color: #000 !important;
-            background-image:
-                url("blockazoids-skin-vector-frame.png"),
-                radial-gradient(ellipse at 50% 37%, rgba(255,255,255,0.072) 0%, rgba(255,255,255,0.028) 28%, rgba(255,255,255,0) 52%),
-                radial-gradient(ellipse at 50% 82%, rgba(255,255,255,0.052) 0%, rgba(255,255,255,0.018) 22%, rgba(255,255,255,0) 38%),
-                radial-gradient(ellipse at 50% 48%, rgba(0,0,0,0) 50%, rgba(0,0,0,0.18) 76%, rgba(0,0,0,0.68) 100%),
-                linear-gradient(180deg, #0c0c0c 0%, #070707 43%, #030303 72%, #000 100%) !important;
-            background-repeat: no-repeat !important;
-            background-position: center top !important;
-            background-size: 100% 100% !important;
-            background-blend-mode: screen, screen, screen, multiply, normal !important;
-        }
-
-        html body #skinFrameImage {
-            display: none !important;
-        }
-
-        /* The game sits above the cabinet art. Its square is aligned to the inner span of the two top side windows. */
-        html body #skinShell > #playfieldShell {
-            left: var(--skin-playfield-left, 4.904171%) !important;
-            top: var(--skin-playfield-top, 10.800000%) !important;
-            z-index: 2 !important;
-        }
-
-        html body #playfieldShell > #gameContainer {
-            border: max(1px, calc(var(--skin-scale, 1) * 2px)) solid rgba(255,255,255,0.92) !important;
-            box-shadow: 0 0 calc(var(--skin-scale, 1) * 8px) rgba(255,255,255,0.42) !important;
-        }
 
 
         /* p110: legacy lower-HUD positioning and simplified CRT framing. */
@@ -8619,15 +8467,15 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
         const BUILD_METADATA = window.BLOCKAZOIDS_BUILD = Object.freeze({
             version: document.documentElement.dataset.buildVersion || 'unknown',
             label: BUILD_VERSION,
-            architecturePhase: 'dead-code-cleanup-1',
-            sourceBaseline: 'p236',
+            architecturePhase: 'css-foundation-cabinet-cleanup',
+            sourceBaseline: 'p237',
             behaviorPolicy: 'architecture-only'
         });
 
         const SOURCE_LAYOUT = window.BLOCKAZOIDS_SOURCE_LAYOUT = Object.freeze({
             developmentModel: 'modular-source',
             releaseModel: 'single-html',
-            buildOutput: 'block-a-zoids-p237.html',
+            buildOutput: 'block-a-zoids-p238.html',
             categories: Object.freeze([
                 'build', 'config', 'content', 'rules', 'state', 'services', 'app', 'gameplay',
                 'presentation', 'platform', 'audio', 'ui', 'development'
@@ -15879,6 +15727,27 @@ Best Score: ${bestScore}${recoveredLine}` :
                 this.assert('Crystal topology calls retain responsive grid size', topologySource.includes('normalizeGridPoint(currentPos, this.GRID_SIZE)') && topologySource.includes('hasCollectedGridPoint(target, this.GRID_SIZE)'));
             }
 
+            validateStylesheetOwnership() {
+                const styleRules = [];
+                const collectRules = (rules) => {
+                    for (const rule of rules) {
+                        if (rule.type === CSSRule.STYLE_RULE) styleRules.push(rule);
+                        if (rule.cssRules) collectRules(rule.cssRules);
+                    }
+                };
+                for (const stylesheet of document.styleSheets) collectRules(stylesheet.cssRules);
+
+                const countSelector = (selector) => styleRules.filter((rule) => rule.selectorText === selector).length;
+                const selectors = styleRules.map((rule) => rule.selectorText || '');
+
+                this.assert('Global html/body reset has one CSS owner', countSelector('html, body') === 1, `received ${countSelector('html, body')}`);
+                this.assert('Body layout has one CSS owner', countSelector('body') === 1, `received ${countSelector('body')}`);
+                this.assert('Cabinet shell geometry has one CSS owner', countSelector('html body #skinShell') === 1, `received ${countSelector('html body #skinShell')}`);
+                this.assert('Playfield shell geometry has one CSS owner', countSelector('html body #skinShell > #playfieldShell') === 1, `received ${countSelector('html body #skinShell > #playfieldShell')}`);
+                this.assert('Playfield container geometry has one CSS owner', countSelector('html body #playfieldShell > #gameContainer') === 1, `received ${countSelector('html body #playfieldShell > #gameContainer')}`);
+                this.assert('Retired skin frame image CSS removed', selectors.every((selector) => !selector.includes('#skinFrameImage')));
+            }
+
             validateFlow() {
                 const states = Object.values(GAME_FLOW_STATES);
                 this.assert('Flow state values are unique', new Set(states).size === states.length);
@@ -15930,6 +15799,7 @@ Best Score: ${bestScore}${recoveredLine}` :
 
             run() {
                 this.validateConfiguration();
+                this.validateStylesheetOwnership();
                 this.validateExtractedStateSystems();
                 this.validateFlow();
                 this.validateDom();
