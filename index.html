@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Block-A-Zoids p222: standardizes Launch and Settings control widths, borders, glow, and vertical spacing.
+Block-A-Zoids p223: establishes the architecture safety foundation, pure rule calculations, ownership map, and startup validation without intentional gameplay or presentation changes.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="p222">
+<html data-build-version="p223">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -8563,6 +8563,13 @@ Font License Notices
 
     <script>
         const BUILD_VERSION = `Build ${document.documentElement.dataset.buildVersion || 'trackpad-p102'}`;
+        const BUILD_METADATA = window.BLOCKAZOIDS_BUILD = Object.freeze({
+            version: document.documentElement.dataset.buildVersion || 'unknown',
+            label: BUILD_VERSION,
+            architecturePhase: 'foundation-1',
+            sourceBaseline: 'p222',
+            behaviorPolicy: 'structure-only'
+        });
 
         // Central diagnostic feature flags. Change values here before loading the page to isolate systems.
         const GAME_FEATURE_FLAGS = window.BLOCKAZOIDS_FEATURE_FLAGS = {
@@ -9095,6 +9102,228 @@ Font License Notices
                 FINAL_GRIDLOCK: 'final-gridlock',
                 GAME_OVER: 'game-over'
         });
+
+        // p223 architecture ownership map. This is deliberately data-only so future work can
+        // move implementations without changing the public names used by diagnostics and tests.
+        const ARCHITECTURE_MANIFEST = window.BLOCKAZOIDS_ARCHITECTURE = Object.freeze({
+            phase: BUILD_METADATA.architecturePhase,
+            systems: Object.freeze({
+                configuration: Object.freeze({ owner: 'GAME_CONFIG / GAME_DATA', responsibility: 'Designer-controlled rules and campaign content' }),
+                rules: Object.freeze({ owner: 'GameRules', responsibility: 'Pure calculations with no DOM or mutable game state' }),
+                flow: Object.freeze({ owner: 'GameFlowController', responsibility: 'Authoritative major game-flow state' }),
+                scheduling: Object.freeze({ owner: 'SchedulingManager', responsibility: 'Named cancellable delayed work' }),
+                coordination: Object.freeze({ owner: 'GameSystemCoordinator', responsibility: 'Ordered cross-system lifecycle calls' }),
+                gameplay: Object.freeze({ owner: 'Game', responsibility: 'Legacy gameplay coordinator pending extraction' }),
+                rendering: Object.freeze({ owner: 'CanvasPlayfieldRenderer / WebGLPlayfieldDistortion', responsibility: 'Playfield presentation only' }),
+                input: Object.freeze({ owner: 'FullSurfaceGestureCoordinator / Player', responsibility: 'Pointer and motion translation' }),
+                audio: Object.freeze({ owner: 'AudioManager', responsibility: 'Sound and music playback' }),
+                interface: Object.freeze({ owner: 'UI', responsibility: 'DOM projection of game state' }),
+                diagnostics: Object.freeze({ owner: 'ArchitectureValidator', responsibility: 'Startup contracts and migration safety' })
+            }),
+            migrationContracts: Object.freeze({
+                canonicalPlayfieldGeometry: 'GAME_CONFIG.playfield',
+                legacyGameplayAliases: Object.freeze(['playfieldSize', 'playerSize', 'minSpawnDistance']),
+                finalArtifact: 'single numbered HTML build'
+            })
+        });
+
+        // Pure game-rule calculations are the first extraction from the legacy Game class.
+        // These methods read immutable configuration and return values without touching the DOM,
+        // timers, audio, rendering, storage, or mutable run state.
+        class GameRules {
+            static getDifficultyProfile(mode = 'Normal') {
+                const profiles = GAME_CONFIG.difficulty.profiles;
+                return profiles[mode] || profiles.Normal;
+            }
+
+            static clampCampaignLevel(level) {
+                const numericLevel = Number(level) || 1;
+                return Math.min(GAME_CONFIG.campaign.maxLevels, Math.max(1, numericLevel));
+            }
+
+            static getEnemySpeedMultiplier(level, difficultyMode = 'Normal') {
+                const balancedLevel = this.clampCampaignLevel(level);
+                const levelBoost = (balancedLevel - 1) * GAME_CONFIG.gameplay.levelSpeedBoost;
+                return (1 + levelBoost) * this.getDifficultyProfile(difficultyMode).speedMultiplier;
+            }
+
+            static getSpawnDelay(level, difficultyMode = 'Normal') {
+                const gameplay = GAME_CONFIG.gameplay;
+                const balancedLevel = this.clampCampaignLevel(level);
+                const profile = this.getDifficultyProfile(difficultyMode);
+                return Math.max(
+                    gameplay.minimumSpawnDelay,
+                    gameplay.baseSpawnDelay - (balancedLevel - 1) * gameplay.spawnDelayLevelReduction + profile.spawnDelayOffset
+                );
+            }
+
+            static getCosmicZapCapacity(difficultyMode = 'Normal') {
+                const gameplay = GAME_CONFIG.gameplay;
+                const profile = this.getDifficultyProfile(difficultyMode);
+                return Math.max(1, gameplay.baseCosmicZaps + profile.cosmicZapOffset);
+            }
+        }
+        window.BLOCKAZOIDS_RULES = GameRules;
+
+        // Startup contracts protect the working p222 baseline while systems are moved gradually.
+        // Critical failures stop initialization; non-critical migration debt remains visible in the
+        // console and in window.BLOCKAZOIDS_DIAGNOSTICS without changing player-facing behavior.
+        class ArchitectureValidator {
+            constructor() {
+                this.checks = [];
+                this.errors = [];
+                this.warnings = [];
+            }
+
+            assert(name, condition, detail = '') {
+                const passed = !!condition;
+                this.checks.push(Object.freeze({ name, passed, detail: String(detail || '') }));
+                if (!passed) this.errors.push(`${name}${detail ? `: ${detail}` : ''}`);
+                return passed;
+            }
+
+            warn(name, condition, detail = '') {
+                const passed = !!condition;
+                this.checks.push(Object.freeze({ name, passed, warning: true, detail: String(detail || '') }));
+                if (!passed) this.warnings.push(`${name}${detail ? `: ${detail}` : ''}`);
+                return passed;
+            }
+
+            validateConfiguration() {
+                const config = GAME_CONFIG;
+                const data = GAME_DATA;
+                const gameplay = config.gameplay;
+                const playfield = config.playfield;
+                const difficultyOptions = config.difficulty.options;
+                const profiles = config.difficulty.profiles;
+
+                this.assert('GAME_CONFIG is frozen', Object.isFrozen(config));
+                this.assert('GAME_DATA is frozen', Object.isFrozen(data));
+                this.assert('Difficulty options are unique', new Set(difficultyOptions).size === difficultyOptions.length);
+                this.assert('Normal difficulty exists', !!profiles.Normal);
+
+                difficultyOptions.forEach((mode) => {
+                    const profile = profiles[mode];
+                    this.assert(`Difficulty profile exists: ${mode}`, !!profile);
+                    if (!profile) return;
+                    this.assert(`Difficulty speed is positive: ${mode}`, Number.isFinite(profile.speedMultiplier) && profile.speedMultiplier > 0);
+                    this.assert(`Difficulty spawn offset is finite: ${mode}`, Number.isFinite(profile.spawnDelayOffset));
+                    this.assert(`Difficulty Zap offset is integral: ${mode}`, Number.isInteger(profile.cosmicZapOffset));
+                    this.assert(`Difficulty Zap capacity is valid: ${mode}`, Number.isInteger(GameRules.getCosmicZapCapacity(mode)) && GameRules.getCosmicZapCapacity(mode) >= 1);
+                    this.assert(`Difficulty spawn delay is valid: ${mode}`, GameRules.getSpawnDelay(1, mode) >= gameplay.minimumSpawnDelay);
+                    this.assert(`Difficulty speed ladder is valid: ${mode}`, GameRules.getEnemySpeedMultiplier(config.campaign.maxLevels, mode) > 0);
+                });
+
+                // Temporary equality contracts guard the duplicate legacy aliases until p224 removes them.
+                this.assert('Legacy playfield size matches canonical geometry', gameplay.playfieldSize === playfield.designSize);
+                this.assert('Legacy player size matches canonical geometry', gameplay.playerSize === playfield.playerSize);
+                this.assert('Legacy spawn distance matches canonical geometry', gameplay.minSpawnDistance === playfield.minSpawnDistance);
+
+                const proportions = Object.values(config.enemySpawning.proportions);
+                const proportionTotal = proportions.reduce((sum, value) => sum + Number(value || 0), 0);
+                this.assert('Enemy spawn proportions total 1', Math.abs(proportionTotal - 1) < 0.000001, `received ${proportionTotal}`);
+
+                const maxLevels = config.campaign.maxLevels;
+                this.assert('Sector names match campaign length', data.sectorNames.length === maxLevels, `${data.sectorNames.length}/${maxLevels}`);
+                this.assert('Sector patterns match campaign length', data.sectorPatterns.length === maxLevels, `${data.sectorPatterns.length}/${maxLevels}`);
+                this.assert('Enemy plans match campaign length', data.sectorEnemyBehaviorPlans.length === maxLevels, `${data.sectorEnemyBehaviorPlans.length}/${maxLevels}`);
+
+                const patternSpan = playfield.gridCellsPerSide - 1;
+                const validPatternSymbols = /^[RGB]+$/;
+                data.sectorPatterns.forEach((pattern, index) => {
+                    this.assert(`Sector ${index + 1} pattern row count`, pattern.length === patternSpan, `${pattern.length}/${patternSpan}`);
+                    pattern.forEach((row, rowIndex) => {
+                        this.assert(`Sector ${index + 1} row ${rowIndex + 1} width`, row.length === patternSpan, `${row.length}/${patternSpan}`);
+                        this.assert(`Sector ${index + 1} row ${rowIndex + 1} symbols`, validPatternSymbols.test(row));
+                    });
+                });
+
+                const validBehaviors = new Set(['drifter', 'charger', 'pulse']);
+                data.sectorEnemyBehaviorPlans.forEach((plan, index) => {
+                    this.assert(`Sector ${index + 1} enemy plan size`, plan.length === gameplay.normalSwarmSize, `${plan.length}/${gameplay.normalSwarmSize}`);
+                    this.assert(`Sector ${index + 1} enemy plan behaviors`, plan.every((behavior) => validBehaviors.has(behavior)));
+                });
+
+                this.assert('Color order has unique entries', new Set(data.colorOrder).size === data.colorOrder.length);
+                this.assert('Color order maps to palette', data.colorOrder.every((colorName) => Object.prototype.hasOwnProperty.call(config.colors, colorName)));
+                const storageKeys = Object.values(config.storage);
+                this.assert('Storage keys are unique', new Set(storageKeys).size === storageKeys.length);
+            }
+
+            validateFlow() {
+                const states = Object.values(GAME_FLOW_STATES);
+                this.assert('Flow state values are unique', new Set(states).size === states.length);
+                this.assert('Flow includes Playing', states.includes('playing'));
+                this.assert('Flow includes Paused', states.includes('paused'));
+                this.assert('Flow includes Game Over', states.includes('game-over'));
+            }
+
+            validateDom() {
+                const requiredIds = [
+                    'gameContainer',
+                    'playfieldCanvas',
+                    'playfieldWebglCanvas',
+                    'startButton',
+                    'score',
+                    'pauseWindow',
+                    'gameOver',
+                    'bonusText',
+                    'screenFade',
+                    'sectorProgressIndicators'
+                ];
+                requiredIds.forEach((id) => this.assert(`Required DOM element exists: #${id}`, !!document.getElementById(id)));
+
+                const maximumZapCapacity = Math.max(...GAME_CONFIG.difficulty.options.map((mode) => GameRules.getCosmicZapCapacity(mode)));
+                const authoredZapIcons = document.querySelectorAll('.cosmic-zap-icon').length;
+                this.warn(
+                    'Cosmic Zap HUD capacity covers every difficulty',
+                    authoredZapIcons >= maximumZapCapacity,
+                    `${authoredZapIcons} authored icons for capacity ${maximumZapCapacity}; scheduled for data-driven HUD migration`
+                );
+            }
+
+            validateManifest() {
+                const systems = ARCHITECTURE_MANIFEST.systems;
+                const owners = Object.values(systems).map((entry) => entry.owner);
+                this.assert('Architecture manifest contains systems', owners.length > 0);
+                this.assert('Architecture system owners are named', owners.every((owner) => typeof owner === 'string' && owner.trim().length > 0));
+            }
+
+            run() {
+                this.validateConfiguration();
+                this.validateFlow();
+                this.validateDom();
+                this.validateManifest();
+
+                const status = this.errors.length > 0
+                    ? 'failed'
+                    : (this.warnings.length > 0 ? 'passed-with-warnings' : 'passed');
+                const report = Object.freeze({
+                    build: BUILD_METADATA.version,
+                    phase: BUILD_METADATA.architecturePhase,
+                    status,
+                    passedChecks: this.checks.filter((check) => check.passed).length,
+                    totalChecks: this.checks.length,
+                    errors: Object.freeze(this.errors.slice()),
+                    warnings: Object.freeze(this.warnings.slice()),
+                    checks: Object.freeze(this.checks.slice())
+                });
+
+                document.documentElement.dataset.architectureValidation = status;
+                window.BLOCKAZOIDS_ARCHITECTURE_REPORT = report;
+
+                if (report.errors.length > 0) {
+                    console.error('[Block-A-Zoids] Architecture validation failed.', report);
+                    throw new Error(`Block-A-Zoids architecture validation failed: ${report.errors.join(' | ')}`);
+                }
+                if (report.warnings.length > 0) {
+                    console.warn('[Block-A-Zoids] Architecture foundation passed with migration warnings.', report);
+                } else {
+                    console.info('[Block-A-Zoids] Architecture foundation passed.', report);
+                }
+                return report;
+            }
+        }
 
         // Phase 3 scheduling foundation. Phase 3H owns transient UI, splash, marquee,
         // non-gameplay visual effects, major transitions, live-gameplay delays and loop ownership,
@@ -13991,7 +14220,7 @@ Font License Notices
 
             applyResponsiveViewportUpdate(reason = 'resize', force = false) {
                 const oldSize = Number(this.PLAYFIELD_SIZE) || 0;
-                const oldGridSize = Number(this.GRID_SIZE) || (oldSize ? oldSize / GAME_CONFIG.playfield.cells : 0);
+                const oldGridSize = Number(this.GRID_SIZE) || (oldSize ? oldSize / GAME_CONFIG.playfield.gridCellsPerSide : 0);
                 const oldPlayerSize = Number(this.PLAYER_SIZE) || 20;
                 const desiredLayout = this.resolveResponsivePlayfieldLayout();
                 const desiredSize = desiredLayout.playfieldSize;
@@ -14441,9 +14670,7 @@ Font License Notices
             }
 
             getCurrentSpeedMultiplier() {
-                const balancedLevel = Math.min(this.MAX_LEVEL, Math.max(1, this.level));
-                const levelBoost = (balancedLevel - 1) * this.parameters.levelSpeedBoost;
-                return (1 + levelBoost) * this.getDifficultyConfig().speedMultiplier;
+                return GameRules.getEnemySpeedMultiplier(this.level, this.difficultyMode);
             }
 
             getEffectiveEnemySpeedsSnapshot() {
@@ -15776,8 +16003,7 @@ Best Score: ${bestScore}${recoveredLine}` :
 
             // Adjust spawn delay by level; enemy count stays capped at a constant value. Cosmic Zap use does not affect speed.
             applyLevelParameters() {
-                const difficultyConfig = this.getDifficultyConfig();
-                this.spawnDelay = Math.max(this.parameters.minimumSpawnDelay, this.parameters.baseSpawnDelay - (this.level - 1) * this.parameters.spawnDelayLevelReduction + difficultyConfig.spawnDelayOffset);
+                this.spawnDelay = GameRules.getSpawnDelay(this.level, this.difficultyMode);
                 this.normalSwarmSize = this.parameters.normalSwarmSize;
 
                 const totalEnemies = this.normalSwarmSize;
@@ -15856,8 +16082,7 @@ Best Score: ${bestScore}${recoveredLine}` :
             }
 
             getCosmicZapsForCurrentSector() {
-                const difficultyConfig = this.getDifficultyConfig();
-                return Math.max(1, this.parameters.baseCosmicZaps + difficultyConfig.cosmicZapOffset);
+                return GameRules.getCosmicZapCapacity(this.difficultyMode);
             }
 
             // Enemy speed follows the sector ladder and selected difficulty.
@@ -17008,7 +17233,7 @@ Best Score: ${bestScore}${recoveredLine}` :
             }
 
             getDifficultyConfig() {
-                return GAME_CONFIG.difficulty.profiles[this.difficultyMode] || GAME_CONFIG.difficulty.profiles.Normal;
+                return GameRules.getDifficultyProfile(this.difficultyMode);
             }
 
             getDifficultyStorageSuffix(mode = this.difficultyMode) {
@@ -25758,8 +25983,22 @@ startMaxSwarmBeat(delaySeconds = 0) {
             }
         }
 
-        // Initialize and start the game
+        // Validate configuration, campaign data, flow constants, and critical DOM contracts
+        // before the legacy coordinator is allowed to initialize.
+        const architectureReport = new ArchitectureValidator().run();
+
+        // Initialize and start the game only after the foundation contracts pass.
         const game = new Game();
+
+        // Read-only diagnostic access supports regression testing without exposing the mutable Game object.
+        window.BLOCKAZOIDS_DIAGNOSTICS = Object.freeze({
+            architecture: architectureReport,
+            snapshot: () => Object.freeze({
+                build: BUILD_METADATA.version,
+                flow: game.flow.snapshot(),
+                scheduler: game.scheduler.snapshot()
+            })
+        });
     </script>
 </body>
 </html>
