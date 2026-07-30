@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Block-A-Zoids p225: establishes one authoritative configuration model for palette, difficulty, scoring, campaign content, geometry, and resource HUD capacity.
+Block-A-Zoids p226: extracts settings, score, high-score persistence, and run-session state from the legacy Game coordinator.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="p225">
+<html data-build-version="p226">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -8619,15 +8619,15 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
         const BUILD_METADATA = window.BLOCKAZOIDS_BUILD = Object.freeze({
             version: document.documentElement.dataset.buildVersion || 'unknown',
             label: BUILD_VERSION,
-            architecturePhase: 'configuration-authority-1',
-            sourceBaseline: 'p224',
+            architecturePhase: 'state-ownership-extraction-1',
+            sourceBaseline: 'p225',
             behaviorPolicy: 'architecture-only'
         });
 
         const SOURCE_LAYOUT = window.BLOCKAZOIDS_SOURCE_LAYOUT = Object.freeze({
             developmentModel: 'modular-source',
             releaseModel: 'single-html',
-            buildOutput: 'block-a-zoids-p225.html',
+            buildOutput: 'block-a-zoids-p226.html',
             categories: Object.freeze([
                 'build', 'config', 'content', 'rules', 'app', 'gameplay',
                 'presentation', 'platform', 'audio', 'ui', 'development'
@@ -8824,6 +8824,12 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 tapMaxMoveMinimum: 24,
                 tapMaxMovePlayerMultiplier: 1.35,
                 relativeSwipeSensitivity: 1.0,
+                trackingSpeedOptions: [
+                    { label: 'Normal', value: 1.0 },
+                    { label: 'Fast', value: 1.3 },
+                    { label: 'Faster', value: 1.6 },
+                    { label: 'Fastest', value: 2.0 }
+                ],
                 gestureTapMaxMove: 12,
                 gestureTapMaxDurationMs: 280,
                 gestureDoubleTapWindowMs: 500,
@@ -8887,6 +8893,14 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
             storage: {
                 highestSector: 'blockazoidsHighestSectorUnlockedV1',
                 difficulty: 'blockazoidsDifficulty',
+                trackingSpeed: 'blockazoidsTrackingSpeedV1',
+                soundMuted: 'blockazoidsSoundMuted',
+                musicMuted: 'blockazoidsMusicMuted',
+                crtEnabled: 'blockazoidsCrtEnabled',
+                crtPresetLevel: 'blockazoidsCrtPresetLevelV1',
+                monitorPreset: 'blockazoidsMonitorPresetV1',
+                crtFeatureStates: 'blockazoidsCrtFeatureStatesV1',
+                crtEffectLevels: 'blockazoidsCrtEffectLevelsV1',
                 introCompletion: 'blockazoidsGridCalibrationCompletedV1',
                 introCompletionBuild: 'blockazoidsGridCalibrationCompletedBuildV1',
                 telemetry: 'blockazoidsBalanceTelemetry',
@@ -9336,10 +9350,14 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 configuration: Object.freeze({ owner: 'DESIGN_TOKENS / GAME_CONFIG / GAME_DATA', responsibility: 'Designer-controlled visual tokens, rules, and campaign content' }),
                 configurationProjection: Object.freeze({ owner: 'ConfigurationProjection', responsibility: 'Projects configuration into static DOM and resource HUD capacity' }),
                 rules: Object.freeze({ owner: 'GameRules', responsibility: 'Pure calculations with no DOM or mutable game state' }),
+                settings: Object.freeze({ owner: 'SettingsSystem', responsibility: 'Persistent player settings and normalized setting values' }),
+                scoring: Object.freeze({ owner: 'ScoreSystem', responsibility: 'Current score value and score arithmetic' }),
+                runSession: Object.freeze({ owner: 'RunSession', responsibility: 'Current-run timing, progress, pace checkpoints, and relic state' }),
+                records: Object.freeze({ owner: 'HighScoreSystem', responsibility: 'Difficulty-specific records, details, migration, and pace profiles' }),
                 flow: Object.freeze({ owner: 'GameFlowController', responsibility: 'Authoritative major game-flow state' }),
                 scheduling: Object.freeze({ owner: 'SchedulingManager', responsibility: 'Named cancellable delayed work' }),
                 coordination: Object.freeze({ owner: 'GameSystemCoordinator', responsibility: 'Ordered cross-system lifecycle calls' }),
-                gameplay: Object.freeze({ owner: 'Game', responsibility: 'Legacy gameplay coordinator pending extraction' }),
+                gameplay: Object.freeze({ owner: 'Game', responsibility: 'Legacy gameplay coordinator with compatibility adapters during staged extraction' }),
                 rendering: Object.freeze({ owner: 'CanvasPlayfieldRenderer / WebGLPlayfieldDistortion', responsibility: 'Playfield presentation only' }),
                 input: Object.freeze({ owner: 'FullSurfaceGestureCoordinator / Player', responsibility: 'Pointer and motion translation' }),
                 audio: Object.freeze({ owner: 'AudioManager', responsibility: 'Sound and music playback' }),
@@ -9370,7 +9388,8 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 canonicalPalette: 'src/config/design-tokens.json',
                 canonicalCampaign: 'GAME_DATA.sectors',
                 explicitDifficultyResources: 'GAME_CONFIG.difficulty.profiles.*.cosmicZaps',
-                finalArtifact: 'single numbered HTML build'
+                finalArtifact: 'single numbered HTML build',
+                extractedStateOwners: 'SettingsSystem / ScoreSystem / RunSession / HighScoreSystem'
             })
         });
 
@@ -9530,6 +9549,594 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
         }
         window.BLOCKAZOIDS_CONFIGURATION_PROJECTION = ConfigurationProjection;
 
+/* Source: src/js/platform/95-browser-storage-service.js */
+
+        class BrowserStorageService {
+            getItem(key) {
+                return window.localStorage.getItem(key);
+            }
+
+            setItem(key, value) {
+                return window.localStorage.setItem(key, value);
+            }
+
+            removeItem(key) {
+                return window.localStorage.removeItem(key);
+            }
+
+            clear() {
+                return window.localStorage.clear();
+            }
+        }
+
+        const storageService = window.BLOCKAZOIDS_STORAGE = new BrowserStorageService();
+
+
+/* Source: src/js/services/96-settings-system.js */
+        class SettingsSystem {
+            constructor(storage, config) {
+                this.storage = storage;
+                this.config = config;
+                this.difficultyOptions = Object.freeze(config.difficulty.options.slice());
+                this.trackingSpeedOptions = Object.freeze(
+                    (config.input.trackingSpeedOptions || [{ label: 'Normal', value: 1 }])
+                        .map((option) => Object.freeze({ label: String(option.label), value: Number(option.value) }))
+                );
+                this.keys = Object.freeze({
+                    difficulty: config.storage.difficulty,
+                    trackingSpeed: config.storage.trackingSpeed,
+                    soundMuted: config.storage.soundMuted,
+                    musicMuted: config.storage.musicMuted,
+                    crtEnabled: config.storage.crtEnabled,
+                    crtPresetLevel: config.storage.crtPresetLevel,
+                    monitorPreset: config.storage.monitorPreset,
+                    crtFeatureStates: config.storage.crtFeatureStates,
+                    crtEffectLevels: config.storage.crtEffectLevels
+                });
+                this.difficultyMode = this.loadDifficultyMode();
+                this.trackingSpeed = this.loadTrackingSpeed();
+            }
+
+            read(key, fallback = null) {
+                try {
+                    const value = this.storage.getItem(key);
+                    return value === null ? fallback : value;
+                } catch (_) {
+                    return fallback;
+                }
+            }
+
+            write(key, value) {
+                try {
+                    this.storage.setItem(key, value);
+                    return true;
+                } catch (_) {
+                    return false;
+                }
+            }
+
+            getDifficultyMode() {
+                return this.difficultyMode;
+            }
+
+            loadDifficultyMode() {
+                const stored = this.read(this.keys.difficulty, 'Normal');
+                return this.difficultyOptions.includes(stored) ? stored : 'Normal';
+            }
+
+            setDifficultyMode(mode, { persist = true } = {}) {
+                const normalized = this.difficultyOptions.includes(mode) ? mode : 'Normal';
+                this.difficultyMode = normalized;
+                if (persist) this.write(this.keys.difficulty, normalized);
+                return normalized;
+            }
+
+            adjustDifficulty(direction) {
+                const currentIndex = Math.max(0, this.difficultyOptions.indexOf(this.difficultyMode));
+                const step = direction < 0 ? -1 : 1;
+                const nextIndex = (currentIndex + step + this.difficultyOptions.length) % this.difficultyOptions.length;
+                return this.setDifficultyMode(this.difficultyOptions[nextIndex]);
+            }
+
+            getTrackingSpeedOptions() {
+                return this.trackingSpeedOptions.map((option) => ({ ...option }));
+            }
+
+            getTrackingSpeedIndex(value = this.trackingSpeed) {
+                const numeric = Number(value);
+                if (!Number.isFinite(numeric)) return 0;
+                let nearestIndex = 0;
+                let nearestDistance = Infinity;
+                this.trackingSpeedOptions.forEach((option, index) => {
+                    const distance = Math.abs(option.value - numeric);
+                    if (distance < nearestDistance) {
+                        nearestDistance = distance;
+                        nearestIndex = index;
+                    }
+                });
+                return nearestIndex;
+            }
+
+            normalizeTrackingSpeed(value) {
+                return this.trackingSpeedOptions[this.getTrackingSpeedIndex(value)].value;
+            }
+
+            loadTrackingSpeed() {
+                const stored = this.read(this.keys.trackingSpeed, '1.0');
+                return this.normalizeTrackingSpeed(stored);
+            }
+
+            setTrackingSpeed(value, { persist = true } = {}) {
+                this.trackingSpeed = this.normalizeTrackingSpeed(value);
+                if (persist) this.write(this.keys.trackingSpeed, this.trackingSpeed.toFixed(1));
+                return this.trackingSpeed;
+            }
+
+            adjustTrackingSpeed(direction) {
+                const currentIndex = this.getTrackingSpeedIndex();
+                const nextIndex = Math.max(0, Math.min(
+                    this.trackingSpeedOptions.length - 1,
+                    currentIndex + (direction < 0 ? -1 : 1)
+                ));
+                return this.setTrackingSpeed(this.trackingSpeedOptions[nextIndex].value);
+            }
+
+            isSoundMuted() {
+                return this.read(this.keys.soundMuted, '0') === '1';
+            }
+
+            setSoundMuted(muted) {
+                return this.write(this.keys.soundMuted, muted ? '1' : '0');
+            }
+
+            isMusicMuted() {
+                return this.read(this.keys.musicMuted, '0') === '1';
+            }
+
+            setMusicMuted(muted) {
+                return this.write(this.keys.musicMuted, muted ? '1' : '0');
+            }
+
+            loadCrtEnabled() {
+                const stored = this.read(this.keys.crtEnabled, null);
+                return stored === null ? true : stored !== '0';
+            }
+
+            loadMonitorMode(featureEnabled = true) {
+                if (!featureEnabled) return 'off';
+                const storedMode = this.read(this.keys.monitorPreset, null);
+                if (MONITOR_MODE_ORDER.includes(storedMode)) return storedMode;
+                const legacyPreset = this.read(this.keys.crtPresetLevel, null);
+                if (legacyPreset === 'off' || !this.loadCrtEnabled()) return 'off';
+                return 'vector';
+            }
+
+            saveMonitorPreference(mode, enabled) {
+                this.write(this.keys.monitorPreset, mode);
+                this.write(this.keys.crtEnabled, enabled ? '1' : '0');
+                this.write(this.keys.crtPresetLevel, enabled ? 'on' : 'off');
+            }
+
+            saveCrtEffectLevels(levels) {
+                this.write(this.keys.crtEffectLevels, JSON.stringify(levels || {}));
+            }
+
+            saveCrtFeatureStates(features) {
+                this.write(this.keys.crtFeatureStates, JSON.stringify(features || {}));
+            }
+
+            snapshot() {
+                return Object.freeze({
+                    difficultyMode: this.difficultyMode,
+                    trackingSpeed: this.trackingSpeed,
+                    soundMuted: this.isSoundMuted(),
+                    musicMuted: this.isMusicMuted(),
+                    monitorMode: this.loadMonitorMode(GAME_FEATURE_FLAGS.crt)
+                });
+            }
+        }
+
+/* Source: src/js/state/81-score-system.js */
+        class ScoreSystem {
+            constructor(initialScore = 0) {
+                this.value = this.normalize(initialScore);
+            }
+
+            normalize(value) {
+                const numeric = Number(value);
+                return Number.isFinite(numeric) ? Math.max(0, Math.round(numeric)) : 0;
+            }
+
+            getScore() {
+                return this.value;
+            }
+
+            setScore(value) {
+                this.value = this.normalize(value);
+                return this.value;
+            }
+
+            reset() {
+                this.value = 0;
+                return this.value;
+            }
+
+            add(points) {
+                const amount = Number(points);
+                if (!Number.isFinite(amount) || amount === 0) return Object.freeze({ changed: false, amount: 0, score: this.value });
+                this.value = this.normalize(this.value + amount);
+                return Object.freeze({ changed: true, amount, score: this.value });
+            }
+
+            snapshot() {
+                return Object.freeze({ score: this.value });
+            }
+        }
+
+/* Source: src/js/state/82-run-session.js */
+        class RunSession {
+            constructor() {
+                this.reset(1);
+            }
+
+            reset(startSector = 1) {
+                const sector = Math.max(1, Math.floor(Number(startSector) || 1));
+                this.startSector = sector;
+                this.paceProfileKey = '';
+                this.paceCheckpoints = {};
+                this.recordStartMs = 0;
+                this.pauseStartedMs = null;
+                this.actionStartedMs = null;
+                this.elapsedActionMs = 0;
+                this.highestSector = sector;
+                this.relicRecoveredBySector = {};
+                this.relicsCollected = 0;
+            }
+
+            resetRecordTracking(startSector = 1) {
+                const sector = Math.max(1, Math.floor(Number(startSector) || 1));
+                this.recordStartMs = 0;
+                this.pauseStartedMs = null;
+                this.actionStartedMs = null;
+                this.elapsedActionMs = 0;
+                this.highestSector = sector;
+            }
+
+            updateProgress(levelNumber) {
+                this.highestSector = Math.max(this.highestSector || 1, Math.floor(Number(levelNumber) || 1));
+                return this.highestSector;
+            }
+
+            startActionClock(now = performance.now()) {
+                if (!this.recordStartMs) this.recordStartMs = now;
+                if (!this.actionStartedMs) this.actionStartedMs = now;
+                this.pauseStartedMs = null;
+            }
+
+            stopActionClock(now = performance.now()) {
+                if (!this.actionStartedMs) {
+                    this.pauseStartedMs = null;
+                    return;
+                }
+                const endTime = this.pauseStartedMs || now;
+                this.elapsedActionMs += Math.max(0, endTime - this.actionStartedMs);
+                this.actionStartedMs = null;
+                this.pauseStartedMs = null;
+            }
+
+            beginPause(now = performance.now()) {
+                if (!this.actionStartedMs || this.pauseStartedMs) return;
+                this.pauseStartedMs = now;
+            }
+
+            endPause(now = performance.now()) {
+                if (!this.pauseStartedMs) return;
+                if (this.actionStartedMs) this.actionStartedMs += Math.max(0, now - this.pauseStartedMs);
+                this.pauseStartedMs = null;
+            }
+
+            getElapsedMs(now = performance.now()) {
+                const liveEnd = this.pauseStartedMs || now;
+                const liveSegmentMs = this.actionStartedMs ? Math.max(0, liveEnd - this.actionStartedMs) : 0;
+                return Math.max(0, Math.round((this.elapsedActionMs || 0) + liveSegmentMs));
+            }
+
+            getRecoveredRelicSectorNumbers(maxLevel) {
+                const maximum = Math.max(1, Math.floor(Number(maxLevel) || 1));
+                const recovered = new Set();
+                Object.keys(this.relicRecoveredBySector || {}).forEach((key) => {
+                    if (!this.relicRecoveredBySector[key]) return;
+                    const parts = String(key).split('-');
+                    const sector = Number(parts[parts.length - 1]);
+                    if (Number.isInteger(sector) && sector >= 1 && sector <= maximum) recovered.add(sector);
+                });
+                return recovered;
+            }
+
+            hasRecoveredRelic(levelNumber, maxLevel) {
+                const maximum = Math.max(1, Math.floor(Number(maxLevel) || 1));
+                const sector = Math.max(1, Math.min(maximum, Math.floor(Number(levelNumber) || 1)));
+                return this.getRecoveredRelicSectorNumbers(maximum).has(sector);
+            }
+
+            getRecoveredRelicCount(maxLevel) {
+                const maximum = Math.max(1, Math.floor(Number(maxLevel) || 1));
+                return Math.max(0, Math.min(maximum, this.getRecoveredRelicSectorNumbers(maximum).size));
+            }
+
+            snapshot() {
+                return Object.freeze({
+                    startSector: this.startSector,
+                    paceProfileKey: this.paceProfileKey,
+                    paceCheckpoints: Object.freeze({ ...(this.paceCheckpoints || {}) }),
+                    highestSector: this.highestSector,
+                    elapsedActionMs: this.getElapsedMs(),
+                    relicsCollected: this.relicsCollected,
+                    recoveredRelicSectors: Object.freeze([...this.getRecoveredRelicSectorNumbers(GameRules.getCampaignLength())])
+                });
+            }
+        }
+
+/* Source: src/js/state/83-high-score-system.js */
+        class HighScoreSystem {
+            constructor(storage) {
+                this.storage = storage;
+                this.difficultyMode = 'Normal';
+                this.highScoreStorageKey = '';
+                this.highScoreDetailsStorageKey = '';
+                this.recordPaceProfilesStorageKey = '';
+                this.highScore = 0;
+                this.highScoreTarget = 0;
+                this.highScoreBeatenThisRun = false;
+                this.highScoreDetails = this.getEmptyHighScoreDetails();
+                this.recordPaceSessionProfilesByStorageKey = {};
+                this.recordPaceProfiles = this.getEmptyRecordPaceProfiles();
+                this.recordPaceTargetProfile = null;
+            }
+
+            getDifficultyStorageSuffix(mode = this.difficultyMode) {
+                return String(mode || 'Normal').trim().toLowerCase();
+            }
+
+            refreshStorageKeys(mode = this.difficultyMode) {
+                this.difficultyMode = mode || 'Normal';
+                const suffix = this.getDifficultyStorageSuffix(this.difficultyMode);
+                this.highScoreStorageKey = `blockazoidsHighScore_${suffix}`;
+                this.highScoreDetailsStorageKey = `blockazoidsHighScoreDetails_${suffix}`;
+                this.recordPaceProfilesStorageKey = `blockazoidsRecordPaceProfilesV1_${suffix}`;
+                return Object.freeze({
+                    highScore: this.highScoreStorageKey,
+                    details: this.highScoreDetailsStorageKey,
+                    paceProfiles: this.recordPaceProfilesStorageKey
+                });
+            }
+
+            migrateLegacyHighScore(mode = this.difficultyMode) {
+                try {
+                    const migrationKey = 'blockazoidsHighScoreDifficultyMigrationV219';
+                    if (this.storage.getItem(migrationKey)) return;
+                    const legacyScoreRaw = this.storage.getItem('blockazoidsHighScore');
+                    const legacyScore = parseInt(legacyScoreRaw || '0', 10);
+                    if (this.storage.getItem(this.highScoreStorageKey) === null && Number.isFinite(legacyScore) && legacyScore > 0) {
+                        this.storage.setItem(this.highScoreStorageKey, String(legacyScore));
+                        const legacyDetails = this.storage.getItem('blockazoidsHighScoreDetails');
+                        if (legacyDetails && this.storage.getItem(this.highScoreDetailsStorageKey) === null) {
+                            this.storage.setItem(this.highScoreDetailsStorageKey, legacyDetails);
+                        }
+                    }
+                    this.storage.setItem(migrationKey, mode || 'Normal');
+                } catch (_) {}
+            }
+
+            selectDifficulty(mode) {
+                this.refreshStorageKeys(mode);
+                this.migrateLegacyHighScore(mode);
+                this.highScore = this.loadHighScore();
+                this.highScoreTarget = this.highScore;
+                this.highScoreBeatenThisRun = false;
+                this.highScoreDetails = this.loadHighScoreDetails();
+                this.recordPaceProfiles = this.loadRecordPaceProfiles();
+                this.recordPaceTargetProfile = null;
+                return this.snapshot();
+            }
+
+            getEmptyHighScoreDetails() {
+                return { score: 0, highestSector: 0, highestSectorName: '', relics: 0, gameTimeMs: 0 };
+            }
+
+            loadHighScore() {
+                try {
+                    const parsed = parseInt(this.storage.getItem(this.highScoreStorageKey) || '0', 10);
+                    return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+                } catch (_) {
+                    return 0;
+                }
+            }
+
+            saveHighScore() {
+                try { this.storage.setItem(this.highScoreStorageKey, String(this.highScore)); } catch (_) {}
+            }
+
+            loadHighScoreDetails() {
+                try {
+                    const parsed = JSON.parse(this.storage.getItem(this.highScoreDetailsStorageKey) || 'null');
+                    if (!parsed || typeof parsed !== 'object') return this.getEmptyHighScoreDetails();
+                    return {
+                        score: Number.isFinite(parsed.score) ? parsed.score : this.highScore,
+                        highestSector: Number.isFinite(parsed.highestSector) ? parsed.highestSector : 0,
+                        highestSectorName: typeof parsed.highestSectorName === 'string' ? parsed.highestSectorName : '',
+                        relics: Number.isFinite(parsed.relics) ? parsed.relics : 0,
+                        gameTimeMs: Number.isFinite(parsed.gameTimeMs) ? parsed.gameTimeMs : 0
+                    };
+                } catch (_) {
+                    return this.getEmptyHighScoreDetails();
+                }
+            }
+
+            saveHighScoreDetails() {
+                try {
+                    this.storage.setItem(this.highScoreDetailsStorageKey, JSON.stringify(this.highScoreDetails || this.getEmptyHighScoreDetails()));
+                } catch (_) {}
+            }
+
+            getEmptyRecordPaceProfiles() {
+                return { version: 1, profiles: {} };
+            }
+
+            normalizeRecordPaceProfiles(rawProfiles) {
+                if (!rawProfiles || typeof rawProfiles !== 'object' || !rawProfiles.profiles || typeof rawProfiles.profiles !== 'object') {
+                    return this.getEmptyRecordPaceProfiles();
+                }
+                const profiles = {};
+                Object.entries(rawProfiles.profiles).forEach(([profileKey, rawProfile]) => {
+                    if (!rawProfile || typeof rawProfile !== 'object') return;
+                    const checkpoints = {};
+                    Object.entries(rawProfile.checkpoints || {}).forEach(([checkpointKey, rawScore]) => {
+                        const checkpointScore = Math.max(0, Math.floor(Number(rawScore) || 0));
+                        if (checkpointScore > 0) checkpoints[checkpointKey] = checkpointScore;
+                    });
+                    const profileScore = Math.max(0, Math.floor(Number(rawProfile.score) || 0));
+                    if (profileScore <= 0 && Object.keys(checkpoints).length === 0) return;
+                    profiles[profileKey] = {
+                        score: profileScore,
+                        startSector: Math.max(1, Math.floor(Number(rawProfile.startSector) || 1)),
+                        checkpoints,
+                        updatedAt: typeof rawProfile.updatedAt === 'string' ? rawProfile.updatedAt : ''
+                    };
+                });
+                return { version: 1, profiles };
+            }
+
+            cloneRecordPaceProfiles(profiles) {
+                return this.normalizeRecordPaceProfiles(JSON.parse(JSON.stringify(profiles || this.getEmptyRecordPaceProfiles())));
+            }
+
+            loadRecordPaceProfiles() {
+                const storageKey = this.recordPaceProfilesStorageKey || 'record-pace-default';
+                try {
+                    const parsed = JSON.parse(this.storage.getItem(storageKey) || 'null');
+                    const normalized = this.normalizeRecordPaceProfiles(parsed);
+                    if (Object.keys(normalized.profiles).length > 0) {
+                        this.recordPaceSessionProfilesByStorageKey[storageKey] = this.cloneRecordPaceProfiles(normalized);
+                        return normalized;
+                    }
+                } catch (_) {}
+                const sessionProfiles = this.recordPaceSessionProfilesByStorageKey[storageKey];
+                return sessionProfiles ? this.cloneRecordPaceProfiles(sessionProfiles) : this.getEmptyRecordPaceProfiles();
+            }
+
+            saveRecordPaceProfiles() {
+                const storageKey = this.recordPaceProfilesStorageKey || 'record-pace-default';
+                const normalized = this.cloneRecordPaceProfiles(this.recordPaceProfiles || this.getEmptyRecordPaceProfiles());
+                this.recordPaceSessionProfilesByStorageKey[storageKey] = this.cloneRecordPaceProfiles(normalized);
+                try { this.storage.setItem(storageKey, JSON.stringify(normalized)); } catch (_) {}
+            }
+
+            getRunPaceProfileKey(startSector = 1) {
+                const sector = Math.max(1, Math.floor(Number(startSector) || 1));
+                return `s${sector}`;
+            }
+
+            getRecordPaceCheckpointKey(sector = 1) {
+                const safeSector = Math.max(1, Math.floor(Number(sector) || 1));
+                return `${safeSector}`;
+            }
+
+            resetRunPaceTracking(runSession, startSector = 1) {
+                this.recordPaceProfiles = this.loadRecordPaceProfiles();
+                runSession.startSector = Math.max(1, Math.floor(Number(startSector) || 1));
+                runSession.paceProfileKey = this.getRunPaceProfileKey(runSession.startSector);
+                const savedProfile = this.recordPaceProfiles.profiles[runSession.paceProfileKey];
+                this.recordPaceTargetProfile = savedProfile
+                    ? {
+                        score: savedProfile.score,
+                        startSector: savedProfile.startSector,
+                        checkpoints: { ...(savedProfile.checkpoints || {}) },
+                        updatedAt: savedProfile.updatedAt || ''
+                    }
+                    : null;
+                runSession.paceCheckpoints = {};
+            }
+
+            saveCurrentRunPaceProfileIfRecord(score, runSession) {
+                const numericScore = Math.max(0, Math.floor(Number(score) || 0));
+                if (!runSession.paceProfileKey || numericScore <= 0) return false;
+                this.recordPaceProfiles = this.loadRecordPaceProfiles();
+                const previousProfile = this.recordPaceProfiles.profiles[runSession.paceProfileKey];
+                const previousScore = previousProfile ? Math.max(0, Number(previousProfile.score) || 0) : 0;
+                if (numericScore <= previousScore) return false;
+                this.recordPaceProfiles.profiles[runSession.paceProfileKey] = {
+                    score: numericScore,
+                    startSector: runSession.startSector,
+                    checkpoints: { ...(runSession.paceCheckpoints || {}) },
+                    updatedAt: new Date().toISOString()
+                };
+                this.saveRecordPaceProfiles();
+                return true;
+            }
+
+            captureSectorRecordPace(score, completedLevel, runSession) {
+                const checkpointKey = this.getRecordPaceCheckpointKey(completedLevel);
+                const currentScore = Math.max(0, Math.floor(Number(score) || 0));
+                runSession.paceCheckpoints[checkpointKey] = currentScore;
+                const targetCheckpoints = this.recordPaceTargetProfile && this.recordPaceTargetProfile.checkpoints;
+                const rawTargetScore = targetCheckpoints ? Number(targetCheckpoints[checkpointKey]) : NaN;
+                const hasTarget = Number.isFinite(rawTargetScore) && rawTargetScore > 0;
+                const targetScore = hasTarget ? Math.max(0, Math.floor(rawTargetScore)) : 0;
+                const delta = hasTarget ? currentScore - targetScore : 0;
+                this.saveCurrentRunPaceProfileIfRecord(currentScore, runSession);
+                return Object.freeze({ hasTarget, delta, currentScore, targetScore, checkpointKey });
+            }
+
+            considerScore(score, detailsFactory) {
+                const numericScore = Math.max(0, Math.floor(Number(score) || 0));
+                let newRecord = false;
+                if (numericScore > this.highScore) {
+                    this.highScore = numericScore;
+                    this.highScoreDetails = typeof detailsFactory === 'function'
+                        ? detailsFactory()
+                        : this.getEmptyHighScoreDetails();
+                    this.saveHighScore();
+                    this.saveHighScoreDetails();
+                    newRecord = true;
+                }
+                const crossedTarget = !this.highScoreBeatenThisRun && numericScore > this.highScoreTarget;
+                if (crossedTarget) this.highScoreBeatenThisRun = true;
+                return Object.freeze({ newRecord, crossedTarget, highScore: this.highScore });
+            }
+
+            reset() {
+                this.highScore = 0;
+                this.highScoreTarget = 0;
+                this.highScoreBeatenThisRun = true;
+                this.highScoreDetails = this.getEmptyHighScoreDetails();
+                this.recordPaceProfiles = this.getEmptyRecordPaceProfiles();
+                this.recordPaceTargetProfile = null;
+                this.saveHighScore();
+                this.saveHighScoreDetails();
+                this.saveRecordPaceProfiles();
+            }
+
+            snapshot() {
+                return Object.freeze({
+                    difficultyMode: this.difficultyMode,
+                    highScore: this.highScore,
+                    highScoreTarget: this.highScoreTarget,
+                    highScoreBeatenThisRun: this.highScoreBeatenThisRun,
+                    storageKey: this.highScoreStorageKey
+                });
+            }
+        }
+
+        function installOwnedStateProxy(target, publicName, owner, ownerName = publicName) {
+            Object.defineProperty(target, publicName, {
+                configurable: false,
+                enumerable: true,
+                get() { return owner[ownerName]; },
+                set(value) { owner[ownerName] = value; }
+            });
+        }
+
 /* Source: src/js/development/90-architecture-validator.js */
         class ArchitectureValidator {
             constructor() {
@@ -9632,11 +10239,70 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 this.assert('Color order maps to palette', data.colorOrder.every((colorName) => Object.prototype.hasOwnProperty.call(config.palette, colorName)));
                 const storageKeys = Object.values(config.storage);
                 this.assert('Storage keys are unique', new Set(storageKeys).size === storageKeys.length);
+                this.assert('Tracking-speed settings are configured', Array.isArray(config.input.trackingSpeedOptions) && config.input.trackingSpeedOptions.length > 0);
+                this.assert('Tracking-speed values are ordered', config.input.trackingSpeedOptions.every((option, index, options) => index === 0 || option.value > options[index - 1].value));
+                ['difficulty', 'trackingSpeed', 'soundMuted', 'musicMuted', 'monitorPreset', 'crtEnabled'].forEach((key) => {
+                    this.assert(`Persistent setting key exists: ${key}`, typeof config.storage[key] === 'string' && config.storage[key].length > 0);
+                });
 
                 const catalogedSections = new Set(Object.keys(ARCHITECTURE_MANIFEST.configurationCatalog));
                 const actualSections = Object.keys(config);
                 this.assert('Every top-level configuration section is cataloged', actualSections.every((section) => catalogedSections.has(section)), actualSections.filter((section) => !catalogedSections.has(section)).join(', '));
                 this.assert('Configuration catalog has no stale sections', [...catalogedSections].every((section) => actualSections.includes(section)), [...catalogedSections].filter((section) => !actualSections.includes(section)).join(', '));
+            }
+
+            validateExtractedStateSystems() {
+                const memory = new Map();
+                const testStorage = {
+                    getItem: (key) => memory.has(key) ? memory.get(key) : null,
+                    setItem: (key, value) => { memory.set(key, String(value)); },
+                    removeItem: (key) => { memory.delete(key); }
+                };
+
+                const settings = new SettingsSystem(testStorage, GAME_CONFIG);
+                this.assert('SettingsSystem owns default difficulty', settings.getDifficultyMode() === 'Normal');
+                this.assert('SettingsSystem cycles difficulty', settings.adjustDifficulty(1) === 'Hard');
+                this.assert('SettingsSystem persists difficulty', testStorage.getItem(GAME_CONFIG.storage.difficulty) === 'Hard');
+                this.assert('SettingsSystem normalizes tracking speed', settings.setTrackingSpeed(1.55) === 1.6);
+                this.assert('SettingsSystem persists tracking speed', testStorage.getItem(GAME_CONFIG.storage.trackingSpeed) === '1.6');
+                settings.setSoundMuted(true);
+                settings.setMusicMuted(true);
+                this.assert('SettingsSystem owns sound preference', settings.isSoundMuted() === true);
+                this.assert('SettingsSystem owns music preference', settings.isMusicMuted() === true);
+                settings.saveMonitorPreference('crt', true);
+                this.assert('SettingsSystem owns monitor preference', settings.loadMonitorMode(true) === 'crt');
+
+                const scoring = new ScoreSystem();
+                this.assert('ScoreSystem starts at zero', scoring.getScore() === 0);
+                this.assert('ScoreSystem adds points', scoring.add(15).score === 15);
+                this.assert('ScoreSystem ignores invalid awards', scoring.add(NaN).changed === false && scoring.getScore() === 15);
+                this.assert('ScoreSystem resets', scoring.reset() === 0);
+
+                const run = new RunSession();
+                run.resetRecordTracking(3);
+                run.startActionClock(100);
+                run.beginPause(250);
+                run.endPause(400);
+                run.stopActionClock(600);
+                run.updateProgress(5);
+                run.relicRecoveredBySector['normal-5'] = true;
+                this.assert('RunSession owns start sector', run.highestSector === 5);
+                this.assert('RunSession excludes pause time', run.elapsedActionMs === 350, `${run.elapsedActionMs}`);
+                this.assert('RunSession owns recovered relics', run.getRecoveredRelicCount(GameRules.getCampaignLength()) === 1);
+
+                const records = new HighScoreSystem(testStorage);
+                records.selectDifficulty('Hard');
+                const firstRecord = records.considerScore(120, () => ({ score: 120, highestSector: 3, highestSectorName: 'TEST', relics: 1, gameTimeMs: 900 }));
+                this.assert('HighScoreSystem stores first record', firstRecord.newRecord && records.highScore === 120);
+                this.assert('HighScoreSystem detects target crossing', firstRecord.crossedTarget === true);
+                const lowerScore = records.considerScore(80, () => records.getEmptyHighScoreDetails());
+                this.assert('HighScoreSystem rejects lower record', !lowerScore.newRecord && records.highScore === 120);
+                this.assert('HighScoreSystem uses difficulty-specific storage', records.highScoreStorageKey.endsWith('_hard'));
+
+                run.startSector = 2;
+                records.resetRunPaceTracking(run, 2);
+                const pace = records.captureSectorRecordPace(75, 2, run);
+                this.assert('HighScoreSystem owns record-pace checkpoints', pace.currentScore === 75 && run.paceCheckpoints['2'] === 75);
             }
 
             validateFlow() {
@@ -9679,6 +10345,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
 
             run() {
                 this.validateConfiguration();
+                this.validateExtractedStateSystems();
                 this.validateFlow();
                 this.validateDom();
                 this.validateManifest();
@@ -9717,29 +10384,6 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
         // non-gameplay visual effects, major transitions, live-gameplay delays and loop ownership,
         // tutorial and attract-mode scheduling, plus audio delay and repeating-cue ownership.
         // Web Audio's own sample-accurate node timelines remain browser-owned by design.
-
-/* Source: src/js/platform/95-browser-storage-service.js */
-
-        class BrowserStorageService {
-            getItem(key) {
-                return window.localStorage.getItem(key);
-            }
-
-            setItem(key, value) {
-                return window.localStorage.setItem(key, value);
-            }
-
-            removeItem(key) {
-                return window.localStorage.removeItem(key);
-            }
-
-            clear() {
-                return window.localStorage.clear();
-            }
-        }
-
-        const storageService = window.BLOCKAZOIDS_STORAGE = new BrowserStorageService();
-
 
 /* Source: src/js/platform/100-scheduling-manager.js */
         class SchedulingManager {
@@ -13420,6 +14064,36 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
         class Game {
             constructor() {
                 this.scheduler = new SchedulingManager();
+                this.settings = new SettingsSystem(storageService, GAME_CONFIG);
+                this.scoreSystem = new ScoreSystem();
+                this.runSession = new RunSession();
+                this.highScoreSystem = new HighScoreSystem(storageService);
+
+                // Compatibility properties keep existing call sites stable while state ownership
+                // moves out of the legacy Game coordinator one responsibility at a time.
+                installOwnedStateProxy(this, 'score', this.scoreSystem, 'value');
+                installOwnedStateProxy(this, 'difficultyMode', this.settings, 'difficultyMode');
+                installOwnedStateProxy(this, 'trackingSpeed', this.settings, 'trackingSpeed');
+                installOwnedStateProxy(this, 'highScore', this.highScoreSystem, 'highScore');
+                installOwnedStateProxy(this, 'highScoreTarget', this.highScoreSystem, 'highScoreTarget');
+                installOwnedStateProxy(this, 'highScoreBeatenThisRun', this.highScoreSystem, 'highScoreBeatenThisRun');
+                installOwnedStateProxy(this, 'highScoreDetails', this.highScoreSystem, 'highScoreDetails');
+                installOwnedStateProxy(this, 'recordPaceSessionProfilesByStorageKey', this.highScoreSystem, 'recordPaceSessionProfilesByStorageKey');
+                installOwnedStateProxy(this, 'recordPaceProfiles', this.highScoreSystem, 'recordPaceProfiles');
+                installOwnedStateProxy(this, 'recordPaceTargetProfile', this.highScoreSystem, 'recordPaceTargetProfile');
+                installOwnedStateProxy(this, 'highScoreStorageKey', this.highScoreSystem, 'highScoreStorageKey');
+                installOwnedStateProxy(this, 'highScoreDetailsStorageKey', this.highScoreSystem, 'highScoreDetailsStorageKey');
+                installOwnedStateProxy(this, 'recordPaceProfilesStorageKey', this.highScoreSystem, 'recordPaceProfilesStorageKey');
+                installOwnedStateProxy(this, 'currentRunStartSector', this.runSession, 'startSector');
+                installOwnedStateProxy(this, 'currentRunPaceProfileKey', this.runSession, 'paceProfileKey');
+                installOwnedStateProxy(this, 'currentRunPaceCheckpoints', this.runSession, 'paceCheckpoints');
+                installOwnedStateProxy(this, 'runRecordStartMs', this.runSession, 'recordStartMs');
+                installOwnedStateProxy(this, 'runRecordPauseStartedMs', this.runSession, 'pauseStartedMs');
+                installOwnedStateProxy(this, 'runRecordActionStartedMs', this.runSession, 'actionStartedMs');
+                installOwnedStateProxy(this, 'runRecordElapsedActionMs', this.runSession, 'elapsedActionMs');
+                installOwnedStateProxy(this, 'runRecordHighestSector', this.runSession, 'highestSector');
+                installOwnedStateProxy(this, 'relicRecoveredBySector', this.runSession, 'relicRecoveredBySector');
+                installOwnedStateProxy(this, 'relicsCollectedThisRun', this.runSession, 'relicsCollected');
                 this.visualEffectSequence = 0;
                 this.crystalCollectionFx = { lastPickupAt: -Infinity, chain: 0, halo: null };
                 this.gameplayTaskSequence = 0;
@@ -13520,7 +14194,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 this.trackingSpeedDecreaseButton = document.getElementById('trackingSpeedDecreaseButton');
                 this.trackingSpeedIncreaseButton = document.getElementById('trackingSpeedIncreaseButton');
                 this.settingsTrackingSpeedValue = document.getElementById('settingsTrackingSpeedValue');
-                this.trackingSpeedStorageKey = 'blockazoidsTrackingSpeedV1';
+                this.trackingSpeedStorageKey = GAME_CONFIG.storage.trackingSpeed;
                 this.trackingSpeed = this.loadTrackingSpeed();
                 this.tutorialPrompt = document.getElementById('tutorialPrompt');
                 this.tutorialPromptTitle = this.tutorialPrompt ? this.tutorialPrompt.querySelector('.tutorial-window-title') : null;
@@ -13586,11 +14260,11 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 this.skinFrameLoadToken = 0;
                 this.applySelectedSkinFrame({ silent: true });
                 this.resetIntroCompletionButton = document.getElementById('resetIntroCompletionButton');
-                this.crtStorageKey = 'blockazoidsCrtEnabled';
-                this.crtPresetStorageKey = 'blockazoidsCrtPresetLevelV1';
-                this.monitorPresetStorageKey = 'blockazoidsMonitorPresetV1';
-                this.crtFeatureStorageKey = 'blockazoidsCrtFeatureStatesV1';
-                this.crtEffectLevelStorageKey = 'blockazoidsCrtEffectLevelsV1';
+                this.crtStorageKey = GAME_CONFIG.storage.crtEnabled;
+                this.crtPresetStorageKey = GAME_CONFIG.storage.crtPresetLevel;
+                this.monitorPresetStorageKey = GAME_CONFIG.storage.monitorPreset;
+                this.crtFeatureStorageKey = GAME_CONFIG.storage.crtFeatureStates;
+                this.crtEffectLevelStorageKey = GAME_CONFIG.storage.crtEffectLevels;
                 this.crtFeatureClassMap = {
                     scanlines: 'crt-fx-scanlines',
                     sweep: 'crt-fx-sweep',
@@ -13704,8 +14378,8 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 this.enemyEncounterStorageKey = GAME_CONFIG.storage.enemyEncounters;
                 this.highestUnlockedSector = this.loadProgressUnlockValue(this.progressSectorStorageKey, this.MAX_LEVEL);
                 this.enemyEncounterUnlocks = this.loadEnemyEncounterUnlocks();
-                this.difficultyOptions = GAME_CONFIG.difficulty.options.slice();
-                this.difficultyStorageKey = GAME_CONFIG.storage.difficulty;
+                this.difficultyOptions = this.settings.difficultyOptions.slice();
+                this.difficultyStorageKey = this.settings.keys.difficulty;
                 this.difficultyMode = this.loadDifficultyMode();
                 this.score = 0;                       // Player score
                 this.refreshHighScoreStorageKeys();
@@ -13841,7 +14515,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 this.developerAttractMenuOpen = false;
 
                 // Audio and UI managers
-                this.audio = new AudioManager(this.scheduler); // Audio manager instance with Phase 3H timer ownership
+                this.audio = new AudioManager(this.scheduler, this.settings); // Audio manager instance with Phase 3H timer ownership
                 this.ui = new UI(this);               // UI manager instance
                 this.systems = new GameSystemCoordinator(this); // Build 341 cross-system lifecycle coordinator
 
@@ -17121,42 +17795,18 @@ Best Score: ${bestScore}${recoveredLine}` :
                 this.updateMusicToggleLabel();
                 if (this.ui && this.ui.updateRadarColorIndicator) this.ui.updateRadarColorIndicator();
             }
-
             loadCrtPreference() {
-                try {
-                    const stored = storageService.getItem(this.crtStorageKey);
-                    return stored === null ? true : stored !== '0';
-                } catch (_) {
-                    return true;
-                }
+                return this.settings.loadCrtEnabled();
             }
-
             loadMonitorMode() {
-                if (!GAME_FEATURE_FLAGS.crt) return 'off';
-                try {
-                    const storedMode = storageService.getItem(this.monitorPresetStorageKey);
-                    if (MONITOR_MODE_ORDER.includes(storedMode)) return storedMode;
-
-                    // Migrate older two-state monitor preferences into the current three-state policy:
-                    // enabled starts in Vector; disabled remains Off.
-                    const storedLegacyPreset = storageService.getItem(this.crtPresetStorageKey);
-                    if (storedLegacyPreset === 'off' || !this.loadCrtPreference()) return 'off';
-                    return 'vector';
-                } catch (_) {
-                    return 'vector';
-                }
+                return this.settings.loadMonitorMode(GAME_FEATURE_FLAGS.crt);
             }
 
             loadCrtPresetLevel() {
                 return this.loadMonitorMode() === 'off' ? 'off' : 'on';
             }
-
             saveCrtPreference() {
-                try {
-                    storageService.setItem(this.monitorPresetStorageKey, this.monitorMode);
-                    storageService.setItem(this.crtStorageKey, this.crtEnabled ? '1' : '0');
-                    storageService.setItem(this.crtPresetStorageKey, this.crtEnabled ? 'on' : 'off');
-                } catch (_) {}
+                this.settings.saveMonitorPreference(this.monitorMode, this.crtEnabled);
             }
 
             applyMonitorPresetState(mode) {
@@ -17178,17 +17828,11 @@ Best Score: ${bestScore}${recoveredLine}` :
                 });
                 this.syncCrtFeaturesFromGroups();
             }
-
             saveCrtEffectLevels() {
-                try {
-                    storageService.setItem(this.crtEffectLevelStorageKey, JSON.stringify(this.crtEffectLevels));
-                } catch (_) {}
+                this.settings.saveCrtEffectLevels(this.crtEffectLevels);
             }
-
             saveCrtFeaturePreferences() {
-                try {
-                    storageService.setItem(this.crtFeatureStorageKey, JSON.stringify(this.crtFeatures));
-                } catch (_) {}
+                this.settings.saveCrtFeatureStates(this.crtFeatures);
             }
 
             syncCrtFeaturesFromGroups() {
@@ -17551,57 +18195,23 @@ Best Score: ${bestScore}${recoveredLine}` :
                     button.setAttribute('aria-disabled', canChange ? 'false' : 'true');
                 });
             }
-
             getTrackingSpeedOptions() {
-                return [
-                    { label: 'Normal', value: 1.0 },
-                    { label: 'Fast', value: 1.3 },
-                    { label: 'Faster', value: 1.6 },
-                    { label: 'Fastest', value: 2.0 }
-                ];
+                return this.settings.getTrackingSpeedOptions();
             }
-
             getTrackingSpeedIndex(value = this.trackingSpeed) {
-                const options = this.getTrackingSpeedOptions();
-                const numeric = Number(value);
-                if (!Number.isFinite(numeric)) return 0;
-                let nearestIndex = 0;
-                let nearestDistance = Infinity;
-                options.forEach((option, index) => {
-                    const distance = Math.abs(option.value - numeric);
-                    if (distance < nearestDistance) {
-                        nearestDistance = distance;
-                        nearestIndex = index;
-                    }
-                });
-                return nearestIndex;
+                return this.settings.getTrackingSpeedIndex(value);
             }
-
             normalizeTrackingSpeed(value) {
-                const options = this.getTrackingSpeedOptions();
-                return options[this.getTrackingSpeedIndex(value)].value;
+                return this.settings.normalizeTrackingSpeed(value);
             }
-
             loadTrackingSpeed() {
-                try {
-                    const stored = storageService.getItem(this.trackingSpeedStorageKey);
-                    if (stored === null || stored === '') return 1.0;
-                    return this.normalizeTrackingSpeed(stored);
-                } catch (_) {
-                    return 1.0;
-                }
+                return this.settings.loadTrackingSpeed();
             }
-
             saveTrackingSpeed() {
-                try { storageService.setItem(this.trackingSpeedStorageKey, this.trackingSpeed.toFixed(1)); } catch (_) {}
+                this.settings.setTrackingSpeed(this.trackingSpeed);
             }
-
             adjustTrackingSpeed(direction) {
-                const options = this.getTrackingSpeedOptions();
-                const currentIndex = this.getTrackingSpeedIndex();
-                const nextIndex = Math.max(0, Math.min(options.length - 1, currentIndex + (direction < 0 ? -1 : 1)));
-                this.trackingSpeed = options[nextIndex].value;
-                this.saveTrackingSpeed();
+                this.trackingSpeed = this.settings.adjustTrackingSpeed(direction);
                 this.updateTrackingSpeedLabel();
             }
 
@@ -17625,43 +18235,26 @@ Best Score: ${bestScore}${recoveredLine}` :
                     this.trackingSpeedIncreaseButton.setAttribute('aria-disabled', atMaximum ? 'true' : 'false');
                 }
             }
-
             loadDifficultyMode() {
-                try {
-                    const stored = storageService.getItem('blockazoidsDifficulty');
-                    return ['Easy', 'Normal', 'Hard'].includes(stored) ? stored : 'Normal';
-                } catch (_) {
-                    return 'Normal';
-                }
+                return this.settings.loadDifficultyMode();
             }
-
             saveDifficultyMode() {
-                try { storageService.setItem(this.difficultyStorageKey, this.difficultyMode); } catch (_) {}
+                this.difficultyMode = this.settings.setDifficultyMode(this.difficultyMode);
             }
 
             canChangeDifficulty() {
                 const finishedRun = this.isGameOver && this.restartReady;
                 return (!this.hasStartedRun || finishedRun) && !this.active && !this.isPaused && !this.showHudDuringSectorIntro;
             }
-
             adjustDifficulty(direction) {
                 if (!this.canChangeDifficulty()) {
                     this.updateDifficultyLabel();
                     return;
                 }
-                const options = this.difficultyOptions || ['Easy', 'Normal', 'Hard'];
-                const currentIndex = Math.max(0, options.indexOf(this.difficultyMode));
-                this.difficultyMode = options[(currentIndex + direction + options.length) % options.length];
-                this.saveDifficultyMode();
-                this.refreshHighScoreStorageKeys();
-                this.highScore = this.loadHighScore();
-                this.highScoreDetails = this.loadHighScoreDetails();
-                this.recordPaceProfiles = this.loadRecordPaceProfiles();
-                this.recordPaceTargetProfile = null;
+                this.difficultyMode = this.settings.adjustDifficulty(direction);
+                this.highScoreSystem.selectDifficulty(this.difficultyMode);
                 this.currentRunPaceCheckpoints = {};
                 this.currentRunPaceProfileKey = '';
-                this.highScoreTarget = this.highScore;
-                this.highScoreBeatenThisRun = false;
                 this.applyLevelParameters();
                 this.updateDifficultyLabel();
                 this.updateHighScoreDisplay();
@@ -17682,188 +18275,53 @@ Best Score: ${bestScore}${recoveredLine}` :
             getDifficultyConfig() {
                 return GameRules.getDifficultyProfile(this.difficultyMode);
             }
-
             getDifficultyStorageSuffix(mode = this.difficultyMode) {
-                return String(mode || 'Normal').trim().toLowerCase();
+                return this.highScoreSystem.getDifficultyStorageSuffix(mode);
             }
-
             refreshHighScoreStorageKeys() {
-                const suffix = this.getDifficultyStorageSuffix();
-                this.highScoreStorageKey = `blockazoidsHighScore_${suffix}`;
-                this.highScoreDetailsStorageKey = `blockazoidsHighScoreDetails_${suffix}`;
-                this.recordPaceProfilesStorageKey = `blockazoidsRecordPaceProfilesV1_${suffix}`;
+                this.highScoreSystem.refreshStorageKeys(this.difficultyMode);
             }
-
             migrateLegacyHighScoreToCurrentDifficulty() {
-                try {
-                    const migrationKey = 'blockazoidsHighScoreDifficultyMigrationV219';
-                    if (storageService.getItem(migrationKey)) return;
-
-                    const legacyScoreRaw = storageService.getItem('blockazoidsHighScore');
-                    const legacyScore = parseInt(legacyScoreRaw || '0', 10);
-                    if (storageService.getItem(this.highScoreStorageKey) === null && Number.isFinite(legacyScore) && legacyScore > 0) {
-                        storageService.setItem(this.highScoreStorageKey, String(legacyScore));
-                        const legacyDetails = storageService.getItem('blockazoidsHighScoreDetails');
-                        if (legacyDetails && storageService.getItem(this.highScoreDetailsStorageKey) === null) {
-                            storageService.setItem(this.highScoreDetailsStorageKey, legacyDetails);
-                        }
-                    }
-                    storageService.setItem(migrationKey, this.difficultyMode || 'Normal');
-                } catch (error) {}
+                this.highScoreSystem.migrateLegacyHighScore(this.difficultyMode);
             }
-
             getEmptyHighScoreDetails() {
-                return {
-                    score: 0,
-                    highestSector: 0,
-                    highestSectorName: '',
-                    relics: 0,
-                    gameTimeMs: 0
-                };
+                return this.highScoreSystem.getEmptyHighScoreDetails();
             }
-
             loadHighScoreDetails() {
-                try {
-                    const parsed = JSON.parse(storageService.getItem(this.highScoreDetailsStorageKey) || 'null');
-                    if (!parsed || typeof parsed !== 'object') return this.getEmptyHighScoreDetails();
-                    return {
-                        score: Number.isFinite(parsed.score) ? parsed.score : this.highScore,
-                        highestSector: Number.isFinite(parsed.highestSector) ? parsed.highestSector : 0,
-                        highestSectorName: typeof parsed.highestSectorName === 'string' ? parsed.highestSectorName : '',
-                        relics: Number.isFinite(parsed.relics) ? parsed.relics : 0,
-                        gameTimeMs: Number.isFinite(parsed.gameTimeMs) ? parsed.gameTimeMs : 0
-                    };
-                } catch (error) {
-                    return this.getEmptyHighScoreDetails();
-                }
+                return this.highScoreSystem.loadHighScoreDetails();
             }
-
             saveHighScoreDetails() {
-                try {
-                    storageService.setItem(this.highScoreDetailsStorageKey, JSON.stringify(this.highScoreDetails || this.getEmptyHighScoreDetails()));
-                } catch (error) {}
+                this.highScoreSystem.saveHighScoreDetails();
             }
-
             getEmptyRecordPaceProfiles() {
-                return { version: 1, profiles: {} };
+                return this.highScoreSystem.getEmptyRecordPaceProfiles();
             }
-
             normalizeRecordPaceProfiles(rawProfiles) {
-                if (!rawProfiles || typeof rawProfiles !== 'object' || !rawProfiles.profiles || typeof rawProfiles.profiles !== 'object') {
-                    return this.getEmptyRecordPaceProfiles();
-                }
-
-                const profiles = {};
-                Object.entries(rawProfiles.profiles).forEach(([profileKey, rawProfile]) => {
-                    if (!rawProfile || typeof rawProfile !== 'object') return;
-                    const checkpoints = {};
-                    Object.entries(rawProfile.checkpoints || {}).forEach(([checkpointKey, rawScore]) => {
-                        const checkpointScore = Math.max(0, Math.floor(Number(rawScore) || 0));
-                        if (checkpointScore > 0) checkpoints[checkpointKey] = checkpointScore;
-                    });
-                    const profileScore = Math.max(0, Math.floor(Number(rawProfile.score) || 0));
-                    if (profileScore <= 0 && Object.keys(checkpoints).length === 0) return;
-                    profiles[profileKey] = {
-                        score: profileScore,
-                        startSector: Math.max(1, Math.floor(Number(rawProfile.startSector) || 1)),
-                        checkpoints,
-                        updatedAt: typeof rawProfile.updatedAt === 'string' ? rawProfile.updatedAt : ''
-                    };
-                });
-                return { version: 1, profiles };
+                return this.highScoreSystem.normalizeRecordPaceProfiles(rawProfiles);
             }
-
             cloneRecordPaceProfiles(profiles) {
-                return this.normalizeRecordPaceProfiles(JSON.parse(JSON.stringify(profiles || this.getEmptyRecordPaceProfiles())));
+                return this.highScoreSystem.cloneRecordPaceProfiles(profiles);
             }
-
             loadRecordPaceProfiles() {
-                const storageKey = this.recordPaceProfilesStorageKey || 'record-pace-default';
-                try {
-                    const parsed = JSON.parse(storageService.getItem(storageKey) || 'null');
-                    const normalized = this.normalizeRecordPaceProfiles(parsed);
-                    if (Object.keys(normalized.profiles).length > 0) {
-                        if (this.recordPaceSessionProfilesByStorageKey) {
-                            this.recordPaceSessionProfilesByStorageKey[storageKey] = this.cloneRecordPaceProfiles(normalized);
-                        }
-                        return normalized;
-                    }
-                } catch (error) {}
-
-                const sessionProfiles = this.recordPaceSessionProfilesByStorageKey && this.recordPaceSessionProfilesByStorageKey[storageKey];
-                return sessionProfiles ? this.cloneRecordPaceProfiles(sessionProfiles) : this.getEmptyRecordPaceProfiles();
+                return this.highScoreSystem.loadRecordPaceProfiles();
             }
-
             saveRecordPaceProfiles() {
-                const storageKey = this.recordPaceProfilesStorageKey || 'record-pace-default';
-                const normalized = this.cloneRecordPaceProfiles(this.recordPaceProfiles || this.getEmptyRecordPaceProfiles());
-                if (this.recordPaceSessionProfilesByStorageKey) {
-                    this.recordPaceSessionProfilesByStorageKey[storageKey] = this.cloneRecordPaceProfiles(normalized);
-                }
-                try {
-                    storageService.setItem(storageKey, JSON.stringify(normalized));
-                } catch (error) {}
+                this.highScoreSystem.saveRecordPaceProfiles();
             }
-
             getRunPaceProfileKey(startSector = this.currentRunStartSector) {
-
-                const sector = Math.max(1, Math.floor(Number(startSector) || 1));
-                return `s${sector}`;
+                return this.highScoreSystem.getRunPaceProfileKey(startSector);
             }
-
             getRecordPaceCheckpointKey(sector = this.level) {
-
-                const safeSector = Math.max(1, Math.floor(Number(sector) || 1));
-                return `${safeSector}`;
+                return this.highScoreSystem.getRecordPaceCheckpointKey(sector);
             }
-
             resetRunPaceTracking(startSector = 1) {
-                this.recordPaceProfiles = this.loadRecordPaceProfiles();
-
-                this.currentRunStartSector = Math.max(1, Math.floor(Number(startSector) || 1));
-                this.currentRunPaceProfileKey = this.getRunPaceProfileKey();
-                const savedProfile = this.recordPaceProfiles.profiles[this.currentRunPaceProfileKey];
-                this.recordPaceTargetProfile = savedProfile
-                    ? {
-                        score: savedProfile.score,
-                        startSector: savedProfile.startSector,
-                        checkpoints: { ...(savedProfile.checkpoints || {}) },
-                        updatedAt: savedProfile.updatedAt || ''
-                    }
-                    : null;
-                this.currentRunPaceCheckpoints = {};
+                this.highScoreSystem.resetRunPaceTracking(this.runSession, startSector);
             }
-
             saveCurrentRunPaceProfileIfRecord() {
-                if (!this.currentRunPaceProfileKey || this.score <= 0) return false;
-                this.recordPaceProfiles = this.loadRecordPaceProfiles();
-                const previousProfile = this.recordPaceProfiles.profiles[this.currentRunPaceProfileKey];
-                const previousScore = previousProfile ? Math.max(0, Number(previousProfile.score) || 0) : 0;
-                if (this.score <= previousScore) return false;
-
-                this.recordPaceProfiles.profiles[this.currentRunPaceProfileKey] = {
-                    score: Math.max(0, Math.floor(this.score)),
-                    startSector: this.currentRunStartSector,
-                    checkpoints: { ...(this.currentRunPaceCheckpoints || {}) },
-                    updatedAt: new Date().toISOString()
-                };
-                this.saveRecordPaceProfiles();
-                return true;
+                return this.highScoreSystem.saveCurrentRunPaceProfileIfRecord(this.score, this.runSession);
             }
-
             captureSectorRecordPace(completedLevel) {
-                const checkpointKey = this.getRecordPaceCheckpointKey(completedLevel);
-                const currentScore = Math.max(0, Math.floor(Number(this.score) || 0));
-                this.currentRunPaceCheckpoints[checkpointKey] = currentScore;
-
-                const targetCheckpoints = this.recordPaceTargetProfile && this.recordPaceTargetProfile.checkpoints;
-                const rawTargetScore = targetCheckpoints ? Number(targetCheckpoints[checkpointKey]) : NaN;
-                const hasTarget = Number.isFinite(rawTargetScore) && rawTargetScore > 0;
-                const targetScore = hasTarget ? Math.max(0, Math.floor(rawTargetScore)) : 0;
-                const delta = hasTarget ? currentScore - targetScore : 0;
-
-                this.saveCurrentRunPaceProfileIfRecord();
-                return { hasTarget, delta, currentScore, targetScore, checkpointKey };
+                return this.highScoreSystem.captureSectorRecordPace(this.score, completedLevel, this.runSession);
             }
 
             formatRecordPaceDelta(delta) {
@@ -17871,75 +18329,35 @@ Best Score: ${bestScore}${recoveredLine}` :
                 if (rounded < 0) return `−${Math.abs(rounded)}`;
                 return `+${rounded}`;
             }
-
             resetRunRecordTracking(startSector = 1) {
-                this.runRecordStartMs = 0;
-                this.runRecordPauseStartedMs = null;
-                this.runRecordActionStartedMs = null;
-                this.runRecordElapsedActionMs = 0;
-                this.runRecordHighestSector = Math.max(1, startSector || 1);
-
+                this.runSession.resetRecordTracking(startSector);
             }
-
             updateRunRecordProgress() {
-                this.runRecordHighestSector = Math.max(this.runRecordHighestSector || 1, this.level || 1);
-
+                return this.runSession.updateProgress(this.level);
             }
-
             startRunRecordActionClock() {
-                const now = performance.now();
-                if (!this.runRecordStartMs) this.runRecordStartMs = now;
-                if (!this.runRecordActionStartedMs) this.runRecordActionStartedMs = now;
-                this.runRecordPauseStartedMs = null;
+                this.runSession.startActionClock();
             }
-
             stopRunRecordActionClock() {
-                if (!this.runRecordActionStartedMs) {
-                    this.runRecordPauseStartedMs = null;
-                    return;
-                }
-                const endTime = this.runRecordPauseStartedMs || performance.now();
-                this.runRecordElapsedActionMs += Math.max(0, endTime - this.runRecordActionStartedMs);
-                this.runRecordActionStartedMs = null;
-                this.runRecordPauseStartedMs = null;
+                this.runSession.stopActionClock();
             }
-
             getRecoveredRelicSectorNumbers() {
-                const recovered = new Set();
-                Object.keys(this.relicRecoveredBySector || {}).forEach(key => {
-                    if (!this.relicRecoveredBySector[key]) return;
-                    const parts = String(key).split('-');
-                    const sector = Number(parts[parts.length - 1]);
-                    if (Number.isInteger(sector) && sector >= 1 && sector <= this.MAX_LEVEL) recovered.add(sector);
-                });
-                return recovered;
+                return this.runSession.getRecoveredRelicSectorNumbers(this.MAX_LEVEL);
             }
-
             hasRecoveredRelicForSector(levelNumber) {
-                return this.getRecoveredRelicSectorNumbers().has(Math.max(1, Math.min(this.MAX_LEVEL, Math.floor(Number(levelNumber) || 1))));
+                return this.runSession.hasRecoveredRelic(levelNumber, this.MAX_LEVEL);
             }
-
             getRecoveredRelicCount() {
-                return Math.max(0, Math.min(this.MAX_LEVEL, this.getRecoveredRelicSectorNumbers().size));
+                return this.runSession.getRecoveredRelicCount(this.MAX_LEVEL);
             }
-
             beginRunRecordPause() {
-                if (!this.runRecordActionStartedMs || this.runRecordPauseStartedMs) return;
-                this.runRecordPauseStartedMs = performance.now();
+                this.runSession.beginPause();
             }
-
             endRunRecordPause() {
-                if (!this.runRecordPauseStartedMs) return;
-                if (this.runRecordActionStartedMs) {
-                    this.runRecordActionStartedMs += Math.max(0, performance.now() - this.runRecordPauseStartedMs);
-                }
-                this.runRecordPauseStartedMs = null;
+                this.runSession.endPause();
             }
-
             getRunRecordElapsedMs() {
-                const liveEnd = this.runRecordPauseStartedMs || performance.now();
-                const liveSegmentMs = this.runRecordActionStartedMs ? Math.max(0, liveEnd - this.runRecordActionStartedMs) : 0;
-                return Math.max(0, Math.round((this.runRecordElapsedActionMs || 0) + liveSegmentMs));
+                return this.runSession.getElapsedMs();
             }
 
             captureCurrentHighScoreDetails() {
@@ -17960,20 +18378,11 @@ Best Score: ${bestScore}${recoveredLine}` :
                 this.saveHighScoreDetails();
                 this.updateHighScoreDisplay();
             }
-
             loadHighScore() {
-                try {
-                    const parsed = parseInt(storageService.getItem(this.highScoreStorageKey) || '0', 10);
-                    return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
-                } catch (error) {
-                    return 0;
-                }
+                return this.highScoreSystem.loadHighScore();
             }
-
             saveHighScore() {
-                try {
-                    storageService.setItem(this.highScoreStorageKey, String(this.highScore));
-                } catch (error) {}
+                this.highScoreSystem.saveHighScore();
             }
 
             getHighScoreRunValues(details) {
@@ -18068,18 +18477,13 @@ Best Score: ${bestScore}${recoveredLine}` :
                 if (scoringRecordArea) scoringRecordArea.style.display = this.highScore > 0 ? 'flex' : 'none';
                 this.scheduleHighScorePanelLayout();
             }
-
             checkHighScore() {
-                if (this.score > this.highScore) {
-                    this.highScore = this.score;
-                    this.highScoreDetails = this.captureCurrentHighScoreDetails();
-                    this.saveHighScore();
-                    this.saveHighScoreDetails();
-                    this.updateHighScoreDisplay();
-                }
-
-                if (!this.highScoreBeatenThisRun && this.score > this.highScoreTarget) {
-                    this.highScoreBeatenThisRun = true;
+                const result = this.highScoreSystem.considerScore(
+                    this.score,
+                    () => this.captureCurrentHighScoreDetails()
+                );
+                if (result.newRecord) this.updateHighScoreDisplay();
+                if (result.crossedTarget) {
                     this.ui.flashHighScore();
                     this.audio.playHighScore();
                 }
@@ -18148,18 +18552,9 @@ Best Score: ${bestScore}${recoveredLine}` :
                     this.resetHighScoreConfirmationState();
                 }, 900);
             }
-
             resetHighScore() {
-                this.highScore = 0;
-                this.highScoreTarget = 0;
-                this.highScoreBeatenThisRun = true;
-                this.highScoreDetails = this.getEmptyHighScoreDetails();
-                this.recordPaceProfiles = this.getEmptyRecordPaceProfiles();
-                this.recordPaceTargetProfile = null;
+                this.highScoreSystem.reset();
                 this.currentRunPaceCheckpoints = {};
-                this.saveHighScore();
-                this.saveHighScoreDetails();
-                this.saveRecordPaceProfiles();
                 this.updateHighScoreDisplay();
             }
 
@@ -20118,9 +20513,11 @@ Best Score: ${bestScore}${recoveredLine}` :
             }
 
             // Central scoring helper. Final Gridlock freezes the completed campaign score.
+
             addScore(points) {
                 if (!points || this.finalGridlockActive) return;
-                this.score += points;
+                const result = this.scoreSystem.add(points);
+                if (!result.changed) return;
                 this.ui.updateScore();
                 this.checkHighScore();
             }
@@ -23665,8 +24062,9 @@ Best Score: ${bestScore}${recoveredLine}` :
 
 /* Source: src/js/audio/270-audio-manager.js */
         class AudioManager {
-            constructor(scheduler) {
+            constructor(scheduler, settingsSystem = null) {
                 this.scheduler = scheduler || new SchedulingManager();
+                this.settingsSystem = settingsSystem;
                 this.audioTimerSequence = 0;
                 this.backgroundOscillators = []; // Background music oscillators
                 this.backgroundGains = []; // Background music gain nodes
@@ -24304,17 +24702,19 @@ Best Score: ${bestScore}${recoveredLine}` :
             }
 
             loadMutedSetting() {
+                if (this.settingsSystem) return this.settingsSystem.isSoundMuted();
                 try {
-                    return storageService.getItem('blockazoidsSoundMuted') === '1';
-                } catch (error) {
+                    return storageService.getItem(GAME_CONFIG.storage.soundMuted) === '1';
+                } catch (_) {
                     return false;
                 }
             }
 
             loadMusicMutedSetting() {
+                if (this.settingsSystem) return this.settingsSystem.isMusicMuted();
                 try {
-                    return storageService.getItem('blockazoidsMusicMuted') === '1';
-                } catch (error) {
+                    return storageService.getItem(GAME_CONFIG.storage.musicMuted) === '1';
+                } catch (_) {
                     return false;
                 }
             }
@@ -24341,16 +24741,20 @@ Best Score: ${bestScore}${recoveredLine}` :
                     this.resume('unmute');
                 }
 
-                try {
-                    storageService.setItem('blockazoidsSoundMuted', this.muted ? '1' : '0');
-                } catch (error) {}
+                if (this.settingsSystem) {
+                    this.settingsSystem.setSoundMuted(this.muted);
+                } else {
+                    try { storageService.setItem(GAME_CONFIG.storage.soundMuted, this.muted ? '1' : '0'); } catch (_) {}
+                }
             }
 
             setMusicMuted(muted) {
                 this.musicMuted = Boolean(muted);
-                try {
-                    storageService.setItem('blockazoidsMusicMuted', this.musicMuted ? '1' : '0');
-                } catch (error) {}
+                if (this.settingsSystem) {
+                    this.settingsSystem.setMusicMuted(this.musicMuted);
+                } else {
+                    try { storageService.setItem(GAME_CONFIG.storage.musicMuted, this.musicMuted ? '1' : '0'); } catch (_) {}
+                }
 
                 if (this.musicGain && this.ctx) {
                     const now = this.ctx.currentTime;
@@ -26461,7 +26865,11 @@ startMaxSwarmBeat(delaySeconds = 0) {
             snapshot: () => Object.freeze({
                 build: BUILD_METADATA.version,
                 flow: game.flow.snapshot(),
-                scheduler: game.scheduler.snapshot()
+                scheduler: game.scheduler.snapshot(),
+                settings: game.settings.snapshot(),
+                score: game.scoreSystem.snapshot(),
+                run: game.runSession.snapshot(),
+                records: game.highScoreSystem.snapshot()
             })
         });
     
