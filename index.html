@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Block-A-Zoids p236: repairs transition regressions and restores explicit dependency arguments after compatibility-surface removal.
+Block-A-Zoids p237: removes verified dead JavaScript and retired loop compatibility code without changing game behavior.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="p236">
+<html data-build-version="p237">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -8619,15 +8619,15 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
         const BUILD_METADATA = window.BLOCKAZOIDS_BUILD = Object.freeze({
             version: document.documentElement.dataset.buildVersion || 'unknown',
             label: BUILD_VERSION,
-            architecturePhase: 'transition-contract-repair-1',
-            sourceBaseline: 'p235',
+            architecturePhase: 'dead-code-cleanup-1',
+            sourceBaseline: 'p236',
             behaviorPolicy: 'architecture-only'
         });
 
         const SOURCE_LAYOUT = window.BLOCKAZOIDS_SOURCE_LAYOUT = Object.freeze({
             developmentModel: 'modular-source',
             releaseModel: 'single-html',
-            buildOutput: 'block-a-zoids-p236.html',
+            buildOutput: 'block-a-zoids-p237.html',
             categories: Object.freeze([
                 'build', 'config', 'content', 'rules', 'state', 'services', 'app', 'gameplay',
                 'presentation', 'platform', 'audio', 'ui', 'development'
@@ -9763,11 +9763,6 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
             }
 
             getScore() {
-                return this.value;
-            }
-
-            setScore(value) {
-                this.value = this.normalize(value);
                 return this.value;
             }
 
@@ -11192,25 +11187,10 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 return this.hasPendingRelicAttempt() && !this.prismRelicRecoveredThisSector;
             }
 
-            cancelRelicAttempt() {
-                if (!this.canCancelRelicAttempt()) return false;
-                this.prismRelicCueTimer = null;
-                this.prismRelic = null;
-                this.prismRelicSpawnedThisSector = false;
-                return true;
-            }
-
             markRelicRecovered() {
                 if (!this.prismRelic || this.prismRelicRecoveredThisSector) return false;
                 this.prismRelicRecoveredThisSector = true;
                 return true;
-            }
-
-            clearRelic() {
-                const relic = this.prismRelic;
-                this.prismRelic = null;
-                this.prismRelicCueTimer = null;
-                return relic;
             }
 
             getRelicSectorKey(levelNumber) {
@@ -15876,6 +15856,17 @@ Best Score: ${bestScore}${recoveredLine}` :
                 this.assert('Legacy Game state proxy helper removed', typeof installOwnedStateProxy === 'undefined');
                 this.assert('Game command delegates removed', !Game.prototype.beginTelemetryRun && !Game.prototype.enableDeveloperMode && !Game.prototype.returnToAttractMode && !Game.prototype.renderPlayfieldFrame);
 
+                this.assert('Retired score overwrite method removed', !ScoreSystem.prototype.setScore);
+                this.assert('Retired Gridlock relic helpers removed', !GridlockSystem.prototype.cancelRelicAttempt && !GridlockSystem.prototype.clearRelic);
+                this.assert('Retired attract Orb hold helpers removed', !FullSurfaceGestureCoordinator.prototype.isAttractOrbTarget && !FullSurfaceGestureCoordinator.prototype.beginAttractOrbHold);
+                this.assert('Unused renderer no-op methods removed', !PlayfieldRendererState.prototype.renderPlayer && !PlayfieldRendererState.prototype.renderEnemyPosition && !PlayfieldRendererState.prototype.renderEnemySize && !PlayfieldRendererState.prototype.renderCrystalPosition);
+                this.assert('Retired gameplay loop token removed', !Game.prototype.clearUpdateGameTimer && !Game.prototype.updateGame);
+                this.assert('Unused Game settings and identity helpers removed', !Game.prototype.saveTrackingSpeed && !Game.prototype.saveDifficultyMode && !Game.prototype.getUnlockedEnemyIdentityOrder);
+                this.assert('Unused velocity gauge query removed', !Player.prototype.getVelocityGaugeLevel);
+                this.assert('Unused behavior registry listing removed', !EnemyBehaviorRegistry.prototype.registeredTypes && !EnemyBehaviorRegistry.registeredTypes);
+                this.assert('Unused enemy diagnostics method removed', !Enemy.prototype.getBehaviorDiagnostics);
+                this.assert('Unused music tone helper removed', !AudioManager.prototype.playMusicTone);
+
                 const restoreSource = Game.prototype.runGridRestoreSequence.toString();
                 const restartSource = Game.prototype.restartRun.toString();
                 const endRunSource = Game.prototype.endRun.toString();
@@ -16454,7 +16445,6 @@ Best Score: ${bestScore}${recoveredLine}` :
                 game.ui.updateAll();
                 game.screenManager.setOverlayVisible(false);
                 game.lastFrameTime = performance.now();
-                game.clearUpdateGameTimer();
                 game.screenManager.clearOverlayForGameplay();
                 game.audio.startBackgroundMusic(game.campaign.currentSector);
                 if (game.gridlockSystem.overtimeActive) {
@@ -16467,7 +16457,6 @@ Best Score: ${bestScore}${recoveredLine}` :
                 game.checkPrismRelicSpawnProgress();
                 game.checkMaxSwarmProgress();
                 game.frameCoordinator.startGameplayLoop();
-                game.updateGame();
             }
 
             activateRunStartAudio() {
@@ -16700,15 +16689,6 @@ Best Score: ${bestScore}${recoveredLine}` :
 
             isSplashTarget(target) {
                 return !!(target && target.closest && target.closest('#splashScreen'));
-            }
-
-            isAttractOrbTarget(target) {
-                return !!(target && target.closest && target.closest('#player'));
-            }
-
-            beginAttractOrbHold(pointer) {
-                // p148: the attract presentation is timer-driven; holding the Orb no longer launches it.
-                return false;
             }
 
             cancelAttractOrbHold(reason = 'cancel') {
@@ -16955,8 +16935,6 @@ Best Score: ${bestScore}${recoveredLine}` :
                 return null;
             }
 
-            renderPlayer() {}
-
             setPlayerVisible(player, visible) {
                 if (player) player.isVisible = Boolean(visible);
             }
@@ -17051,9 +17029,6 @@ Best Score: ${bestScore}${recoveredLine}` :
 
             renderEnemyVisualState() {}
             renderEnemyDirectionalVisuals() {}
-            renderEnemyPosition() {}
-            renderEnemySize() {}
-
             applyEnemyColor(enemy, color) {
                 if (!enemy || !color) return;
                 enemy.renderColor = color;
@@ -17074,8 +17049,6 @@ Best Score: ${bestScore}${recoveredLine}` :
                 crystal.element = null;
                 return null;
             }
-
-            renderCrystalPosition() {}
 
             setCrystalSelectable(crystal, selectable) {
                 if (crystal) crystal.isSelectable = Boolean(selectable);
@@ -20575,90 +20548,6 @@ Best Score: ${bestScore}${recoveredLine}` :
                 // moves out of the legacy Game coordinator one responsibility at a time.
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
                 this.visualEffectsSystem.visualEffectSequence = 0;
                 this.crystalCollectionFx = { lastPickupAt: -Infinity, chain: 0, halo: null };
                 this.gameplayTaskSequence = 0;
@@ -21004,7 +20893,6 @@ Best Score: ${bestScore}${recoveredLine}` :
                 this.tutorialSystem.tutorialCrystalValuePopupDurationMs = GAME_CONFIG.tutorial.crystalValuePopupMs;
                 this.runtimeState.tutorialRelicReady = false;
                 this.runtimeState.resumeCountdownActive = false;   // Blocks repeated resume clicks during the short countdown.
-                this.updateGameTimer = null;          // Legacy compatibility token; spawn timing now runs in the live frame loop
                 this.frameCoordinator.gameplayRunToken = 0;            // Revision for the one scheduler-owned live-gameplay animation loop
                 this.cosmicZapSystem.lastTriggerTime = 0;         // CosmicZapSystem prevents repeated triggers from one input
                 this.cosmicZapSystem.inputCooldownMs = GAME_CONFIG.input.cosmicZapCooldownMs;
@@ -21266,11 +21154,6 @@ Best Score: ${bestScore}${recoveredLine}` :
             // after lifecycle changes but never repair, reset, or otherwise alter game state.
 
 
-
-
-
-
-
             initializeResponsiveViewportHandling() {
                 this.viewportResizeTimer = null;
                 window.addEventListener('resize', () => this.handleViewportChange('resize'), { passive: true });
@@ -21428,84 +21311,9 @@ Best Score: ${bestScore}${recoveredLine}` :
             }
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
             playUiClick() {
                 if (this.audio && typeof this.audio.playUiClick === 'function') this.audio.playUiClick();
             }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
             // Phase 4F read-only inspection. This deliberately captures values without
@@ -21567,13 +21375,6 @@ Best Score: ${bestScore}${recoveredLine}` :
             isStartScreenVisible() {
                 return !this.hasStartedRun && !this.runtimeState.active && !this.runtimeState.isPaused && !this.runtimeState.isGameOver;
             }
-
-
-
-
-
-
-
 
 
             // Resolve all presentation geometry in one place. The frame size is the p010
@@ -21816,15 +21617,6 @@ Best Score: ${bestScore}${recoveredLine}` :
                 this.crystalSystem.completedSquares.forEach(square => this.playfieldRenderer.removeFilledSquare(square));
                 this.crystalSystem.resetBoardState();
             }
-
-            // Clear the retired scheduled-spawn compatibility token.
-            clearUpdateGameTimer() {
-                if (this.updateGameTimer) {
-                    this.scheduler.cancelTask(this.updateGameTimer);
-                    this.updateGameTimer = null;
-                }
-            }
-
             // Stop any delayed gridlock trigger so it cannot fire after pause, restart, or level transition.
             clearMaxSwarmCueTimer() {
                 if (this.gridlockSystem.maxSwarmCueTimer) {
@@ -21857,15 +21649,6 @@ Best Score: ${bestScore}${recoveredLine}` :
                     this.gridlockSystem.prismRelicCueTimer = null;
                 }
             }
-
-            // Compatibility delegate: FrameCoordinator owns the render request path.
-
-
-            // Compatibility delegate: FrameCoordinator owns standalone presentation scheduling.
-            // State changes outside the live simulation loop still need one presentation frame.
-            // Live gameplay and tutorial animation already own a frame and will consume the dirty state.
-
-
             // The main simulation loop has one scheduler-owned animation frame at a time.
             // A new owner revision immediately cancels any pending frame from the previous live-action session.
 
@@ -21882,7 +21665,6 @@ Best Score: ${bestScore}${recoveredLine}` :
                 this.enemySpawnSystem.clearPendingWarnings(requeueSpawnWarnings);
                 if (this.audio && typeof this.audio.cancelEnemySpawnAudio === 'function') this.audio.cancelEnemySpawnAudio();
                 this.scheduler.cancelScope('gameplay');
-                this.updateGameTimer = null;
                 this.gridlockSystem.maxSwarmCueTimer = null;
                 this.gridlockSystem.overtimeEnemyTimer = null;
                 this.gridlockSystem.prismRelicCueTimer = null;
@@ -21904,11 +21686,6 @@ Best Score: ${bestScore}${recoveredLine}` :
                 }
                 return result;
             }
-
-
-
-
-
 
 
             // Phase 4A state ownership: each reset method owns one lifetime only.
@@ -22108,7 +21885,6 @@ Best Score: ${bestScore}${recoveredLine}` :
                 this.syncMotionListenerState();
                 this.ui.updateAll();
                 this.lastFrameTime = performance.now();
-                this.clearUpdateGameTimer();
                 this.screenManager.clearOverlayForGameplay();
                 this.audio.startBackgroundMusic(this.campaign.currentSector);
                 if (this.gridlockSystem.overtimeActive) {
@@ -22121,17 +21897,10 @@ Best Score: ${bestScore}${recoveredLine}` :
                 this.checkPrismRelicSpawnProgress();
                 this.checkMaxSwarmProgress();
                 this.frameCoordinator.startGameplayLoop();
-                this.updateGame();
                 this.diagnosticsSystem.validateStateInvariants('beginSector:live-action');
             }
 
             // Manual double-tap detector for the iPhone menu shortcut.
-
-
-
-
-
-
 
 
             updateSoundToggleLabel() {
@@ -22170,51 +21939,6 @@ Best Score: ${bestScore}${recoveredLine}` :
             }
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
             recordProgressUnlocks(levelNumber = this.campaign.currentSector) {
                 const result = this.campaign.recordProgressUnlock(levelNumber, { developerMode: this.developerTools.developerModeEnabled });
                 if (result.changed) this.developerTools.updateLevelSelectUnlockState();
@@ -22228,13 +21952,6 @@ Best Score: ${bestScore}${recoveredLine}` :
                 const finishedRun = this.runtimeState.isGameOver && this.runtimeState.restartReady;
                 return (!this.hasStartedRun || finishedRun) && !this.runtimeState.active && !this.runtimeState.isPaused && !this.runtimeState.showHudDuringSectorIntro;
             }
-
-
-
-
-
-
-
 
 
             consumeDeveloperEndSelection() {
@@ -22288,9 +22005,6 @@ Best Score: ${bestScore}${recoveredLine}` :
 
 
 
-            saveTrackingSpeed() {
-                this.settings.setTrackingSpeed(this.settings.trackingSpeed);
-            }
             adjustTrackingSpeed(direction) {
                 this.settings.trackingSpeed = this.settings.adjustTrackingSpeed(direction);
                 this.updateTrackingSpeedLabel();
@@ -22315,10 +22029,6 @@ Best Score: ${bestScore}${recoveredLine}` :
                     this.trackingSpeedIncreaseButton.disabled = atMaximum;
                     this.trackingSpeedIncreaseButton.setAttribute('aria-disabled', atMaximum ? 'true' : 'false');
                 }
-            }
-
-            saveDifficultyMode() {
-                this.settings.difficultyMode = this.settings.setDifficultyMode(this.settings.difficultyMode);
             }
 
             canChangeDifficulty() {
@@ -22431,15 +22141,6 @@ Best Score: ${bestScore}${recoveredLine}` :
             }
 
 
-
-
-
-
-
-
-
-
-
             checkHighScore() {
                 const result = this.highScoreSystem.considerScore(
                     this.scoreSystem.value,
@@ -22524,16 +22225,6 @@ Best Score: ${bestScore}${recoveredLine}` :
             // Build the sector-select buttons once.
 
 
-
-
-
-
-
-
-
-
-
-
             handleVisibilityChange() {
                 if (document.visibilityState === 'hidden') {
                     this.player.invalidateDragSession('page-hidden');
@@ -22552,13 +22243,6 @@ Best Score: ${bestScore}${recoveredLine}` :
                     this.requestWakeLock();
                 }
             }
-
-
-
-
-
-
-
 
 
             beginTransitionGroup(name, loadToken = this.levelLoadToken) {
@@ -22757,70 +22441,6 @@ Best Score: ${bestScore}${recoveredLine}` :
             }
 
             // Tutorial completion persists across numbered builds and is cleared only through Settings.
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
             // Phase 4B lifecycle commands route player-facing state changes through explicit entry points.
@@ -23285,14 +22905,6 @@ Best Score: ${bestScore}${recoveredLine}` :
 
             // Enemy spawn pressure advances in active-gameplay milliseconds. The render loop owns
             // this clock, so pauses and background interruptions cannot consume spawn time.
-
-
-            // Compatibility lifecycle hook retained for existing start/resume call sites. Spawning
-            // itself is driven by updateEnemySpawning() inside the live simulation loop.
-            updateGame() {
-                this.updateGameTimer = null;
-            }
-
             // Canonical lifecycle entry for sector completion and restoration.
             completeSector() {
                 if (this.crystalSystem.crystals.length !== 0) return false; // Normal readiness check: the sector is not complete yet.
@@ -23569,14 +23181,6 @@ Best Score: ${bestScore}${recoveredLine}` :
 
             // Grid topology is stored as integer columns and rows. Pixel coordinates are always
             // derived from that topology so responsive fractional grid sizes cannot break adjacency.
-
-
-
-
-
-
-
-
 
 
             // Connect a collected crystal to neighboring collected grid intersections.
@@ -23932,11 +23536,6 @@ Best Score: ${bestScore}${recoveredLine}` :
                 this.saveEnemyEncounterUnlocks();
             }
 
-            getUnlockedEnemyIdentityOrder() {
-                const unlocks = this.enemyEncounterUnlocks || { drifter: true };
-                return ENEMY_IDENTITY_ORDER.filter(key => !!unlocks[key]);
-            }
-
             renderEnemyIdentityHelp() {
                 if (!this.enemyIdentityHelpList) return;
                 const fragment = document.createDocumentFragment();
@@ -23953,35 +23552,6 @@ Best Score: ${bestScore}${recoveredLine}` :
                 });
                 this.enemyIdentityHelpList.replaceChildren(fragment);
             }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
             clearEnemyDeathCause() {
@@ -24259,10 +23829,8 @@ Best Score: ${bestScore}${recoveredLine}` :
                 this.audio.startBackgroundMusic(this.campaign.currentSector);
                 this.requestWakeLock();
                 this.screenManager.setOverlayVisible(false);
-                this.clearUpdateGameTimer();
                 this.ui.updateAll();
                 this.frameCoordinator.startGameplayLoop();
-                this.updateGame();
                 this.diagnosticsSystem.validateStateInvariants('beginFinalGridlock');
                 return true;
             }
@@ -24589,16 +24157,6 @@ Best Score: ${bestScore}${recoveredLine}` :
                 this.movementSegments.length = 0;
                 return segments;
             }
-
-            getVelocityGaugeLevel(now = performance.now()) {
-                if (!this.velocityGaugeLastMoveTime) return 0;
-                const idleAge = Math.max(0, now - this.velocityGaugeLastMoveTime);
-                if (idleAge <= 55) return Math.max(0, Math.min(1, this.velocityGaugeSpeed));
-                if (idleAge >= 650) return 0;
-                const decay = Math.exp(-(idleAge - 55) / 165);
-                return Math.max(0, Math.min(1, this.velocityGaugeSpeed * decay));
-            }
-
 
             releaseActivePointerCapture(pointerId = this.activePointerId) {
                 if (pointerId === null || pointerId === undefined) return;
@@ -25297,9 +24855,6 @@ Best Score: ${bestScore}${recoveredLine}` :
                 };
             }
 
-            static registeredTypes() {
-                return Array.from(ENEMY_BEHAVIOR_FACTORIES.keys());
-            }
         }
 
         EnemyBehaviorRegistry.register(
@@ -25466,17 +25021,6 @@ Best Score: ${bestScore}${recoveredLine}` :
             }
 
             // Read-only developer diagnostics; no normal-play UI is added.
-            getBehaviorDiagnostics() {
-                return {
-                    requestedType: this.requestedBehaviorType,
-                    resolvedType: this.behaviorType,
-                    usedFallback: this.behaviorFallbackUsed,
-                    state: this.behavior && this.behavior.state ? this.behavior.state : null,
-                    speed: Number(Math.hypot(this.dx, this.dy).toFixed(3)),
-                    valid: Boolean(this.behavior && typeof this.behavior.update === 'function')
-                };
-            }
-
             // Compatibility entry point: state changes request the next centralized frame.
             updatePosition() {
                 this.game.frameCoordinator.requestPlayfieldRender();
@@ -27650,59 +27194,6 @@ startMaxSwarmBeat(delaySeconds = 0) {
             }
 
             // Shared music-note helper for gameplay theme and victory cue.
-            playMusicTone(freq, start, duration, type = 'square', volume = 0.035, options = {}) {
-                if (this.muted) return;
-                const route = options.route || 'background';
-                if (this.musicMuted && route === 'background') return;
-
-                const osc = this.createAudioNode('createOscillator');
-                const gainNode = this.createAudioNode('createGain');
-                const attack = options.attack ?? 0.012;
-                const release = options.release ?? 0.065;
-                let vibrato = null;
-                let vibratoGain = null;
-
-                osc.type = type;
-                osc.frequency.setValueAtTime(freq, start);
-
-                if (options.vibratoDepth && options.vibratoRate) {
-                    vibrato = this.createAudioNode('createOscillator');
-                    vibratoGain = this.createAudioNode('createGain');
-                    vibrato.type = 'sine';
-                    vibrato.frequency.setValueAtTime(options.vibratoRate, start);
-                    vibratoGain.gain.setValueAtTime(0.001, start);
-                    vibratoGain.gain.linearRampToValueAtTime(options.vibratoDepth, start + (options.vibratoAttack ?? 0.08));
-                    vibrato.connect(vibratoGain);
-                    vibratoGain.connect(osc.frequency);
-                }
-
-                osc.connect(gainNode);
-
-                if (route === 'background' && this.backgroundMixGain) {
-                    gainNode.connect(this.backgroundMixGain);
-                    this.backgroundOscillators.push(osc);
-                    if (vibrato) this.backgroundOscillators.push(vibrato);
-                    this.backgroundGains.push(gainNode);
-                    osc.onended = () => {
-                        this.backgroundOscillators = this.backgroundOscillators.filter(item => item !== osc && item !== vibrato);
-                        this.backgroundGains = this.backgroundGains.filter(item => item !== gainNode);
-                    };
-                } else {
-                    this.connectOutput(gainNode);
-                }
-
-                gainNode.gain.setValueAtTime(0.001, start);
-                gainNode.gain.linearRampToValueAtTime(Math.max(0.001, volume), start + attack);
-                gainNode.gain.exponentialRampToValueAtTime(0.01, start + duration);
-                gainNode.gain.exponentialRampToValueAtTime(0.001, start + duration + release);
-
-                if (vibrato) vibrato.start(start);
-                osc.start(start);
-                osc.stop(start + duration + release + 0.04);
-                if (vibrato) vibrato.stop(start + duration + release + 0.05);
-            }
-
-
             // Start the gameplay background for the current sector.
             // This path intentionally uses native Web Audio nodes rather than transient
             // tracking so sound-effect cleanup can never disconnect or prune the music.
