@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Block-A-Zoids p249: adds the architecture guide, change map, transition map, and maintenance contracts without changing behavior or presentation.
+Block-A-Zoids p251: extends the existing telemetry system with event-based sector difficulty, spawn lifecycle, enemy outcome, and pressure analysis data for gameplay balancing.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="p249">
+<html data-build-version="p251">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -7198,9 +7198,9 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
         const BUILD_METADATA = window.BLOCKAZOIDS_BUILD = Object.freeze({
             version: document.documentElement.dataset.buildVersion || 'unknown',
             label: BUILD_VERSION,
-            architecturePhase: 'architecture-documentation-and-change-map',
-            sourceBaseline: 'p248',
-            behaviorPolicy: 'architecture-only'
+            architecturePhase: 'balance-telemetry-v8',
+            sourceBaseline: 'p250',
+            behaviorPolicy: 'telemetry-observation-only-no-gameplay-change'
         });
 
 
@@ -7229,7 +7229,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
         const SOURCE_LAYOUT = window.BLOCKAZOIDS_SOURCE_LAYOUT = Object.freeze({
             developmentModel: 'modular-source',
             releaseModel: 'single-html',
-            buildOutput: 'block-a-zoids-p249.html',
+            buildOutput: 'block-a-zoids-p251.html',
             categories: Object.freeze([
                 'build', 'config', 'content', 'rules', 'state', 'services', 'app', 'gameplay',
                 'presentation', 'platform', 'audio', 'ui', 'development', 'docs'
@@ -7239,7 +7239,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
 
 /* Source: src/js/development/75-developer-documentation.js */
         const DEVELOPER_DOCUMENTATION = window.BLOCKAZOIDS_DEVELOPER_GUIDE = deepFreezeConfiguration({
-            version: 'p249',
+            version: 'p251',
             purpose: 'Make ownership, safe edit locations, state transitions, build steps, and maintenance rules discoverable without reverse-engineering the complete game.',
             architecture: {
                 application: {
@@ -8162,8 +8162,9 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 attractMode: Object.freeze({ owner: 'AttractModeSystem', responsibility: 'Attract lifecycle, Game-of-Life state, enemy identity cards, attract scheduling, and cleanup' }),
                 interface: Object.freeze({ owner: 'UI', responsibility: 'HUD projection of mutable game state' }),
                 developerTools: Object.freeze({ owner: 'DeveloperToolsSystem', responsibility: 'Developer unlocking, test modes, invincibility, and cabinet calibration' }),
-                telemetry: Object.freeze({ owner: 'TelemetrySystem', responsibility: 'Local balance-run collection, persistence, summaries, export, and clearing' }),
+                telemetry: Object.freeze({ owner: 'TelemetrySystem', responsibility: 'Event-based balance-run collection, sector difficulty snapshots, spawn/outcome attribution, pressure analysis, persistence, export, and clearing' }),
                 developerDocumentation: Object.freeze({ owner: 'DEVELOPER_DOCUMENTATION', responsibility: 'Architecture map, change map, state transitions, build process, handoff requirements, and maintenance contracts' }),
+                regressionHarness: Object.freeze({ owner: 'DevelopmentRegressionHarness', responsibility: 'Opt-in, reversible browser regression checks for core lifecycle transitions and stable product contracts' }),
                 diagnostics: Object.freeze({ owner: 'DiagnosticsSystem / ArchitectureValidator', responsibility: 'Runtime invariants, performance readings, state snapshots, startup contracts, and migration safety' })
             }),
             configurationCatalog: Object.freeze({
@@ -10014,6 +10015,8 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 this.spawnedCount = { small: 0, medium: 0, large: 0 };
                 this.pendingSpawnWarnings = [];
                 this.enemySpawnElapsedMs = 0;
+                this.telemetrySpawnSequence = 0;
+                this.lastMaterializationSectorTimeMs = null;
                 return this.snapshot();
             }
 
@@ -10038,6 +10041,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 pending.forEach((item) => {
                     if (item.timeoutId) game.scheduler.cancelTask(item.timeoutId);
                     if (item.warning) item.warning.remove();
+                    this.safeTelemetryCall('noteTelemetrySpawnWarningCanceled', item.spawnRequest, item);
                 });
                 return pending.length;
             }
@@ -10088,6 +10092,8 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                             centerY,
                             warningX: col * game.GRID_SIZE,
                             warningY: row * game.GRID_SIZE,
+                            gridCol: col,
+                            gridRow: row,
                             distanceToOrb
                         };
                         fallbackCells.push(cell);
@@ -10107,13 +10113,66 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
 
             normalizeRequest(request) {
                 if (typeof request === 'string') {
-                    return { type: request, behaviorType: ENEMY_BEHAVIOR_TYPES.DRIFTER };
+                    return {
+                        type: request,
+                        behaviorType: ENEMY_BEHAVIOR_TYPES.DRIFTER,
+                        queuePosition: null,
+                        spawnCategory: 'normal',
+                        expectedSpawnIntervalMs: null,
+                        telemetryId: null
+                    };
                 }
                 const type = request && typeof request.type === 'string' ? request.type : 'medium';
                 const behaviorType = request && request.behaviorType
                     ? request.behaviorType
                     : ENEMY_BEHAVIOR_TYPES.DRIFTER;
-                return { type, behaviorType };
+                return {
+                    ...(request && typeof request === 'object' ? request : {}),
+                    type,
+                    behaviorType,
+                    queuePosition: Number.isFinite(request && request.queuePosition) ? Number(request.queuePosition) : null,
+                    spawnCategory: request && request.spawnCategory ? String(request.spawnCategory) : 'normal',
+                    expectedSpawnIntervalMs: Number.isFinite(request && request.expectedSpawnIntervalMs) ? Number(request.expectedSpawnIntervalMs) : null,
+                    telemetryId: request && request.telemetryId ? String(request.telemetryId) : null
+                };
+            }
+
+            prepareTelemetryQueue(queue = this.spawnQueue, options = {}) {
+                const expectedSpawnIntervalMs = Number.isFinite(options.expectedSpawnIntervalMs)
+                    ? Number(options.expectedSpawnIntervalMs)
+                    : null;
+                const spawnCategory = options.spawnCategory ? String(options.spawnCategory) : 'normal';
+                const prepared = (Array.isArray(queue) ? queue : []).map((request, index) => ({
+                    ...this.normalizeRequest(request),
+                    queuePosition: index + 1,
+                    spawnCategory,
+                    expectedSpawnIntervalMs
+                }));
+                if (queue === this.spawnQueue) this.spawnQueue = prepared;
+                return prepared;
+            }
+
+            nextTelemetryId(request = null) {
+                const game = this.requireGame();
+                if (request && request.telemetryId) return request.telemetryId;
+                this.telemetrySpawnSequence += 1;
+                const runId = game.telemetrySystem && game.telemetrySystem.currentTelemetryRun && game.telemetrySystem.currentTelemetryRun.id
+                    ? game.telemetrySystem.currentTelemetryRun.id
+                    : `session-${Date.now()}`;
+                const sector = game.campaign && Number.isFinite(game.campaign.currentSector) ? game.campaign.currentSector : 0;
+                return `${runId}-sector-${sector}-blockazoid-${this.telemetrySpawnSequence}`;
+            }
+
+            safeTelemetryCall(methodName, ...args) {
+                const game = this.game;
+                const telemetry = game && game.telemetrySystem;
+                if (!telemetry || typeof telemetry[methodName] !== 'function') return null;
+                try {
+                    return telemetry[methodName](...args);
+                } catch (error) {
+                    console.warn(`[Block-A-Zoids] Telemetry event "${methodName}" failed without affecting gameplay.`, error);
+                    return null;
+                }
             }
 
             recordMaterializedEnemy(enemy) {
@@ -10124,19 +10183,39 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 return enemy;
             }
 
-            materializeEnemy(normalizedRequest, location, onSpawn = null) {
+            materializeEnemy(normalizedRequest, location, onSpawn = null, warningContext = null) {
                 const game = this.requireGame();
+                const request = this.normalizeRequest(normalizedRequest);
+                const telemetryRecording = !!(game.telemetrySystem && game.telemetrySystem.telemetryEnabled && game.telemetrySystem.currentTelemetrySector);
+                if (telemetryRecording) request.telemetryId = request.telemetryId || this.nextTelemetryId(request);
                 const enemy = new Enemy(
                     game,
-                    normalizedRequest.type,
+                    request.type,
                     { x: location.x, y: location.y },
-                    normalizedRequest.behaviorType
+                    request.behaviorType
                 );
+                enemy.telemetryId = request.telemetryId;
+                enemy.telemetryQueuePosition = request.queuePosition;
+                enemy.telemetrySpawnCategory = request.spawnCategory;
+                enemy.telemetryExpectedSpawnIntervalMs = request.expectedSpawnIntervalMs;
+                enemy.telemetryWarningStartedAtSectorMs = warningContext && Number.isFinite(warningContext.warningStartSectorTimeMs)
+                    ? warningContext.warningStartSectorTimeMs
+                    : null;
                 game.enemies.push(enemy);
-                game.telemetrySystem.noteTelemetryEnemySpawn(normalizedRequest.type, enemy);
+                this.recordMaterializedEnemy(enemy);
+                this.safeTelemetryCall('noteTelemetryEnemyMaterialized', request, enemy, location, warningContext, {
+                    previousMaterializationSectorTimeMs: this.lastMaterializationSectorTimeMs,
+                    pendingWarningCount: this.pendingSpawnWarnings.length,
+                    remainingQueueCount: warningContext && Number.isFinite(warningContext.remainingQueueCount)
+                        ? warningContext.remainingQueueCount
+                        : this.spawnQueue.length
+                });
+                const materializedSectorTimeMs = telemetryRecording && game.telemetrySystem && typeof game.telemetrySystem.telemetrySectorElapsedMs === 'function'
+                    ? game.telemetrySystem.telemetrySectorElapsedMs()
+                    : null;
+                if (Number.isFinite(materializedSectorTimeMs)) this.lastMaterializationSectorTimeMs = materializedSectorTimeMs;
                 game.checkGridlockProgress();
                 game.checkPrismRelicSpawnProgress();
-                this.recordMaterializedEnemy(enemy);
                 if (typeof onSpawn === 'function') onSpawn(enemy);
                 return enemy;
             }
@@ -10144,6 +10223,20 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
             startWarning(spawnRequest, options = {}) {
                 const game = this.requireGame();
                 const normalizedRequest = this.normalizeRequest(spawnRequest);
+                const telemetryRecording = !!(game.telemetrySystem && game.telemetrySystem.telemetryEnabled && game.telemetrySystem.currentTelemetrySector);
+                if (telemetryRecording) {
+                    normalizedRequest.telemetryId = normalizedRequest.telemetryId || this.nextTelemetryId(normalizedRequest);
+                    normalizedRequest.sectorSpawnSequence = this.telemetrySpawnSequence;
+                    if (!Number.isFinite(normalizedRequest.queuePosition)) normalizedRequest.queuePosition = normalizedRequest.sectorSpawnSequence;
+                }
+                if (!Number.isFinite(normalizedRequest.expectedSpawnIntervalMs)) {
+                    normalizedRequest.expectedSpawnIntervalMs = Number.isFinite(options.expectedSpawnIntervalMs)
+                        ? Number(options.expectedSpawnIntervalMs)
+                        : Math.max(0, Number(game.spawnDelay) || 0) * 1000;
+                }
+                if (options.spawnCategory) normalizedRequest.spawnCategory = String(options.spawnCategory);
+                if (Number.isFinite(options.queuePosition)) normalizedRequest.queuePosition = Number(options.queuePosition);
+
                 const type = normalizedRequest.type;
                 const size = type === 'small'
                     ? game.ORB_SIZE
@@ -10151,8 +10244,26 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 const location = this.choosePeripheralSpawnLocation(size);
                 if (!location) return false;
 
+                const warningStartSectorTimeMs = game.telemetrySystem && typeof game.telemetrySystem.telemetrySectorElapsedMs === 'function'
+                    ? game.telemetrySystem.telemetrySectorElapsedMs()
+                    : 0;
+                const warningContext = {
+                    telemetryId: normalizedRequest.telemetryId,
+                    warningStartSectorTimeMs,
+                    configuredWarningDurationMs: GAME_FEATURE_FLAGS.spawnWarnings ? this.spawnWarningDurationMs : 0,
+                    expectedSpawnIntervalMs: normalizedRequest.expectedSpawnIntervalMs,
+                    queuePosition: normalizedRequest.queuePosition,
+                    spawnCategory: normalizedRequest.spawnCategory,
+                    remainingQueueCount: Number.isFinite(options.remainingQueueCount)
+                        ? Number(options.remainingQueueCount)
+                        : this.spawnQueue.length,
+                    pendingWarningCountAtStart: this.pendingSpawnWarnings.length,
+                    location
+                };
+                this.safeTelemetryCall('noteTelemetrySpawnWarningStarted', normalizedRequest, location, warningContext);
+
                 if (!GAME_FEATURE_FLAGS.spawnWarnings) {
-                    this.materializeEnemy(normalizedRequest, location, options.onSpawn);
+                    this.materializeEnemy(normalizedRequest, location, options.onSpawn, warningContext);
                     return true;
                 }
 
@@ -10166,7 +10277,9 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                     spawnX: location.x,
                     spawnY: location.y,
                     timeoutId: null,
-                    requeueOnCancel: options.requeueOnCancel !== false
+                    requeueOnCancel: options.requeueOnCancel !== false,
+                    warningStartSectorTimeMs,
+                    warningContext
                 };
 
                 pending.timeoutId = game.scheduler.scheduleTimeout(
@@ -10178,10 +10291,11 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
 
                         if (!game.flow.isLiveAction()) {
                             if (options.requeueOnCancel !== false) this.spawnQueue.unshift(normalizedRequest);
+                            this.safeTelemetryCall('noteTelemetrySpawnWarningCanceled', normalizedRequest, pending, 'not-live-action');
                             return;
                         }
 
-                        this.materializeEnemy(normalizedRequest, location, options.onSpawn);
+                        this.materializeEnemy(normalizedRequest, location, options.onSpawn, warningContext);
                     },
                     this.spawnWarningDurationMs
                 );
@@ -10206,7 +10320,12 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 if (this.spawnQueue.length <= 0) return false;
 
                 const nextSpawnRequest = this.spawnQueue[0];
-                if (!this.startWarning(nextSpawnRequest)) return false;
+                const normalizedNextRequest = this.normalizeRequest(nextSpawnRequest);
+                if (!this.startWarning(nextSpawnRequest, {
+                    expectedSpawnIntervalMs: Number.isFinite(normalizedNextRequest.expectedSpawnIntervalMs) ? normalizedNextRequest.expectedSpawnIntervalMs : delayMs,
+                    spawnCategory: normalizedNextRequest.spawnCategory || 'normal',
+                    remainingQueueCount: Math.max(0, this.spawnQueue.length - 1)
+                })) return false;
 
                 this.enemySpawnElapsedMs = 0;
                 this.spawnQueue.shift();
@@ -10219,11 +10338,12 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                     pendingWarnings: this.pendingSpawnWarnings.length,
                     spawnedCount: Object.freeze({ ...this.spawnedCount }),
                     elapsedMs: this.enemySpawnElapsedMs,
-                    warningDurationMs: this.spawnWarningDurationMs
+                    warningDurationMs: this.spawnWarningDurationMs,
+                    telemetrySpawnSequence: this.telemetrySpawnSequence,
+                    lastMaterializationSectorTimeMs: this.lastMaterializationSectorTimeMs
                 });
             }
         }
-
 /* Source: src/js/gameplay/88-collision-system.js */
         class CollisionSystem {
             constructor(game, config) {
@@ -12982,7 +13102,14 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
             telemetryRunElapsedMs(...args) { return TelemetrySystem.implementations.telemetryRunElapsedMs.apply(this.game, args); }
             beginTelemetryPause(...args) { return TelemetrySystem.implementations.beginTelemetryPause.apply(this.game, args); }
             endTelemetryPause(...args) { return TelemetrySystem.implementations.endTelemetryPause.apply(this.game, args); }
+            normalizeTelemetryRunSource(...args) { return TelemetrySystem.implementations.normalizeTelemetryRunSource.apply(this.game, args); }
+            getTelemetryDifficultySnapshot(...args) { return TelemetrySystem.implementations.getTelemetryDifficultySnapshot.apply(this.game, args); }
+            noteTelemetrySpawnWarningStarted(...args) { return TelemetrySystem.implementations.noteTelemetrySpawnWarningStarted.apply(this.game, args); }
+            noteTelemetrySpawnWarningCanceled(...args) { return TelemetrySystem.implementations.noteTelemetrySpawnWarningCanceled.apply(this.game, args); }
+            noteTelemetryEnemyMaterialized(...args) { return TelemetrySystem.implementations.noteTelemetryEnemyMaterialized.apply(this.game, args); }
             noteTelemetryEnemySpawn(...args) { return TelemetrySystem.implementations.noteTelemetryEnemySpawn.apply(this.game, args); }
+            buildTelemetrySectorOutcomeSummary(...args) { return TelemetrySystem.implementations.buildTelemetrySectorOutcomeSummary.apply(this.game, args); }
+            buildSectorPressureReport(...args) { return TelemetrySystem.implementations.buildSectorPressureReport.apply(this.game, args); }
             noteTelemetryGridlock(...args) { return TelemetrySystem.implementations.noteTelemetryGridlock.apply(this.game, args); }
             noteTelemetryPrismRelicAppeared(...args) { return TelemetrySystem.implementations.noteTelemetryPrismRelicAppeared.apply(this.game, args); }
             noteTelemetryPrismRelicCollected(...args) { return TelemetrySystem.implementations.noteTelemetryPrismRelicCollected.apply(this.game, args); }
@@ -13018,7 +13145,9 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
         TelemetrySystem.implementations = Object.freeze({
             loadTelemetryData: function() {
                 const emptyTelemetry = {
-                    schema: 'blockazoids-balance-v7',
+                    schema: 'blockazoids-balance-v8',
+                    schemaVersion: 8,
+                    loadedSchema: null,
                     runs: [],
                     restoredFromLocalStorage: false,
                     recoveredActiveRuns: 0,
@@ -13029,7 +13158,9 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                     if (!saved) return emptyTelemetry;
 
                     const telemetry = {
-                        schema: 'blockazoids-balance-v7',
+                        schema: 'blockazoids-balance-v8',
+                        schemaVersion: 8,
+                        loadedSchema: saved.schema || null,
                         runs: Array.isArray(saved.runs) ? saved.runs.slice() : [],
                         restoredFromLocalStorage: true,
                         recoveredActiveRuns: 0,
@@ -13085,16 +13216,19 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
 
                 while (storedRuns.length >= 0) {
                     const payload = {
-                        schema: 'blockazoids-balance-v7',
+                        schema: 'blockazoids-balance-v8',
+                        schemaVersion: 8,
                         savedAt,
                         runs: storedRuns,
                         activeRun,
+                        loadedSchema: this.telemetrySystem.telemetry.loadedSchema || this.telemetrySystem.telemetry.schema || null,
                         restoredFromLocalStorage: !!this.telemetrySystem.telemetry.restoredFromLocalStorage,
                         recoveredActiveRuns: this.telemetrySystem.telemetry.recoveredActiveRuns || 0
                     };
                     try {
                         storageService.setItem(this.telemetrySystem.telemetryStorageKey, JSON.stringify(payload));
                         this.telemetrySystem.telemetry.schema = payload.schema;
+                        this.telemetrySystem.telemetry.schemaVersion = 8;
                         this.telemetrySystem.telemetry.runs = storedRuns;
                         this.telemetrySystem.telemetry.lastSavedAt = savedAt;
                         this.telemetrySystem.updateTelemetrySummary();
@@ -13171,10 +13305,19 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 if (this.telemetrySystem.currentTelemetryRun && !this.telemetrySystem.currentTelemetryRun.endedAt) {
                     this.telemetrySystem.finishTelemetryRun('interrupted');
                 }
+                const sourceInfo = this.telemetrySystem.normalizeTelemetryRunSource(source);
                 this.telemetrySystem.currentTelemetryRun = {
                     id: `run-${Date.now()}-${Math.floor(Math.random() * 100000)}`,
                     build: BUILD_VERSION,
+                    buildVersion: document.documentElement.dataset.buildVersion || BUILD_VERSION,
                     source,
+                    sourceRaw: sourceInfo.raw,
+                    sourceCategory: sourceInfo.category,
+                    runSource: sourceInfo.category,
+                    startingSector: this.campaign.currentSector,
+                    fullRunStartedFromSectorOne: this.campaign.currentSector === 1 && sourceInfo.category === 'regular-play',
+                    difficultyMode: this.settings.difficultyMode,
+                    telemetrySchemaVersion: 8,
                     startedAt: new Date().toISOString(),
                     startPerformanceMs: Math.round(performance.now()),
                     pausedDurationMs: 0,
@@ -13192,9 +13335,9 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                     endReason: null,
                     finalScore: 0,
                     highestSectorReached: 1
-            };
+                };
                 this.telemetrySystem.currentTelemetrySector = null;
-                this.telemetrySystem.setTelemetryStatus('Telemetry recording.');
+                this.telemetrySystem.setTelemetryStatus(`Telemetry recording: ${sourceInfo.category}.`);
                 this.telemetrySystem.saveTelemetryData();
                         },
 
@@ -13209,11 +13352,24 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 if (!this.telemetrySystem.currentTelemetryRun) return;
                 if (this.telemetrySystem.currentTelemetrySector && !this.telemetrySystem.currentTelemetrySector.endedAt) return;
 
+                if (this.runtimeState.finalGridlockActive) {
+                    this.enemySpawnSystem.prepareTelemetryQueue(this.enemySpawnSystem.spawnQueue, {
+                        spawnCategory: 'final-gridlock',
+                        expectedSpawnIntervalMs: this.spawnDelay * 1000
+                    });
+                }
+                const difficultySnapshot = this.telemetrySystem.getTelemetryDifficultySnapshot();
+                const runSource = this.telemetrySystem.currentTelemetryRun.sourceCategory || this.telemetrySystem.normalizeTelemetryRunSource(this.telemetrySystem.currentTelemetryRun.source).category;
                 const sector = {
                     sector: this.campaign.currentSector,
                     sectorName: this.campaign.getSectorName(this.campaign.currentSector),
-
                     source,
+                    runSource,
+                    runSourceRaw: this.telemetrySystem.currentTelemetryRun.sourceRaw || this.telemetrySystem.currentTelemetryRun.source || null,
+                    buildVersion: document.documentElement.dataset.buildVersion || BUILD_VERSION,
+                    difficultyMode: this.settings.difficultyMode,
+                    telemetrySchemaVersion: 8,
+                    difficultySnapshot,
                     startedAt: new Date().toISOString(),
                     startPerformanceMs: performance.now(),
                     pausedDurationMs: 0,
@@ -13233,9 +13389,13 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                     remainingCrystals: null,
                     activeBlockAZoidsAtEnd: null,
                     maxActiveBlockAZoids: this.enemies.length,
+                    activeEnemyCountTimeline: [{ sectorTimeMs: 0, activeCount: this.enemies.length, reason: 'sector-start' }],
                     totalBlockAZoidsSpawned: 0,
                     spawnedBySize: { small: 0, medium: 0, large: 0 },
                     spawnedByIdentity: { drifter: 0, charger: 0, pulse: 0 },
+                    spawnedByBehaviorAndSize: {},
+                    spawnWarningEvents: [],
+                    enemyMaterializationEvents: [],
                     enemySpawnEvents: [],
                     cosmicZapsUsed: 0,
                     cosmicZapEvents: [],
@@ -13274,13 +13434,15 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                     timeWithOneCrystalMs: null,
                     timeAfterLastColorStartedBeforeSectorClearMs: null,
                     timeBetweenLastCrystalAvailableAndPickupMs: null,
-                    death: null
+                    death: null,
+                    outcomeSummary: null
                 };
 
+                this.enemySpawnSystem.telemetrySpawnSequence = 0;
+                this.enemySpawnSystem.lastMaterializationSectorTimeMs = null;
                 this.telemetrySystem.currentTelemetrySector = sector;
                 this.telemetrySystem.currentTelemetryRun.sectors.push(sector);
                 this.telemetrySystem.currentTelemetryRun.highestSectorReached = Math.max(this.telemetrySystem.currentTelemetryRun.highestSectorReached, this.campaign.currentSector);
-
                 this.telemetrySystem.saveTelemetryData();
                         },
 
@@ -13357,27 +13519,509 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 this.telemetrySystem.saveTelemetryData();
                         },
 
-            noteTelemetryEnemySpawn: function(type, enemy = null) {
-                if (!this.telemetrySystem.currentTelemetrySector || this.telemetrySystem.currentTelemetrySector.endedAt) return;
-                this.telemetrySystem.currentTelemetrySector.totalBlockAZoidsSpawned++;
-                if (this.telemetrySystem.currentTelemetrySector.spawnedBySize[type] !== undefined) this.telemetrySystem.currentTelemetrySector.spawnedBySize[type]++;
-                const behaviorType = enemy && enemy.behaviorType ? enemy.behaviorType : ENEMY_BEHAVIOR_TYPES.DRIFTER;
-                const identity = getEnemyIdentity(behaviorType);
-                if (!this.telemetrySystem.currentTelemetrySector.spawnedByIdentity) this.telemetrySystem.currentTelemetrySector.spawnedByIdentity = { drifter: 0, charger: 0, pulse: 0 };
-                if (this.telemetrySystem.currentTelemetrySector.spawnedByIdentity[behaviorType] !== undefined) this.telemetrySystem.currentTelemetrySector.spawnedByIdentity[behaviorType]++;
-                if (!Array.isArray(this.telemetrySystem.currentTelemetrySector.enemySpawnEvents)) this.telemetrySystem.currentTelemetrySector.enemySpawnEvents = [];
-                this.telemetrySystem.currentTelemetrySector.enemySpawnEvents.push({
-                    sectorTimeMs: this.telemetrySystem.telemetrySectorElapsedMs(),
-                    identityKey: identity.key,
-                    displayName: identity.displayName,
-                    className: identity.className,
-                    behaviorType,
-                    size: type,
-                    sector: this.campaign.currentSector,
+            normalizeTelemetryRunSource: function(source = 'unknown') {
+                const raw = String(source || 'unknown').trim().toLowerCase();
+                let category = 'other';
+                if (raw === 'regular-play' || raw === 'start-game' || raw === 'gameplay' || raw === 'sector-action-start') {
+                    category = 'regular-play';
+                } else if (raw.includes('sector-select')) {
+                    category = 'sector-select';
+                } else if (raw.includes('regression')) {
+                    category = 'regression-test';
+                } else if (raw.includes('behavior-test') || raw.includes('developer') || raw.includes('test')) {
+                    category = 'developer-test';
+                } else if (raw.includes('final-gridlock')) {
+                    category = 'final-gridlock';
+                }
+                return Object.freeze({ raw, category });
+                        },
 
-                    difficulty: this.settings.difficultyMode
+            getTelemetryDifficultySnapshot: function() {
+                const sectorNumber = this.campaign.currentSector;
+                const difficultyMode = this.settings.difficultyMode;
+                const difficultyProfile = GameRules.getDifficultyProfile(difficultyMode);
+                const finalSpeedMultiplier = this.telemetrySystem.getCurrentSpeedMultiplier();
+                const difficultySpeedMultiplier = Number(difficultyProfile.speedMultiplier) || 1;
+                const baseSectorSpeedMultiplier = difficultySpeedMultiplier !== 0
+                    ? finalSpeedMultiplier / difficultySpeedMultiplier
+                    : finalSpeedMultiplier;
+                const sizeSpeeds = {
+                    small: Number(this.getEnemySpeed('small').toFixed(4)),
+                    medium: Number(this.getEnemySpeed('medium').toFixed(4)),
+                    large: Number(this.getEnemySpeed('large').toFixed(4))
+                };
+                const mapSpeeds = (resolver) => Object.fromEntries(
+                    Object.entries(sizeSpeeds).map(([size, speed]) => [size, Number(resolver(speed).toFixed(4))])
+                );
+                const authoredBehaviorSequence = this.campaign.getEnemyBehaviorPlan(sectorNumber, this.gridlockEnemyThreshold).slice();
+                const finalQueue = (Array.isArray(this.enemySpawnSystem.spawnQueue) ? this.enemySpawnSystem.spawnQueue : []).map((request, index) => {
+                    const normalized = this.enemySpawnSystem.normalizeRequest(request);
+                    const identity = getEnemyIdentity(normalized.behaviorType);
+                    return {
+                        queuePosition: Number.isFinite(normalized.queuePosition) ? normalized.queuePosition : index + 1,
+                        size: normalized.type,
+                        behaviorType: normalized.behaviorType,
+                        identityKey: identity.key,
+                        identity: identity.displayName,
+                        spawnCategory: normalized.spawnCategory || 'normal',
+                        expectedSpawnIntervalMs: Number.isFinite(normalized.expectedSpawnIntervalMs)
+                            ? normalized.expectedSpawnIntervalMs
+                            : Math.round(this.spawnDelay * 1000)
+                    };
                 });
-                this.telemetrySystem.currentTelemetrySector.maxActiveBlockAZoids = Math.max(this.telemetrySystem.currentTelemetrySector.maxActiveBlockAZoids, this.enemies.length);
+                const plannedSizeCounts = finalQueue.reduce((counts, item) => {
+                    if (Object.prototype.hasOwnProperty.call(counts, item.size)) counts[item.size] += 1;
+                    return counts;
+                }, { small: 0, medium: 0, large: 0 });
+                const pulse = GAME_CONFIG.enemyBehaviors.pulse;
+                const charger = GAME_CONFIG.enemyBehaviors.charger;
+                const effectiveEchoDormantWindowMs = pulse.positionFlashIntervalMs * 3;
+                return {
+                    buildVersion: document.documentElement.dataset.buildVersion || BUILD_VERSION,
+                    buildLabel: BUILD_VERSION,
+                    runSource: this.telemetrySystem.currentTelemetryRun ? this.telemetrySystem.currentTelemetryRun.source : null,
+                    runSourceCategory: this.telemetrySystem.currentTelemetryRun ? this.telemetrySystem.currentTelemetryRun.sourceCategory : null,
+                    difficultyMode,
+                    sectorNumber,
+                    sectorName: this.campaign.getSectorName(sectorNumber),
+                    authoredBehaviorSequence,
+                    authoredIdentitySequence: authoredBehaviorSequence.map((behaviorType) => getEnemyIdentity(behaviorType).displayName),
+                    plannedSizeCounts,
+                    plannedSmallCount: plannedSizeCounts.small,
+                    plannedMediumCount: plannedSizeCounts.medium,
+                    plannedLargeCount: plannedSizeCounts.large,
+                    finalShuffledSpawnQueue: finalQueue,
+                    behaviorSizePairings: finalQueue.map((item) => ({
+                        queuePosition: item.queuePosition,
+                        behaviorType: item.behaviorType,
+                        identity: item.identity,
+                        size: item.size
+                    })),
+                    normalSwarmBlockAZoidCount: finalQueue.length,
+                    gridlockEnemyThreshold: this.gridlockEnemyThreshold,
+                    spawnTiming: {
+                        configuredBaseSpawnDelayMs: Math.round(GAME_CONFIG.enemySpawning.baseDelaySeconds * 1000),
+                        configuredSectorReductionMs: Math.round((sectorNumber - 1) * GAME_CONFIG.enemySpawning.sectorDelayReductionSeconds * 1000),
+                        difficultySpawnDelayAdjustmentMs: Math.round((Number(difficultyProfile.spawnDelayAdjustmentSeconds) || 0) * 1000),
+                        finalEffectiveSpawnDelayMs: Math.round(this.spawnDelay * 1000),
+                        spawnWarningDurationMs: this.enemySpawnSystem.spawnWarningDurationMs
+                    },
+                    speedMultipliers: {
+                        baseSectorSpeedMultiplier: Number(baseSectorSpeedMultiplier.toFixed(4)),
+                        difficultySpeedMultiplier: Number(difficultySpeedMultiplier.toFixed(4)),
+                        finalEffectiveSpeedMultiplier: Number(finalSpeedMultiplier.toFixed(4))
+                    },
+                    effectiveMovementSpeeds: {
+                        sizeBase: sizeSpeeds,
+                        zig: {
+                            perAxis: { ...sizeSpeeds },
+                            resultantMagnitude: mapSpeeds((speed) => speed * Math.SQRT2)
+                        },
+                        dash: {
+                            cruise: mapSpeeds((speed) => speed * charger.cruiseSpeedMultiplier),
+                            charge: mapSpeeds((speed) => speed * charger.chargeSpeedMultiplier),
+                            recovery: mapSpeeds((speed) => speed * charger.recoverySpeedMultiplier),
+                            cruiseMinMs: charger.cruiseMinMs,
+                            cruiseMaxMs: charger.cruiseMaxMs,
+                            telegraphMs: charger.warningMs,
+                            chargeMaxMs: charger.chargeMaxMs,
+                            recoveryMs: charger.recoveryMs
+                        },
+                        echo: {
+                            movement: mapSpeeds((speed) => speed * pulse.speedMultiplier),
+                            activeMs: pulse.activeMs,
+                            deactivationWarningMs: pulse.deactivationWarningMs,
+                            positionFlashIntervalMs: pulse.positionFlashIntervalMs,
+                            dormantPositionPings: 3,
+                            effectiveDormantWindowMs: effectiveEchoDormantWindowMs,
+                            configuredDormantMs: pulse.dormantMs,
+                            reactivationWarningMs: pulse.reactivationWarningMs,
+                            overlapRecheckMs: pulse.overlapRecheckMs
+                        }
+                    },
+                    minimumSpawnDistancePx: this.MIN_SPAWN_DISTANCE
+                };
+                        },
+
+            noteTelemetrySpawnWarningStarted: function(request, location, context = {}) {
+                const sector = this.telemetrySystem.currentTelemetrySector;
+                if (!sector || sector.endedAt) return null;
+                if (!Array.isArray(sector.spawnWarningEvents)) sector.spawnWarningEvents = [];
+                const identity = getEnemyIdentity(request && request.behaviorType);
+                const record = {
+                    enemyTelemetryId: request && request.telemetryId ? request.telemetryId : null,
+                    queuePosition: Number.isFinite(request && request.queuePosition) ? request.queuePosition : null,
+                    behaviorType: request && request.behaviorType ? request.behaviorType : ENEMY_BEHAVIOR_TYPES.DRIFTER,
+                    identityKey: identity.key,
+                    identity: identity.displayName,
+                    size: request && request.type ? request.type : 'medium',
+                    warningStartTimeMs: Number.isFinite(context.warningStartSectorTimeMs) ? context.warningStartSectorTimeMs : this.telemetrySystem.telemetrySectorElapsedMs(),
+                    configuredWarningDurationMs: Number.isFinite(context.configuredWarningDurationMs) ? context.configuredWarningDurationMs : this.enemySpawnSystem.spawnWarningDurationMs,
+                    configuredExpectedSpawnIntervalMs: Number.isFinite(context.expectedSpawnIntervalMs) ? context.expectedSpawnIntervalMs : null,
+                    spawnLocation: location ? {
+                        x: Number(location.x.toFixed ? location.x.toFixed(2) : location.x),
+                        y: Number(location.y.toFixed ? location.y.toFixed(2) : location.y),
+                        centerX: Number(location.centerX && location.centerX.toFixed ? location.centerX.toFixed(2) : location.centerX),
+                        centerY: Number(location.centerY && location.centerY.toFixed ? location.centerY.toFixed(2) : location.centerY),
+                        gridCol: Number.isFinite(location.gridCol) ? location.gridCol : null,
+                        gridRow: Number.isFinite(location.gridRow) ? location.gridRow : null
+                    } : null,
+                    activeBlockAZoidCountAtWarning: this.enemies.length,
+                    pendingWarningCountAtStart: Number.isFinite(context.pendingWarningCountAtStart) ? context.pendingWarningCountAtStart + 1 : this.enemySpawnSystem.pendingSpawnWarnings.length + 1,
+                    remainingSpawnQueueCount: Number.isFinite(context.remainingQueueCount) ? context.remainingQueueCount : this.enemySpawnSystem.spawnQueue.length,
+                    gridlockActive: !!this.gridlockSystem.gridlockActive,
+                    spawnCategory: request && request.spawnCategory ? request.spawnCategory : (context.spawnCategory || 'normal'),
+                    status: 'warning'
+                };
+                sector.spawnWarningEvents.push(record);
+                return record;
+                        },
+
+            noteTelemetrySpawnWarningCanceled: function(request, pending = null, reason = 'canceled') {
+                const sector = this.telemetrySystem.currentTelemetrySector;
+                if (!sector || sector.endedAt || !Array.isArray(sector.spawnWarningEvents)) return null;
+                const telemetryId = request && request.telemetryId ? request.telemetryId : (pending && pending.spawnRequest ? pending.spawnRequest.telemetryId : null);
+                const record = [...sector.spawnWarningEvents].reverse().find((event) => event.enemyTelemetryId === telemetryId && event.status === 'warning');
+                if (!record) return null;
+                record.status = 'canceled';
+                record.canceledAtTimeMs = this.telemetrySystem.telemetrySectorElapsedMs();
+                record.cancelReason = reason;
+                return record;
+                        },
+
+            noteTelemetryEnemyMaterialized: function(request, enemy, location, warningContext = null, runtimeContext = {}) {
+                const sector = this.telemetrySystem.currentTelemetrySector;
+                if (!sector || sector.endedAt) return null;
+                const materializationTimeMs = this.telemetrySystem.telemetrySectorElapsedMs();
+                const warningStartTimeMs = warningContext && Number.isFinite(warningContext.warningStartSectorTimeMs)
+                    ? warningContext.warningStartSectorTimeMs
+                    : materializationTimeMs;
+                const previousMaterializationTimeMs = Number.isFinite(runtimeContext.previousMaterializationSectorTimeMs)
+                    ? runtimeContext.previousMaterializationSectorTimeMs
+                    : null;
+                const actualIntervalMs = previousMaterializationTimeMs === null ? null : Math.max(0, materializationTimeMs - previousMaterializationTimeMs);
+                const expectedIntervalMs = Number.isFinite(request && request.expectedSpawnIntervalMs)
+                    ? request.expectedSpawnIntervalMs
+                    : (warningContext && Number.isFinite(warningContext.expectedSpawnIntervalMs) ? warningContext.expectedSpawnIntervalMs : null);
+                const identity = getEnemyIdentity(enemy && enemy.behaviorType ? enemy.behaviorType : request && request.behaviorType);
+                const record = {
+                    enemyTelemetryId: enemy && enemy.telemetryId ? enemy.telemetryId : (request && request.telemetryId ? request.telemetryId : null),
+                    queuePosition: Number.isFinite(request && request.queuePosition) ? request.queuePosition : null,
+                    behaviorType: enemy && enemy.behaviorType ? enemy.behaviorType : (request && request.behaviorType ? request.behaviorType : ENEMY_BEHAVIOR_TYPES.DRIFTER),
+                    identityKey: identity.key,
+                    identity: identity.displayName,
+                    size: enemy && enemy.type ? enemy.type : (request && request.type ? request.type : 'medium'),
+                    warningStartTimeMs,
+                    materializationTimeMs,
+                    actualWarningDurationMs: Math.max(0, materializationTimeMs - warningStartTimeMs),
+                    timeSincePreviousMaterializationMs: actualIntervalMs,
+                    configuredExpectedSpawnIntervalMs: expectedIntervalMs,
+                    spawnIntervalDifferenceMs: actualIntervalMs === null || expectedIntervalMs === null ? null : actualIntervalMs - expectedIntervalMs,
+                    spawnLocation: location ? {
+                        x: Number(location.x.toFixed ? location.x.toFixed(2) : location.x),
+                        y: Number(location.y.toFixed ? location.y.toFixed(2) : location.y),
+                        centerX: Number((location.centerX !== undefined ? location.centerX : location.x + (enemy ? enemy.size / 2 : 0)).toFixed(2)),
+                        centerY: Number((location.centerY !== undefined ? location.centerY : location.y + (enemy ? enemy.size / 2 : 0)).toFixed(2)),
+                        gridCol: Number.isFinite(location.gridCol) ? location.gridCol : null,
+                        gridRow: Number.isFinite(location.gridRow) ? location.gridRow : null
+                    } : null,
+                    activeBlockAZoidCountAtMaterialization: this.enemies.length,
+                    pendingWarningCount: Number.isFinite(runtimeContext.pendingWarningCount) ? runtimeContext.pendingWarningCount : this.enemySpawnSystem.pendingSpawnWarnings.length,
+                    remainingSpawnQueueCount: Number.isFinite(runtimeContext.remainingQueueCount) ? runtimeContext.remainingQueueCount : this.enemySpawnSystem.spawnQueue.length,
+                    gridlockActive: !!this.gridlockSystem.gridlockActive,
+                    spawnCategory: request && request.spawnCategory ? request.spawnCategory : 'normal'
+                };
+                if (!Array.isArray(sector.enemyMaterializationEvents)) sector.enemyMaterializationEvents = [];
+                sector.enemyMaterializationEvents.push(record);
+                if (!Array.isArray(sector.enemySpawnEvents)) sector.enemySpawnEvents = [];
+                sector.enemySpawnEvents.push({
+                    sectorTimeMs: materializationTimeMs,
+                    enemyTelemetryId: record.enemyTelemetryId,
+                    queuePosition: record.queuePosition,
+                    identityKey: record.identityKey,
+                    displayName: record.identity,
+                    className: identity.className,
+                    behaviorType: record.behaviorType,
+                    size: record.size,
+                    sector: this.campaign.currentSector,
+                    difficulty: this.settings.difficultyMode,
+                    spawnCategory: record.spawnCategory
+                });
+                if (Array.isArray(sector.spawnWarningEvents)) {
+                    const warningRecord = [...sector.spawnWarningEvents].reverse().find((event) => event.enemyTelemetryId === record.enemyTelemetryId && event.status === 'warning');
+                    if (warningRecord) {
+                        warningRecord.status = 'materialized';
+                        warningRecord.materializationTimeMs = materializationTimeMs;
+                        warningRecord.actualWarningDurationMs = record.actualWarningDurationMs;
+                    }
+                }
+                sector.totalBlockAZoidsSpawned = (sector.totalBlockAZoidsSpawned || 0) + 1;
+                if (!sector.spawnedBySize) sector.spawnedBySize = { small: 0, medium: 0, large: 0 };
+                if (sector.spawnedBySize[record.size] !== undefined) sector.spawnedBySize[record.size] += 1;
+                if (!sector.spawnedByIdentity) sector.spawnedByIdentity = { drifter: 0, charger: 0, pulse: 0 };
+                if (sector.spawnedByIdentity[record.behaviorType] !== undefined) sector.spawnedByIdentity[record.behaviorType] += 1;
+                const pairingKey = `${record.behaviorType}:${record.size}`;
+                if (!sector.spawnedByBehaviorAndSize) sector.spawnedByBehaviorAndSize = {};
+                sector.spawnedByBehaviorAndSize[pairingKey] = (sector.spawnedByBehaviorAndSize[pairingKey] || 0) + 1;
+                sector.maxActiveBlockAZoids = Math.max(sector.maxActiveBlockAZoids || 0, this.enemies.length);
+                if (!Array.isArray(sector.activeEnemyCountTimeline)) sector.activeEnemyCountTimeline = [{ sectorTimeMs: 0, activeCount: 0, reason: 'sector-start' }];
+                sector.activeEnemyCountTimeline.push({
+                    sectorTimeMs: materializationTimeMs,
+                    activeCount: this.enemies.length,
+                    reason: 'materialization',
+                    enemyTelemetryId: record.enemyTelemetryId
+                });
+                if (enemy) enemy.materializedAtSectorMs = materializationTimeMs;
+                return record;
+                        },
+
+            buildTelemetrySectorOutcomeSummary: function(sector, result = null) {
+                if (!sector) return null;
+                const average = (values) => {
+                    const numeric = values.filter(Number.isFinite);
+                    return numeric.length ? Number((numeric.reduce((sum, value) => sum + value, 0) / numeric.length).toFixed(2)) : null;
+                };
+                const materializations = Array.isArray(sector.enemyMaterializationEvents) ? sector.enemyMaterializationEvents : [];
+                const normalMaterializations = materializations.filter((event) => event.spawnCategory === 'normal');
+                const intervals = materializations.map((event) => event.timeSincePreviousMaterializationMs).filter(Number.isFinite);
+                const normalIntervals = normalMaterializations.map((event) => event.timeSincePreviousMaterializationMs).filter(Number.isFinite);
+                const countsByBehavior = { drifter: 0, charger: 0, pulse: 0 };
+                const countsByIdentity = { ZIG: 0, DASH: 0, ECHO: 0 };
+                const countsBySize = { small: 0, medium: 0, large: 0 };
+                const pairingCounts = {};
+                materializations.forEach((event) => {
+                    if (countsByBehavior[event.behaviorType] !== undefined) countsByBehavior[event.behaviorType] += 1;
+                    if (countsByIdentity[event.identity] !== undefined) countsByIdentity[event.identity] += 1;
+                    if (countsBySize[event.size] !== undefined) countsBySize[event.size] += 1;
+                    const key = `${event.behaviorType}:${event.size}`;
+                    pairingCounts[key] = (pairingCounts[key] || 0) + 1;
+                });
+                const crystalPointCounts = { 10: 0, 15: 0, 20: 0 };
+                (Array.isArray(sector.crystalPickups) ? sector.crystalPickups : []).forEach((pickup) => {
+                    const key = String(Number(pickup.pointValue));
+                    if (Object.prototype.hasOwnProperty.call(crystalPointCounts, key)) crystalPointCounts[key] += 1;
+                });
+                const timeline = (Array.isArray(sector.activeEnemyCountTimeline) ? sector.activeEnemyCountTimeline : [])
+                    .filter((event) => Number.isFinite(event.sectorTimeMs) && Number.isFinite(event.activeCount))
+                    .slice()
+                    .sort((a, b) => a.sectorTimeMs - b.sectorTimeMs);
+                let weightedEnemyMs = 0;
+                let previousTime = 0;
+                let previousCount = 0;
+                timeline.forEach((event) => {
+                    weightedEnemyMs += previousCount * Math.max(0, event.sectorTimeMs - previousTime);
+                    previousTime = event.sectorTimeMs;
+                    previousCount = event.activeCount;
+                });
+                weightedEnemyMs += previousCount * Math.max(0, (sector.durationMs || 0) - previousTime);
+                const averageSimultaneous = sector.durationMs > 0 ? Number((weightedEnemyMs / sector.durationMs).toFixed(2)) : 0;
+                const plannedQueue = sector.difficultySnapshot && Array.isArray(sector.difficultySnapshot.finalShuffledSpawnQueue)
+                    ? sector.difficultySnapshot.finalShuffledSpawnQueue
+                    : [];
+                const killer = sector.death && sector.death.enemyIdentityKey ? {
+                    enemyTelemetryId: sector.death.enemyTelemetryId || null,
+                    behaviorType: sector.death.enemyBehaviorType || null,
+                    identityKey: sector.death.enemyIdentityKey || null,
+                    identity: sector.death.enemyDisplayName || null,
+                    size: sector.death.enemySize || null,
+                    state: sector.death.enemyBehaviorState || null,
+                    effectiveSpeed: Number.isFinite(sector.death.effectiveSpeedAtCollision) ? sector.death.effectiveSpeedAtCollision : null
+                } : null;
+                return {
+                    result: result || sector.result,
+                    completed: (result || sector.result) === 'completed',
+                    failed: (result || sector.result) === 'death',
+                    sectorDurationMs: sector.durationMs,
+                    sectorScoreContribution: Number.isFinite(sector.exitScore) && Number.isFinite(sector.entryScore) ? sector.exitScore - sector.entryScore : null,
+                    crystalPickupCountsByPointValue: crystalPointCounts,
+                    cosmicZapsUsed: sector.cosmicZapsUsed || 0,
+                    maximumSimultaneousBlockAZoids: sector.maxActiveBlockAZoids || 0,
+                    averageSimultaneousBlockAZoids: averageSimultaneous,
+                    gridlockEntryTimeMs: sector.gridlockTimeMs,
+                    gridlockDurationMs: sector.gridlockDurationMs || 0,
+                    gridlockReached: !!sector.gridlockReached,
+                    plannedSpawnCount: plannedQueue.length,
+                    actualSpawnCount: materializations.length,
+                    actualNormalSpawnCount: normalMaterializations.length,
+                    plannedAverageSpawnIntervalMs: sector.difficultySnapshot && sector.difficultySnapshot.spawnTiming
+                        ? sector.difficultySnapshot.spawnTiming.finalEffectiveSpawnDelayMs
+                        : null,
+                    actualAverageSpawnIntervalMs: average(intervals),
+                    actualAverageNormalSpawnIntervalMs: average(normalIntervals),
+                    behaviorCounts: countsByBehavior,
+                    identityCounts: countsByIdentity,
+                    sizeCounts: countsBySize,
+                    behaviorAndSizePairingCounts: pairingCounts,
+                    killer
+                };
+                        },
+
+            buildSectorPressureReport: function(options = {}) {
+                const requestedSourceCategory = options.sourceCategory === undefined ? 'regular-play' : options.sourceCategory;
+                const fullRunsOnly = options.fullRunsOnly === undefined ? true : !!options.fullRunsOnly;
+                const runs = this.telemetrySystem.telemetry && Array.isArray(this.telemetrySystem.telemetry.runs)
+                    ? this.telemetrySystem.telemetry.runs
+                    : [];
+                const median = (values) => {
+                    const numeric = values.filter(Number.isFinite).slice().sort((a, b) => a - b);
+                    if (!numeric.length) return null;
+                    const middle = Math.floor(numeric.length / 2);
+                    return numeric.length % 2 ? numeric[middle] : Number(((numeric[middle - 1] + numeric[middle]) / 2).toFixed(2));
+                };
+                const average = (values) => {
+                    const numeric = values.filter(Number.isFinite);
+                    return numeric.length ? Number((numeric.reduce((sum, value) => sum + value, 0) / numeric.length).toFixed(2)) : null;
+                };
+                const pct = (part, total) => total > 0 ? Number((part / total * 100).toFixed(2)) : 0;
+                const groups = new Map();
+                runs.forEach((run) => {
+                    if (!run || !Array.isArray(run.sectors)) return;
+                    const normalizedSource = this.telemetrySystem.normalizeTelemetryRunSource(run.sourceCategory || run.source || 'unknown');
+                    const sourceCategory = run.sourceCategory || normalizedSource.category;
+                    if (requestedSourceCategory && sourceCategory !== requestedSourceCategory) return;
+                    const startingSector = Number.isFinite(run.startingSector)
+                        ? run.startingSector
+                        : (run.sectors.length && Number.isFinite(run.sectors[0].sector) ? run.sectors[0].sector : null);
+                    if (fullRunsOnly && startingSector !== 1) return;
+                    run.sectors.forEach((sector) => {
+                        if (!sector || !sector.result) return;
+                        const snapshot = sector.difficultySnapshot || sector.startParameters || sector.parameters || {};
+                        const build = snapshot.buildVersion || snapshot.build || run.build || 'unknown';
+                        const difficulty = snapshot.difficultyMode || snapshot.difficulty || run.difficultyMode || 'unknown';
+                        const sectorNumber = sector.sector;
+                        const key = `${build}|${difficulty}|${sectorNumber}|${sourceCategory}`;
+                        if (!groups.has(key)) groups.set(key, { build, difficulty, sector: sectorNumber, sourceCategory, attempts: [] });
+                        groups.get(key).attempts.push({ run, sector });
+                    });
+                });
+
+                const behaviorTypes = [ENEMY_BEHAVIOR_TYPES.DRIFTER, ENEMY_BEHAVIOR_TYPES.CHARGER, ENEMY_BEHAVIOR_TYPES.PULSE];
+                const sizes = ['small', 'medium', 'large'];
+                return Array.from(groups.values()).map((group) => {
+                    const attempts = group.attempts;
+                    const sectors = attempts.map((item) => item.sector);
+                    const completions = sectors.filter((sector) => sector.result === 'completed').length;
+                    const deaths = sectors.filter((sector) => sector.result === 'death').length;
+                    const gridlocks = sectors.filter((sector) => sector.gridlockReached).length;
+                    const materializations = sectors.flatMap((sector) => {
+                        if (Array.isArray(sector.enemyMaterializationEvents) && sector.enemyMaterializationEvents.length) return sector.enemyMaterializationEvents;
+                        if (!Array.isArray(sector.enemySpawnEvents)) return [];
+                        return sector.enemySpawnEvents.map((event) => ({
+                            behaviorType: event.behaviorType,
+                            identity: event.displayName || getEnemyIdentity(event.behaviorType).displayName,
+                            size: event.size,
+                            materializationTimeMs: event.sectorTimeMs,
+                            timeSincePreviousMaterializationMs: null,
+                            configuredExpectedSpawnIntervalMs: null,
+                            legacyEvent: true
+                        }));
+                    });
+                    const deathByIdentity = { ZIG: 0, DASH: 0, ECHO: 0, unattributed: 0 };
+                    const deathBySize = { small: 0, medium: 0, large: 0, unattributed: 0 };
+                    const killerStates = {};
+                    const matrix = {};
+                    behaviorTypes.forEach((behavior) => sizes.forEach((size) => {
+                        matrix[`${behavior}:${size}`] = { behaviorType: behavior, identity: getEnemyIdentity(behavior).displayName, size, spawned: 0, deaths: 0 };
+                    }));
+                    materializations.forEach((event) => {
+                        const cell = matrix[`${event.behaviorType}:${event.size}`];
+                        if (cell) cell.spawned += 1;
+                    });
+                    sectors.forEach((sector) => {
+                        const death = sector.death;
+                        if (!death || !death.enemyIdentityKey) {
+                            if (sector.result === 'death') {
+                                deathByIdentity.unattributed += 1;
+                                deathBySize.unattributed += 1;
+                            }
+                            return;
+                        }
+                        const identity = getEnemyIdentity(death.enemyBehaviorType || death.enemyIdentityKey).displayName;
+                        if (deathByIdentity[identity] !== undefined) deathByIdentity[identity] += 1;
+                        const size = death.enemySize;
+                        if (deathBySize[size] !== undefined) deathBySize[size] += 1;
+                        const state = death.enemyBehaviorState || 'unknown';
+                        killerStates[state] = (killerStates[state] || 0) + 1;
+                        const cell = matrix[`${death.enemyBehaviorType}:${size}`];
+                        if (cell) cell.deaths += 1;
+                    });
+                    const totalSpawns = Object.values(matrix).reduce((sum, cell) => sum + cell.spawned, 0);
+                    const attributedDeaths = Object.values(matrix).reduce((sum, cell) => sum + cell.deaths, 0);
+                    const baselineDeathsPerSpawn = totalSpawns > 0 ? attributedDeaths / totalSpawns : 0;
+                    const matrixRows = Object.values(matrix).map((cell) => {
+                        const deathsPer100Spawns = cell.spawned > 0 ? Number((cell.deaths / cell.spawned * 100).toFixed(2)) : 0;
+                        const deathSharePct = attributedDeaths > 0 ? Number((cell.deaths / attributedDeaths * 100).toFixed(2)) : 0;
+                        const sufficientSample = cell.spawned >= 5 && cell.deaths >= 2;
+                        const relativeRisk = baselineDeathsPerSpawn > 0 && cell.spawned > 0
+                            ? Number(((cell.deaths / cell.spawned) / baselineDeathsPerSpawn).toFixed(2))
+                            : null;
+                        return {
+                            ...cell,
+                            deathsPer100Spawns,
+                            deathSharePct,
+                            sufficientSample,
+                            relativeRisk,
+                            pressureSignal: sufficientSample && relativeRisk !== null && relativeRisk >= 1.5
+                                ? 'disproportionate-death-association'
+                                : (sufficientSample ? 'no-disproportionate-signal' : 'insufficient-sample')
+                        };
+                    });
+                    const commonKillerState = Object.entries(killerStates).sort((a, b) => b[1] - a[1])[0] || null;
+                    const actualIntervals = materializations.map((event) => event.timeSincePreviousMaterializationMs).filter(Number.isFinite);
+                    const configuredIntervals = materializations.map((event) => event.configuredExpectedSpawnIntervalMs).filter(Number.isFinite);
+                    const snapshot = sectors.map((sector) => sector.difficultySnapshot).find(Boolean) || null;
+                    return {
+                        buildVersion: group.build,
+                        difficulty: group.difficulty,
+                        sector: group.sector,
+                        runSource: group.sourceCategory,
+                        sampleSize: attempts.length,
+                        rawCounts: { attempts: attempts.length, completions, deaths, gridlocks, totalSpawns, attributedDeaths },
+                        completionRatePct: pct(completions, attempts.length),
+                        deathRatePct: pct(deaths, attempts.length),
+                        averageSectorDurationMs: average(sectors.map((sector) => sector.durationMs)),
+                        medianSectorDurationMs: median(sectors.map((sector) => sector.durationMs)),
+                        averageTimeToGridlockMs: average(sectors.map((sector) => sector.gridlockTimeMs)),
+                        gridlockFrequencyPct: pct(gridlocks, attempts.length),
+                        averageSimultaneousBlockAZoids: average(sectors.map((sector) => sector.outcomeSummary && sector.outcomeSummary.averageSimultaneousBlockAZoids)),
+                        averageMaximumSimultaneousBlockAZoids: average(sectors.map((sector) => sector.maxActiveBlockAZoids)),
+                        maximumSimultaneousBlockAZoids: Math.max(0, ...sectors.map((sector) => Number(sector.maxActiveBlockAZoids) || 0)),
+                        configuredAverageSpawnIntervalMs: average(configuredIntervals),
+                        actualAverageSpawnIntervalMs: average(actualIntervals),
+                        effectiveSpeedValues: snapshot ? snapshot.effectiveMovementSpeeds || snapshot.effectiveSpeeds || null : null,
+                        deathsByIdentity: deathByIdentity,
+                        deathsBySize: deathBySize,
+                        behaviorAndSizeMatrix: matrixRows,
+                        mostCommonKillerBehaviorState: commonKillerState ? { state: commonKillerState[0], count: commonKillerState[1], percentageOfAttributedDeaths: pct(commonKillerState[1], attributedDeaths) } : null,
+                        disproportionateAssociations: matrixRows.filter((row) => row.pressureSignal === 'disproportionate-death-association'),
+                        interpretationPolicy: 'Raw counts and percentages are reported. A pairing requires at least 5 spawns and 2 deaths before a disproportionate association signal is shown.'
+                    };
+                }).sort((a, b) => String(a.buildVersion).localeCompare(String(b.buildVersion)) || String(a.difficulty).localeCompare(String(b.difficulty)) || a.sector - b.sector);
+                        },
+
+            noteTelemetryEnemySpawn: function(type, enemy = null) {
+                // Compatibility entry for older call sites. The spawn system now records warning
+                // and materialization as separate event-based records with one stable telemetry ID.
+                const sector = this.telemetrySystem.currentTelemetrySector;
+                if (!sector || sector.endedAt || !enemy) return null;
+                if (Array.isArray(sector.enemyMaterializationEvents) && sector.enemyMaterializationEvents.some((event) => event.enemyTelemetryId && event.enemyTelemetryId === enemy.telemetryId)) {
+                    return null;
+                }
+                const request = {
+                    type: type || enemy.type,
+                    behaviorType: enemy.behaviorType,
+                    telemetryId: enemy.telemetryId || null,
+                    queuePosition: Number.isFinite(enemy.telemetryQueuePosition) ? enemy.telemetryQueuePosition : null,
+                    spawnCategory: enemy.telemetrySpawnCategory || 'normal',
+                    expectedSpawnIntervalMs: Number.isFinite(enemy.telemetryExpectedSpawnIntervalMs) ? enemy.telemetryExpectedSpawnIntervalMs : Math.round(this.spawnDelay * 1000)
+                };
+                return this.telemetrySystem.noteTelemetryEnemyMaterialized(
+                    request,
+                    enemy,
+                    { x: enemy.x, y: enemy.y, centerX: enemy.x + enemy.size / 2, centerY: enemy.y + enemy.size / 2 },
+                    { warningStartSectorTimeMs: this.telemetrySystem.telemetrySectorElapsedMs(), expectedSpawnIntervalMs: request.expectedSpawnIntervalMs },
+                    { previousMaterializationSectorTimeMs: this.enemySpawnSystem.lastMaterializationSectorTimeMs, pendingWarningCount: this.enemySpawnSystem.pendingSpawnWarnings.length, remainingQueueCount: this.enemySpawnSystem.spawnQueue.length }
+                );
                         },
 
             noteTelemetryGridlock: function() {
@@ -13549,6 +14193,14 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                     firstZapThisSector,
                     perfectNoZapLostByThisZap: firstZapThisSector,
                     cosmicZapsLeftBeforeUse: this.cosmicZapSystem.remaining
+                });
+                if (!Array.isArray(this.telemetrySystem.currentTelemetrySector.activeEnemyCountTimeline)) {
+                    this.telemetrySystem.currentTelemetrySector.activeEnemyCountTimeline = [{ sectorTimeMs: 0, activeCount: 0, reason: 'sector-start' }];
+                }
+                this.telemetrySystem.currentTelemetrySector.activeEnemyCountTimeline.push({
+                    sectorTimeMs: elapsed,
+                    activeCount: 0,
+                    reason: 'cosmic-zap'
                 });
                         },
 
@@ -13726,6 +14378,12 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 sector.remainingCrystalsByColor = this.telemetrySystem.getRemainingCrystalsByColor();
                 sector.activeBlockAZoidsAtEnd = this.enemies.length;
                 sector.maxActiveBlockAZoids = Math.max(sector.maxActiveBlockAZoids, this.enemies.length);
+                if (!Array.isArray(sector.activeEnemyCountTimeline)) sector.activeEnemyCountTimeline = [];
+                sector.activeEnemyCountTimeline.push({
+                    sectorTimeMs: sector.durationMs,
+                    activeCount: this.enemies.length,
+                    reason: result === 'completed' ? 'sector-complete' : (result === 'death' ? 'death' : 'sector-end')
+                });
                 if (sector.gridlockReached && sector.gridlockTimeMs !== null) {
                     sector.gridlockDurationMs = Math.max(0, sector.durationMs - sector.gridlockTimeMs);
                     sector.timeInGridlockMs = sector.gridlockDurationMs;
@@ -13761,6 +14419,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 sector.finalParameters = endParameters;
                 sector.endParameters = endParameters;
                 Object.assign(sector, extra);
+                sector.outcomeSummary = this.telemetrySystem.buildTelemetrySectorOutcomeSummary(sector, result);
                 this.telemetrySystem.currentTelemetrySector = null;
                 this.telemetrySystem.saveTelemetryData();
                         },
@@ -13794,44 +14453,68 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 if (!this.telemetryButton && !this.telemetrySummary) return;
                 if (this.telemetryButton) this.telemetryButton.style.display = 'none';
                 if (!this.telemetrySummary) return;
+                if (!this.developerTools.developerModeEnabled) {
+                    this.telemetrySummary.textContent = 'Developer Mode required. Tap SETTINGS ten times to unlock.';
+                    return;
+                }
+
                 const runs = this.telemetrySystem.telemetry && Array.isArray(this.telemetrySystem.telemetry.runs) ? this.telemetrySystem.telemetry.runs : [];
-                const sectors = runs.flatMap(run => Array.isArray(run.sectors) ? run.sectors : []);
-                const completed = sectors.filter(sector => sector.result === 'completed').length;
-                const deaths = sectors.filter(sector => sector.result === 'death').length;
-                const gridlocks = sectors.filter(sector => sector.gridlockReached).length;
+                const sourceCounts = { 'regular-play': 0, 'sector-select': 0, 'developer-test': 0, 'regression-test': 0, 'final-gridlock': 0, other: 0 };
+                runs.forEach((run) => {
+                    const category = run && run.sourceCategory
+                        ? run.sourceCategory
+                        : this.telemetrySystem.normalizeTelemetryRunSource(run && run.source).category;
+                    sourceCounts[category] = (sourceCounts[category] || 0) + 1;
+                });
+                const sectors = runs.flatMap((run) => Array.isArray(run.sectors) ? run.sectors : []);
+                const completed = sectors.filter((sector) => sector.result === 'completed').length;
+                const deaths = sectors.filter((sector) => sector.result === 'death').length;
+                const gridlocks = sectors.filter((sector) => sector.gridlockReached).length;
                 const zaps = sectors.reduce((sum, sector) => sum + (sector.cosmicZapsUsed || 0), 0);
-                const relics = sectors.filter(sector => sector.prismRelicCollected || sector.gridlockBonusCollected).length;
+                const relics = sectors.filter((sector) => sector.prismRelicCollected || sector.gridlockBonusCollected).length;
                 const bestSector = runs.reduce((max, run) => Math.max(max, run.highestSectorReached || 0), 0);
                 const bestScore = runs.reduce((max, run) => Math.max(max, run.finalScore || 0), 0);
-                const deathCategories = { drifter: 0, 'charger-cruise': 0, 'charger-charge': 0, 'pulse-active': 0, 'pulse-reactivation-overlap': 0, 'spawn-materialization': 0 };
-                const deathIdentities = { drifter: 0, charger: 0, pulse: 0 };
                 const spawnedIdentities = { drifter: 0, charger: 0, pulse: 0 };
-                sectors.forEach(sector => {
-                    if (sector && sector.death && sector.death.deathCategory && deathCategories[sector.death.deathCategory] !== undefined) deathCategories[sector.death.deathCategory]++;
-                    const deathIdentityKey = sector && sector.death ? sector.death.enemyIdentityKey : null;
-                    if (deathIdentityKey && deathIdentities[deathIdentityKey] !== undefined) deathIdentities[deathIdentityKey]++;
+                const deathIdentities = { drifter: 0, charger: 0, pulse: 0 };
+                sectors.forEach((sector) => {
                     const counts = sector && sector.spawnedByIdentity ? sector.spawnedByIdentity : null;
-                    if (counts) Object.keys(spawnedIdentities).forEach(key => { spawnedIdentities[key] += Number(counts[key]) || 0; });
+                    if (counts) Object.keys(spawnedIdentities).forEach((key) => { spawnedIdentities[key] += Number(counts[key]) || 0; });
+                    const killer = sector && sector.death ? sector.death.enemyIdentityKey : null;
+                    if (killer && deathIdentities[killer] !== undefined) deathIdentities[killer] += 1;
                 });
-                const recoveredLine = this.telemetrySystem.telemetry && this.telemetrySystem.telemetry.recoveredActiveRuns ? `
-Recovered Runs: ${this.telemetrySystem.telemetry.recoveredActiveRuns}` : '';
-                this.telemetrySummary.textContent = this.developerTools.developerModeEnabled ?
-                    `Runs: ${runs.length}
+                const pressure = this.telemetrySystem.buildSectorPressureReport({ sourceCategory: 'regular-play', fullRunsOnly: true });
+                const regularAttempts = pressure.reduce((sum, group) => sum + group.sampleSize, 0);
+                const pressureLines = pressure.slice(0, 15).map((group) => {
+                    const interval = group.actualAverageSpawnIntervalMs === null
+                        ? '--'
+                        : `${Math.round(group.actualAverageSpawnIntervalMs)}ms`;
+                    const configured = group.configuredAverageSpawnIntervalMs === null
+                        ? '--'
+                        : `${Math.round(group.configuredAverageSpawnIntervalMs)}ms`;
+                    return `S${group.sector} ${group.difficulty}: ${group.completionRatePct}% clear, ${group.deathRatePct}% death, spawn ${configured}/${interval}, n=${group.sampleSize}`;
+                });
+                const recoveredLine = this.telemetrySystem.telemetry && this.telemetrySystem.telemetry.recoveredActiveRuns
+                    ? `\nRecovered Runs: ${this.telemetrySystem.telemetry.recoveredActiveRuns}`
+                    : '';
+                this.telemetrySummary.textContent = `Schema: v8
+Runs: ${runs.length}
 Sector Attempts: ${sectors.length}
 Completed Sectors: ${completed}
 Deaths: ${deaths}
 ZIG Spawns/Deaths: ${spawnedIdentities.drifter}/${deathIdentities.drifter}
 DASH Spawns/Deaths: ${spawnedIdentities.charger}/${deathIdentities.charger}
-  Cruise/Charge: ${deathCategories['charger-cruise']}/${deathCategories['charger-charge']}
 ECHO Spawns/Deaths: ${spawnedIdentities.pulse}/${deathIdentities.pulse}
-  Active/Reactivation: ${deathCategories['pulse-active']}/${deathCategories['pulse-reactivation-overlap']}
-Spawn Materialization Deaths: ${deathCategories['spawn-materialization']}
 Gridlock Reached: ${gridlocks}
 Gridlock Bonuses: ${relics}
 Cosmic Zaps Used: ${zaps}
 Best Sector: ${bestSector}
-Best Score: ${bestScore}${recoveredLine}` :
-                    'Developer Mode required. Tap SETTINGS ten times to unlock.';
+Best Score: ${bestScore}
+Regular Full-Run Sector Attempts: ${regularAttempts}
+Run Sources — Regular: ${sourceCounts['regular-play'] || 0}, Sector Select: ${sourceCounts['sector-select'] || 0}, Developer: ${sourceCounts['developer-test'] || 0}, Regression: ${sourceCounts['regression-test'] || 0}, Other: ${(sourceCounts.other || 0) + (sourceCounts['final-gridlock'] || 0)}${recoveredLine}
+
+SECTOR PRESSURE — REGULAR FULL RUNS
+Configured/Actual spawn interval
+${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-run sector attempts yet.'}`;
                         },
 
             setTelemetryStatus: function(message) {
@@ -13844,20 +14527,25 @@ Best Score: ${bestScore}${recoveredLine}` :
                     return;
                 }
                 const ignoredActiveRun = this.telemetrySystem.currentTelemetryRun && !this.telemetrySystem.currentTelemetryRun.endedAt ? {
-                    reason: 'unfinished active run excluded from balance export',
+                    reason: 'unfinished active run excluded from balance analysis',
                     capturedAt: new Date().toISOString(),
                     score: this.scoreSystem.value,
                     level: this.campaign.currentSector,
-
+                    sector: this.campaign.currentSector,
+                    runSource: this.telemetrySystem.currentTelemetryRun.sourceCategory || this.telemetrySystem.currentTelemetryRun.source || null,
                     currentSectorElapsedMs: this.telemetrySystem.telemetrySectorElapsedMs(),
                     currentSectorSnapshot: this.telemetrySystem.currentTelemetrySector ? {
                         sector: this.telemetrySystem.currentTelemetrySector.sector,
                         sectorName: this.telemetrySystem.currentTelemetrySector.sectorName,
+                        difficultySnapshot: this.telemetrySystem.currentTelemetrySector.difficultySnapshot || null,
                         crystalsCollected: this.telemetrySystem.currentTelemetrySector.crystalsCollected,
                         remainingCrystals: this.crystalSystem.crystals.length,
                         remainingCrystalsByColor: this.telemetrySystem.getRemainingCrystalsByColor(),
                         activeBlockAZoids: this.enemies.length,
+                        maximumActiveBlockAZoids: this.telemetrySystem.currentTelemetrySector.maxActiveBlockAZoids,
                         totalBlockAZoidsSpawned: this.telemetrySystem.currentTelemetrySector.totalBlockAZoidsSpawned,
+                        spawnWarnings: Array.isArray(this.telemetrySystem.currentTelemetrySector.spawnWarningEvents) ? this.telemetrySystem.currentTelemetrySector.spawnWarningEvents.length : 0,
+                        materializations: Array.isArray(this.telemetrySystem.currentTelemetrySector.enemyMaterializationEvents) ? this.telemetrySystem.currentTelemetrySector.enemyMaterializationEvents.length : 0,
                         cosmicZapsUsed: this.telemetrySystem.currentTelemetrySector.cosmicZapsUsed,
                         currentColor: this.crystalSystem.colorOrder[this.crystalSystem.currentColorIndex] || null,
                         gridlockReached: this.telemetrySystem.currentTelemetrySector.gridlockReached,
@@ -13866,16 +14554,36 @@ Best Score: ${bestScore}${recoveredLine}` :
                         stallingStats: this.telemetrySystem.getTelemetryStallingStats(this.telemetrySystem.telemetrySectorElapsedMs())
                     } : null
                 } : null;
+                const sourceCategories = ['regular-play', 'sector-select', 'developer-test', 'regression-test', 'final-gridlock', 'other'];
+                const sectorPressureBySource = Object.fromEntries(sourceCategories.map((sourceCategory) => [
+                    sourceCategory,
+                    this.telemetrySystem.buildSectorPressureReport({ sourceCategory, fullRunsOnly: sourceCategory === 'regular-play' })
+                ]));
                 const exportData = {
-                    schema: 'blockazoids-balance-export-v6',
+                    schema: 'blockazoids-balance-export-v7',
+                    telemetrySchema: 'blockazoids-balance-v8',
+                    telemetrySchemaVersion: 8,
                     exportedAt: new Date().toISOString(),
                     build: BUILD_VERSION,
+                    buildVersion: document.documentElement.dataset.buildVersion || BUILD_VERSION,
                     restoredFromLocalStorage: !!(this.telemetrySystem.telemetry && this.telemetrySystem.telemetry.restoredFromLocalStorage),
+                    loadedSchema: this.telemetrySystem.telemetry && this.telemetrySystem.telemetry.loadedSchema ? this.telemetrySystem.telemetry.loadedSchema : null,
                     recoveredActiveRuns: this.telemetrySystem.telemetry && this.telemetrySystem.telemetry.recoveredActiveRuns ? this.telemetrySystem.telemetry.recoveredActiveRuns : 0,
                     lastLocalSaveAt: this.telemetrySystem.telemetry && this.telemetrySystem.telemetry.lastSavedAt ? this.telemetrySystem.telemetry.lastSavedAt : null,
                     savedRuns: this.telemetrySystem.telemetry.runs,
                     activeRun: null,
-                    ignoredActiveRun
+                    ignoredActiveRun,
+                    balanceAnalysis: {
+                        defaultFilters: {
+                            runSource: 'regular-play',
+                            fullRunsOnly: true,
+                            explanation: 'Default analysis uses normal full runs started at Sector 1 through the regular Play flow. Sector Select and developer tests remain separate.'
+                        },
+                        sectorPressure: sectorPressureBySource['regular-play'],
+                        sectorPressureByRunSource: sectorPressureBySource,
+                        groupingDimensions: ['buildVersion', 'difficulty', 'sector', 'runSource'],
+                        interpretationPolicy: 'Raw counts and percentages are included. No behavior-and-size combination is flagged from one occurrence; disproportionate association signals require at least 5 spawned exposures and 2 attributed deaths.'
+                    }
                 };
                 const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
                 const url = URL.createObjectURL(blob);
@@ -13887,7 +14595,7 @@ Best Score: ${bestScore}${recoveredLine}` :
                 link.click();
                 link.remove();
                 this.scheduler.scheduleTimeout('ui-effects', 'telemetry-export-url-cleanup', () => URL.revokeObjectURL(url), 1000);
-                this.telemetrySystem.setTelemetryStatus('Balance data export created.');
+                this.telemetrySystem.setTelemetryStatus('Balance data and sector-pressure report exported.');
                         },
 
             clearTelemetryData: function() {
@@ -13895,7 +14603,7 @@ Best Score: ${bestScore}${recoveredLine}` :
                     this.telemetrySystem.setTelemetryStatus('Developer Mode required.');
                     return;
                 }
-                this.telemetrySystem.telemetry = { schema: 'blockazoids-balance-v7', runs: [], restoredFromLocalStorage: false, recoveredActiveRuns: 0, lastSavedAt: null };
+                this.telemetrySystem.telemetry = { schema: 'blockazoids-balance-v8', schemaVersion: 8, loadedSchema: null, runs: [], restoredFromLocalStorage: false, recoveredActiveRuns: 0, lastSavedAt: null };
                 this.telemetrySystem.currentTelemetryRun = null;
                 this.telemetrySystem.currentTelemetrySector = null;
                 try { storageService.removeItem(this.telemetrySystem.telemetryStorageKey); } catch (_) {}
@@ -14599,6 +15307,13 @@ Best Score: ${bestScore}${recoveredLine}` :
                 const enemySpawns = new EnemySpawnSystem(null, GAME_CONFIG);
                 const normalizedSpawn = enemySpawns.normalizeRequest({ type: 'large', behaviorType: ENEMY_BEHAVIOR_TYPES.CHARGER });
                 this.assert('EnemySpawnSystem owns normalized requests', normalizedSpawn.type === 'large' && normalizedSpawn.behaviorType === ENEMY_BEHAVIOR_TYPES.CHARGER);
+                const preparedTelemetryQueue = enemySpawns.prepareTelemetryQueue([
+                    { type: 'small', behaviorType: ENEMY_BEHAVIOR_TYPES.DRIFTER },
+                    { type: 'large', behaviorType: ENEMY_BEHAVIOR_TYPES.CHARGER }
+                ], { spawnCategory: 'normal', expectedSpawnIntervalMs: 5000 });
+                this.assert('EnemySpawnSystem attaches non-decision telemetry metadata after queue resolution',
+                    preparedTelemetryQueue[0].queuePosition === 1 && preparedTelemetryQueue[1].queuePosition === 2 &&
+                    preparedTelemetryQueue.every((request) => request.spawnCategory === 'normal' && request.expectedSpawnIntervalMs === 5000));
                 enemySpawns.spawnQueue.push('small', 'medium');
                 enemySpawns.enemySpawnElapsedMs = 250;
                 const spawnSnapshot = enemySpawns.snapshot();
@@ -14647,6 +15362,9 @@ Best Score: ${bestScore}${recoveredLine}` :
 
                 const telemetryOwner = new TelemetrySystem({});
                 this.assert('TelemetrySystem owns telemetry command surface', TelemetrySystem.ownedFields.length >= 5 && telemetryOwner.hasImplementation('beginTelemetryRun') && telemetryOwner.hasImplementation('finishTelemetryRun'));
+                this.assert('TelemetrySystem owns event-based spawn telemetry', telemetryOwner.hasImplementation('noteTelemetrySpawnWarningStarted') && telemetryOwner.hasImplementation('noteTelemetryEnemyMaterialized'));
+                this.assert('TelemetrySystem owns sector pressure analysis', telemetryOwner.hasImplementation('buildTelemetrySectorOutcomeSummary') && telemetryOwner.hasImplementation('buildSectorPressureReport'));
+                this.assert('TelemetrySystem normalizes run-source categories', telemetryOwner.hasImplementation('normalizeTelemetryRunSource'));
                 this.assert('TelemetrySystem snapshot is read-only', Object.isFrozen(telemetryOwner.snapshot()));
 
                 const diagnosticsOwner = new DiagnosticsSystem({});
@@ -14865,6 +15583,8 @@ Best Score: ${bestScore}${recoveredLine}` :
                 this.assert('DeveloperToolsSystem owner is available', typeof DeveloperToolsSystem === 'function');
                 this.assert('TelemetrySystem owner is available', typeof TelemetrySystem === 'function');
                 this.assert('DiagnosticsSystem owner is available', typeof DiagnosticsSystem === 'function');
+                this.assert('Development regression harness owner is available', typeof DevelopmentRegressionHarness === 'function');
+                this.assert('Development regression harness is opt-in', typeof DevelopmentRegressionHarness.prototype.run === 'function' && document.documentElement.dataset.regressionValidation !== 'running');
             }
 
             run() {
@@ -15528,6 +16248,9 @@ Best Score: ${bestScore}${recoveredLine}` :
                         remainingCrystals: game.crystalSystem.crystals.length,
                         remainingCrystalsByColor: game.telemetrySystem.getRemainingCrystalsByColor(),
                         currentColor: game.crystalSystem.colorOrder[game.crystalSystem.currentColorIndex] || null,
+                        enemyTelemetryId: deathDetails.deathCause ? deathDetails.deathCause.telemetryId || null : null,
+                        enemyQueuePosition: deathDetails.deathCause && Number.isFinite(deathDetails.deathCause.queuePosition) ? deathDetails.deathCause.queuePosition : null,
+                        enemySpawnCategory: deathDetails.deathCause ? deathDetails.deathCause.spawnCategory || null : null,
                         enemySize: deathDetails.deathEnemySize || null,
                         enemyIdentity: deathDetails.deathCause || null,
                         enemyIdentityKey: deathDetails.deathCause ? deathDetails.deathCause.identityKey : null,
@@ -15536,6 +16259,10 @@ Best Score: ${bestScore}${recoveredLine}` :
                         enemyBehaviorType: deathDetails.deathCause ? deathDetails.deathCause.behaviorType : null,
                         enemyBehaviorState: deathDetails.deathCause ? deathDetails.deathCause.behaviorState : null,
                         deathCategory: deathDetails.deathCause ? deathDetails.deathCause.telemetryCategory : null,
+                        effectiveSpeedAtCollision: deathDetails.deathCause ? deathDetails.deathCause.effectiveVelocity : null,
+                        materializationAgeMs: deathDetails.deathCause ? deathDetails.deathCause.materializationAgeMs : null,
+                        orbPosition: deathDetails.deathCause ? deathDetails.deathCause.orbPosition || null : null,
+                        enemyPosition: deathDetails.deathCause ? deathDetails.deathCause.enemyPosition || null : null,
                         inGridlock: !!game.gridlockSystem.gridlockActive,
                         secondsSinceGridlockStarted: game.telemetrySystem.currentTelemetrySector && game.telemetrySystem.currentTelemetrySector.gridlockReached ? Math.round((game.telemetrySystem.telemetrySectorElapsedMs() - game.telemetrySystem.currentTelemetrySector.gridlockTimeMs) / 1000) : null,
                         lastCrystalPickup: game.telemetrySystem.getLastCrystalPickupTelemetry(),
@@ -20453,6 +21180,13 @@ Best Score: ${bestScore}${recoveredLine}` :
                         behaviorType: sectorBehaviorPlan[index] || ENEMY_BEHAVIOR_TYPES.DRIFTER
                     }));
                 }
+
+                // Telemetry metadata is attached only after the actual shuffled size/behavior queue
+                // has been finalized. These fields never influence spawning decisions.
+                this.enemySpawnSystem.prepareTelemetryQueue(this.enemySpawnSystem.spawnQueue, {
+                    spawnCategory: 'normal',
+                    expectedSpawnIntervalMs: this.spawnDelay * 1000
+                });
             }
 
 
@@ -21613,12 +22347,21 @@ Best Score: ${bestScore}${recoveredLine}` :
 
             spawnOvertimeEnemy() {
                 if (!this.gridlockSystem.overtimeActive || !this.flow.isLiveAction()) return false;
+                const hasSuperGridlockRewardRemaining = this.gridlockSystem.superGridlockBonusesThisSector < GAME_CONFIG.gridlock.superGridlockRewards.length;
+                const spawnCategory = this.runtimeState.finalGridlockActive
+                    ? 'final-gridlock'
+                    : (hasSuperGridlockRewardRemaining ? 'super-gridlock' : 'gridlock');
                 const spawnRequest = {
                     type: this.chooseOvertimeEnemyType(),
-                    behaviorType: this.gridlockSystem.chooseBehavior(this.campaign.getEnemyBehaviorPlan(this.campaign.currentSector, this.gridlockEnemyThreshold))
+                    behaviorType: this.gridlockSystem.chooseBehavior(this.campaign.getEnemyBehaviorPlan(this.campaign.currentSector, this.gridlockEnemyThreshold)),
+                    spawnCategory,
+                    expectedSpawnIntervalMs: GAME_CONFIG.gridlock.overtimeEnemyIntervalMs + this.enemySpawnSystem.spawnWarningDurationMs
                 };
                 const warningStarted = this.enemySpawnSystem.startWarning(spawnRequest, {
                     requeueOnCancel: false,
+                    spawnCategory,
+                    expectedSpawnIntervalMs: spawnRequest.expectedSpawnIntervalMs,
+                    remainingQueueCount: 0,
                     onSpawn: () => {
                         const progress = this.gridlockSystem.registerOvertimeEnemy();
                         if (progress.reward > 0) {
@@ -22507,11 +23250,28 @@ Best Score: ${bestScore}${recoveredLine}` :
                     className: identity.className,
                     color: identity.color,
                     gameOverPhrase: identity.gameOverPhrase,
+                    telemetryId: enemy.telemetryId || null,
+                    queuePosition: Number.isFinite(enemy.telemetryQueuePosition) ? enemy.telemetryQueuePosition : null,
+                    spawnCategory: enemy.telemetrySpawnCategory || null,
                     behaviorType: enemy.behaviorType,
                     behaviorState,
                     telemetryCategory,
                     enemySize: enemy.type,
                     sector: this.campaign.currentSector,
+                    orbPosition: {
+                        x: Math.round(this.orb.x + this.orb.size / 2),
+                        y: Math.round(this.orb.y + this.orb.size / 2)
+                    },
+                    enemyPosition: {
+                        x: Math.round(enemy.x + enemy.size / 2),
+                        y: Math.round(enemy.y + enemy.size / 2)
+                    },
+                    activeBlockAZoids: this.enemies.length,
+                    remainingCrystals: this.crystalSystem.crystals.length,
+                    gridlockActive: !!this.gridlockSystem.gridlockActive,
+                    timeSinceLastCrystalPickupMs: this.telemetrySystem.currentTelemetrySector && this.telemetrySystem.currentTelemetrySector.lastCrystalPickupMs !== null
+                        ? Math.max(0, this.telemetrySystem.telemetrySectorElapsedMs() - this.telemetrySystem.currentTelemetrySector.lastCrystalPickupMs)
+                        : null,
 
                     difficulty: this.settings.difficultyMode,
                     timeAliveMs: this.telemetrySystem.telemetryRunElapsedMs() || this.runSession.getElapsedMs(),
@@ -26893,12 +27653,341 @@ startGridlockBeat(delaySeconds = 0) {
         // Validate configuration, campaign data, flow constants, and critical DOM contracts
         // before the legacy coordinator is allowed to initialize.
 
+/* Source: src/js/development/92-development-regression-harness.js */
+        class DevelopmentRegressionHarness {
+            constructor(game) {
+                this.game = game;
+                this.running = false;
+                this.lastReport = null;
+                this.runtimeErrors = [];
+                this._onError = (event) => {
+                    this.runtimeErrors.push({
+                        type: 'error',
+                        message: String(event?.message || event?.error?.message || 'Unknown runtime error')
+                    });
+                };
+                this._onRejection = (event) => {
+                    const reason = event?.reason;
+                    this.runtimeErrors.push({
+                        type: 'unhandledrejection',
+                        message: String(reason?.message || reason || 'Unknown rejected promise')
+                    });
+                };
+                window.addEventListener('error', this._onError);
+                window.addEventListener('unhandledrejection', this._onRejection);
+            }
+
+            snapshotStorage() {
+                try {
+                    const entries = {};
+                    for (let index = 0; index < localStorage.length; index++) {
+                        const key = localStorage.key(index);
+                        if (key !== null) entries[key] = localStorage.getItem(key);
+                    }
+                    return { mode: 'browser', entries };
+                } catch (_) {
+                    const memory = new Map();
+                    const originals = {
+                        getItem: storageService.getItem,
+                        setItem: storageService.setItem,
+                        removeItem: storageService.removeItem,
+                        clear: storageService.clear
+                    };
+                    storageService.getItem = (key) => memory.has(String(key)) ? memory.get(String(key)) : null;
+                    storageService.setItem = (key, value) => { memory.set(String(key), String(value)); };
+                    storageService.removeItem = (key) => { memory.delete(String(key)); };
+                    storageService.clear = () => { memory.clear(); };
+                    return { mode: 'memory', originals };
+                }
+            }
+
+            restoreStorage(snapshot) {
+                if (!snapshot) return;
+                if (snapshot.mode === 'browser') {
+                    try {
+                        localStorage.clear();
+                        Object.entries(snapshot.entries || {}).forEach(([key, value]) => localStorage.setItem(key, value));
+                    } catch (_) {}
+                    return;
+                }
+                if (snapshot.mode === 'memory' && snapshot.originals) {
+                    storageService.getItem = snapshot.originals.getItem;
+                    storageService.setItem = snapshot.originals.setItem;
+                    storageService.removeItem = snapshot.originals.removeItem;
+                    storageService.clear = snapshot.originals.clear;
+                }
+            }
+
+            async waitUntil(predicate, timeoutMs = 2500) {
+                const startedAt = performance.now();
+                while (performance.now() - startedAt < timeoutMs) {
+                    if (predicate()) return true;
+                    await new Promise((resolve) => setTimeout(resolve, 0));
+                }
+                return false;
+            }
+
+            createReportBuilder() {
+                const checks = [];
+                const assert = (name, condition, detail = '') => {
+                    const passed = !!condition;
+                    checks.push(Object.freeze({ name, passed, detail: String(detail || '') }));
+                    return passed;
+                };
+                return { checks, assert };
+            }
+
+            runStableContractChecks(assert) {
+                const game = this.game;
+                const completeSectorSource = Game.prototype.completeSector.toString();
+                const restorationSource = Game.prototype.runGridRestoreSequence.toString();
+                const endRunSource = Game.prototype.endRun.toString();
+                const restartSource = Game.prototype.restartRun.toString();
+                const resumeSource = Game.prototype.resumeGameplay.toString();
+
+                assert('Architecture startup validation passed', window.BLOCKAZOIDS_ARCHITECTURE_REPORT?.status === 'passed');
+                assert('Configuration projection is ready', document.documentElement.dataset.configurationProjection === 'ready');
+                assert('Generated Zap HUD matches maximum capacity', document.querySelectorAll('#cosmicZapIndicators > .cosmic-zap-icon').length === GameRules.getMaximumCosmicZapCapacity());
+                assert('Difficulty capacities remain explicit', GAME_CONFIG.difficulty.options.every((mode) => GameRules.getCosmicZapCapacity(mode) === GAME_CONFIG.difficulty.profiles[mode].cosmicZaps));
+                assert('Sector restoration passes score and RunSession', restorationSource.includes('captureSectorRecordPace(this.scoreSystem.value, completedSector, this.runSession)'));
+                assert('Sector restoration advances through the canonical method', completeSectorSource.includes('advanceToNextSectorAfterRestore(completedSector + 1, transitionToken)'));
+                assert('Game Over saves pace with score and RunSession', endRunSource.includes('saveCurrentRunPaceProfileIfRecord(this.scoreSystem.value, this.runSession)'));
+                assert('Game Over returns to attract mode', endRunSource.includes('this.attractModeSystem.returnToAttractMode()'));
+                assert('Restart saves pace with score and RunSession', restartSource.includes('saveCurrentRunPaceProfileIfRecord(this.scoreSystem.value, this.runSession)'));
+                assert('Restart re-enters the canonical new-run path', restartSource.includes('this.beginNewRun()'));
+                assert('Resume requires the canonical countdown state', resumeSource.includes('GAME_FLOW_STATES.RESUME_COUNTDOWN'));
+                assert('Shared monitor aperture owns both canvases', ['playfieldCanvas', 'playfieldWebglCanvas'].every((id) => document.getElementById(id)?.classList.contains('monitor-pixel-layer')));
+                assert('CRT grid remains Canvas-owned', getComputedStyle(game.container).backgroundImage === 'none' || !game.container.classList.contains('crt-fx-grid-rgb'));
+                assert('Telemetry schema v8 is active', game.telemetrySystem.telemetry && game.telemetrySystem.telemetry.schema === 'blockazoids-balance-v8');
+                assert('Telemetry remains event-based without a frame logger', !Object.values(TelemetrySystem.implementations).some((implementation) => implementation.toString().includes('requestAnimationFrame')));
+                assert('Telemetry pressure analysis is owned by TelemetrySystem', game.telemetrySystem.hasImplementation('buildSectorPressureReport') && game.telemetrySystem.hasImplementation('noteTelemetryEnemyMaterialized'));
+                assert('No runtime errors captured before regression run', this.runtimeErrors.length === 0, this.runtimeErrors.map((entry) => entry.message).join(' | '));
+            }
+
+            runTelemetryContractChecks(assert) {
+                const game = this.game;
+                const storageSnapshot = this.snapshotStorage();
+                const original = {
+                    enabled: game.telemetrySystem.telemetryEnabled,
+                    telemetry: game.telemetrySystem.telemetry,
+                    run: game.telemetrySystem.currentTelemetryRun,
+                    sector: game.telemetrySystem.currentTelemetrySector,
+                    currentSector: game.campaign.currentSector,
+                    difficulty: game.settings.difficultyMode,
+                    spawnQueue: game.enemySpawnSystem.spawnQueue.slice(),
+                    enemies: game.enemies.slice()
+                };
+                try {
+                    game.telemetrySystem.telemetryEnabled = true;
+                    game.telemetrySystem.telemetry = { schema: 'blockazoids-balance-v8', schemaVersion: 8, loadedSchema: null, runs: [], restoredFromLocalStorage: false, recoveredActiveRuns: 0, lastSavedAt: null };
+                    game.telemetrySystem.currentTelemetryRun = null;
+                    game.telemetrySystem.currentTelemetrySector = null;
+                    game.campaign.currentSector = 1;
+                    game.settings.difficultyMode = 'Normal';
+                    game.applySectorParameters();
+                    game.telemetrySystem.beginTelemetryRun('start-game');
+                    game.telemetrySystem.startTelemetrySector('sector-action-start');
+                    const sector = game.telemetrySystem.currentTelemetrySector;
+                    assert('Sector telemetry captures the finalized difficulty snapshot', !!sector?.difficultySnapshot && sector.difficultySnapshot.finalShuffledSpawnQueue.length === game.gridlockEnemyThreshold);
+                    assert('Difficulty snapshot records all behavior-size pairings', sector?.difficultySnapshot?.behaviorSizePairings?.length === game.gridlockEnemyThreshold);
+                    assert('Difficulty snapshot records actual runtime speed and spawn values', Number.isFinite(sector?.difficultySnapshot?.spawnTiming?.finalEffectiveSpawnDelayMs) && Number.isFinite(sector?.difficultySnapshot?.effectiveMovementSpeeds?.dash?.charge?.medium));
+
+                    const request = {
+                        type: 'medium',
+                        behaviorType: ENEMY_BEHAVIOR_TYPES.CHARGER,
+                        telemetryId: 'regression-enemy-1',
+                        queuePosition: 1,
+                        spawnCategory: 'normal',
+                        expectedSpawnIntervalMs: 5000
+                    };
+                    const location = { x: 0, y: 0, centerX: 20, centerY: 20, gridCol: 0, gridRow: 0 };
+                    game.telemetrySystem.noteTelemetrySpawnWarningStarted(request, location, {
+                        warningStartSectorTimeMs: 100,
+                        configuredWarningDurationMs: 850,
+                        expectedSpawnIntervalMs: 5000,
+                        remainingQueueCount: 7,
+                        pendingWarningCountAtStart: 0
+                    });
+                    const fakeEnemy = {
+                        telemetryId: request.telemetryId,
+                        behaviorType: request.behaviorType,
+                        type: request.type,
+                        size: game.ORB_SIZE * 2,
+                        x: 0,
+                        y: 0
+                    };
+                    game.enemies = [fakeEnemy];
+                    game.telemetrySystem.noteTelemetryEnemyMaterialized(request, fakeEnemy, location, {
+                        warningStartSectorTimeMs: 100,
+                        expectedSpawnIntervalMs: 5000
+                    }, {
+                        previousMaterializationSectorTimeMs: null,
+                        pendingWarningCount: 0,
+                        remainingQueueCount: 7
+                    });
+                    const spawnEvent = sector.enemyMaterializationEvents[0];
+                    assert('Spawn warning and materialization keep one telemetry ID', sector.spawnWarningEvents[0]?.enemyTelemetryId === spawnEvent?.enemyTelemetryId && spawnEvent?.enemyTelemetryId === 'regression-enemy-1');
+                    assert('Spawn telemetry records pairing, location, counts, and timing', spawnEvent?.identity === 'DASH' && spawnEvent?.size === 'medium' && spawnEvent?.spawnLocation?.gridCol === 0 && spawnEvent?.activeBlockAZoidCountAtMaterialization === 1);
+
+                    game.enemies = [];
+                    game.telemetrySystem.finishTelemetrySector('completed');
+                    game.telemetrySystem.finishTelemetryRun('regression-test-complete');
+                    const storedSector = game.telemetrySystem.telemetry.runs[0]?.sectors?.[0];
+                    assert('Sector outcome telemetry finalizes planned-versus-actual spawning', storedSector?.outcomeSummary?.plannedSpawnCount === game.gridlockEnemyThreshold && storedSector?.outcomeSummary?.actualSpawnCount === 1);
+                    const pressure = game.telemetrySystem.buildSectorPressureReport({ sourceCategory: 'regular-play', fullRunsOnly: true });
+                    assert('Sector pressure report groups regular full runs', pressure.length === 1 && pressure[0].sector === 1 && pressure[0].sampleSize === 1);
+                    assert('Sector pressure matrix covers all nine behavior-size combinations', pressure[0]?.behaviorAndSizeMatrix?.length === 9);
+                } finally {
+                    game.telemetrySystem.telemetryEnabled = original.enabled;
+                    game.telemetrySystem.telemetry = original.telemetry;
+                    game.telemetrySystem.currentTelemetryRun = original.run;
+                    game.telemetrySystem.currentTelemetrySector = original.sector;
+                    game.campaign.currentSector = original.currentSector;
+                    game.settings.difficultyMode = original.difficulty;
+                    game.enemySpawnSystem.spawnQueue = original.spawnQueue;
+                    game.enemies = original.enemies;
+                    this.restoreStorage(storageSnapshot);
+                }
+            }
+
+            async runLiveTransitionChecks(assert) {
+                const game = this.game;
+                const originalWait = game.wait;
+                const originalNextTransitionFrame = game.nextTransitionFrame;
+                const originalStorage = this.snapshotStorage();
+                const originalMonitorMode = game.monitorEffectsSystem.monitorMode;
+                const originalIntroCompleted = game.tutorialSystem.introCompleted;
+                const originalTutorialRequired = game.tutorialSystem.tutorialRequiredOnFirstRun;
+                const originalHasStartedRun = game.hasStartedRun;
+                let syntheticFrameTime = performance.now();
+
+                try {
+                    game.wait = async function(_ms, loadToken = this.sectorTransitionToken) {
+                        await Promise.resolve();
+                        return loadToken === this.sectorTransitionToken;
+                    };
+                    game.nextTransitionFrame = async function(loadToken = this.sectorTransitionToken) {
+                        await Promise.resolve();
+                        if (loadToken !== this.sectorTransitionToken) return null;
+                        syntheticFrameTime += 1200;
+                        return syntheticFrameTime;
+                    };
+
+                    game.tutorialSystem.introCompleted = true;
+                    game.tutorialSystem.tutorialRequiredOnFirstRun = false;
+                    game.hasStartedRun = true;
+                    game.attractModeSystem.stopAttractMode();
+                    game.prepareFreshRunLifecycle('regression-harness-start');
+
+                    const firstToken = ++game.sectorTransitionToken;
+                    const began = game.beginSector(1, true, { skipGridFade: true });
+                    game.runtimeState.patchGameplay({ active: true, sectorGameplayStarted: false });
+                    game.beginSectorGameplay();
+                    assert('Live regression enters Sector 1', began && game.campaign.currentSector === 1 && game.flow.is(GAME_FLOW_STATES.PLAYING));
+
+                    const paused = game.pauseGameplay();
+                    const resumed = await game.resumeGameplay();
+                    assert('Pause and resume return to live gameplay', paused && resumed && game.flow.is(GAME_FLOW_STATES.PLAYING) && game.runtimeState.active && !game.runtimeState.isPaused);
+
+                    game.crystalSystem.crystals = [];
+                    const completionStarted = game.completeSector() !== false;
+                    const advanced = await this.waitUntil(() => game.campaign.currentSector === 2 && game.flow.is(GAME_FLOW_STATES.PLAYING), 3500);
+                    assert('Sector restoration advances to the next Sector', completionStarted && advanced, `${game.flow.current}/sector-${game.campaign.currentSector}`);
+                    assert('Next Sector is live after restoration', game.runtimeState.active && game.runtimeState.sectorGameplayStarted && !game.runtimeState.sectorTransitionActive);
+
+                    const ended = await game.endRun({ source: 'regression-harness' });
+                    const returnedToAttract = await this.waitUntil(() => game.flow.is(GAME_FLOW_STATES.ATTRACT), 2000);
+                    assert('Death path reaches Game Over and returns to attract mode', ended !== false && returnedToAttract && game.runtimeState.restartReady);
+
+                    game.tutorialSystem.introCompleted = true;
+                    game.tutorialSystem.tutorialRequiredOnFirstRun = false;
+                    game.hasStartedRun = true;
+                    const newRunStarted = game.beginNewRun();
+                    const playingAgain = await this.waitUntil(() => game.flow.is(GAME_FLOW_STATES.PLAYING), 3500);
+                    assert('Play Again starts a new live run', newRunStarted !== false && playingAgain && game.scoreSystem.value === 0);
+
+                    const pausedForRestart = game.pauseGameplay();
+                    game.restartRun();
+                    const restarted = await this.waitUntil(() => game.flow.is(GAME_FLOW_STATES.PLAYING), 3500);
+                    assert('Restart from pause returns to a clean live run', pausedForRestart && restarted && game.scoreSystem.value === 0 && game.runtimeState.active);
+
+                    const monitorSequence = ['off', 'crt', 'vector'];
+                    let monitorPassed = true;
+                    for (const mode of monitorSequence) {
+                        game.monitorEffectsSystem.applyMonitorMode(mode);
+                        monitorPassed = monitorPassed && game.monitorEffectsSystem.monitorMode === mode;
+                    }
+                    assert('Off, CRT, and Vector profiles switch through one owner', monitorPassed);
+                } finally {
+                    game.wait = originalWait;
+                    game.nextTransitionFrame = originalNextTransitionFrame;
+                    game.cancelTransitionGroup('regression-harness-cleanup');
+                    game.cancelGameplayScheduling();
+                    game.scheduler.cancelScope('visual-effects');
+                    game.attractModeSystem.stopAttractMode();
+                    game.prepareFreshRunLifecycle('regression-harness-cleanup');
+                    game.runtimeState.resetTerminal({ clearGameOver: true, clearRestartReady: true });
+                    game.flow.enter(GAME_FLOW_STATES.GAME_OVER, 'regression-harness-cleanup');
+                    game.attractModeSystem.returnToAttractMode();
+                    game.monitorEffectsSystem.applyMonitorMode(originalMonitorMode);
+                    game.tutorialSystem.introCompleted = originalIntroCompleted;
+                    game.tutorialSystem.tutorialRequiredOnFirstRun = originalTutorialRequired;
+                    game.hasStartedRun = originalHasStartedRun;
+                    this.restoreStorage(originalStorage);
+                    game.ui.updateAll();
+                }
+            }
+
+            async run(options = {}) {
+                if (this.running) return this.lastReport;
+                this.running = true;
+                const startedAt = performance.now();
+                const { checks, assert } = this.createReportBuilder();
+                const runtimeErrorStart = this.runtimeErrors.length;
+                try {
+                    this.runStableContractChecks(assert);
+                    this.runTelemetryContractChecks(assert);
+                    if (options.liveTransitions !== false) await this.runLiveTransitionChecks(assert);
+                    const newErrors = this.runtimeErrors.slice(runtimeErrorStart);
+                    assert('No runtime errors occurred during regression flows', newErrors.length === 0, newErrors.map((entry) => entry.message).join(' | '));
+                } catch (error) {
+                    assert('Regression harness completed without throwing', false, error?.stack || error?.message || error);
+                } finally {
+                    const failed = checks.filter((check) => !check.passed);
+                    this.lastReport = Object.freeze({
+                        build: BUILD_METADATA.version,
+                        status: failed.length ? 'failed' : 'passed',
+                        passedChecks: checks.length - failed.length,
+                        totalChecks: checks.length,
+                        durationMs: Math.round(performance.now() - startedAt),
+                        failures: Object.freeze(failed.map((check) => `${check.name}${check.detail ? `: ${check.detail}` : ''}`)),
+                        checks: Object.freeze(checks.slice())
+                    });
+                    document.documentElement.dataset.regressionValidation = this.lastReport.status;
+                    this.running = false;
+                }
+                return this.lastReport;
+            }
+
+            snapshot() {
+                return Object.freeze({
+                    running: this.running,
+                    runtimeErrorCount: this.runtimeErrors.length,
+                    lastReport: this.lastReport
+                });
+            }
+        }
 /* Source: src/js/app/290-bootstrap.js */
         const configurationProjection = ConfigurationProjection.initialize();
         const architectureReport = DiagnosticsSystem.runStartupValidation();
 
         // Initialize and start the game only after the foundation contracts pass.
         const game = new Game();
+        const regressionHarness = new DevelopmentRegressionHarness(game);
+        window.BLOCKAZOIDS_REGRESSION = Object.freeze({
+            run: (options = {}) => regressionHarness.run(options),
+            snapshot: () => regressionHarness.snapshot()
+        });
 
         // Read-only diagnostic access supports regression testing without exposing the mutable Game object.
         window.BLOCKAZOIDS_DIAGNOSTICS = Object.freeze({
@@ -26927,7 +28016,8 @@ startGridlockBeat(delaySeconds = 0) {
                 developerTools: game.developerTools.snapshot(),
                 telemetry: game.telemetrySystem.snapshot(),
                 diagnostics: game.diagnosticsSystem.snapshot(),
-                screens: game.screenManager.snapshot()
+                screens: game.screenManager.snapshot(),
+                regression: regressionHarness.snapshot()
             })
         });
     
