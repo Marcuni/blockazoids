@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Block-A-Zoids p248: aligns internal terminology with the current game design without changing behavior or presentation.
+Block-A-Zoids p249: adds the architecture guide, change map, transition map, and maintenance contracts without changing behavior or presentation.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="p248">
+<html data-build-version="p249">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -7198,8 +7198,8 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
         const BUILD_METADATA = window.BLOCKAZOIDS_BUILD = Object.freeze({
             version: document.documentElement.dataset.buildVersion || 'unknown',
             label: BUILD_VERSION,
-            architecturePhase: 'semantic-terminology-alignment',
-            sourceBaseline: 'p247',
+            architecturePhase: 'architecture-documentation-and-change-map',
+            sourceBaseline: 'p248',
             behaviorPolicy: 'architecture-only'
         });
 
@@ -7229,11 +7229,191 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
         const SOURCE_LAYOUT = window.BLOCKAZOIDS_SOURCE_LAYOUT = Object.freeze({
             developmentModel: 'modular-source',
             releaseModel: 'single-html',
-            buildOutput: 'block-a-zoids-p248.html',
+            buildOutput: 'block-a-zoids-p249.html',
             categories: Object.freeze([
                 'build', 'config', 'content', 'rules', 'state', 'services', 'app', 'gameplay',
-                'presentation', 'platform', 'audio', 'ui', 'development'
+                'presentation', 'platform', 'audio', 'ui', 'development', 'docs'
             ])
+        });
+
+
+/* Source: src/js/development/75-developer-documentation.js */
+        const DEVELOPER_DOCUMENTATION = window.BLOCKAZOIDS_DEVELOPER_GUIDE = deepFreezeConfiguration({
+            version: 'p249',
+            purpose: 'Make ownership, safe edit locations, state transitions, build steps, and maintenance rules discoverable without reverse-engineering the complete game.',
+            architecture: {
+                application: {
+                    owner: 'Game / GameSystemCoordinator / GameFlowController',
+                    responsibility: 'Construct systems, coordinate major lifecycle actions, and run the live game without reclaiming extracted responsibilities.'
+                },
+                configuration: {
+                    owner: 'DESIGN_TOKENS / GAME_CONFIG / GAME_DATA / GameRules',
+                    responsibility: 'Designer-controlled values, campaign content, and pure calculations.'
+                },
+                gameplay: {
+                    owner: 'CampaignSystem / CosmicZapSystem / CrystalSystem / GridlockSystem / EnemySpawnSystem / CollisionSystem / Orb / Enemy',
+                    responsibility: 'Mutable run rules and physical gameplay outcomes without screen-layout ownership.'
+                },
+                presentation: {
+                    owner: 'FrameCoordinator / CanvasPlayfieldRenderer / WebGLPlayfieldDistortion / VisualEffectsSystem / MonitorEffectsSystem / ScreenManager / UI',
+                    responsibility: 'Draw state, project HUD and screens, and apply visual effects without deciding gameplay outcomes.'
+                },
+                platform: {
+                    owner: 'SchedulingManager / BrowserStorageService / FullSurfaceGestureCoordinator / AudioManager',
+                    responsibility: 'Browser timing, persistence, touch and motion input, and audio services.'
+                },
+                development: {
+                    owner: 'DeveloperToolsSystem / TelemetrySystem / DiagnosticsSystem / ArchitectureValidator',
+                    responsibility: 'Optional testing, measurement, snapshots, and invariant enforcement without production-state ownership.'
+                }
+            },
+            buildProcess: {
+                sourceModel: 'Edit modular files under src/. Do not hand-edit the generated numbered HTML as the long-term source.',
+                command: 'python3 build.py',
+                result: 'One numbered HTML file for testing and distribution.',
+                deterministicRequirement: 'Two consecutive builds from unchanged source must produce the same SHA-256 hash.',
+                releaseRule: 'Keep the readable modular source and generated release artifact together in version control.'
+            },
+            changeMap: {
+                colorsAndGlow: {
+                    primarySource: 'src/config/design-tokens.json',
+                    supportingSources: ['src/js/config/20-monitor-and-visual-presets.js', 'src/styles/38-monitor-foundation-and-profiles.css'],
+                    owners: ['DESIGN_TOKENS', 'MONITOR_SHARED_FOUNDATION', 'MONITOR_PRESETS'],
+                    note: 'Change shared identity colors in design tokens; profile-specific monitor treatment belongs only in monitor presets and monitor profile CSS.'
+                },
+                difficultyAndCosmicZaps: {
+                    primarySource: 'src/js/config/30-game-config.js',
+                    supportingSources: ['src/js/rules/80-game-rules.js', 'src/js/state/85-cosmic-zap-system.js'],
+                    owners: ['GAME_CONFIG.difficulty.profiles', 'GameRules', 'CosmicZapSystem'],
+                    note: 'Difficulty profiles contain explicit final values, including Zap capacity.'
+                },
+                scoring: {
+                    primarySource: 'src/js/config/30-game-config.js',
+                    supportingSources: ['src/js/state/81-score-system.js', 'src/js/state/83-high-score-system.js'],
+                    owners: ['GAME_CONFIG.scoring', 'ScoreSystem', 'HighScoreSystem'],
+                    note: 'Score values live in configuration; arithmetic and records live in their dedicated systems.'
+                },
+                sectorsAndCampaign: {
+                    primarySource: 'src/js/content/40-game-data.js',
+                    supportingSources: ['src/js/state/84-campaign-system.js', 'src/js/presentation/110-sector-select-screen-controller.js'],
+                    owners: ['GAME_DATA.sectors', 'CampaignSystem', 'SectorSelectScreenController'],
+                    note: 'Sector count, names, patterns, and Block-A-Zoid plans are content-driven.'
+                },
+                crystals: {
+                    primarySource: 'src/js/state/86-crystal-system.js',
+                    supportingSources: ['src/js/config/30-game-config.js', 'src/js/gameplay/250-crystal.js', 'src/js/presentation/160-canvas-playfield-renderer.js'],
+                    owners: ['CrystalSystem', 'GAME_CONFIG.scoring.crystalPointValues', 'Crystal'],
+                    note: 'Rules and topology belong to CrystalSystem; appearance belongs to presentation.'
+                },
+                blockAZoids: {
+                    primarySource: 'src/js/gameplay/220-enemy-definitions-and-behaviors.js',
+                    supportingSources: ['src/js/config/30-game-config.js', 'src/js/gameplay/87-enemy-spawn-system.js', 'src/js/gameplay/230-enemy.js'],
+                    owners: ['EnemyBehaviorRegistry', 'EnemySpawnSystem', 'Enemy'],
+                    note: 'Behavior definitions, spawn policy, and entity state remain separate.'
+                },
+                gridlockAndPrismRelic: {
+                    primarySource: 'src/js/state/87-gridlock-system.js',
+                    supportingSources: ['src/js/config/30-game-config.js', 'src/js/gameplay/240-prism-relic.js'],
+                    owners: ['GridlockSystem', 'GAME_CONFIG.gridlock', 'PrismRelic'],
+                    note: 'Progression and reward state belong to GridlockSystem; the pickup entity owns only its local geometry and presentation state.'
+                },
+                inputAndOrbMovement: {
+                    primarySource: 'src/js/platform/140-full-surface-gesture-coordinator.js',
+                    supportingSources: ['src/js/config/30-game-config.js', 'src/js/gameplay/200-orb.js', 'src/js/gameplay/120-board-coordinate-mapper.js'],
+                    owners: ['FullSurfaceGestureCoordinator', 'Orb', 'BoardCoordinateMapper'],
+                    note: 'Screen gestures translate into Orb commands; coordinate mapping remains centralized.'
+                },
+                screensAndMenus: {
+                    primarySource: 'src/js/presentation/120-screen-manager.js',
+                    supportingSources: ['src/styles/20-menus-and-screens.css', 'src/styles/35-launch-settings-pause.css', 'src/styles/36-score-and-sector-screens.css', 'src/styles/37-tutorial-and-transition-screens.css'],
+                    owners: ['ScreenManager', 'HighScoreScreenController', 'SectorSelectScreenController'],
+                    note: 'Screen visibility and event binding belong to presentation controllers; screen geometry belongs to the matching stylesheet.'
+                },
+                tutorialAndAttractMode: {
+                    primarySource: 'src/js/tutorial/120-tutorial-system.js',
+                    supportingSources: ['src/js/presentation/130-attract-mode-system.js', 'src/js/config/30-game-config.js'],
+                    owners: ['TutorialSystem', 'AttractModeSystem'],
+                    note: 'Each mode owns its timers, objects, cleanup, and persistence boundaries.'
+                },
+                monitorProfiles: {
+                    primarySource: 'src/js/config/20-monitor-and-visual-presets.js',
+                    supportingSources: ['src/js/presentation/134-monitor-effects-system.js', 'src/styles/38-monitor-foundation-and-profiles.css', 'src/styles/39-shared-monitor-aperture.css', 'src/styles/41-crt-canvas-grid-authority.css'],
+                    owners: ['MONITOR_SHARED_FOUNDATION', 'MONITOR_PRESETS', 'MonitorEffectsSystem'],
+                    note: 'Curvature, sizing, clipping, and shared geometry come from the Vector-approved monitor foundation. Scanlines and raster sweep remain CRT-only.'
+                },
+                audio: {
+                    primarySource: 'src/js/audio/270-audio-manager.js',
+                    supportingSources: ['src/js/config/30-game-config.js'],
+                    owners: ['AudioManager', 'GAME_CONFIG.audioTiming'],
+                    note: 'Gameplay systems request audio cues; AudioManager owns nodes, loops, cleanup, and playback.'
+                },
+                persistence: {
+                    primarySource: 'src/js/platform/95-browser-storage-service.js',
+                    supportingSources: ['src/js/services/96-settings-system.js', 'src/js/state/83-high-score-system.js', 'src/js/state/84-campaign-system.js'],
+                    owners: ['BrowserStorageService', 'SettingsSystem', 'HighScoreSystem', 'CampaignSystem'],
+                    note: 'Existing storage-key strings are compatibility contracts and must not be renamed without migration.'
+                },
+                developerToolsAndTelemetry: {
+                    primarySource: 'src/js/development/80-developer-tools-system.js',
+                    supportingSources: ['src/js/development/85-telemetry-system.js', 'src/js/development/88-diagnostics-system.js', 'src/js/development/90-architecture-validator.js'],
+                    owners: ['DeveloperToolsSystem', 'TelemetrySystem', 'DiagnosticsSystem', 'ArchitectureValidator'],
+                    note: 'Development features observe or deliberately test the game and must stay isolated from normal production behavior when disabled.'
+                }
+            },
+            stateTransitions: [
+                { id: 'splash-to-attract', from: 'splash', to: 'attract', trigger: 'Splash timer completes', owner: 'AttractModeSystem / GameFlowController' },
+                { id: 'attract-to-tutorial', from: 'attract', to: 'tutorial', trigger: 'Play is pressed and one-time tutorial is required', owner: 'TutorialSystem / GameFlowController' },
+                { id: 'attract-to-sector-intro', from: 'attract', to: 'sector-intro', trigger: 'Play is pressed and tutorial is already complete', owner: 'Game / CampaignSystem / GameFlowController' },
+                { id: 'tutorial-to-sector-intro', from: 'tutorial', to: 'sector-intro', trigger: 'Tutorial completes or is reset into normal entry', owner: 'TutorialSystem / Game' },
+                { id: 'sector-intro-to-playing', from: 'sector-intro', to: 'playing', trigger: 'Sector countdown completes', owner: 'Game / GameSystemCoordinator' },
+                { id: 'playing-to-paused', from: 'playing', to: 'paused', trigger: 'Manual pause', owner: 'Game / GameSystemCoordinator' },
+                { id: 'paused-to-resume-countdown', from: 'paused', to: 'resume-countdown', trigger: 'Resume is selected', owner: 'Game / ScreenManager' },
+                { id: 'resume-countdown-to-playing', from: 'resume-countdown', to: 'playing', trigger: 'Resume countdown completes', owner: 'Game / GameSystemCoordinator' },
+                { id: 'playing-to-sector-restore', from: 'playing', to: 'sector-restore', trigger: 'Sector objective completes', owner: 'CrystalSystem / GridlockSystem / Game' },
+                { id: 'sector-restore-to-sector-intro', from: 'sector-restore', to: 'sector-intro', trigger: 'Restoration summary completes and another campaign sector remains', owner: 'CampaignSystem / Game' },
+                { id: 'sector-restore-to-campaign-complete', from: 'sector-restore', to: 'campaign-complete', trigger: 'Final campaign sector is restored', owner: 'CampaignSystem / Game' },
+                { id: 'campaign-complete-to-final-gridlock', from: 'campaign-complete', to: 'final-gridlock', trigger: 'Campaign celebration completes', owner: 'Game / GridlockSystem' },
+                { id: 'playing-to-game-over', from: 'playing', to: 'game-over', trigger: 'Orb is hit by a dangerous Block-A-Zoid', owner: 'CollisionSystem / Game' },
+                { id: 'final-gridlock-to-game-over', from: 'final-gridlock', to: 'game-over', trigger: 'Final Gridlock ends', owner: 'GridlockSystem / Game' },
+                { id: 'game-over-to-attract', from: 'game-over', to: 'attract', trigger: 'Game Over presentation completes', owner: 'Game / AttractModeSystem' }
+            ],
+            dependencyRules: [
+                'Configuration and content may be read by systems but must not depend on DOM elements.',
+                'Gameplay systems may emit outcomes but must not position screens or mutate stylesheet geometry.',
+                'Presentation may read snapshots and events but must not award score, advance sectors, or decide collisions.',
+                'Platform services own browser APIs and expose narrow commands to game systems.',
+                'Development systems must not affect production play unless an explicit developer test is active.'
+            ],
+            maintenanceRules: [
+                'Every adjustable value has one authoritative source.',
+                'New delayed work uses SchedulingManager with a named scope and task.',
+                'New screens use ScreenManager and a dedicated controller when screen-specific logic is substantial.',
+                'New persistent values use BrowserStorageService and include a compatibility or migration decision.',
+                'New gameplay mechanics do not manipulate DOM or CSS directly.',
+                'New visual effects do not decide gameplay outcomes.',
+                'Shared monitor geometry stays in the common monitor foundation; CRT and Vector files contain only profile differences.',
+                'Do not add build-number patches, unexplained magic numbers, or new !important overrides as routine fixes.',
+                'A structural refactor must preserve behavior and include transition-focused regression checks.',
+                'The generated HTML is an artifact; the modular source is the maintenance authority.'
+            ],
+            requiredRegressionFlows: [
+                'First launch and one-time tutorial',
+                'Attract mode interruption by Play',
+                'Sector start, pause, resume, completion, restoration, and next-sector entry',
+                'Death, Game Over, return to attract mode, and restart',
+                'Gridlock, Cosmic Zap use, Prism Relic, and Super Gridlock reward progression',
+                'Campaign completion and Final Gridlock',
+                'High-score, settings, tutorial, and sector-unlock persistence',
+                'Off, CRT, and Vector monitor modes including resize and pause',
+                'App backgrounding and return to foreground'
+            ],
+            handoffChecklist: [
+                'Provide the complete src directory, docs directory, build.py, build-manifest.json, assets, and a known-good numbered HTML.',
+                'Provide font-license files separately; font binaries are not embedded in this developer package.',
+                'Record the expected browser and iPhone test sizes.',
+                'Keep existing storage keys and telemetry schema notes with the source.',
+                'Require a clean deterministic build and regression pass before accepting a handoff change.'
+            ]
         });
 
 /* Source: src/js/config/10-feature-flags.js */
@@ -7983,6 +8163,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 interface: Object.freeze({ owner: 'UI', responsibility: 'HUD projection of mutable game state' }),
                 developerTools: Object.freeze({ owner: 'DeveloperToolsSystem', responsibility: 'Developer unlocking, test modes, invincibility, and cabinet calibration' }),
                 telemetry: Object.freeze({ owner: 'TelemetrySystem', responsibility: 'Local balance-run collection, persistence, summaries, export, and clearing' }),
+                developerDocumentation: Object.freeze({ owner: 'DEVELOPER_DOCUMENTATION', responsibility: 'Architecture map, change map, state transitions, build process, handoff requirements, and maintenance contracts' }),
                 diagnostics: Object.freeze({ owner: 'DiagnosticsSystem / ArchitectureValidator', responsibility: 'Runtime invariants, performance readings, state snapshots, startup contracts, and migration safety' })
             }),
             configurationCatalog: Object.freeze({
@@ -14632,6 +14813,42 @@ Best Score: ${bestScore}${recoveredLine}` :
                 this.assert('Legacy storage keys remain available', GAME_TERMINOLOGY.compatibilityPolicy === 'preserve-existing-storage-keys' && typeof GAME_CONFIG.storage.crtEnabled === 'string');
             }
 
+            validateDeveloperDocumentation() {
+                const guide = DEVELOPER_DOCUMENTATION;
+                this.assert('Developer documentation is deeply frozen', Object.isFrozen(guide) && Object.isFrozen(guide.changeMap) && Object.isFrozen(guide.stateTransitions));
+                this.assert('Developer documentation version matches build', guide.version === BUILD_METADATA.version);
+                this.assert('Build process documents modular source authority', guide.buildProcess.sourceModel.includes('modular files') && guide.buildProcess.result.includes('numbered HTML'));
+
+                const requiredChangeTopics = [
+                    'colorsAndGlow', 'difficultyAndCosmicZaps', 'scoring', 'sectorsAndCampaign', 'crystals',
+                    'blockAZoids', 'gridlockAndPrismRelic', 'inputAndOrbMovement', 'screensAndMenus',
+                    'tutorialAndAttractMode', 'monitorProfiles', 'audio', 'persistence', 'developerToolsAndTelemetry'
+                ];
+                requiredChangeTopics.forEach((topic) => {
+                    const entry = guide.changeMap[topic];
+                    this.assert(`Change map topic exists: ${topic}`, !!entry);
+                    if (!entry) return;
+                    this.assert(`Change map primary source is named: ${topic}`, typeof entry.primarySource === 'string' && entry.primarySource.startsWith('src/'));
+                    this.assert(`Change map owner is named: ${topic}`, Array.isArray(entry.owners) && entry.owners.length > 0 && entry.owners.every((owner) => typeof owner === 'string' && owner.length > 0));
+                });
+
+                const flowStates = new Set(Object.values(GAME_FLOW_STATES));
+                this.assert('State-transition map is populated', guide.stateTransitions.length >= 10);
+                this.assert('State-transition IDs are unique', new Set(guide.stateTransitions.map((entry) => entry.id)).size === guide.stateTransitions.length);
+                guide.stateTransitions.forEach((entry) => {
+                    this.assert(`Transition source state exists: ${entry.id}`, flowStates.has(entry.from));
+                    this.assert(`Transition destination state exists: ${entry.id}`, flowStates.has(entry.to));
+                    this.assert(`Transition owner is named: ${entry.id}`, typeof entry.owner === 'string' && entry.owner.length > 0);
+                });
+
+                this.assert('Maintenance rules cover scheduler ownership', guide.maintenanceRules.some((rule) => rule.includes('SchedulingManager')));
+                this.assert('Maintenance rules cover screen ownership', guide.maintenanceRules.some((rule) => rule.includes('ScreenManager')));
+                this.assert('Maintenance rules protect monitor profile boundaries', guide.maintenanceRules.some((rule) => rule.includes('monitor foundation')));
+                this.assert('Regression guide covers sector restoration', guide.requiredRegressionFlows.some((flow) => flow.includes('restoration')));
+                this.assert('Regression guide covers death and Game Over', guide.requiredRegressionFlows.some((flow) => flow.includes('Death')));
+                this.assert('Handoff checklist requires modular source', guide.handoffChecklist.some((item) => item.includes('complete src directory')));
+            }
+
             validateManifest() {
                 const systems = ARCHITECTURE_MANIFEST.systems;
                 const owners = Object.values(systems).map((entry) => entry.owner);
@@ -14657,6 +14874,7 @@ Best Score: ${bestScore}${recoveredLine}` :
                 this.validateFlow();
                 this.validateDom();
                 this.validateTerminology();
+                this.validateDeveloperDocumentation();
                 this.validateManifest();
 
                 const status = this.errors.length > 0
