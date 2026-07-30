@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Block-A-Zoids p232: gives tutorial and attract-mode lifecycle dedicated owners behind compatibility adapters.
+Block-A-Zoids p233: gives frame coordination, visual effects, and monitor presentation dedicated owners behind compatibility adapters.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="p232">
+<html data-build-version="p233">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -8619,15 +8619,15 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
         const BUILD_METADATA = window.BLOCKAZOIDS_BUILD = Object.freeze({
             version: document.documentElement.dataset.buildVersion || 'unknown',
             label: BUILD_VERSION,
-            architecturePhase: 'tutorial-attract-ownership-1',
-            sourceBaseline: 'p231',
+            architecturePhase: 'render-effects-ownership-1',
+            sourceBaseline: 'p232',
             behaviorPolicy: 'architecture-only'
         });
 
         const SOURCE_LAYOUT = window.BLOCKAZOIDS_SOURCE_LAYOUT = Object.freeze({
             developmentModel: 'modular-source',
             releaseModel: 'single-html',
-            buildOutput: 'block-a-zoids-p232.html',
+            buildOutput: 'block-a-zoids-p233.html',
             categories: Object.freeze([
                 'build', 'config', 'content', 'rules', 'state', 'services', 'app', 'gameplay',
                 'presentation', 'platform', 'audio', 'ui', 'development'
@@ -9365,7 +9365,10 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 scheduling: Object.freeze({ owner: 'SchedulingManager', responsibility: 'Named cancellable delayed work' }),
                 coordination: Object.freeze({ owner: 'GameSystemCoordinator', responsibility: 'Ordered cross-system lifecycle calls' }),
                 gameplay: Object.freeze({ owner: 'Game', responsibility: 'Legacy gameplay coordinator with compatibility adapters during staged extraction' }),
-                rendering: Object.freeze({ owner: 'CanvasPlayfieldRenderer / WebGLPlayfieldDistortion', responsibility: 'Playfield presentation only' }),
+                frameCoordination: Object.freeze({ owner: 'FrameCoordinator', responsibility: 'One render request path and one live gameplay animation-frame owner' }),
+                rendering: Object.freeze({ owner: 'CanvasPlayfieldRenderer / WebGLPlayfieldDistortion', responsibility: 'Draws playfield state and applies final distortion without changing gameplay' }),
+                visualEffects: Object.freeze({ owner: 'VisualEffectsSystem', responsibility: 'Transient playfield effects, crystal feedback, restoration presentation, and effect cleanup' }),
+                monitorEffects: Object.freeze({ owner: 'MonitorEffectsSystem', responsibility: 'Off, CRT, and Vector monitor modes, feature levels, classes, and event flickers' }),
                 input: Object.freeze({ owner: 'FullSurfaceGestureCoordinator / Player', responsibility: 'Pointer and motion translation' }),
                 audio: Object.freeze({ owner: 'AudioManager', responsibility: 'Sound and music playback' }),
                 screens: Object.freeze({ owner: 'ScreenManager / HighScoreScreenController / LevelSelectScreenController', responsibility: 'Menu visibility, overlays, screen event binding, High Score presentation, and Sector Select presentation' }),
@@ -9399,7 +9402,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 canonicalCampaign: 'GAME_DATA.sectors',
                 explicitDifficultyResources: 'GAME_CONFIG.difficulty.profiles.*.cosmicZaps',
                 finalArtifact: 'single numbered HTML build',
-                extractedStateOwners: 'SettingsSystem / ScoreSystem / RunSession / HighScoreSystem / CampaignSystem / CosmicZapSystem / CrystalSystem / GridlockSystem / EnemySpawnSystem / CollisionSystem / RuntimeStateSystem / TutorialSystem / AttractModeSystem'
+                extractedStateOwners: 'SettingsSystem / ScoreSystem / RunSession / HighScoreSystem / CampaignSystem / CosmicZapSystem / CrystalSystem / GridlockSystem / EnemySpawnSystem / CollisionSystem / RuntimeStateSystem / TutorialSystem / AttractModeSystem / FrameCoordinator / VisualEffectsSystem / MonitorEffectsSystem'
             })
         });
 
@@ -13171,6 +13174,584 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
             }
         }
 
+/* Source: src/js/presentation/129-frame-coordinator-compatibility.js */
+        const FRAME_COORDINATOR_COMPATIBILITY_IMPLEMENTATIONS = Object.freeze({
+            renderPlayfieldFrame(timestamp = performance.now()) {
+                if (!this.playfieldRenderer || typeof this.playfieldRenderer.renderFrame !== 'function') return;
+                this.playfieldRenderer.renderFrame(this, timestamp);
+                this.playfieldRenderDirty = false;
+            },
+
+            requestPlayfieldRender() {
+                this.playfieldRenderDirty = true;
+                if ((this.flow && this.flow.isLiveAction()) || this.tutorialActive) return;
+                this.scheduler.scheduleAnimationFrame('playfield-render', 'standalone-frame', (timestamp) => {
+                    this.renderPlayfieldFrame(timestamp);
+                });
+            },
+
+            stopGameplayLoop() {
+                this.gameplayRunToken++;
+                this.scheduler.cancelScope('gameplay-loop');
+                return this.gameplayRunToken;
+            },
+
+            scheduleGameplayLoopFrame(runToken) {
+                if (runToken !== this.gameplayRunToken || !this.flow.isLiveAction()) return false;
+                this.scheduler.scheduleAnimationFrame('gameplay-loop', 'main-frame', (timestamp) => {
+                    this.gameLoop(timestamp, runToken);
+                });
+                return true;
+            },
+
+            startGameplayLoop() {
+                const runToken = this.stopGameplayLoop();
+                this.scheduleGameplayLoopFrame(runToken);
+                return runToken;
+            }
+        });
+
+/* Source: src/js/presentation/130-visual-effects-compatibility.js */
+        const VISUAL_EFFECTS_COMPATIBILITY_IMPLEMENTATIONS = Object.freeze({
+            nextVisualEffectTaskName(prefix = 'effect') {
+                this.visualEffectSequence++;
+                return `${prefix}-${this.visualEffectSequence}`;
+            },
+
+            purgeTransientPlayfieldEffects() {
+                this.clearCrtEventEffects();
+                if (this.vectorTrail) this.vectorTrail.clear();
+                this.crtEventTimers = {};
+                (this.pendingSpawnWarnings || []).forEach(pending => {
+                    if (pending && pending.warning && pending.warning.isActive !== false) {
+                        this.playfieldRenderer.removeSpawnWarning(pending.warning);
+                    }
+                });
+                if (this.playfieldRenderer && typeof this.playfieldRenderer.clearTransientEffects === 'function') {
+                    this.playfieldRenderer.clearTransientEffects();
+                }
+                if (this.container) {
+                    this.container.classList.remove('shake', 'borderFlash', 'cosmicZapShake');
+                    this.playfieldRenderer.clearRestorationPresentation();
+                }
+                if (this.player) {
+                    this.playfieldRenderer.setPlayerEffect(this.player, 'cosmicZapOrbFlash', false);
+                    this.playfieldRenderer.setPlayerEffect(this.player, 'orbRestoreGlow', false);
+                }
+            },
+
+            playCrystalCollectionEffect(crystal) {
+                if (!crystal) return;
+
+                // Radar feedback is the single visual confirmation for crystal collection.
+                // Remove any stale Orb-side effect left by an older state, but create no new one.
+                if (this.player) {
+                    this.playfieldRenderer.clearPlayerPickupEffects(this.player);
+                }
+                if (this.ui && typeof this.ui.pulseRadarCollection === 'function') {
+                    this.ui.pulseRadarCollection(crystal.color);
+                }
+            },
+
+            removeCampaignRestorePresentation() {
+                if (this.playfieldRenderer && typeof this.playfieldRenderer.removeCampaignRestorePresentation === 'function') {
+                    this.playfieldRenderer.removeCampaignRestorePresentation(
+                        this.campaignRestoreLines || [],
+                        this.campaignRestoreCells || []
+                    );
+                }
+                this.campaignRestoreLines = [];
+                this.campaignRestoreCells = [];
+            },
+
+            createCampaignRestorePresentation() {
+                this.removeCampaignRestorePresentation();
+                const gridSize = this.GRID_SIZE;
+                const gridCount = Math.round(this.PLAYFIELD_SIZE / gridSize);
+                const positions = [];
+                const lines = [];
+                const cells = [];
+
+                for (let index = 0; index <= gridCount; index++) {
+                    const offset = Math.max(0, Math.min(this.PLAYFIELD_SIZE, Math.round(index * gridSize)));
+                    lines.push({ orientation: 'horizontal', offset, length: this.PLAYFIELD_SIZE, delayMs: 120 + index * 34, element: null });
+                    lines.push({ orientation: 'vertical', offset, length: this.PLAYFIELD_SIZE, delayMs: 160 + index * 34, element: null });
+                }
+
+                for (let row = 0; row < gridCount; row++) {
+                    for (let col = 0; col < gridCount; col++) positions.push({ row, col });
+                }
+
+                // Deterministic shuffle keeps the restoration lively and test-reproducible.
+                let seed = 0x9e3779b9;
+                const nextRandom = () => {
+                    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+                    return seed / 0x100000000;
+                };
+                for (let index = positions.length - 1; index > 0; index--) {
+                    const swapIndex = Math.floor(nextRandom() * (index + 1));
+                    [positions[index], positions[swapIndex]] = [positions[swapIndex], positions[index]];
+                }
+
+                positions.forEach((position, index) => {
+                    const progress = positions.length <= 1 ? 0 : index / (positions.length - 1);
+                    cells.push({
+                        row: position.row,
+                        col: position.col,
+                        x: position.col * gridSize,
+                        y: position.row * gridSize,
+                        size: gridSize,
+                        repairDelayMs: Math.round(1900 + progress * 1900 + nextRandom() * 85),
+                        element: null
+                    });
+                });
+
+                this.campaignRestoreLines = lines;
+                this.campaignRestoreCells = cells;
+                this.playfieldRenderer.createCampaignRestorePresentation(lines, cells);
+            },
+
+            clearCampaignCompletionPresentation() {
+                this.setTransitionState({ campaignCompletionActive: false });
+                this.playfieldRenderer.stopCampaignCompletion();
+                this.removeCampaignRestorePresentation();
+                this.gameOverElement.classList.remove('finalGameCompleteText', 'campaign-completion-title');
+                this.gameOverElement.style.opacity = '0';
+                this.gameOverElement.textContent = '';
+                this.playfieldRenderer.setPlayerVisible(this.player, true);
+            }
+        });
+
+/* Source: src/js/presentation/131-monitor-effects-compatibility.js */
+        const MONITOR_EFFECTS_COMPATIBILITY_IMPLEMENTATIONS = Object.freeze({
+            loadCrtPreference() {
+                return this.settings.loadCrtEnabled();
+            },
+
+            loadMonitorMode() {
+                return this.settings.loadMonitorMode(GAME_FEATURE_FLAGS.crt);
+            },
+
+            loadCrtPresetLevel() {
+                return this.loadMonitorMode() === 'off' ? 'off' : 'on';
+            },
+
+            saveCrtPreference() {
+                this.settings.saveMonitorPreference(this.monitorMode, this.crtEnabled);
+            },
+
+            applyMonitorPresetState(mode) {
+                const normalizedMode = MONITOR_PRESETS[mode] ? mode : 'vector';
+                const preset = MONITOR_PRESETS[normalizedMode];
+
+                this.crtFeatures = {};
+                Object.keys(this.crtFeatureClassMap || {}).forEach(key => {
+                    this.crtFeatures[key] = false;
+                });
+
+                this.crtEffectLevels = {};
+                (this.crtAdjustableEffects || []).forEach(key => {
+                    this.crtEffectLevels[key] = preset.effectLevels[key] || 'off';
+                });
+
+                Object.entries(preset.fixedFeatures || {}).forEach(([key, enabled]) => {
+                    this.crtFeatures[key] = !!enabled;
+                });
+                this.syncCrtFeaturesFromGroups();
+            },
+
+            saveCrtEffectLevels() {
+                this.settings.saveCrtEffectLevels(this.crtEffectLevels);
+            },
+
+            saveCrtFeaturePreferences() {
+                this.settings.saveCrtFeatureStates(this.crtFeatures);
+            },
+
+            syncCrtFeaturesFromGroups() {
+                if (!this.crtFeatures) this.crtFeatures = {};
+                Object.entries(this.crtEffectLevels || {}).forEach(([key, level]) => {
+                    this.crtFeatures[key] = level !== 'off';
+                });
+            },
+
+            updateCrtToggleLabel() {
+                const mode = (GAME_FEATURE_FLAGS.crt && MONITOR_PRESETS[this.monitorMode]) ? this.monitorMode : 'off';
+                const label = MONITOR_PRESETS[mode].label;
+                const nextMode = MONITOR_MODE_ORDER[(MONITOR_MODE_ORDER.indexOf(mode) + 1) % MONITOR_MODE_ORDER.length];
+                const nextLabel = MONITOR_PRESETS[nextMode].label;
+                const enabled = mode !== 'off';
+                if (this.crtToggleButton) {
+                    const glyph = this.crtToggleButton.querySelector('#monitorModeGlyph');
+                    const offSlash = this.crtToggleButton.querySelector('#monitorOffSlash');
+                    const accessibleLabel = !GAME_FEATURE_FLAGS.crt
+                        ? 'Monitor effects unavailable'
+                        : (mode === 'off'
+                            ? 'Monitor off — tap for CRT'
+                            : (mode === 'crt'
+                                ? 'CRT monitor — tap for Vector'
+                                : 'Vector monitor — tap to turn off'));
+
+                    this.crtToggleButton.disabled = !GAME_FEATURE_FLAGS.crt;
+                    this.crtToggleButton.classList.toggle('is-muted', !enabled);
+                    this.crtToggleButton.setAttribute('aria-pressed', enabled ? 'true' : 'false');
+                    this.crtToggleButton.setAttribute('aria-label', accessibleLabel);
+                    this.crtToggleButton.setAttribute('data-monitor-mode', mode);
+                    this.crtToggleButton.title = accessibleLabel;
+
+                    if (glyph) {
+                        glyph.textContent = mode === 'crt' ? 'C' : (mode === 'vector' ? 'V' : '');
+                        glyph.style.display = mode === 'off' ? 'none' : '';
+                    }
+                    if (offSlash) offSlash.style.display = mode === 'off' ? '' : 'none';
+                }
+                if (this.crtDeveloperMasterState) {
+                    this.crtDeveloperMasterState.textContent = `MONITOR: ${label.toUpperCase()} · NEXT: ${nextLabel.toUpperCase()}`;
+                }
+            },
+
+            updateCrtDeveloperControls() {
+                if (this.crtEffectLevelButtons) {
+                    this.crtEffectLevelButtons.forEach(button => {
+                        const key = button.dataset.crtEffectLevel;
+                        const level = (this.crtEffectLevels && this.crtEffectLevels[key]) || 'off';
+                        button.textContent = level.toUpperCase();
+                        button.classList.toggle('is-off', level === 'off');
+                        button.classList.toggle('is-on', level !== 'off');
+                        button.classList.toggle('is-below', level === 'below');
+                        button.classList.toggle('is-current', level === 'current');
+                        button.classList.toggle('is-above', level === 'above');
+                        button.setAttribute('aria-label', `${key} CRT effect ${level}`);
+                    });
+                }
+                if (this.crtFeatureToggleButtons) {
+                    this.crtFeatureToggleButtons.forEach(button => {
+                        const key = button.dataset.crtFeatureToggle;
+                        const enabled = !!(this.crtFeatures && this.crtFeatures[key]);
+                        button.textContent = enabled ? 'ON' : 'OFF';
+                        button.classList.toggle('is-on', enabled);
+                        button.classList.toggle('is-off', !enabled);
+                        button.setAttribute('aria-pressed', enabled ? 'true' : 'false');
+                    });
+                }
+                this.updateCrtToggleLabel();
+            },
+
+            getCrtRenderClassLevel(level) {
+                return ({ below: 'low', current: 'medium', above: 'high' })[level] || null;
+            },
+
+            applyCrtFeatureClasses() {
+                if (!this.container) return;
+                this.syncCrtFeaturesFromGroups();
+                Object.entries(this.crtFeatureClassMap || {}).forEach(([key, className]) => {
+                    this.container.classList.toggle(className, !!(this.crtFeatures && this.crtFeatures[key]));
+                });
+                ['base', 'phosphor', 'signal', 'events'].forEach(group => {
+                    ['low', 'medium', 'high'].forEach(level => this.container.classList.remove(`crt-${group}-${level}`));
+                });
+                Object.entries(this.crtEffectLevelClassMap || {}).forEach(([key, stem]) => {
+                    ['low', 'medium', 'high'].forEach(level => this.container.classList.remove(`crt-${stem}-${level}`));
+                    const semanticLevel = this.crtEffectLevels && this.crtEffectLevels[key];
+                    const renderLevel = this.getCrtRenderClassLevel(semanticLevel);
+                    if (renderLevel) this.container.classList.add(`crt-${stem}-${renderLevel}`);
+                });
+                // Curvature is a fixed ON/OFF mask. Use the production geometry whenever it is enabled.
+                if (this.crtFeatures && this.crtFeatures.curvature) this.container.classList.add('crt-signal-medium');
+                if (this.playfieldShell) {
+                    const glowEnabled = !!(this.crtFeatures && this.crtFeatures.glow);
+                    const semanticLevel = this.crtEffectLevels && this.crtEffectLevels.glow;
+                    const glowLevel = this.getCrtRenderClassLevel(semanticLevel);
+                    this.playfieldShell.classList.toggle('crt-fx-glow', glowEnabled);
+                    ['low', 'medium', 'high'].forEach(level => this.playfieldShell.classList.remove(`crt-glow-${level}`));
+                    if (glowEnabled && glowLevel) this.playfieldShell.classList.add(`crt-glow-${glowLevel}`);
+                }
+                this.updateCrtDeveloperControls();
+            },
+
+            applyCrtPreference() {
+                if (!this.container) return;
+                const activeMode = (GAME_FEATURE_FLAGS.crt && MONITOR_PRESETS[this.monitorMode]) ? this.monitorMode : 'off';
+                this.monitorMode = activeMode;
+                this.crtPresetLevel = activeMode === 'off' ? 'off' : 'on';
+                this.crtEnabled = activeMode !== 'off';
+
+                this.container.classList.toggle('crt-enabled', this.crtEnabled);
+                this.container.classList.toggle('monitor-vector', activeMode === 'vector');
+                this.container.classList.toggle('monitor-crt', activeMode === 'crt');
+                if (this.playfieldShell) {
+                    this.playfieldShell.classList.toggle('crt-enabled', this.crtEnabled);
+                    this.playfieldShell.classList.toggle('monitor-vector', activeMode === 'vector');
+                    this.playfieldShell.classList.toggle('monitor-crt', activeMode === 'crt');
+                }
+
+                this.applyCrtFeatureClasses();
+                if (!this.crtEnabled) this.clearCrtEventEffects();
+                if (this.webglDistortion) this.webglDistortion.invalidate();
+                this.requestPlayfieldRender();
+                this.updateCrtToggleLabel();
+            },
+
+            applyMonitorMode(mode) {
+                const normalizedMode = (GAME_FEATURE_FLAGS.crt && MONITOR_PRESETS[mode]) ? mode : 'off';
+                if (this.vectorTrail) this.vectorTrail.clear();
+                this.monitorMode = normalizedMode;
+                this.crtPresetLevel = normalizedMode === 'off' ? 'off' : 'on';
+                this.crtEnabled = normalizedMode !== 'off';
+                this.applyMonitorPresetState(normalizedMode);
+                this.saveCrtPreference();
+                this.saveCrtEffectLevels();
+                this.saveCrtFeaturePreferences();
+                this.clearCrtEventEffects();
+                this.applyCrtPreference();
+            },
+
+            applyCrtPresetLevel(level) {
+                this.applyMonitorMode(level === 'off' ? 'off' : 'vector');
+            },
+
+            toggleCrtSetting() {
+                if (!GAME_FEATURE_FLAGS.crt) return;
+                const currentIndex = MONITOR_MODE_ORDER.indexOf(this.monitorMode);
+                const nextIndex = currentIndex >= 0 ? (currentIndex + 1) % MONITOR_MODE_ORDER.length : 0;
+                this.applyMonitorMode(MONITOR_MODE_ORDER[nextIndex]);
+            },
+
+            advanceCrtEffectLevel(key) {
+                if (!key || !this.crtEffectLevels || !(key in this.crtEffectLevels)) return;
+                const levels = ['off', 'below', 'current', 'above'];
+                const currentIndex = Math.max(0, levels.indexOf(this.crtEffectLevels[key]));
+                this.crtEffectLevels[key] = levels[(currentIndex + 1) % levels.length];
+                this.syncCrtFeaturesFromGroups();
+                this.saveCrtEffectLevels();
+                this.saveCrtFeaturePreferences();
+                this.applyCrtFeatureClasses();
+                if (['gridlock', 'zap', 'restore'].includes(key) && this.crtEffectLevels[key] === 'off') {
+                    this.container.classList.remove(`crt-${key}-event`);
+                }
+            },
+
+            toggleCrtFeature(key) {
+                if (!key || !this.crtFeatures || !(key in this.crtFeatureClassMap)) return;
+                this.crtFeatures[key] = !this.crtFeatures[key];
+                this.saveCrtFeaturePreferences();
+                this.applyCrtFeatureClasses();
+                if ((key === 'death' || key === 'shutdown') && !this.crtFeatures.death && !this.crtFeatures.shutdown) {
+                    this.container.classList.remove('crt-death-event', 'crt-shutdown-blackout');
+                }
+            },
+
+            setAllCrtFeatures(enabled) {
+                Object.keys(this.crtEffectLevels || {}).forEach(key => {
+                    this.crtEffectLevels[key] = enabled ? 'current' : 'off';
+                });
+                ['curvature', 'death', 'shutdown'].forEach(key => {
+                    this.crtFeatures[key] = !!enabled;
+                });
+                this.syncCrtFeaturesFromGroups();
+                this.saveCrtEffectLevels();
+                this.saveCrtFeaturePreferences();
+                this.applyCrtFeatureClasses();
+                if (!enabled) this.clearCrtEventEffects();
+            },
+
+            resetCrtToProduction() {
+                const presetMode = this.monitorMode === 'crt' ? 'crt' : 'vector';
+                this.applyMonitorPresetState(presetMode);
+                this.saveCrtEffectLevels();
+                this.saveCrtFeaturePreferences();
+                this.clearCrtEventEffects();
+                this.applyCrtFeatureClasses();
+            },
+
+            setCrtPaused(paused) {
+                if (!this.container) return;
+                this.container.classList.toggle('crt-paused', !!paused);
+                if (paused && this.vectorTrail) this.vectorTrail.clear();
+            },
+
+            setCrtUiSuspended(suspended) {
+                if (!this.container) return;
+                this.container.classList.toggle('crt-ui-suspended', !!suspended);
+                if (suspended && this.vectorTrail) this.vectorTrail.clear();
+                if (this.playfieldShell) this.playfieldShell.classList.toggle('crt-ui-suspended', !!suspended);
+                if (suspended) this.clearCrtEventEffects();
+                if (this.webglDistortion) this.webglDistortion.syncPresentation();
+                this.requestPlayfieldRender();
+            },
+
+            clearCrtEventEffects() {
+                if (!this.container) return;
+                ['gridlock', 'zap', 'death', 'restore'].forEach(type => {
+                    this.scheduler.cancelTask('visual-effects', `crt-${type}`);
+                    if (this.crtEventTimers) this.crtEventTimers[type] = null;
+                    this.container.classList.remove(`crt-${type}-event`);
+                });
+            },
+
+            triggerCrtEvent(type) {
+                if (!GAME_FEATURE_FLAGS.crt || !this.crtEnabled || this.isPaused || !this.container || this.container.classList.contains('crt-ui-suspended')) return;
+                const eventEnabled = {
+                    gridlock: !!this.crtFeatures.gridlock,
+                    zap: !!this.crtFeatures.zap,
+                    death: !!this.crtFeatures.death || !!this.crtFeatures.shutdown,
+                    restore: !!this.crtFeatures.restore
+                };
+                if (!eventEnabled[type]) return;
+                const durations = GAME_CONFIG.visualTiming.crtEventsMs;
+                if (!durations[type]) return;
+                const className = `crt-${type}-event`;
+                this.scheduler.cancelTask('visual-effects', `crt-${type}`);
+                this.container.classList.remove(className);
+                void this.container.offsetWidth;
+                this.container.classList.add(className);
+                this.crtEventTimers[type] = this.scheduler.scheduleTimeout('visual-effects', `crt-${type}`, () => {
+                    this.container.classList.remove(className);
+                    this.crtEventTimers[type] = null;
+                }, durations[type]);
+            }
+        });
+
+
+/* Source: src/js/presentation/132-frame-coordinator.js */
+        class FrameCoordinator {
+            constructor(game) {
+                this.game = game;
+                this.playfieldRenderDirty = true;
+                this.gameplayRunToken = 0;
+            }
+
+            static get ownedFields() { return Object.freeze(['playfieldRenderDirty', 'gameplayRunToken']); }
+            hasImplementation(name) { return typeof FRAME_COORDINATOR_COMPATIBILITY_IMPLEMENTATIONS[name] === 'function'; }
+            invoke(name, args = []) {
+                const implementation = FRAME_COORDINATOR_COMPATIBILITY_IMPLEMENTATIONS[name];
+                if (typeof implementation !== 'function') throw new Error(`Unknown FrameCoordinator command: ${name}`);
+                return implementation.apply(this.game, args);
+            }
+
+            renderPlayfieldFrame(...args) { return this.invoke('renderPlayfieldFrame', args); }
+            requestPlayfieldRender(...args) { return this.invoke('requestPlayfieldRender', args); }
+            stopGameplayLoop(...args) { return this.invoke('stopGameplayLoop', args); }
+            scheduleGameplayLoopFrame(...args) { return this.invoke('scheduleGameplayLoopFrame', args); }
+            startGameplayLoop(...args) { return this.invoke('startGameplayLoop', args); }
+
+            snapshot() {
+                const renderer = this.game && this.game.playfieldRenderer;
+                return Object.freeze({
+                    dirty: !!this.playfieldRenderDirty,
+                    gameplayRunToken: Number(this.gameplayRunToken) || 0,
+                    rendererReady: !!(renderer && typeof renderer.renderFrame === 'function'),
+                    transientEffectCount: renderer && typeof renderer.getTransientEffectCount === 'function'
+                        ? renderer.getTransientEffectCount()
+                        : 0
+                });
+            }
+        }
+
+/* Source: src/js/presentation/133-visual-effects-system.js */
+        class VisualEffectsSystem {
+            constructor(game) {
+                this.game = game;
+                this.visualEffectSequence = 0;
+                this.gridRestoreEffect = null;
+                this.campaignCompletionEffect = null;
+                this.campaignRestoreLines = [];
+                this.campaignRestoreCells = [];
+            }
+
+            static get ownedFields() {
+                return Object.freeze([
+                    'visualEffectSequence', 'gridRestoreEffect', 'campaignCompletionEffect',
+                    'campaignRestoreLines', 'campaignRestoreCells'
+                ]);
+            }
+            hasImplementation(name) { return typeof VISUAL_EFFECTS_COMPATIBILITY_IMPLEMENTATIONS[name] === 'function'; }
+            invoke(name, args = []) {
+                const implementation = VISUAL_EFFECTS_COMPATIBILITY_IMPLEMENTATIONS[name];
+                if (typeof implementation !== 'function') throw new Error(`Unknown VisualEffectsSystem command: ${name}`);
+                return implementation.apply(this.game, args);
+            }
+
+            nextVisualEffectTaskName(...args) { return this.invoke('nextVisualEffectTaskName', args); }
+            purgeTransientPlayfieldEffects(...args) { return this.invoke('purgeTransientPlayfieldEffects', args); }
+            playCrystalCollectionEffect(...args) { return this.invoke('playCrystalCollectionEffect', args); }
+            removeCampaignRestorePresentation(...args) { return this.invoke('removeCampaignRestorePresentation', args); }
+            createCampaignRestorePresentation(...args) { return this.invoke('createCampaignRestorePresentation', args); }
+            clearCampaignCompletionPresentation(...args) { return this.invoke('clearCampaignCompletionPresentation', args); }
+
+            snapshot() {
+                return Object.freeze({
+                    sequence: Number(this.visualEffectSequence) || 0,
+                    gridRestoreActive: !!this.gridRestoreEffect,
+                    campaignCompletionActive: !!this.campaignCompletionEffect,
+                    campaignRestoreLines: Array.isArray(this.campaignRestoreLines) ? this.campaignRestoreLines.length : 0,
+                    campaignRestoreCells: Array.isArray(this.campaignRestoreCells) ? this.campaignRestoreCells.length : 0
+                });
+            }
+        }
+
+/* Source: src/js/presentation/134-monitor-effects-system.js */
+        class MonitorEffectsSystem {
+            constructor(game) {
+                this.game = game;
+                this.monitorMode = 'off';
+                this.crtPresetLevel = 'off';
+                this.crtEnabled = false;
+                this.crtFeatures = {};
+                this.crtEffectLevels = {};
+                this.crtEventTimers = {};
+            }
+
+            static get ownedFields() {
+                return Object.freeze([
+                    'monitorMode', 'crtPresetLevel', 'crtEnabled',
+                    'crtFeatures', 'crtEffectLevels', 'crtEventTimers'
+                ]);
+            }
+            hasImplementation(name) { return typeof MONITOR_EFFECTS_COMPATIBILITY_IMPLEMENTATIONS[name] === 'function'; }
+            invoke(name, args = []) {
+                const implementation = MONITOR_EFFECTS_COMPATIBILITY_IMPLEMENTATIONS[name];
+                if (typeof implementation !== 'function') throw new Error(`Unknown MonitorEffectsSystem command: ${name}`);
+                return implementation.apply(this.game, args);
+            }
+
+            loadCrtPreference(...args) { return this.invoke('loadCrtPreference', args); }
+            loadMonitorMode(...args) { return this.invoke('loadMonitorMode', args); }
+            loadCrtPresetLevel(...args) { return this.invoke('loadCrtPresetLevel', args); }
+            saveCrtPreference(...args) { return this.invoke('saveCrtPreference', args); }
+            applyMonitorPresetState(...args) { return this.invoke('applyMonitorPresetState', args); }
+            saveCrtEffectLevels(...args) { return this.invoke('saveCrtEffectLevels', args); }
+            saveCrtFeaturePreferences(...args) { return this.invoke('saveCrtFeaturePreferences', args); }
+            syncCrtFeaturesFromGroups(...args) { return this.invoke('syncCrtFeaturesFromGroups', args); }
+            updateCrtToggleLabel(...args) { return this.invoke('updateCrtToggleLabel', args); }
+            updateCrtDeveloperControls(...args) { return this.invoke('updateCrtDeveloperControls', args); }
+            getCrtRenderClassLevel(...args) { return this.invoke('getCrtRenderClassLevel', args); }
+            applyCrtFeatureClasses(...args) { return this.invoke('applyCrtFeatureClasses', args); }
+            applyCrtPreference(...args) { return this.invoke('applyCrtPreference', args); }
+            applyMonitorMode(...args) { return this.invoke('applyMonitorMode', args); }
+            applyCrtPresetLevel(...args) { return this.invoke('applyCrtPresetLevel', args); }
+            toggleCrtSetting(...args) { return this.invoke('toggleCrtSetting', args); }
+            advanceCrtEffectLevel(...args) { return this.invoke('advanceCrtEffectLevel', args); }
+            toggleCrtFeature(...args) { return this.invoke('toggleCrtFeature', args); }
+            setAllCrtFeatures(...args) { return this.invoke('setAllCrtFeatures', args); }
+            resetCrtToProduction(...args) { return this.invoke('resetCrtToProduction', args); }
+            setCrtPaused(...args) { return this.invoke('setCrtPaused', args); }
+            setCrtUiSuspended(...args) { return this.invoke('setCrtUiSuspended', args); }
+            clearCrtEventEffects(...args) { return this.invoke('clearCrtEventEffects', args); }
+            triggerCrtEvent(...args) { return this.invoke('triggerCrtEvent', args); }
+
+            snapshot() {
+                return Object.freeze({
+                    mode: this.monitorMode,
+                    enabled: !!this.crtEnabled,
+                    presetLevel: this.crtPresetLevel,
+                    activeFeatures: Object.freeze(Object.entries(this.crtFeatures || {}).filter(([, enabled]) => !!enabled).map(([name]) => name)),
+                    effectLevels: Object.freeze({ ...(this.crtEffectLevels || {}) }),
+                    activeEventTimers: Object.freeze(Object.entries(this.crtEventTimers || {}).filter(([, token]) => !!token).map(([name]) => name))
+                });
+            }
+        }
+
 /* Source: src/js/development/90-architecture-validator.js */
         class ArchitectureValidator {
             constructor() {
@@ -13456,6 +14037,20 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 const attractOwner = new AttractModeSystem({}, GAME_CONFIG);
                 this.assert('AttractModeSystem owns attract compatibility surface', AttractModeSystem.ownedFields.length >= 10 && attractOwner.hasImplementation('returnToAttractMode') && attractOwner.hasImplementation('stopAttractMode'));
                 this.assert('AttractModeSystem snapshot is read-only', Object.isFrozen(attractOwner.snapshot()));
+
+
+                const frameOwner = new FrameCoordinator({});
+                this.assert('FrameCoordinator owns render compatibility surface', frameOwner.hasImplementation('renderPlayfieldFrame') && frameOwner.hasImplementation('startGameplayLoop'));
+                this.assert('FrameCoordinator snapshot is read-only', Object.isFrozen(frameOwner.snapshot()));
+
+                const visualOwner = new VisualEffectsSystem({});
+                this.assert('VisualEffectsSystem owns transient effect compatibility surface', visualOwner.hasImplementation('purgeTransientPlayfieldEffects') && visualOwner.hasImplementation('createCampaignRestorePresentation'));
+                this.assert('VisualEffectsSystem snapshot is read-only', Object.isFrozen(visualOwner.snapshot()));
+
+                const monitorOwner = new MonitorEffectsSystem({});
+                this.assert('MonitorEffectsSystem owns monitor compatibility surface', monitorOwner.hasImplementation('applyMonitorMode') && monitorOwner.hasImplementation('triggerCrtEvent'));
+                const monitorSnapshot = monitorOwner.snapshot();
+                this.assert('MonitorEffectsSystem snapshot is read-only', Object.isFrozen(monitorSnapshot) && Object.isFrozen(monitorSnapshot.effectLevels));
             }
 
             validateFlow() {
@@ -13499,6 +14094,9 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 this.assert('Sector Select screen owner is available', typeof LevelSelectScreenController === 'function');
                 this.assert('TutorialSystem owner is available', typeof TutorialSystem === 'function');
                 this.assert('AttractModeSystem owner is available', typeof AttractModeSystem === 'function');
+                this.assert('FrameCoordinator owner is available', typeof FrameCoordinator === 'function');
+                this.assert('VisualEffectsSystem owner is available', typeof VisualEffectsSystem === 'function');
+                this.assert('MonitorEffectsSystem owner is available', typeof MonitorEffectsSystem === 'function');
             }
 
             run() {
@@ -18124,6 +18722,9 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 this.runtimeState = new RuntimeStateSystem();
                 this.tutorialSystem = new TutorialSystem(this, storageService, GAME_CONFIG);
                 this.attractModeSystem = new AttractModeSystem(this, GAME_CONFIG);
+                this.frameCoordinator = new FrameCoordinator(this);
+                this.visualEffectsSystem = new VisualEffectsSystem(this);
+                this.monitorEffectsSystem = new MonitorEffectsSystem(this);
 
                 // Compatibility properties keep existing call sites stable while state ownership
                 // moves out of the legacy Game coordinator one responsibility at a time.
@@ -18210,6 +18811,9 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 installOwnedStateProxy(this, 'finalGridlockElapsedMs', this.runtimeState, 'finalGridlockElapsedMs');
                 TutorialSystem.ownedFields.forEach((field) => installOwnedStateProxy(this, field, this.tutorialSystem, field));
                 AttractModeSystem.ownedFields.forEach((field) => installOwnedStateProxy(this, field, this.attractModeSystem, field));
+                FrameCoordinator.ownedFields.forEach((field) => installOwnedStateProxy(this, field, this.frameCoordinator, field));
+                VisualEffectsSystem.ownedFields.forEach((field) => installOwnedStateProxy(this, field, this.visualEffectsSystem, field));
+                MonitorEffectsSystem.ownedFields.forEach((field) => installOwnedStateProxy(this, field, this.monitorEffectsSystem, field));
                 this.visualEffectSequence = 0;
                 this.crystalCollectionFx = { lastPickupAt: -Infinity, chain: 0, halo: null };
                 this.gameplayTaskSequence = 0;
@@ -18752,10 +19356,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 this.refreshGameOverlay();
             }
 
-            nextVisualEffectTaskName(prefix = 'effect') {
-                this.visualEffectSequence++;
-                return `${prefix}-${this.visualEffectSequence}`;
-            }
+            nextVisualEffectTaskName(...args) { return this.visualEffectsSystem.nextVisualEffectTaskName(...args); }
 
             nextGameplayTaskName(prefix = 'gameplay') {
                 this.gameplayTaskSequence++;
@@ -19053,27 +19654,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
             }
 
 
-            purgeTransientPlayfieldEffects() {
-                this.clearCrtEventEffects();
-                if (this.vectorTrail) this.vectorTrail.clear();
-                this.crtEventTimers = {};
-                (this.pendingSpawnWarnings || []).forEach(pending => {
-                    if (pending && pending.warning && pending.warning.isActive !== false) {
-                        this.playfieldRenderer.removeSpawnWarning(pending.warning);
-                    }
-                });
-                if (this.playfieldRenderer && typeof this.playfieldRenderer.clearTransientEffects === 'function') {
-                    this.playfieldRenderer.clearTransientEffects();
-                }
-                if (this.container) {
-                    this.container.classList.remove('shake', 'borderFlash', 'cosmicZapShake');
-                    this.playfieldRenderer.clearRestorationPresentation();
-                }
-                if (this.player) {
-                    this.playfieldRenderer.setPlayerEffect(this.player, 'cosmicZapOrbFlash', false);
-                    this.playfieldRenderer.setPlayerEffect(this.player, 'orbRestoreGlow', false);
-                }
-            }
+            purgeTransientPlayfieldEffects(...args) { return this.visualEffectsSystem.purgeTransientPlayfieldEffects(...args); }
 
             initializeResponsiveViewportHandling() {
                 this.viewportResizeTimer = null;
@@ -20423,6 +21004,9 @@ Best Score: ${bestScore}${recoveredLine}` :
                     },
                     tutorialOwner: this.tutorialSystem ? this.tutorialSystem.snapshot() : null,
                     attractOwner: this.attractModeSystem ? this.attractModeSystem.snapshot() : null,
+                    frameOwner: this.frameCoordinator ? this.frameCoordinator.snapshot() : null,
+                    visualEffectsOwner: this.visualEffectsSystem ? this.visualEffectsSystem.snapshot() : null,
+                    monitorEffectsOwner: this.monitorEffectsSystem ? this.monitorEffectsSystem.snapshot() : null,
                     tutorial: {
                         introCompleted: !!this.introCompleted,
                         active: !!this.tutorialActive,
@@ -20912,44 +21496,21 @@ Best Score: ${bestScore}${recoveredLine}` :
                 }
             }
 
-            // Render the current playfield state through one renderer-owned frame pass.
-            renderPlayfieldFrame(timestamp = performance.now()) {
-                if (!this.playfieldRenderer || typeof this.playfieldRenderer.renderFrame !== 'function') return;
-                this.playfieldRenderer.renderFrame(this, timestamp);
-                this.playfieldRenderDirty = false;
-            }
+            // Compatibility delegate: FrameCoordinator owns the render request path.
+            renderPlayfieldFrame(...args) { return this.frameCoordinator.renderPlayfieldFrame(...args); }
 
+            // Compatibility delegate: FrameCoordinator owns standalone presentation scheduling.
             // State changes outside the live simulation loop still need one presentation frame.
             // Live gameplay and tutorial animation already own a frame and will consume the dirty state.
-            requestPlayfieldRender() {
-                this.playfieldRenderDirty = true;
-                if ((this.flow && this.flow.isLiveAction()) || this.tutorialActive) return;
-                this.scheduler.scheduleAnimationFrame('playfield-render', 'standalone-frame', (timestamp) => {
-                    this.renderPlayfieldFrame(timestamp);
-                });
-            }
+            requestPlayfieldRender(...args) { return this.frameCoordinator.requestPlayfieldRender(...args); }
 
             // The main simulation loop has one scheduler-owned animation frame at a time.
             // A new owner revision immediately cancels any pending frame from the previous live-action session.
-            stopGameplayLoop() {
-                this.gameplayRunToken++;
-                this.scheduler.cancelScope('gameplay-loop');
-                return this.gameplayRunToken;
-            }
+            stopGameplayLoop(...args) { return this.frameCoordinator.stopGameplayLoop(...args); }
 
-            scheduleGameplayLoopFrame(runToken) {
-                if (runToken !== this.gameplayRunToken || !this.flow.isLiveAction()) return false;
-                this.scheduler.scheduleAnimationFrame('gameplay-loop', 'main-frame', (timestamp) => {
-                    this.gameLoop(timestamp, runToken);
-                });
-                return true;
-            }
+            scheduleGameplayLoopFrame(...args) { return this.frameCoordinator.scheduleGameplayLoopFrame(...args); }
 
-            startGameplayLoop() {
-                const runToken = this.stopGameplayLoop();
-                this.scheduleGameplayLoopFrame(runToken);
-                return runToken;
-            }
+            startGameplayLoop(...args) { return this.frameCoordinator.startGameplayLoop(...args); }
 
             // Cancel every live-gameplay task, including the main animation loop.
             // Tutorial warnings belong to the separate tutorial scope and are canceled by clearPendingSpawnWarnings itself.
@@ -21267,289 +21828,50 @@ Best Score: ${bestScore}${recoveredLine}` :
                 this.updateMusicToggleLabel();
                 if (this.ui && this.ui.updateRadarColorIndicator) this.ui.updateRadarColorIndicator();
             }
-            loadCrtPreference() {
-                return this.settings.loadCrtEnabled();
-            }
-            loadMonitorMode() {
-                return this.settings.loadMonitorMode(GAME_FEATURE_FLAGS.crt);
-            }
+            loadCrtPreference(...args) { return this.monitorEffectsSystem.loadCrtPreference(...args); }
+            loadMonitorMode(...args) { return this.monitorEffectsSystem.loadMonitorMode(...args); }
 
-            loadCrtPresetLevel() {
-                return this.loadMonitorMode() === 'off' ? 'off' : 'on';
-            }
-            saveCrtPreference() {
-                this.settings.saveMonitorPreference(this.monitorMode, this.crtEnabled);
-            }
+            loadCrtPresetLevel(...args) { return this.monitorEffectsSystem.loadCrtPresetLevel(...args); }
+            saveCrtPreference(...args) { return this.monitorEffectsSystem.saveCrtPreference(...args); }
 
-            applyMonitorPresetState(mode) {
-                const normalizedMode = MONITOR_PRESETS[mode] ? mode : 'vector';
-                const preset = MONITOR_PRESETS[normalizedMode];
+            applyMonitorPresetState(...args) { return this.monitorEffectsSystem.applyMonitorPresetState(...args); }
+            saveCrtEffectLevels(...args) { return this.monitorEffectsSystem.saveCrtEffectLevels(...args); }
+            saveCrtFeaturePreferences(...args) { return this.monitorEffectsSystem.saveCrtFeaturePreferences(...args); }
 
-                this.crtFeatures = {};
-                Object.keys(this.crtFeatureClassMap || {}).forEach(key => {
-                    this.crtFeatures[key] = false;
-                });
+            syncCrtFeaturesFromGroups(...args) { return this.monitorEffectsSystem.syncCrtFeaturesFromGroups(...args); }
 
-                this.crtEffectLevels = {};
-                (this.crtAdjustableEffects || []).forEach(key => {
-                    this.crtEffectLevels[key] = preset.effectLevels[key] || 'off';
-                });
+            updateCrtToggleLabel(...args) { return this.monitorEffectsSystem.updateCrtToggleLabel(...args); }
 
-                Object.entries(preset.fixedFeatures || {}).forEach(([key, enabled]) => {
-                    this.crtFeatures[key] = !!enabled;
-                });
-                this.syncCrtFeaturesFromGroups();
-            }
-            saveCrtEffectLevels() {
-                this.settings.saveCrtEffectLevels(this.crtEffectLevels);
-            }
-            saveCrtFeaturePreferences() {
-                this.settings.saveCrtFeatureStates(this.crtFeatures);
-            }
+            updateCrtDeveloperControls(...args) { return this.monitorEffectsSystem.updateCrtDeveloperControls(...args); }
 
-            syncCrtFeaturesFromGroups() {
-                if (!this.crtFeatures) this.crtFeatures = {};
-                Object.entries(this.crtEffectLevels || {}).forEach(([key, level]) => {
-                    this.crtFeatures[key] = level !== 'off';
-                });
-            }
+            getCrtRenderClassLevel(...args) { return this.monitorEffectsSystem.getCrtRenderClassLevel(...args); }
 
-            updateCrtToggleLabel() {
-                const mode = (GAME_FEATURE_FLAGS.crt && MONITOR_PRESETS[this.monitorMode]) ? this.monitorMode : 'off';
-                const label = MONITOR_PRESETS[mode].label;
-                const nextMode = MONITOR_MODE_ORDER[(MONITOR_MODE_ORDER.indexOf(mode) + 1) % MONITOR_MODE_ORDER.length];
-                const nextLabel = MONITOR_PRESETS[nextMode].label;
-                const enabled = mode !== 'off';
-                if (this.crtToggleButton) {
-                    const glyph = this.crtToggleButton.querySelector('#monitorModeGlyph');
-                    const offSlash = this.crtToggleButton.querySelector('#monitorOffSlash');
-                    const accessibleLabel = !GAME_FEATURE_FLAGS.crt
-                        ? 'Monitor effects unavailable'
-                        : (mode === 'off'
-                            ? 'Monitor off — tap for CRT'
-                            : (mode === 'crt'
-                                ? 'CRT monitor — tap for Vector'
-                                : 'Vector monitor — tap to turn off'));
+            applyCrtFeatureClasses(...args) { return this.monitorEffectsSystem.applyCrtFeatureClasses(...args); }
 
-                    this.crtToggleButton.disabled = !GAME_FEATURE_FLAGS.crt;
-                    this.crtToggleButton.classList.toggle('is-muted', !enabled);
-                    this.crtToggleButton.setAttribute('aria-pressed', enabled ? 'true' : 'false');
-                    this.crtToggleButton.setAttribute('aria-label', accessibleLabel);
-                    this.crtToggleButton.setAttribute('data-monitor-mode', mode);
-                    this.crtToggleButton.title = accessibleLabel;
+            applyCrtPreference(...args) { return this.monitorEffectsSystem.applyCrtPreference(...args); }
 
-                    if (glyph) {
-                        glyph.textContent = mode === 'crt' ? 'C' : (mode === 'vector' ? 'V' : '');
-                        glyph.style.display = mode === 'off' ? 'none' : '';
-                    }
-                    if (offSlash) offSlash.style.display = mode === 'off' ? '' : 'none';
-                }
-                if (this.crtDeveloperMasterState) {
-                    this.crtDeveloperMasterState.textContent = `MONITOR: ${label.toUpperCase()} · NEXT: ${nextLabel.toUpperCase()}`;
-                }
-            }
+            applyMonitorMode(...args) { return this.monitorEffectsSystem.applyMonitorMode(...args); }
 
-            updateCrtDeveloperControls() {
-                if (this.crtEffectLevelButtons) {
-                    this.crtEffectLevelButtons.forEach(button => {
-                        const key = button.dataset.crtEffectLevel;
-                        const level = (this.crtEffectLevels && this.crtEffectLevels[key]) || 'off';
-                        button.textContent = level.toUpperCase();
-                        button.classList.toggle('is-off', level === 'off');
-                        button.classList.toggle('is-on', level !== 'off');
-                        button.classList.toggle('is-below', level === 'below');
-                        button.classList.toggle('is-current', level === 'current');
-                        button.classList.toggle('is-above', level === 'above');
-                        button.setAttribute('aria-label', `${key} CRT effect ${level}`);
-                    });
-                }
-                if (this.crtFeatureToggleButtons) {
-                    this.crtFeatureToggleButtons.forEach(button => {
-                        const key = button.dataset.crtFeatureToggle;
-                        const enabled = !!(this.crtFeatures && this.crtFeatures[key]);
-                        button.textContent = enabled ? 'ON' : 'OFF';
-                        button.classList.toggle('is-on', enabled);
-                        button.classList.toggle('is-off', !enabled);
-                        button.setAttribute('aria-pressed', enabled ? 'true' : 'false');
-                    });
-                }
-                this.updateCrtToggleLabel();
-            }
+            applyCrtPresetLevel(...args) { return this.monitorEffectsSystem.applyCrtPresetLevel(...args); }
 
-            getCrtRenderClassLevel(level) {
-                return ({ below: 'low', current: 'medium', above: 'high' })[level] || null;
-            }
-
-            applyCrtFeatureClasses() {
-                if (!this.container) return;
-                this.syncCrtFeaturesFromGroups();
-                Object.entries(this.crtFeatureClassMap || {}).forEach(([key, className]) => {
-                    this.container.classList.toggle(className, !!(this.crtFeatures && this.crtFeatures[key]));
-                });
-                ['base', 'phosphor', 'signal', 'events'].forEach(group => {
-                    ['low', 'medium', 'high'].forEach(level => this.container.classList.remove(`crt-${group}-${level}`));
-                });
-                Object.entries(this.crtEffectLevelClassMap || {}).forEach(([key, stem]) => {
-                    ['low', 'medium', 'high'].forEach(level => this.container.classList.remove(`crt-${stem}-${level}`));
-                    const semanticLevel = this.crtEffectLevels && this.crtEffectLevels[key];
-                    const renderLevel = this.getCrtRenderClassLevel(semanticLevel);
-                    if (renderLevel) this.container.classList.add(`crt-${stem}-${renderLevel}`);
-                });
-                // Curvature is a fixed ON/OFF mask. Use the production geometry whenever it is enabled.
-                if (this.crtFeatures && this.crtFeatures.curvature) this.container.classList.add('crt-signal-medium');
-                if (this.playfieldShell) {
-                    const glowEnabled = !!(this.crtFeatures && this.crtFeatures.glow);
-                    const semanticLevel = this.crtEffectLevels && this.crtEffectLevels.glow;
-                    const glowLevel = this.getCrtRenderClassLevel(semanticLevel);
-                    this.playfieldShell.classList.toggle('crt-fx-glow', glowEnabled);
-                    ['low', 'medium', 'high'].forEach(level => this.playfieldShell.classList.remove(`crt-glow-${level}`));
-                    if (glowEnabled && glowLevel) this.playfieldShell.classList.add(`crt-glow-${glowLevel}`);
-                }
-                this.updateCrtDeveloperControls();
-            }
-
-            applyCrtPreference() {
-                if (!this.container) return;
-                const activeMode = (GAME_FEATURE_FLAGS.crt && MONITOR_PRESETS[this.monitorMode]) ? this.monitorMode : 'off';
-                this.monitorMode = activeMode;
-                this.crtPresetLevel = activeMode === 'off' ? 'off' : 'on';
-                this.crtEnabled = activeMode !== 'off';
-
-                this.container.classList.toggle('crt-enabled', this.crtEnabled);
-                this.container.classList.toggle('monitor-vector', activeMode === 'vector');
-                this.container.classList.toggle('monitor-crt', activeMode === 'crt');
-                if (this.playfieldShell) {
-                    this.playfieldShell.classList.toggle('crt-enabled', this.crtEnabled);
-                    this.playfieldShell.classList.toggle('monitor-vector', activeMode === 'vector');
-                    this.playfieldShell.classList.toggle('monitor-crt', activeMode === 'crt');
-                }
-
-                this.applyCrtFeatureClasses();
-                if (!this.crtEnabled) this.clearCrtEventEffects();
-                if (this.webglDistortion) this.webglDistortion.invalidate();
-                this.requestPlayfieldRender();
-                this.updateCrtToggleLabel();
-            }
-
-            applyMonitorMode(mode) {
-                const normalizedMode = (GAME_FEATURE_FLAGS.crt && MONITOR_PRESETS[mode]) ? mode : 'off';
-                if (this.vectorTrail) this.vectorTrail.clear();
-                this.monitorMode = normalizedMode;
-                this.crtPresetLevel = normalizedMode === 'off' ? 'off' : 'on';
-                this.crtEnabled = normalizedMode !== 'off';
-                this.applyMonitorPresetState(normalizedMode);
-                this.saveCrtPreference();
-                this.saveCrtEffectLevels();
-                this.saveCrtFeaturePreferences();
-                this.clearCrtEventEffects();
-                this.applyCrtPreference();
-            }
-
-            applyCrtPresetLevel(level) {
-                this.applyMonitorMode(level === 'off' ? 'off' : 'vector');
-            }
-
-            toggleCrtSetting() {
-                if (!GAME_FEATURE_FLAGS.crt) return;
-                const currentIndex = MONITOR_MODE_ORDER.indexOf(this.monitorMode);
-                const nextIndex = currentIndex >= 0 ? (currentIndex + 1) % MONITOR_MODE_ORDER.length : 0;
-                this.applyMonitorMode(MONITOR_MODE_ORDER[nextIndex]);
-            }
+            toggleCrtSetting(...args) { return this.monitorEffectsSystem.toggleCrtSetting(...args); }
 
 
-            advanceCrtEffectLevel(key) {
-                if (!key || !this.crtEffectLevels || !(key in this.crtEffectLevels)) return;
-                const levels = ['off', 'below', 'current', 'above'];
-                const currentIndex = Math.max(0, levels.indexOf(this.crtEffectLevels[key]));
-                this.crtEffectLevels[key] = levels[(currentIndex + 1) % levels.length];
-                this.syncCrtFeaturesFromGroups();
-                this.saveCrtEffectLevels();
-                this.saveCrtFeaturePreferences();
-                this.applyCrtFeatureClasses();
-                if (['gridlock', 'zap', 'restore'].includes(key) && this.crtEffectLevels[key] === 'off') {
-                    this.container.classList.remove(`crt-${key}-event`);
-                }
-            }
+            advanceCrtEffectLevel(...args) { return this.monitorEffectsSystem.advanceCrtEffectLevel(...args); }
 
-            toggleCrtFeature(key) {
-                if (!key || !this.crtFeatures || !(key in this.crtFeatureClassMap)) return;
-                this.crtFeatures[key] = !this.crtFeatures[key];
-                this.saveCrtFeaturePreferences();
-                this.applyCrtFeatureClasses();
-                if ((key === 'death' || key === 'shutdown') && !this.crtFeatures.death && !this.crtFeatures.shutdown) {
-                    this.container.classList.remove('crt-death-event', 'crt-shutdown-blackout');
-                }
-            }
+            toggleCrtFeature(...args) { return this.monitorEffectsSystem.toggleCrtFeature(...args); }
 
-            setAllCrtFeatures(enabled) {
-                Object.keys(this.crtEffectLevels || {}).forEach(key => {
-                    this.crtEffectLevels[key] = enabled ? 'current' : 'off';
-                });
-                ['curvature', 'death', 'shutdown'].forEach(key => {
-                    this.crtFeatures[key] = !!enabled;
-                });
-                this.syncCrtFeaturesFromGroups();
-                this.saveCrtEffectLevels();
-                this.saveCrtFeaturePreferences();
-                this.applyCrtFeatureClasses();
-                if (!enabled) this.clearCrtEventEffects();
-            }
+            setAllCrtFeatures(...args) { return this.monitorEffectsSystem.setAllCrtFeatures(...args); }
 
-            resetCrtToProduction() {
-                const presetMode = this.monitorMode === 'crt' ? 'crt' : 'vector';
-                this.applyMonitorPresetState(presetMode);
-                this.saveCrtEffectLevels();
-                this.saveCrtFeaturePreferences();
-                this.clearCrtEventEffects();
-                this.applyCrtFeatureClasses();
-            }
+            resetCrtToProduction(...args) { return this.monitorEffectsSystem.resetCrtToProduction(...args); }
 
-            setCrtPaused(paused) {
-                if (!this.container) return;
-                this.container.classList.toggle('crt-paused', !!paused);
-                if (paused && this.vectorTrail) this.vectorTrail.clear();
-            }
+            setCrtPaused(...args) { return this.monitorEffectsSystem.setCrtPaused(...args); }
 
-            setCrtUiSuspended(suspended) {
-                if (!this.container) return;
-                this.container.classList.toggle('crt-ui-suspended', !!suspended);
-                if (suspended && this.vectorTrail) this.vectorTrail.clear();
-                if (this.playfieldShell) this.playfieldShell.classList.toggle('crt-ui-suspended', !!suspended);
-                if (suspended) this.clearCrtEventEffects();
-                if (this.webglDistortion) this.webglDistortion.syncPresentation();
-                this.requestPlayfieldRender();
-            }
+            setCrtUiSuspended(...args) { return this.monitorEffectsSystem.setCrtUiSuspended(...args); }
 
-            clearCrtEventEffects() {
-                if (!this.container) return;
-                ['gridlock', 'zap', 'death', 'restore'].forEach(type => {
-                    this.scheduler.cancelTask('visual-effects', `crt-${type}`);
-                    if (this.crtEventTimers) this.crtEventTimers[type] = null;
-                    this.container.classList.remove(`crt-${type}-event`);
-                });
-            }
+            clearCrtEventEffects(...args) { return this.monitorEffectsSystem.clearCrtEventEffects(...args); }
 
-            triggerCrtEvent(type) {
-                if (!GAME_FEATURE_FLAGS.crt || !this.crtEnabled || this.isPaused || !this.container || this.container.classList.contains('crt-ui-suspended')) return;
-                const eventEnabled = {
-                    gridlock: !!this.crtFeatures.gridlock,
-                    zap: !!this.crtFeatures.zap,
-                    death: !!this.crtFeatures.death || !!this.crtFeatures.shutdown,
-                    restore: !!this.crtFeatures.restore
-                };
-                if (!eventEnabled[type]) return;
-                const durations = GAME_CONFIG.visualTiming.crtEventsMs;
-                if (!durations[type]) return;
-                const className = `crt-${type}-event`;
-                this.scheduler.cancelTask('visual-effects', `crt-${type}`);
-                this.container.classList.remove(className);
-                void this.container.offsetWidth;
-                this.container.classList.add(className);
-                this.crtEventTimers[type] = this.scheduler.scheduleTimeout('visual-effects', `crt-${type}`, () => {
-                    this.container.classList.remove(className);
-                    this.crtEventTimers[type] = null;
-                }, durations[type]);
-            }
+            triggerCrtEvent(...args) { return this.monitorEffectsSystem.triggerCrtEvent(...args); }
 
             saveProgressUnlocks() {
                 return this.campaign.saveHighestUnlockedSector();
@@ -23067,18 +23389,7 @@ Best Score: ${bestScore}${recoveredLine}` :
                 return this.collisionSystem.getPlayerPathHitScore(object, movementSegments, this.player);
             }
 
-            playCrystalCollectionEffect(crystal) {
-                if (!crystal) return;
-
-                // Radar feedback is the single visual confirmation for crystal collection.
-                // Remove any stale Orb-side effect left by an older state, but create no new one.
-                if (this.player) {
-                    this.playfieldRenderer.clearPlayerPickupEffects(this.player);
-                }
-                if (this.ui && typeof this.ui.pulseRadarCollection === 'function') {
-                    this.ui.pulseRadarCollection(crystal.color);
-                }
-            }
+            playCrystalCollectionEffect(...args) { return this.visualEffectsSystem.playCrystalCollectionEffect(...args); }
 
             collectCrystalAtIndex(index, crystal) {
                 const collection = this.crystalSystem.collect(index, crystal, this.GRID_SIZE);
@@ -23641,73 +23952,11 @@ Best Score: ${bestScore}${recoveredLine}` :
             returnToAttractMode(...args) { return this.attractModeSystem.returnToAttractMode(...args); }
 
             // Stop attract mode and clean up
-            removeCampaignRestorePresentation() {
-                if (this.playfieldRenderer && typeof this.playfieldRenderer.removeCampaignRestorePresentation === 'function') {
-                    this.playfieldRenderer.removeCampaignRestorePresentation(
-                        this.campaignRestoreLines || [],
-                        this.campaignRestoreCells || []
-                    );
-                }
-                this.campaignRestoreLines = [];
-                this.campaignRestoreCells = [];
-            }
+            removeCampaignRestorePresentation(...args) { return this.visualEffectsSystem.removeCampaignRestorePresentation(...args); }
 
-            createCampaignRestorePresentation() {
-                this.removeCampaignRestorePresentation();
-                const gridSize = this.GRID_SIZE;
-                const gridCount = Math.round(this.PLAYFIELD_SIZE / gridSize);
-                const positions = [];
-                const lines = [];
-                const cells = [];
+            createCampaignRestorePresentation(...args) { return this.visualEffectsSystem.createCampaignRestorePresentation(...args); }
 
-                for (let index = 0; index <= gridCount; index++) {
-                    const offset = Math.max(0, Math.min(this.PLAYFIELD_SIZE, Math.round(index * gridSize)));
-                    lines.push({ orientation: 'horizontal', offset, length: this.PLAYFIELD_SIZE, delayMs: 120 + index * 34, element: null });
-                    lines.push({ orientation: 'vertical', offset, length: this.PLAYFIELD_SIZE, delayMs: 160 + index * 34, element: null });
-                }
-
-                for (let row = 0; row < gridCount; row++) {
-                    for (let col = 0; col < gridCount; col++) positions.push({ row, col });
-                }
-
-                // Deterministic shuffle keeps the restoration lively and test-reproducible.
-                let seed = 0x9e3779b9;
-                const nextRandom = () => {
-                    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
-                    return seed / 0x100000000;
-                };
-                for (let index = positions.length - 1; index > 0; index--) {
-                    const swapIndex = Math.floor(nextRandom() * (index + 1));
-                    [positions[index], positions[swapIndex]] = [positions[swapIndex], positions[index]];
-                }
-
-                positions.forEach((position, index) => {
-                    const progress = positions.length <= 1 ? 0 : index / (positions.length - 1);
-                    cells.push({
-                        row: position.row,
-                        col: position.col,
-                        x: position.col * gridSize,
-                        y: position.row * gridSize,
-                        size: gridSize,
-                        repairDelayMs: Math.round(1900 + progress * 1900 + nextRandom() * 85),
-                        element: null
-                    });
-                });
-
-                this.campaignRestoreLines = lines;
-                this.campaignRestoreCells = cells;
-                this.playfieldRenderer.createCampaignRestorePresentation(lines, cells);
-            }
-
-            clearCampaignCompletionPresentation() {
-                this.setTransitionState({ campaignCompletionActive: false });
-                this.playfieldRenderer.stopCampaignCompletion();
-                this.removeCampaignRestorePresentation();
-                this.gameOverElement.classList.remove('finalGameCompleteText', 'campaign-completion-title');
-                this.gameOverElement.style.opacity = '0';
-                this.gameOverElement.textContent = '';
-                this.playfieldRenderer.setPlayerVisible(this.player, true);
-            }
+            clearCampaignCompletionPresentation(...args) { return this.visualEffectsSystem.clearCampaignCompletionPresentation(...args); }
 
             recoverFromEndingTransitionFailure(reason = 'ending-transition-failed') {
                 this.cancelTransitionGroup(reason);
@@ -28171,6 +28420,9 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 runtimeState: game.runtimeState.snapshot(),
                 tutorial: game.tutorialSystem.snapshot(),
                 attractMode: game.attractModeSystem.snapshot(),
+                frameCoordination: game.frameCoordinator.snapshot(),
+                visualEffects: game.visualEffectsSystem.snapshot(),
+                monitorEffects: game.monitorEffectsSystem.snapshot(),
                 screens: game.screenManager.snapshot()
             })
         });
