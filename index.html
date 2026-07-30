@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Block-A-Zoids p230: gives mutable runtime lifecycle flags one authoritative owner while preserving legacy property access during staged migration.
+Block-A-Zoids p231: gives menus, overlays, High Score presentation, Sector Select, and UI event binding dedicated presentation owners.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="p230">
+<html data-build-version="p231">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -8619,15 +8619,15 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
         const BUILD_METADATA = window.BLOCKAZOIDS_BUILD = Object.freeze({
             version: document.documentElement.dataset.buildVersion || 'unknown',
             label: BUILD_VERSION,
-            architecturePhase: 'runtime-state-ownership-1',
-            sourceBaseline: 'p229',
+            architecturePhase: 'screen-ownership-1',
+            sourceBaseline: 'p230',
             behaviorPolicy: 'architecture-only'
         });
 
         const SOURCE_LAYOUT = window.BLOCKAZOIDS_SOURCE_LAYOUT = Object.freeze({
             developmentModel: 'modular-source',
             releaseModel: 'single-html',
-            buildOutput: 'block-a-zoids-p230.html',
+            buildOutput: 'block-a-zoids-p231.html',
             categories: Object.freeze([
                 'build', 'config', 'content', 'rules', 'state', 'services', 'app', 'gameplay',
                 'presentation', 'platform', 'audio', 'ui', 'development'
@@ -9368,7 +9368,8 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 rendering: Object.freeze({ owner: 'CanvasPlayfieldRenderer / WebGLPlayfieldDistortion', responsibility: 'Playfield presentation only' }),
                 input: Object.freeze({ owner: 'FullSurfaceGestureCoordinator / Player', responsibility: 'Pointer and motion translation' }),
                 audio: Object.freeze({ owner: 'AudioManager', responsibility: 'Sound and music playback' }),
-                interface: Object.freeze({ owner: 'UI', responsibility: 'DOM projection of mutable game state' }),
+                screens: Object.freeze({ owner: 'ScreenManager / HighScoreScreenController / LevelSelectScreenController', responsibility: 'Menu visibility, overlays, screen event binding, High Score presentation, and Sector Select presentation' }),
+                interface: Object.freeze({ owner: 'UI', responsibility: 'HUD projection of mutable game state' }),
                 diagnostics: Object.freeze({ owner: 'ArchitectureValidator', responsibility: 'Startup contracts and migration safety' })
             }),
             configurationCatalog: Object.freeze({
@@ -11906,6 +11907,9 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 const owners = Object.values(systems).map((entry) => entry.owner);
                 this.assert('Architecture manifest contains systems', owners.length > 0);
                 this.assert('Architecture system owners are named', owners.every((owner) => typeof owner === 'string' && owner.trim().length > 0));
+                this.assert('ScreenManager presentation owner is available', typeof ScreenManager === 'function');
+                this.assert('High Score screen owner is available', typeof HighScoreScreenController === 'function');
+                this.assert('Sector Select screen owner is available', typeof LevelSelectScreenController === 'function');
             }
 
             run() {
@@ -12353,13 +12357,13 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 game.cancelGameplayScheduling();
                 game.releaseWakeLock();
                 game.resetTerminalState();
-                game.instructionsWindow.style.display = 'none';
+                game.screenManager.setInstructionsVisible(false);
                 game.setGameOverlayVisible(false);
                 if (game.resumeButton) game.resumeButton.textContent = 'Resume';
-                game.pauseWindow.style.display = 'none';
+                game.screenManager.setPauseShellVisible(false);
                 game.refreshGameOverlay();
                 if (game.menuButtons && game.scoringPanel && game.storyPanel && game.settingsPanel) game.showMainMenuButtons();
-                game.levelSelectWindow.style.display = 'none';
+                game.screenManager.setLevelSelectVisible(false);
 
                 game.gameOverElement.style.opacity = '0';
                 game.gameOverElement.classList.remove('finalGameCompleteText', 'finalGridlockGameOverText');
@@ -12395,7 +12399,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 if (showOverlay) {
                     game.menuOpenedAt = performance.now();
                     game.showMainMenuButtons();
-                    game.pauseWindow.style.display = 'flex';
+                    game.screenManager.setPauseShellVisible(true);
                     game.updatePauseGridMenu();
                     game.setGameOverlayVisible(true);
                     requestAnimationFrame(() => game.clearMenuButtonFocus());
@@ -12408,10 +12412,10 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 const game = this.game;
                 game.menuOpenedAt = 0;
                 game.clearMenuButtonFocus();
-                game.pauseWindow.style.display = 'none';
+                game.screenManager.setPauseShellVisible(false);
                 game.setCrtUiSuspended(false);
                 if (game.menuButtons && game.scoringPanel && game.storyPanel && game.settingsPanel) game.showMainMenuButtons();
-                game.levelSelectWindow.style.display = 'none';
+                game.screenManager.setLevelSelectVisible(false);
 
                 game.setGameOverlayVisible(false);
                 if (game.audio) game.audio.startBackgroundMusic(game.level);
@@ -12550,9 +12554,9 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 game.setGameplayState({ resumeCountdownActive: false });
                 game.cancelGameplayScheduling();
                 game.releaseWakeLock();
-                game.pauseWindow.style.display = 'none';
+                game.screenManager.setPauseShellVisible(false);
                 if (game.menuButtons && game.scoringPanel && game.storyPanel && game.settingsPanel) game.showMainMenuButtons();
-                game.levelSelectWindow.style.display = 'none';
+                game.screenManager.setLevelSelectVisible(false);
                 game.setGameOverlayVisible(false);
                 game.audio.stopBackgroundMusic(); // Stop music
 
@@ -15625,6 +15629,895 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
         }
 
 
+
+/* Source: src/js/presentation/100-high-score-screen-controller.js */
+        class HighScoreScreenController {
+            constructor(game) {
+                this.game = game;
+                this.layoutRaf = null;
+            }
+
+            getRunValues(details) {
+                const game = this.game;
+                if (!game.highScore || game.highScore <= 0) {
+                    return { relics: '—', sector: '—', time: '—' };
+                }
+                return {
+                    relics: details && Number.isFinite(details.relics) ? details.relics : 0,
+                    sector: details && details.highestSector ? details.highestSector : '—',
+                    time: details && details.gameTimeMs ? game.formatTelemetryDuration(details.gameTimeMs) : '—'
+                };
+            }
+
+            renderRunDetails(container, details) {
+                if (!container) return;
+                const values = this.getRunValues(details);
+                Object.entries(values).forEach(([field, value]) => {
+                    const target = container.querySelector(`[data-high-score-field="${field}"]`);
+                    if (target) target.textContent = `${value}`;
+                });
+            }
+
+            scheduleLayout() {
+                const game = this.game;
+                if (!game.highScorePanel || !game.highScorePanel.classList.contains('open')) return;
+                if (this.layoutRaf) cancelAnimationFrame(this.layoutRaf);
+                this.layoutRaf = requestAnimationFrame(() => {
+                    this.layoutRaf = requestAnimationFrame(() => {
+                        this.layoutRaf = null;
+                        this.layout();
+                    });
+                });
+            }
+
+            layout() {
+                const game = this.game;
+                if (!game.highScorePanel || !game.highScorePanelValue || !game.highScorePanelRunLine ||
+                    !game.highScorePanel.classList.contains('open')) return false;
+
+                const title = game.highScorePanel.querySelector(':scope > .menu-panel-title');
+                const details = game.highScorePanelDetails || game.highScorePanelRunLine.parentElement;
+                if (!title || !details) return false;
+
+                const panelRect = game.highScorePanel.getBoundingClientRect();
+                const titleRect = title.getBoundingClientRect();
+                const detailsRect = details.getBoundingClientRect();
+                const titleBottom = titleRect.bottom - panelRect.top;
+                const detailsTop = detailsRect.top - panelRect.top;
+                if (!(detailsTop > titleBottom)) return false;
+
+                const targetCenter = (titleBottom + detailsTop) / 2;
+                game.highScorePanel.style.setProperty('--high-score-value-center-y', `${targetCenter}px`);
+
+                const valueRect = game.highScorePanelValue.getBoundingClientRect();
+                const actualCenter = valueRect.top - panelRect.top + valueRect.height / 2;
+                const correction = targetCenter - actualCenter;
+                if (Math.abs(correction) > 0.25) {
+                    game.highScorePanel.style.setProperty(
+                        '--high-score-value-center-y',
+                        `${targetCenter + correction}px`
+                    );
+                }
+                return true;
+            }
+
+            update() {
+                const game = this.game;
+                if (game.highScoreHud) game.highScoreHud.textContent = `${game.highScore}`;
+                if (game.scoringHighScoreLabel) game.scoringHighScoreLabel.textContent = 'HIGH SCORE';
+                if (game.scoringHighScoreValue) game.scoringHighScoreValue.textContent = `${game.highScore}`;
+
+                const details = game.highScoreDetails || game.getEmptyHighScoreDetails();
+                this.renderRunDetails(game.scoringHighScoreRunLine, details);
+                if (game.highScorePanelValue) game.highScorePanelValue.textContent = `${game.highScore}`;
+                if (game.highScorePanelSector) {
+                    game.highScorePanelSector.textContent = game.highScore > 0 && details.highestSector ? `${details.highestSector}` : '—';
+                }
+                if (game.highScorePanelTime) {
+                    game.highScorePanelTime.textContent = game.highScore > 0 && details.gameTimeMs
+                        ? game.formatTelemetryDuration(details.gameTimeMs)
+                        : '—';
+                }
+                this.renderRunDetails(game.highScorePanelRunLine, details);
+                const scoringRecordArea = document.querySelector('.scoring-record-area');
+                if (scoringRecordArea) scoringRecordArea.style.display = game.highScore > 0 ? 'flex' : 'none';
+                this.scheduleLayout();
+            }
+
+            snapshot() {
+                return Object.freeze({
+                    open: !!(this.game.highScorePanel && this.game.highScorePanel.classList.contains('open')),
+                    layoutPending: !!this.layoutRaf
+                });
+            }
+        }
+
+/* Source: src/js/presentation/110-level-select-screen-controller.js */
+        class LevelSelectScreenController {
+            constructor(game, screenManager) {
+                this.game = game;
+                this.screenManager = screenManager;
+            }
+
+            isVisible() {
+                return !!(this.game.levelSelectWindow && this.game.levelSelectWindow.style.display === 'flex');
+            }
+
+            setVisible(visible) {
+                if (this.game.levelSelectWindow) this.game.levelSelectWindow.style.display = visible ? 'flex' : 'none';
+            }
+
+            build() {
+                const game = this.game;
+                if (!game.levelSelectGrid) return;
+                game.levelSelectGrid.innerHTML = '';
+                const highestVisibleSector = game.developerModeEnabled ? game.MAX_LEVEL : game.getMaximumSelectableSector();
+                for (let levelNumber = 1; levelNumber <= highestVisibleSector; levelNumber++) {
+                    const button = document.createElement('button');
+                    button.className = 'level-select-button';
+                    button.textContent = `${levelNumber}`;
+                    button.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (!game.canChangeSectorSelection()) {
+                            game.updateLevelSelectButtonLockState();
+                            return;
+                        }
+                        game.playUiClick();
+                        this.hide();
+                        game.jumpToLevel(levelNumber, true);
+                    });
+                    game.levelSelectGrid.appendChild(button);
+                }
+
+                if (game.developerModeEnabled) {
+                    const addDeveloperButton = (label, ariaLabel, action) => {
+                        const button = document.createElement('button');
+                        button.className = 'level-select-button';
+                        button.textContent = label;
+                        if (ariaLabel) button.setAttribute('aria-label', ariaLabel);
+                        button.addEventListener('click', (e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            if (!game.canChangeSectorSelection()) {
+                                game.updateLevelSelectButtonLockState();
+                                return;
+                            }
+                            game.playUiClick();
+                            action();
+                        });
+                        game.levelSelectGrid.appendChild(button);
+                    };
+                    addDeveloperButton('CHG', 'Green Charger behavior test', () => game.startChargerBehaviorTest());
+                    addDeveloperButton('PLS', 'ECHO Phaser behavior test', () => game.startPulseBehaviorTest());
+                    addDeveloperButton('END', 'Final Gridlock test', () => game.startFinalGridlockTest());
+                }
+                game.updateLevelSelectButtonLockState();
+            }
+
+            show() {
+                const game = this.game;
+                game.suspendAttractEnemyCards();
+                game.setCrtUiSuspended(true);
+                game.updateLevelSelectButtonLockState();
+                this.setVisible(true);
+                this.screenManager.setOverlayVisible(true);
+                if (game.ui) game.ui.updateAll();
+            }
+
+            hide({ refresh = true } = {}) {
+                const game = this.game;
+                this.setVisible(false);
+                if (!refresh) return;
+                this.screenManager.refreshOverlay();
+                this.screenManager.clearOverlayForGameplay();
+                if (game.ui) game.ui.updateAll();
+            }
+
+            snapshot() {
+                return Object.freeze({
+                    visible: this.isVisible(),
+                    optionCount: this.game.levelSelectGrid ? this.game.levelSelectGrid.children.length : 0
+                });
+            }
+        }
+
+/* Source: src/js/presentation/120-screen-manager.js */
+        class ScreenManager {
+            constructor(game) {
+                this.game = game;
+                this.bound = false;
+                this.activePanel = null;
+                this.highScoreScreen = new HighScoreScreenController(game);
+                this.levelSelectScreen = new LevelSelectScreenController(game, this);
+            }
+
+            get panels() {
+                const game = this.game;
+                return Object.freeze({
+                    howTo: game.howToPanel,
+                    scoring: game.scoringPanel,
+                    story: game.storyPanel,
+                    highScore: game.highScorePanel,
+                    settings: game.settingsPanel,
+                    launchSetup: game.launchSetupPanel
+                });
+            }
+
+            bindControls() {
+                if (this.bound) return false;
+                this.bound = true;
+                const game = this.game;
+                game.startButton.addEventListener('click', (e) => game.handlePlayPauseControlClick(e));
+                if (game.howToButton) {
+                    game.howToButton.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        game.handleContextButtonClick(game.howToButton.dataset.action);
+                    });
+                }
+                if (game.settingsHudButton) {
+                    game.settingsHudButton.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        game.handleContextButtonClick(game.settingsHudButton.dataset.action);
+                    });
+                }
+                if (game.devLevelSelectHudButton) {
+                    game.devLevelSelectHudButton.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        game.playUiClick();
+                        game.openDeveloperLevelSelectShortcut();
+                    });
+                }
+                if (game.optionsButton) {
+                    game.optionsButton.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        game.openDeveloperMenuFromStartScreen();
+                    });
+                }
+                
+                if (game.pauseSettingsButton) {
+                    game.pauseSettingsButton.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (game.shouldIgnoreFreshMenuInput()) return;
+                        game.openPauseGridPanel('settings');
+                    });
+                }
+                if (game.pauseHowToButton) {
+                    game.pauseHowToButton.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (game.shouldIgnoreFreshMenuInput()) return;
+                        game.openPauseGridPanel('howTo');
+                    });
+                }
+                if (game.pauseScoresButton) {
+                    game.pauseScoresButton.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (game.shouldIgnoreFreshMenuInput()) return;
+                        game.openPauseGridPanel('scoring');
+                    });
+                }
+                if (game.pauseLaunchSetupButton) {
+                    game.pauseLaunchSetupButton.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (game.shouldIgnoreFreshMenuInput()) return;
+                        game.openPauseGridPanel('launchSetup');
+                    });
+                }
+                if (game.pauseMenuCloseButton) {
+                    game.pauseMenuCloseButton.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        game.playUiClick();
+                        if (game.developerAttractMenuOpen) game.closeDeveloperMenuToStartScreen();
+                        else game.closeBottomPanelOverlay();
+                    });
+                }
+                game.resumeButton.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (game.shouldIgnoreFreshMenuInput()) return;
+                    if (game.developerAttractMenuOpen) {
+                        game.closeDeveloperMenuToStartScreen();
+                        return;
+                    }
+                    game.resumeGameplay();
+                });
+                game.restartButton.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (game.shouldIgnoreFreshMenuInput()) return;
+                    game.requestRestartRun();
+                });
+                game.scoringButton.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (game.shouldIgnoreFreshMenuInput()) return;
+                    game.playUiClick();
+                    game.showMenuPanel('scoring');
+                });
+                game.storyButton.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (game.shouldIgnoreFreshMenuInput()) return;
+                    game.playUiClick();
+                    game.showMenuPanel('story');
+                });
+                game.settingsButton.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (game.shouldIgnoreFreshMenuInput()) return;
+                    game.playUiClick();
+                    game.showMenuPanel('settings');
+                });
+                game.levelSelectButton.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (game.shouldIgnoreFreshMenuInput()) return;
+                    game.playUiClick();
+                    game.showLevelSelectMenu();
+                });
+                if (game.settingsPanelTitle) {
+                    game.settingsPanelTitle.addEventListener('pointerdown', (e) => {
+                        if (!game.settingsPanel || !game.settingsPanel.classList.contains('open')) return;
+                        e.preventDefault();
+                        e.stopPropagation();
+                        game.recordSettingsUnlockTap();
+                    }, { passive: false });
+                }
+                game.soundToggleButton.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    game.playUiClick();
+                    game.toggleSoundSetting();
+                });
+                if (game.musicToggleButton) {
+                    game.musicToggleButton.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        game.playUiClick();
+                        game.toggleMusicSetting();
+                    });
+                }
+                if (game.crtToggleButton) {
+                    game.crtToggleButton.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        game.playUiClick();
+                        game.toggleCrtSetting();
+                    });
+                }
+                if (game.trackingSpeedDecreaseButton) {
+                    game.trackingSpeedDecreaseButton.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        game.playUiClick();
+                        game.adjustTrackingSpeed(-1);
+                    });
+                }
+                if (game.trackingSpeedIncreaseButton) {
+                    game.trackingSpeedIncreaseButton.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        game.playUiClick();
+                        game.adjustTrackingSpeed(1);
+                    });
+                }
+                if (game.crtEffectLevelButtons && game.crtEffectLevelButtons.length) {
+                    game.crtEffectLevelButtons.forEach(button => {
+                        button.addEventListener('click', (e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            game.playUiClick();
+                            game.advanceCrtEffectLevel(button.dataset.crtEffectLevel);
+                        });
+                    });
+                }
+                if (game.crtFeatureToggleButtons && game.crtFeatureToggleButtons.length) {
+                    game.crtFeatureToggleButtons.forEach(button => {
+                        button.addEventListener('click', (e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            game.playUiClick();
+                            game.toggleCrtFeature(button.dataset.crtFeatureToggle);
+                        });
+                    });
+                }
+                if (game.crtEnableAllButton) {
+                    game.crtEnableAllButton.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        game.playUiClick();
+                        game.setAllCrtFeatures(true);
+                    });
+                }
+                if (game.crtDisableAllButton) {
+                    game.crtDisableAllButton.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        game.playUiClick();
+                        game.setAllCrtFeatures(false);
+                    });
+                }
+                if (game.crtResetProductionButton) {
+                    game.crtResetProductionButton.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        game.playUiClick();
+                        game.resetCrtToProduction();
+                    });
+                }
+                if (game.sectorDecreaseButton) {
+                    game.sectorDecreaseButton.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        game.playUiClick();
+                        game.adjustSelectedStartSector(-1);
+                    });
+                }
+                if (game.sectorIncreaseButton) {
+                    game.sectorIncreaseButton.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        game.playUiClick();
+                        game.adjustSelectedStartSector(1);
+                    });
+                }
+                if (game.difficultyDecreaseButton) {
+                    game.difficultyDecreaseButton.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        game.playUiClick();
+                        game.adjustDifficulty(-1);
+                    });
+                }
+                if (game.difficultyIncreaseButton) {
+                    game.difficultyIncreaseButton.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        game.playUiClick();
+                        game.adjustDifficulty(1);
+                    });
+                }
+                game.resetHighScoreButton.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    game.playUiClick();
+                    game.requestHighScoreReset();
+                });
+                if (game.resetTutorialButton) {
+                    game.resetTutorialButton.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        game.playUiClick();
+                        game.resetTutorialProgress();
+                    });
+                }
+                if (game.telemetryButton) {
+                    game.telemetryButton.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (game.shouldIgnoreFreshMenuInput()) return;
+                        game.playUiClick();
+                        game.showMenuPanel('telemetry');
+                    });
+                }
+                if (game.exportTelemetryButton) {
+                    game.exportTelemetryButton.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        game.playUiClick();
+                        game.exportTelemetryData();
+                    });
+                }
+                if (game.clearTelemetryButton) {
+                    game.clearTelemetryButton.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        game.playUiClick();
+                        game.clearTelemetryData();
+                    });
+                }
+                if (game.copyStateSnapshotButton) {
+                    game.copyStateSnapshotButton.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        game.playUiClick();
+                        game.copyDeveloperStateSnapshot();
+                    });
+                }
+                if (game.invincibilityToggleButton) {
+                    game.invincibilityToggleButton.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        game.playUiClick();
+                        game.toggleInvincibility();
+                    });
+                }
+                if (game.skinFrameDecreaseButton) {
+                    game.skinFrameDecreaseButton.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (!game.developerModeEnabled) return;
+                        game.playUiClick();
+                        game.adjustSkinFrameSelection(-1);
+                    });
+                }
+                if (game.skinFrameIncreaseButton) {
+                    game.skinFrameIncreaseButton.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (!game.developerModeEnabled) return;
+                        game.playUiClick();
+                        game.adjustSkinFrameSelection(1);
+                    });
+                }
+                const bindSkinFitStepper = (button, property, direction) => {
+                    if (!button) return;
+                    button.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (!game.developerModeEnabled) return;
+                        game.playUiClick();
+                        game.adjustSkinFrameTuning(property, direction);
+                    });
+                };
+                bindSkinFitStepper(game.skinFrameZoomDecreaseButton, 'zoom', -1);
+                bindSkinFitStepper(game.skinFrameZoomIncreaseButton, 'zoom', 1);
+                bindSkinFitStepper(game.skinFrameXDecreaseButton, 'x', -1);
+                bindSkinFitStepper(game.skinFrameXIncreaseButton, 'x', 1);
+                bindSkinFitStepper(game.skinFrameYDecreaseButton, 'y', -1);
+                bindSkinFitStepper(game.skinFrameYIncreaseButton, 'y', 1);
+                if (game.resetSkinFrameFitButton) {
+                    game.resetSkinFrameFitButton.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (!game.developerModeEnabled) return;
+                        game.playUiClick();
+                        game.resetSkinFrameTuning();
+                    });
+                }
+                if (game.resetIntroCompletionButton) {
+                    game.resetIntroCompletionButton.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        game.playUiClick();
+                        game.resetIntroCompletionFlag();
+                    });
+                }
+                if (game.telemetryBackButton) {
+                    game.telemetryBackButton.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        game.playUiClick();
+                        game.showMenuPanel('settings');
+                    });
+                }
+                return true;
+            }
+
+            setPauseShellVisible(visible) {
+                if (this.game.pauseWindow) this.game.pauseWindow.style.display = visible ? 'flex' : 'none';
+            }
+
+            setInstructionsVisible(visible) {
+                if (this.game.instructionsWindow) this.game.instructionsWindow.style.display = visible ? 'flex' : 'none';
+            }
+
+            setLevelSelectVisible(visible) {
+                this.levelSelectScreen.setVisible(visible);
+            }
+
+            closeAllPanels() {
+                Object.values(this.panels).forEach((panel) => {
+                    if (panel) panel.classList.remove('open');
+                });
+                this.activePanel = null;
+            }
+
+            isMenuContextAllowed() {
+                const game = this.game;
+                const pausedMenu = game.flow.is(GAME_FLOW_STATES.PAUSED) && game.isPaused;
+                const gameOverMenu = game.isGameOver && game.restartReady;
+                const startMenu = game.flow.is(GAME_FLOW_STATES.ATTRACT) && game.isStartScreenVisible();
+                return !!(startMenu || pausedMenu || gameOverMenu);
+            }
+
+            isCornerMenuAvailable() {
+                const game = this.game;
+                if (!GAME_FEATURE_FLAGS.cornerMenus) return false;
+                const blocked = game.splashIntroActive || this.levelSelectScreen.isVisible() || game.sectorTransitionActive ||
+                                game.showHudDuringSectorIntro || game.resumeCountdownActive || game.startInputLocked;
+                return !blocked && this.isMenuContextAllowed();
+            }
+
+            getCurrentMenuContext() {
+                const game = this.game;
+                if (!game.pauseWindow || game.pauseWindow.style.display !== 'flex') {
+                    this.activePanel = null;
+                    return null;
+                }
+                const panels = this.panels;
+                for (const panelName of ['howTo', 'settings', 'launchSetup', 'scoring', 'highScore', 'story']) {
+                    const panel = panels[panelName];
+                    if (panel && panel.classList.contains('open')) {
+                        this.activePanel = panelName === 'story' ? 'settings' : panelName;
+                        return this.activePanel;
+                    }
+                }
+                this.activePanel = null;
+                return null;
+            }
+
+            updatePauseGridMenu() {
+                const game = this.game;
+                const menuAvailable = this.isCornerMenuAvailable();
+                this.setPauseShellVisible(menuAvailable);
+                if (game.pauseGridMenu) game.pauseGridMenu.classList.toggle('visible', menuAvailable);
+                if (game.skinShell) game.skinShell.classList.toggle('skin-menu-open', menuAvailable && !game.isGameOver);
+                if (game.pauseLaunchSetupButton) game.pauseLaunchSetupButton.setAttribute('aria-hidden', menuAvailable ? 'false' : 'true');
+
+                const activePanel = this.getCurrentMenuContext();
+                const entries = [
+                    [game.pauseSettingsButton, 'settings'],
+                    [game.pauseHowToButton, 'howTo'],
+                    [game.pauseScoresButton, 'scoring'],
+                    [game.pauseLaunchSetupButton, 'launchSetup']
+                ];
+                entries.forEach(([button, panelName]) => {
+                    if (!button) return;
+                    const selected = activePanel === panelName;
+                    button.classList.toggle('active-page', selected);
+                    button.setAttribute('aria-pressed', selected ? 'true' : 'false');
+                });
+            }
+
+            openPauseGridPanel(panelName) {
+                const game = this.game;
+                if (!this.isMenuContextAllowed()) return;
+                if (!game.pauseWindow || game.pauseWindow.style.display !== 'flex') return;
+                game.playUiClick();
+                if (this.getCurrentMenuContext() === panelName) {
+                    this.showMainMenuButtons();
+                    this.updatePauseGridMenu();
+                    this.refreshOverlay();
+                    if (game.ui) game.ui.updateAll();
+                    requestAnimationFrame(() => this.clearFocus());
+                    return;
+                }
+                this.showPanel(panelName);
+                this.setOverlayVisible(true);
+                this.updatePauseGridMenu();
+                if (game.ui) game.ui.updateAll();
+                requestAnimationFrame(() => this.clearFocus());
+            }
+
+            closeBottomPanelOverlay() {
+                const game = this.game;
+                game.menuOpenedAt = 0;
+                this.clearFocus();
+                this.setPauseShellVisible(false);
+                if (game.menuButtons) game.menuButtons.style.display = 'none';
+                this.closeAllPanels();
+                this.setLevelSelectVisible(false);
+                this.updatePauseGridMenu();
+                this.refreshOverlay();
+                if (game.ui) game.ui.updateAll();
+            }
+
+            handleContextButtonClick(action) {
+                const game = this.game;
+                if (!action || !this.isMenuContextAllowed()) return;
+                if (game.showHudDuringSectorIntro || game.resumeCountdownActive || game.startInputLocked) return;
+                game.playUiClick();
+                if (action === 'howTo' || action === 'scoring' || action === 'settings') this.openMenuPanel(action);
+            }
+
+            getContextButtonOptions() {
+                const current = this.getCurrentMenuContext();
+                if (!current) return ['howTo', 'settings'];
+                if (current === 'settings') return ['howTo', 'scoring'];
+                if (current === 'scoring') return ['howTo', 'settings'];
+                if (current === 'howTo') return ['settings', 'scoring'];
+                return ['howTo', 'settings'];
+            }
+
+            renderContextButton(button, action) {
+                if (!button) return;
+                const icons = {
+                    settings: '<span class="context-button-icon" aria-hidden="true"><svg viewBox="0 0 100 100" focusable="false"><g transform="translate(50 50)"><rect x="-8" y="-45" width="16" height="24" rx="2"/><rect x="-8" y="-45" width="16" height="24" rx="2" transform="rotate(45)"/><rect x="-8" y="-45" width="16" height="24" rx="2" transform="rotate(90)"/><rect x="-8" y="-45" width="16" height="24" rx="2" transform="rotate(135)"/><rect x="-8" y="-45" width="16" height="24" rx="2" transform="rotate(180)"/><rect x="-8" y="-45" width="16" height="24" rx="2" transform="rotate(225)"/><rect x="-8" y="-45" width="16" height="24" rx="2" transform="rotate(270)"/><rect x="-8" y="-45" width="16" height="24" rx="2" transform="rotate(315)"/><circle r="31"/><circle r="13" fill="#000"/></g></svg></span>',
+                    scoring: '<span class="context-button-text" aria-hidden="true">★</span>',
+                    howTo: '<span class="context-button-text" aria-hidden="true">?</span>'
+                };
+                const labels = { settings: 'Settings', scoring: 'Scoring', howTo: 'How to play' };
+                button.dataset.action = action || '';
+                button.innerHTML = icons[action] || '';
+                button.setAttribute('aria-label', labels[action] || 'Menu');
+                button.style.visibility = action ? 'visible' : 'hidden';
+            }
+
+            updateContextButtons() {
+                const game = this.game;
+                const [leftAction, rightAction] = this.getContextButtonOptions();
+                this.renderContextButton(game.howToButton, leftAction);
+                this.renderContextButton(game.settingsHudButton, rightAction);
+            }
+
+            openMenuPanel(panelName) {
+                const game = this.game;
+                if (!this.isMenuContextAllowed()) return;
+                if (game.showHudDuringSectorIntro || game.resumeCountdownActive || game.startInputLocked) return;
+                const targetPanel = this.panels[panelName] || null;
+                const panelAlreadyOpen = game.pauseWindow && game.pauseWindow.style.display === 'flex' &&
+                    targetPanel && targetPanel.classList.contains('open');
+                if (panelAlreadyOpen) return;
+
+                game.menuOpenedAt = performance.now();
+                this.setLevelSelectVisible(false);
+                this.showPanel(panelName);
+                this.setPauseShellVisible(true);
+                this.setOverlayVisible(true);
+                if (game.ui) game.ui.updateAll();
+                requestAnimationFrame(() => this.clearFocus());
+            }
+
+            openDeveloperLevelSelectShortcut() {
+                const game = this.game;
+                if (!game.isGameOver || !game.restartReady) return;
+                if (game.showHudDuringSectorIntro || game.resumeCountdownActive || game.startInputLocked) return;
+                game.menuOpenedAt = performance.now();
+                this.setPauseShellVisible(false);
+                if (game.menuButtons) game.menuButtons.style.display = 'none';
+                this.closeAllPanels();
+                this.levelSelectScreen.show();
+                if (game.ui) game.ui.updateAll();
+                requestAnimationFrame(() => this.clearFocus());
+            }
+
+            clearFocus() {
+                const game = this.game;
+                if (document.activeElement && typeof document.activeElement.blur === 'function') document.activeElement.blur();
+                [
+                    game.optionsButton, game.resumeButton, game.restartButton, game.scoringButton, game.storyButton,
+                    game.settingsButton, game.levelSelectButton, game.soundToggleButton, game.musicToggleButton,
+                    game.crtToggleButton, game.trackingSpeedDecreaseButton, game.trackingSpeedIncreaseButton,
+                    game.difficultyButton, game.sectorDecreaseButton, game.sectorIncreaseButton,
+                    game.difficultyDecreaseButton, game.difficultyIncreaseButton, game.resetHighScoreButton,
+                    game.resetTutorialButton, game.telemetryButton, game.exportTelemetryButton,
+                    game.clearTelemetryButton, game.copyStateSnapshotButton, game.telemetryBackButton,
+                    game.pauseLaunchSetupButton, game.devLevelSelectHudButton, game.howToButton,
+                    game.settingsHudButton, game.pauseMenuCloseButton
+                ].forEach((button) => {
+                    if (button && typeof button.blur === 'function') button.blur();
+                });
+            }
+
+            shouldIgnoreFreshInput() {
+                const game = this.game;
+                if (!game.menuOpenedAt) return false;
+                const stillGuarded = performance.now() - game.menuOpenedAt < game.menuInputGuardMs;
+                if (stillGuarded) this.clearFocus();
+                return stillGuarded;
+            }
+
+            showMainMenuButtons() {
+                const game = this.game;
+                if (game.menuButtons) game.menuButtons.style.display = 'none';
+                if (game.resumeButton) game.resumeButton.textContent = game.developerAttractMenuOpen ? 'Close' : 'Resume';
+                if (game.restartButton) game.restartButton.style.display = 'none';
+                game.updateLevelSelectUnlockState();
+                game.resetHighScoreConfirmationState();
+                game.resetRestartConfirmationState();
+                this.closeAllPanels();
+                this.updateContextButtons();
+                this.updatePauseGridMenu();
+                this.clearFocus();
+            }
+
+            showPanel(panelName) {
+                const game = this.game;
+                game.suspendAttractEnemyCards();
+                game.setCrtUiSuspended(true);
+                if (game.menuButtons) game.menuButtons.style.display = 'none';
+                Object.entries(this.panels).forEach(([name, panel]) => {
+                    if (panel) panel.classList.toggle('open', name === panelName);
+                });
+                this.activePanel = this.panels[panelName] ? panelName : null;
+
+                if (panelName !== 'settings') game.resetHighScoreConfirmationState();
+                if (panelName === 'highScore') {
+                    this.highScoreScreen.update();
+                    this.highScoreScreen.scheduleLayout();
+                }
+                game.resetRestartConfirmationState();
+                if (panelName === 'settings') {
+                    game.updateSoundToggleLabel();
+                    game.updateMusicToggleLabel();
+                    game.updateCrtToggleLabel();
+                    game.updateTrackingSpeedLabel();
+                    game.updateSettingsSectorLabel();
+                    game.updateDifficultyLabel();
+                    this.highScoreScreen.update();
+                    game.updateLevelSelectUnlockState();
+                    game.updateDeveloperSettingsVisibility();
+                    game.updateSkinFrameLabel();
+                }
+                if (panelName === 'launchSetup') {
+                    game.updateSettingsSectorLabel();
+                    game.updateDifficultyLabel();
+                }
+                if (panelName === 'telemetry') {
+                    game.updateTelemetrySummary();
+                    if (game.telemetrySummary) {
+                        game.telemetrySummary.scrollTop = 0;
+                        requestAnimationFrame(() => { if (game.telemetrySummary) game.telemetrySummary.scrollTop = 0; });
+                    }
+                    game.setTelemetryStatus(game.developerModeEnabled ? 'Local balance data only.' : 'Developer Mode required.');
+                    game.updateCrtDeveloperControls();
+                }
+                this.updateContextButtons();
+                this.updatePauseGridMenu();
+                this.clearFocus();
+            }
+
+            setOverlayVisible(visible) {
+                if (this.game.gameOverlayElement) this.game.gameOverlayElement.classList.toggle('visible', !!visible);
+            }
+
+            isMessagePanelVisible() {
+                const element = this.game.bonusTextElement;
+                if (!element) return false;
+                const isPanel = element.classList.contains('countdownText') || element.classList.contains('restoreText');
+                const opacity = parseFloat(element.style.opacity || '0');
+                return isPanel && opacity > 0.01;
+            }
+
+            refreshOverlay() {
+                const game = this.game;
+                const showingInstructions = game.instructionsWindow && game.instructionsWindow.style.display !== 'none';
+                const showingPauseShell = game.pauseWindow && game.pauseWindow.style.display === 'flex';
+                const showingMenuPanel = !!this.getCurrentMenuContext();
+                const showingPause = showingPauseShell && (game.flow.isPausedState() || showingMenuPanel);
+                const showingLevelSelect = this.levelSelectScreen.isVisible();
+                const showingMessagePanel = this.isMessagePanelVisible();
+                const shouldSuspendCrt = !!(showingMenuPanel || game.flow.isPausedState() || showingLevelSelect || showingInstructions);
+                game.setCrtUiSuspended(shouldSuspendCrt);
+
+                if (showingInstructions && game.flow.is(GAME_FLOW_STATES.ATTRACT) && !showingPause && !showingLevelSelect && !showingMessagePanel) {
+                    this.setOverlayVisible(false);
+                    return;
+                }
+                const activeWindow = showingPause || showingLevelSelect || showingMessagePanel;
+                if (game.flow.isLiveAction() && !activeWindow) {
+                    this.setOverlayVisible(false);
+                    return;
+                }
+                this.setOverlayVisible(activeWindow);
+            }
+
+            clearOverlayForGameplay() {
+                if (this.game.flow.isLiveAction()) this.setOverlayVisible(false);
+            }
+
+            snapshot() {
+                return Object.freeze({
+                    activePanel: this.getCurrentMenuContext(),
+                    pauseShellVisible: !!(this.game.pauseWindow && this.game.pauseWindow.style.display === 'flex'),
+                    levelSelect: this.levelSelectScreen.snapshot(),
+                    highScore: this.highScoreScreen.snapshot(),
+                    overlayVisible: !!(this.game.gameOverlayElement && this.game.gameOverlayElement.classList.contains('visible')),
+                    controlsBound: this.bound
+                });
+            }
+        }
+
 /* Source: src/js/app/180-game-controller.js */
         class Game {
             constructor() {
@@ -15812,7 +16705,6 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 this.highScorePanelRunLine = document.getElementById('highScorePanelRunLine');
                 this.highScorePanelSector = document.getElementById('highScorePanelSector');
                 this.highScorePanelTime = document.getElementById('highScorePanelTime');
-                this.highScorePanelLayoutRaf = null;
                 this.settingsPanel = document.getElementById('settingsPanel');
                 this.settingsPanelTitle = document.getElementById('settingsPanelTitle');
                 this.launchSetupPanel = document.getElementById('launchSetupPanel');
@@ -16208,358 +17100,10 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 window.addEventListener('blur', this.handleWindowBlur, { passive: true });
                 this.enableShakeInput(false); // Android/desktop motion can listen immediately; iOS waits for an explicit action.
                 document.addEventListener('visibilitychange', () => this.handleVisibilityChange());
-                this.startButton.addEventListener('click', (e) => this.handlePlayPauseControlClick(e));
-                if (this.howToButton) {
-                    this.howToButton.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        this.handleContextButtonClick(this.howToButton.dataset.action);
-                    });
-                }
-                if (this.settingsHudButton) {
-                    this.settingsHudButton.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        this.handleContextButtonClick(this.settingsHudButton.dataset.action);
-                    });
-                }
-                if (this.devLevelSelectHudButton) {
-                    this.devLevelSelectHudButton.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        this.playUiClick();
-                        this.openDeveloperLevelSelectShortcut();
-                    });
-                }
-                if (this.optionsButton) {
-                    this.optionsButton.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        this.openDeveloperMenuFromStartScreen();
-                    });
-                }
-
-                if (this.pauseSettingsButton) {
-                    this.pauseSettingsButton.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        if (this.shouldIgnoreFreshMenuInput()) return;
-                        this.openPauseGridPanel('settings');
-                    });
-                }
-                if (this.pauseHowToButton) {
-                    this.pauseHowToButton.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        if (this.shouldIgnoreFreshMenuInput()) return;
-                        this.openPauseGridPanel('howTo');
-                    });
-                }
-                if (this.pauseScoresButton) {
-                    this.pauseScoresButton.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        if (this.shouldIgnoreFreshMenuInput()) return;
-                        this.openPauseGridPanel('scoring');
-                    });
-                }
-                if (this.pauseLaunchSetupButton) {
-                    this.pauseLaunchSetupButton.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        if (this.shouldIgnoreFreshMenuInput()) return;
-                        this.openPauseGridPanel('launchSetup');
-                    });
-                }
-                if (this.pauseMenuCloseButton) {
-                    this.pauseMenuCloseButton.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        this.playUiClick();
-                        if (this.developerAttractMenuOpen) this.closeDeveloperMenuToStartScreen();
-                        else this.closeBottomPanelOverlay();
-                    });
-                }
-                this.resumeButton.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    if (this.shouldIgnoreFreshMenuInput()) return;
-                    if (this.developerAttractMenuOpen) {
-                        this.closeDeveloperMenuToStartScreen();
-                        return;
-                    }
-                    this.resumeGameplay();
-                });
-                this.restartButton.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    if (this.shouldIgnoreFreshMenuInput()) return;
-                    this.requestRestartRun();
-                });
-                this.scoringButton.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    if (this.shouldIgnoreFreshMenuInput()) return;
-                    this.playUiClick();
-                    this.showMenuPanel('scoring');
-                });
-                this.storyButton.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    if (this.shouldIgnoreFreshMenuInput()) return;
-                    this.playUiClick();
-                    this.showMenuPanel('story');
-                });
-                this.settingsButton.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    if (this.shouldIgnoreFreshMenuInput()) return;
-                    this.playUiClick();
-                    this.showMenuPanel('settings');
-                });
-                this.levelSelectButton.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    if (this.shouldIgnoreFreshMenuInput()) return;
-                    this.playUiClick();
-                    this.showLevelSelectMenu();
-                });
-                if (this.settingsPanelTitle) {
-                    this.settingsPanelTitle.addEventListener('pointerdown', (e) => {
-                        if (!this.settingsPanel || !this.settingsPanel.classList.contains('open')) return;
-                        e.preventDefault();
-                        e.stopPropagation();
-                        this.recordSettingsUnlockTap();
-                    }, { passive: false });
-                }
-                this.soundToggleButton.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    this.playUiClick();
-                    this.toggleSoundSetting();
-                });
-                if (this.musicToggleButton) {
-                    this.musicToggleButton.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        this.playUiClick();
-                        this.toggleMusicSetting();
-                    });
-                }
-                if (this.crtToggleButton) {
-                    this.crtToggleButton.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        this.playUiClick();
-                        this.toggleCrtSetting();
-                    });
-                }
-                if (this.trackingSpeedDecreaseButton) {
-                    this.trackingSpeedDecreaseButton.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        this.playUiClick();
-                        this.adjustTrackingSpeed(-1);
-                    });
-                }
-                if (this.trackingSpeedIncreaseButton) {
-                    this.trackingSpeedIncreaseButton.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        this.playUiClick();
-                        this.adjustTrackingSpeed(1);
-                    });
-                }
-                if (this.crtEffectLevelButtons && this.crtEffectLevelButtons.length) {
-                    this.crtEffectLevelButtons.forEach(button => {
-                        button.addEventListener('click', (e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            this.playUiClick();
-                            this.advanceCrtEffectLevel(button.dataset.crtEffectLevel);
-                        });
-                    });
-                }
-                if (this.crtFeatureToggleButtons && this.crtFeatureToggleButtons.length) {
-                    this.crtFeatureToggleButtons.forEach(button => {
-                        button.addEventListener('click', (e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            this.playUiClick();
-                            this.toggleCrtFeature(button.dataset.crtFeatureToggle);
-                        });
-                    });
-                }
-                if (this.crtEnableAllButton) {
-                    this.crtEnableAllButton.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        this.playUiClick();
-                        this.setAllCrtFeatures(true);
-                    });
-                }
-                if (this.crtDisableAllButton) {
-                    this.crtDisableAllButton.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        this.playUiClick();
-                        this.setAllCrtFeatures(false);
-                    });
-                }
-                if (this.crtResetProductionButton) {
-                    this.crtResetProductionButton.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        this.playUiClick();
-                        this.resetCrtToProduction();
-                    });
-                }
-                if (this.sectorDecreaseButton) {
-                    this.sectorDecreaseButton.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        this.playUiClick();
-                        this.adjustSelectedStartSector(-1);
-                    });
-                }
-                if (this.sectorIncreaseButton) {
-                    this.sectorIncreaseButton.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        this.playUiClick();
-                        this.adjustSelectedStartSector(1);
-                    });
-                }
-                if (this.difficultyDecreaseButton) {
-                    this.difficultyDecreaseButton.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        this.playUiClick();
-                        this.adjustDifficulty(-1);
-                    });
-                }
-                if (this.difficultyIncreaseButton) {
-                    this.difficultyIncreaseButton.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        this.playUiClick();
-                        this.adjustDifficulty(1);
-                    });
-                }
-                this.resetHighScoreButton.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    this.playUiClick();
-                    this.requestHighScoreReset();
-                });
-                if (this.resetTutorialButton) {
-                    this.resetTutorialButton.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        this.playUiClick();
-                        this.resetTutorialProgress();
-                    });
-                }
-                if (this.telemetryButton) {
-                    this.telemetryButton.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        if (this.shouldIgnoreFreshMenuInput()) return;
-                        this.playUiClick();
-                        this.showMenuPanel('telemetry');
-                    });
-                }
-                if (this.exportTelemetryButton) {
-                    this.exportTelemetryButton.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        this.playUiClick();
-                        this.exportTelemetryData();
-                    });
-                }
-                if (this.clearTelemetryButton) {
-                    this.clearTelemetryButton.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        this.playUiClick();
-                        this.clearTelemetryData();
-                    });
-                }
-                if (this.copyStateSnapshotButton) {
-                    this.copyStateSnapshotButton.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        this.playUiClick();
-                        this.copyDeveloperStateSnapshot();
-                    });
-                }
-                if (this.invincibilityToggleButton) {
-                    this.invincibilityToggleButton.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        this.playUiClick();
-                        this.toggleInvincibility();
-                    });
-                }
-                if (this.skinFrameDecreaseButton) {
-                    this.skinFrameDecreaseButton.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        if (!this.developerModeEnabled) return;
-                        this.playUiClick();
-                        this.adjustSkinFrameSelection(-1);
-                    });
-                }
-                if (this.skinFrameIncreaseButton) {
-                    this.skinFrameIncreaseButton.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        if (!this.developerModeEnabled) return;
-                        this.playUiClick();
-                        this.adjustSkinFrameSelection(1);
-                    });
-                }
-                const bindSkinFitStepper = (button, property, direction) => {
-                    if (!button) return;
-                    button.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        if (!this.developerModeEnabled) return;
-                        this.playUiClick();
-                        this.adjustSkinFrameTuning(property, direction);
-                    });
-                };
-                bindSkinFitStepper(this.skinFrameZoomDecreaseButton, 'zoom', -1);
-                bindSkinFitStepper(this.skinFrameZoomIncreaseButton, 'zoom', 1);
-                bindSkinFitStepper(this.skinFrameXDecreaseButton, 'x', -1);
-                bindSkinFitStepper(this.skinFrameXIncreaseButton, 'x', 1);
-                bindSkinFitStepper(this.skinFrameYDecreaseButton, 'y', -1);
-                bindSkinFitStepper(this.skinFrameYIncreaseButton, 'y', 1);
-                if (this.resetSkinFrameFitButton) {
-                    this.resetSkinFrameFitButton.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        if (!this.developerModeEnabled) return;
-                        this.playUiClick();
-                        this.resetSkinFrameTuning();
-                    });
-                }
-                if (this.resetIntroCompletionButton) {
-                    this.resetIntroCompletionButton.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        this.playUiClick();
-                        this.resetIntroCompletionFlag();
-                    });
-                }
-                if (this.telemetryBackButton) {
-                    this.telemetryBackButton.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        this.playUiClick();
-                        this.showMenuPanel('settings');
-                    });
-                }
+                this.screenManager = new ScreenManager(this);
+                this.highScoreScreen = this.screenManager.highScoreScreen;
+                this.levelSelectScreen = this.screenManager.levelSelectScreen;
+                this.screenManager.bindControls();
                 this.updateSoundToggleLabel();
                 this.updateMusicToggleLabel();
                 this.updateInvincibilityToggleLabel();
@@ -18107,192 +18651,51 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
 
 
             isMenuContextAllowed() {
-                const pausedMenu = this.flow.is(GAME_FLOW_STATES.PAUSED) && this.isPaused;
-                const gameOverMenu = this.isGameOver && this.restartReady;
-                const startMenu = this.flow.is(GAME_FLOW_STATES.ATTRACT) && this.isStartScreenVisible();
-                return !!(startMenu || pausedMenu || gameOverMenu);
+                return this.screenManager.isMenuContextAllowed();
             }
 
             isCornerMenuAvailable() {
-                if (!GAME_FEATURE_FLAGS.cornerMenus) return false;
-                const showingLevelSelect = !!(this.levelSelectWindow && this.levelSelectWindow.style.display === 'flex');
-                const blocked = this.splashIntroActive || showingLevelSelect || this.sectorTransitionActive ||
-                                this.showHudDuringSectorIntro || this.resumeCountdownActive || this.startInputLocked;
-                return !blocked && this.isMenuContextAllowed();
+                return this.screenManager.isCornerMenuAvailable();
             }
 
             updatePauseGridMenu() {
-                const menuAvailable = this.isCornerMenuAvailable();
-                if (this.pauseWindow) this.pauseWindow.style.display = menuAvailable ? 'flex' : 'none';
-                if (this.pauseGridMenu) this.pauseGridMenu.classList.toggle('visible', menuAvailable);
-                if (this.skinShell) this.skinShell.classList.toggle('skin-menu-open', menuAvailable && !this.isGameOver);
-
-                if (this.pauseLaunchSetupButton) {
-                    this.pauseLaunchSetupButton.setAttribute('aria-hidden', menuAvailable ? 'false' : 'true');
-                }
-
-                const activePanel = this.getCurrentMenuContext();
-                const entries = [
-                    [this.pauseSettingsButton, 'settings'],
-                    [this.pauseHowToButton, 'howTo'],
-                    [this.pauseScoresButton, 'scoring'],
-                    [this.pauseLaunchSetupButton, 'launchSetup']
-                ];
-                entries.forEach(([button, panelName]) => {
-                    if (!button) return;
-                    const selected = activePanel === panelName;
-                    button.classList.toggle('active-page', selected);
-                    button.setAttribute('aria-pressed', selected ? 'true' : 'false');
-                });
+                return this.screenManager.updatePauseGridMenu();
             }
 
             openPauseGridPanel(panelName) {
-                const menuContextAllowed = this.isMenuContextAllowed();
-                if (!menuContextAllowed) return;
-                if (!this.pauseWindow || this.pauseWindow.style.display !== 'flex') return;
-                this.playUiClick();
-
-                if (this.getCurrentMenuContext() === panelName) {
-                    this.showMainMenuButtons();
-                    this.updatePauseGridMenu();
-                    this.refreshGameOverlay();
-                    this.ui.updateAll();
-                    requestAnimationFrame(() => this.clearMenuButtonFocus());
-                    return;
-                }
-
-                this.showMenuPanel(panelName);
-                this.setGameOverlayVisible(true);
-                this.updatePauseGridMenu();
-                this.ui.updateAll();
-                requestAnimationFrame(() => this.clearMenuButtonFocus());
+                return this.screenManager.openPauseGridPanel(panelName);
             }
 
             closeBottomPanelOverlay() {
-                this.menuOpenedAt = 0;
-                this.clearMenuButtonFocus();
-                if (this.pauseWindow) this.pauseWindow.style.display = 'none';
-                if (this.menuButtons) this.menuButtons.style.display = 'none';
-                if (this.howToPanel) this.howToPanel.classList.remove('open');
-                if (this.scoringPanel) this.scoringPanel.classList.remove('open');
-                if (this.storyPanel) this.storyPanel.classList.remove('open');
-                if (this.highScorePanel) this.highScorePanel.classList.remove('open');
-                if (this.settingsPanel) this.settingsPanel.classList.remove('open');
-                if (this.launchSetupPanel) this.launchSetupPanel.classList.remove('open');
-                this.levelSelectWindow.style.display = 'none';
-                this.updatePauseGridMenu();
-                this.refreshGameOverlay();
-                this.ui.updateAll();
+                return this.screenManager.closeBottomPanelOverlay();
             }
 
             handleContextButtonClick(action) {
-                if (!action) return;
-                const menuContextAllowed = this.isMenuContextAllowed();
-                if (!menuContextAllowed) return;
-                if (this.showHudDuringSectorIntro || this.resumeCountdownActive || this.startInputLocked) return;
-                this.playUiClick();
-
-                if (action === 'howTo') {
-                    this.openMenuPanel('howTo');
-                    return;
-                }
-
-                if (action === 'scoring') {
-                    this.openMenuPanel('scoring');
-                    return;
-                }
-
-                if (action === 'settings') {
-                    this.openMenuPanel('settings');
-                }
+                return this.screenManager.handleContextButtonClick(action);
             }
 
-
             getCurrentMenuContext() {
-                if (this.pauseWindow && this.pauseWindow.style.display === 'flex') {
-                    if (this.howToPanel && this.howToPanel.classList.contains('open')) return 'howTo';
-                    if (this.settingsPanel && this.settingsPanel.classList.contains('open')) return 'settings';
-                    if (this.launchSetupPanel && this.launchSetupPanel.classList.contains('open')) return 'launchSetup';
-                    if (this.scoringPanel && this.scoringPanel.classList.contains('open')) return 'scoring';
-                    if (this.storyPanel && this.storyPanel.classList.contains('open')) return 'settings';
-                }
-                return null;
+                return this.screenManager.getCurrentMenuContext();
             }
 
             getContextButtonOptions() {
-                const current = this.getCurrentMenuContext();
-                if (!current) return ['howTo', 'settings'];
-
-                if (current === 'settings') return ['howTo', 'scoring'];
-                if (current === 'scoring') return ['howTo', 'settings'];
-                if (current === 'howTo') return ['settings', 'scoring'];
-                return ['howTo', 'settings'];
+                return this.screenManager.getContextButtonOptions();
             }
 
             renderContextButton(button, action) {
-                if (!button) return;
-                const icons = {
-                    settings: '<span class="context-button-icon" aria-hidden="true"><svg viewBox="0 0 100 100" focusable="false"><g transform="translate(50 50)"><rect x="-8" y="-45" width="16" height="24" rx="2"/><rect x="-8" y="-45" width="16" height="24" rx="2" transform="rotate(45)"/><rect x="-8" y="-45" width="16" height="24" rx="2" transform="rotate(90)"/><rect x="-8" y="-45" width="16" height="24" rx="2" transform="rotate(135)"/><rect x="-8" y="-45" width="16" height="24" rx="2" transform="rotate(180)"/><rect x="-8" y="-45" width="16" height="24" rx="2" transform="rotate(225)"/><rect x="-8" y="-45" width="16" height="24" rx="2" transform="rotate(270)"/><rect x="-8" y="-45" width="16" height="24" rx="2" transform="rotate(315)"/><circle r="31"/><circle r="13" fill="#000"/></g></svg></span>',
-                    scoring: '<span class="context-button-text" aria-hidden="true">★</span>',
-                    howTo: '<span class="context-button-text" aria-hidden="true">?</span>'
-                };
-                const labels = {
-                    settings: 'Settings',
-                    scoring: 'Scoring',
-                    howTo: 'How to play'
-                };
-                button.dataset.action = action || '';
-                button.innerHTML = icons[action] || '';
-                button.setAttribute('aria-label', labels[action] || 'Menu');
-                button.style.visibility = action ? 'visible' : 'hidden';
+                return this.screenManager.renderContextButton(button, action);
             }
 
             updateContextButtons() {
-                const [leftAction, rightAction] = this.getContextButtonOptions();
-                this.renderContextButton(this.howToButton, leftAction);
-                this.renderContextButton(this.settingsHudButton, rightAction);
+                return this.screenManager.updateContextButtons();
             }
 
             openMenuPanel(panelName) {
-                const menuContextAllowed = this.isMenuContextAllowed();
-                if (!menuContextAllowed) return;
-                if (this.showHudDuringSectorIntro || this.resumeCountdownActive || this.startInputLocked) return;
-                const panelMap = {
-                    howTo: this.howToPanel,
-                    scoring: this.scoringPanel,
-                    settings: this.settingsPanel
-                };
-                const targetPanel = panelMap[panelName] || null;
-                const panelAlreadyOpen = this.pauseWindow && this.pauseWindow.style.display === 'flex' && targetPanel && targetPanel.classList.contains('open');
-                if (panelAlreadyOpen) {
-                    return;
-                }
-
-                this.menuOpenedAt = performance.now();
-                if (this.levelSelectWindow) this.levelSelectWindow.style.display = 'none';
-                this.showMenuPanel(panelName);
-                this.pauseWindow.style.display = 'flex';
-                this.setGameOverlayVisible(true);
-                this.ui.updateAll();
-                requestAnimationFrame(() => this.clearMenuButtonFocus());
+                return this.screenManager.openMenuPanel(panelName);
             }
 
             openDeveloperLevelSelectShortcut() {
-                if (!this.isGameOver || !this.restartReady) return;
-                if (this.showHudDuringSectorIntro || this.resumeCountdownActive || this.startInputLocked) return;
-
-                this.menuOpenedAt = performance.now();
-                if (this.pauseWindow) this.pauseWindow.style.display = 'none';
-                if (this.menuButtons) this.menuButtons.style.display = 'none';
-                if (this.howToPanel) this.howToPanel.classList.remove('open');
-                if (this.scoringPanel) this.scoringPanel.classList.remove('open');
-                if (this.storyPanel) this.storyPanel.classList.remove('open');
-                if (this.highScorePanel) this.highScorePanel.classList.remove('open');
-                if (this.settingsPanel) this.settingsPanel.classList.remove('open');
-                if (this.launchSetupPanel) this.launchSetupPanel.classList.remove('open');
-                this.showLevelSelectMenu();
-                this.ui.updateAll();
-                requestAnimationFrame(() => this.clearMenuButtonFocus());
+                return this.screenManager.openDeveloperLevelSelectShortcut();
             }
 
             updateTelemetrySummary() {
@@ -18617,9 +19020,9 @@ Best Score: ${bestScore}${recoveredLine}` :
                 this.menuOpenedAt = 0;
                 if (this.resumeButton) this.resumeButton.textContent = 'Resume';
                 this.clearMenuButtonFocus();
-                this.pauseWindow.style.display = 'none';
+                this.screenManager.setPauseShellVisible(false);
                 if (this.menuButtons && this.scoringPanel && this.storyPanel && this.settingsPanel && this.telemetryPanel) this.showMainMenuButtons();
-                this.levelSelectWindow.style.display = 'none';
+                this.screenManager.setLevelSelectVisible(false);
                 this.refreshGameOverlay();
                 this.ui.updateAll();
             }
@@ -19224,119 +19627,20 @@ Best Score: ${bestScore}${recoveredLine}` :
 
             // Manual double-tap detector for the iPhone menu shortcut.
             clearMenuButtonFocus() {
-                if (document.activeElement && typeof document.activeElement.blur === 'function') {
-                    document.activeElement.blur();
-                }
-
-                [
-                    this.optionsButton,
-                    this.resumeButton,
-                    this.restartButton,
-                    this.scoringButton,
-                    this.storyButton,
-                    this.settingsButton,
-                    this.levelSelectButton,
-                    this.soundToggleButton,
-                    this.musicToggleButton,
-                    this.crtToggleButton,
-                    this.trackingSpeedDecreaseButton,
-                    this.trackingSpeedIncreaseButton,
-                    this.difficultyButton,
-                    this.sectorDecreaseButton,
-                    this.sectorIncreaseButton,
-                    this.difficultyDecreaseButton,
-                    this.difficultyIncreaseButton,
-                    this.resetHighScoreButton,
-                    this.resetTutorialButton,
-                    this.telemetryButton,
-                    this.exportTelemetryButton,
-                    this.clearTelemetryButton,
-                    this.copyStateSnapshotButton,
-                    this.telemetryBackButton,
-                    this.pauseLaunchSetupButton,
-                    this.devLevelSelectHudButton,
-
-                    this.howToButton,
-                    this.settingsHudButton,
-                    this.pauseMenuCloseButton
-                ].forEach(button => {
-                    if (button && typeof button.blur === 'function') button.blur();
-                });
+                return this.screenManager.clearFocus();
             }
 
             shouldIgnoreFreshMenuInput() {
-                if (!this.menuOpenedAt) return false;
-                const stillGuarded = performance.now() - this.menuOpenedAt < this.menuInputGuardMs;
-                if (stillGuarded) this.clearMenuButtonFocus();
-                return stillGuarded;
+                return this.screenManager.shouldIgnoreFreshInput();
             }
 
             showMainMenuButtons() {
-                this.menuButtons.style.display = 'none';
-                if (this.resumeButton) this.resumeButton.textContent = this.developerAttractMenuOpen ? 'Close' : 'Resume';
-                if (this.restartButton) this.restartButton.style.display = 'none';
-                this.updateLevelSelectUnlockState();
-                this.resetHighScoreConfirmationState();
-                this.resetRestartConfirmationState();
-                if (this.howToPanel) this.howToPanel.classList.remove('open');
-                this.scoringPanel.classList.remove('open');
-                this.storyPanel.classList.remove('open');
-                if (this.highScorePanel) this.highScorePanel.classList.remove('open');
-                this.settingsPanel.classList.remove('open');
-                if (this.launchSetupPanel) this.launchSetupPanel.classList.remove('open');
-                this.updateContextButtons();
-                this.updatePauseGridMenu();
-                this.clearMenuButtonFocus();
+                return this.screenManager.showMainMenuButtons();
             }
 
             showMenuPanel(panelName) {
-                this.suspendAttractEnemyCards();
-                this.setCrtUiSuspended(true);
-                this.menuButtons.style.display = 'none';
-                if (this.howToPanel) this.howToPanel.classList.toggle('open', panelName === 'howTo');
-                this.scoringPanel.classList.toggle('open', panelName === 'scoring');
-                this.storyPanel.classList.toggle('open', panelName === 'story');
-                if (this.highScorePanel) this.highScorePanel.classList.toggle('open', panelName === 'highScore');
-                this.settingsPanel.classList.toggle('open', panelName === 'settings');
-                if (this.launchSetupPanel) this.launchSetupPanel.classList.toggle('open', panelName === 'launchSetup');
-                if (panelName !== 'settings') {
-                    this.resetHighScoreConfirmationState();
-                }
-                if (panelName === 'highScore') {
-                    this.updateHighScoreDisplay();
-                    this.scheduleHighScorePanelLayout();
-                }
-                this.resetRestartConfirmationState();
-                if (panelName === 'settings') {
-                    this.updateSoundToggleLabel();
-                    this.updateMusicToggleLabel();
-                    this.updateCrtToggleLabel();
-                    this.updateTrackingSpeedLabel();
-                    this.updateSettingsSectorLabel();
-                    this.updateDifficultyLabel();
-                    this.updateHighScoreDisplay();
-                    this.updateLevelSelectUnlockState();
-                    this.updateDeveloperSettingsVisibility();
-                    this.updateSkinFrameLabel();
-                }
-                if (panelName === 'launchSetup') {
-                    this.updateSettingsSectorLabel();
-                    this.updateDifficultyLabel();
-                }
-                if (panelName === 'telemetry') {
-                    this.updateTelemetrySummary();
-                    if (this.telemetrySummary) {
-                        this.telemetrySummary.scrollTop = 0;
-                        requestAnimationFrame(() => { if (this.telemetrySummary) this.telemetrySummary.scrollTop = 0; });
-                    }
-                    this.setTelemetryStatus(this.developerModeEnabled ? 'Local balance data only.' : 'Developer Mode required.');
-                    this.updateCrtDeveloperControls();
-                }
-                this.updateContextButtons();
-                this.updatePauseGridMenu();
-                this.clearMenuButtonFocus();
+                return this.screenManager.showPanel(panelName);
             }
-
 
             updateSoundToggleLabel() {
                 if (!this.soundToggleButton || !this.audio) return;
@@ -19930,97 +20234,25 @@ Best Score: ${bestScore}${recoveredLine}` :
             }
 
             getHighScoreRunValues(details) {
-                if (!this.highScore || this.highScore <= 0) {
-                    return { relics: '—', sector: '—', time: '—' };
-                }
-                return {
-                    relics: details && Number.isFinite(details.relics) ? details.relics : 0,
-                    sector: details && details.highestSector ? details.highestSector : '—',
-                    time: details && details.gameTimeMs ? this.formatTelemetryDuration(details.gameTimeMs) : '—'
-                };
+                return this.highScoreScreen.getRunValues(details);
             }
 
             renderHighScoreRunDetails(container, details) {
-                if (!container) return;
-                const values = this.getHighScoreRunValues(details);
-                Object.entries(values).forEach(([field, value]) => {
-                    const target = container.querySelector(`[data-high-score-field="${field}"]`);
-                    if (target) target.textContent = `${value}`;
-                });
+                return this.highScoreScreen.renderRunDetails(container, details);
             }
 
-
             scheduleHighScorePanelLayout() {
-                if (!this.highScorePanel || !this.highScorePanel.classList.contains('open')) return;
-                if (this.highScorePanelLayoutRaf) cancelAnimationFrame(this.highScorePanelLayoutRaf);
-                this.highScorePanelLayoutRaf = requestAnimationFrame(() => {
-                    this.highScorePanelLayoutRaf = requestAnimationFrame(() => {
-                        this.highScorePanelLayoutRaf = null;
-                        this.layoutHighScorePanel();
-                    });
-                });
+                return this.highScoreScreen.scheduleLayout();
             }
 
             layoutHighScorePanel() {
-                if (!this.highScorePanel || !this.highScorePanelValue || !this.highScorePanelRunLine ||
-                    !this.highScorePanel.classList.contains('open')) return false;
-
-                const title = this.highScorePanel.querySelector(':scope > .menu-panel-title');
-                const details = this.highScorePanelDetails || this.highScorePanelRunLine.parentElement;
-                if (!title || !details) return false;
-
-                const panelRect = this.highScorePanel.getBoundingClientRect();
-                const titleRect = title.getBoundingClientRect();
-                const detailsRect = details.getBoundingClientRect();
-                const titleBottom = titleRect.bottom - panelRect.top;
-                const detailsTop = detailsRect.top - panelRect.top;
-                if (!(detailsTop > titleBottom)) return false;
-
-                const targetCenter = (titleBottom + detailsTop) / 2;
-                this.highScorePanel.style.setProperty('--high-score-value-center-y', `${targetCenter}px`);
-
-                const valueRect = this.highScorePanelValue.getBoundingClientRect();
-                const actualCenter = valueRect.top - panelRect.top + valueRect.height / 2;
-                const correction = targetCenter - actualCenter;
-                if (Math.abs(correction) > 0.25) {
-                    this.highScorePanel.style.setProperty(
-                        '--high-score-value-center-y',
-                        `${targetCenter + correction}px`
-                    );
-                }
-                return true;
+                return this.highScoreScreen.layout();
             }
 
             updateHighScoreDisplay() {
-                if (this.highScoreHud) {
-                    this.highScoreHud.textContent = `${this.highScore}`;
-                }
-                if (this.scoringHighScoreLabel) {
-                    this.scoringHighScoreLabel.textContent = 'HIGH SCORE';
-                }
-                if (this.scoringHighScoreValue) {
-                    this.scoringHighScoreValue.textContent = `${this.highScore}`;
-                }
-                const details = this.highScoreDetails || this.getEmptyHighScoreDetails();
-                if (this.scoringHighScoreRunLine) {
-                    this.renderHighScoreRunDetails(this.scoringHighScoreRunLine, details);
-                }
-                if (this.highScorePanelValue) {
-                    this.highScorePanelValue.textContent = `${this.highScore}`;
-                }
-                if (this.highScorePanelSector) {
-                    this.highScorePanelSector.textContent = this.highScore > 0 && details.highestSector ? `${details.highestSector}` : '—';
-                }
-                if (this.highScorePanelTime) {
-                    this.highScorePanelTime.textContent = this.highScore > 0 && details.gameTimeMs ? this.formatTelemetryDuration(details.gameTimeMs) : '—';
-                }
-                if (this.highScorePanelRunLine) {
-                    this.renderHighScoreRunDetails(this.highScorePanelRunLine, details);
-                }
-                const scoringRecordArea = document.querySelector('.scoring-record-area');
-                if (scoringRecordArea) scoringRecordArea.style.display = this.highScore > 0 ? 'flex' : 'none';
-                this.scheduleHighScorePanelLayout();
+                return this.highScoreScreen.update();
             }
+
             checkHighScore() {
                 const result = this.highScoreSystem.considerScore(
                     this.score,
@@ -20104,92 +20336,15 @@ Best Score: ${bestScore}${recoveredLine}` :
 
             // Build the sector-select buttons once.
             buildLevelSelectButtons() {
-                this.levelSelectGrid.innerHTML = '';
-                const highestVisibleSector = this.developerModeEnabled ? this.MAX_LEVEL : this.getMaximumSelectableSector();
-                for (let levelNumber = 1; levelNumber <= highestVisibleSector; levelNumber++) {
-                    const button = document.createElement('button');
-                    button.className = 'level-select-button';
-                    button.textContent = `${levelNumber}`;
-                    button.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        if (!this.canChangeSectorSelection()) {
-                            this.updateLevelSelectButtonLockState();
-                            return;
-                        }
-                        this.playUiClick();
-                        this.hideLevelSelectMenu();
-                        this.jumpToLevel(levelNumber, true);
-                    });
-                    this.levelSelectGrid.appendChild(button);
-                }
-
-                if (this.developerModeEnabled) {
-                    const chargerButton = document.createElement('button');
-                    chargerButton.className = 'level-select-button';
-                    chargerButton.textContent = 'CHG';
-                    chargerButton.setAttribute('aria-label', 'Green Charger behavior test');
-                    chargerButton.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        if (!this.canChangeSectorSelection()) {
-                            this.updateLevelSelectButtonLockState();
-                            return;
-                        }
-                        this.playUiClick();
-                        this.startChargerBehaviorTest();
-                    });
-                    this.levelSelectGrid.appendChild(chargerButton);
-
-                    const pulseButton = document.createElement('button');
-                    pulseButton.className = 'level-select-button';
-                    pulseButton.textContent = 'PLS';
-                    pulseButton.setAttribute('aria-label', 'ECHO Phaser behavior test');
-                    pulseButton.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        if (!this.canChangeSectorSelection()) {
-                            this.updateLevelSelectButtonLockState();
-                            return;
-                        }
-                        this.playUiClick();
-                        this.startPulseBehaviorTest();
-                    });
-                    this.levelSelectGrid.appendChild(pulseButton);
-
-                    const endButton = document.createElement('button');
-                    endButton.className = 'level-select-button';
-                    endButton.textContent = 'END';
-                    endButton.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        if (!this.canChangeSectorSelection()) {
-                            this.updateLevelSelectButtonLockState();
-                            return;
-                        }
-                        this.playUiClick();
-                        this.startFinalGridlockTest();
-                    });
-                    this.levelSelectGrid.appendChild(endButton);
-                }
-                this.updateLevelSelectButtonLockState();
-
+                return this.levelSelectScreen.build();
             }
 
             showLevelSelectMenu() {
-                this.suspendAttractEnemyCards();
-                this.setCrtUiSuspended(true);
-                this.updateLevelSelectButtonLockState();
-                this.levelSelectWindow.style.display = 'flex';
-                this.setGameOverlayVisible(true);
-                this.ui.updateAll();
+                return this.levelSelectScreen.show();
             }
 
             hideLevelSelectMenu() {
-                this.levelSelectWindow.style.display = 'none';
-                this.refreshGameOverlay();
-                this.clearGameOverlayForGameplay();
-                this.ui.updateAll();
+                return this.levelSelectScreen.hide();
             }
 
             startChargerBehaviorTest() {
@@ -20274,48 +20429,19 @@ Best Score: ${bestScore}${recoveredLine}` :
             }
 
             setGameOverlayVisible(visible) {
-                if (!this.gameOverlayElement) return;
-                this.gameOverlayElement.classList.toggle('visible', !!visible);
+                return this.screenManager.setOverlayVisible(visible);
             }
 
             isMessagePanelVisible() {
-                if (!this.bonusTextElement) return false;
-                const isPanel = this.bonusTextElement.classList.contains('countdownText') || this.bonusTextElement.classList.contains('restoreText');
-                const opacity = parseFloat(this.bonusTextElement.style.opacity || '0');
-                return isPanel && opacity > 0.01;
+                return this.screenManager.isMessagePanelVisible();
             }
 
             refreshGameOverlay() {
-                const showingInstructions = this.instructionsWindow && this.instructionsWindow.style.display !== 'none';
-                const showingPauseShell = this.pauseWindow && this.pauseWindow.style.display === 'flex';
-                const showingMenuPanel = !!this.getCurrentMenuContext();
-                const showingPause = showingPauseShell && (this.flow.isPausedState() || showingMenuPanel);
-                const showingLevelSelect = this.levelSelectWindow && this.levelSelectWindow.style.display === 'flex';
-                const showingMessagePanel = this.isMessagePanelVisible();
-                const showingResultScreen = !!(this.finalGridlockResultActive || (this.flow.is(GAME_FLOW_STATES.GAME_OVER) && !this.restartReady));
-                const shouldSuspendCrt = !!(showingMenuPanel || this.flow.isPausedState() || showingLevelSelect || showingInstructions);
-                this.setCrtUiSuspended(shouldSuspendCrt);
-
-                // Let the Start / Play Again attract colors show clearly.
-                if (showingInstructions && this.flow.is(GAME_FLOW_STATES.ATTRACT) && !showingPause && !showingLevelSelect && !showingMessagePanel) {
-                    this.setGameOverlayVisible(false);
-                    return;
-                }
-
-                const activeWindow = showingPause || showingLevelSelect || showingMessagePanel;
-
-                if (this.flow.isLiveAction() && !activeWindow) {
-                    this.setGameOverlayVisible(false);
-                    return;
-                }
-
-                this.setGameOverlayVisible(activeWindow);
+                return this.screenManager.refreshOverlay();
             }
 
             clearGameOverlayForGameplay() {
-                if (this.flow.isLiveAction()) {
-                    this.setGameOverlayVisible(false);
-                }
+                return this.screenManager.clearOverlayForGameplay();
             }
 
             beginTransitionGroup(name, loadToken = this.levelLoadToken) {
@@ -20408,9 +20534,9 @@ Best Score: ${bestScore}${recoveredLine}` :
                 this.audio.stopPrismRelicHum();
                 this.audio.resetForSectorTransition();
                 this.cancelGameplayScheduling();
-                this.levelSelectWindow.style.display = 'none';
+                this.screenManager.setLevelSelectVisible(false);
 
-                this.pauseWindow.style.display = 'none';
+                this.screenManager.setPauseShellVisible(false);
                 this.beginNewRun();
             }
 
@@ -23526,7 +23652,7 @@ Best Score: ${bestScore}${recoveredLine}` :
                 this.hideEnemyDeathCausePresentation();
                 this.gameOverElement.style.opacity = '0'; // Fade out text
                 if (!await this.wait(GAME_CONFIG.transitions.gameOverTitleFadeMs, transitionToken, 'game-over-title-fade')) return;
-                this.instructionsWindow.style.display = 'none';
+                this.screenManager.setInstructionsVisible(false);
                 this.highScore = this.loadHighScore();
                 this.highScoreDetails = this.loadHighScoreDetails();
                 this.updateHighScoreDisplay();
@@ -27736,7 +27862,8 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 gridlock: game.gridlockSystem.snapshot(),
                 enemySpawning: game.enemySpawnSystem.snapshot(),
                 collision: game.collisionSystem.snapshot(),
-                runtimeState: game.runtimeState.snapshot()
+                runtimeState: game.runtimeState.snapshot(),
+                screens: game.screenManager.snapshot()
             })
         });
     
