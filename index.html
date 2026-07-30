@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Block-A-Zoids p227: extracts campaign progression, sector selection, and Cosmic Zap resource state from the legacy Game coordinator.
+Block-A-Zoids p228: extracts crystal topology, selectable crystal state, Gridlock progression, Overtime rewards, and Prism Relic state from the legacy Game coordinator.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="p227">
+<html data-build-version="p228">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -8619,15 +8619,15 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
         const BUILD_METADATA = window.BLOCKAZOIDS_BUILD = Object.freeze({
             version: document.documentElement.dataset.buildVersion || 'unknown',
             label: BUILD_VERSION,
-            architecturePhase: 'state-ownership-extraction-2',
-            sourceBaseline: 'p226',
+            architecturePhase: 'state-ownership-extraction-3',
+            sourceBaseline: 'p227',
             behaviorPolicy: 'architecture-only'
         });
 
         const SOURCE_LAYOUT = window.BLOCKAZOIDS_SOURCE_LAYOUT = Object.freeze({
             developmentModel: 'modular-source',
             releaseModel: 'single-html',
-            buildOutput: 'block-a-zoids-p227.html',
+            buildOutput: 'block-a-zoids-p228.html',
             categories: Object.freeze([
                 'build', 'config', 'content', 'rules', 'state', 'services', 'app', 'gameplay',
                 'presentation', 'platform', 'audio', 'ui', 'development'
@@ -9356,6 +9356,8 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 records: Object.freeze({ owner: 'HighScoreSystem', responsibility: 'Difficulty-specific records, details, migration, and pace profiles' }),
                 campaign: Object.freeze({ owner: 'CampaignSystem', responsibility: 'Current sector, campaign content access, sector selection, and progression unlocks' }),
                 cosmicZaps: Object.freeze({ owner: 'CosmicZapSystem', responsibility: 'Zap capacity, remaining charges, usage count, cooldown, and protection window' }),
+                crystals: Object.freeze({ owner: 'CrystalSystem', responsibility: 'Crystal state, selectable choices, value ranking, collection topology, completed cells, and Perfect Sector eligibility' }),
+                gridlock: Object.freeze({ owner: 'GridlockSystem', responsibility: 'Gridlock activation, Overtime progression, Super Gridlock rewards, Prism Relic state, and attempt counters' }),
                 flow: Object.freeze({ owner: 'GameFlowController', responsibility: 'Authoritative major game-flow state' }),
                 scheduling: Object.freeze({ owner: 'SchedulingManager', responsibility: 'Named cancellable delayed work' }),
                 coordination: Object.freeze({ owner: 'GameSystemCoordinator', responsibility: 'Ordered cross-system lifecycle calls' }),
@@ -9391,7 +9393,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 canonicalCampaign: 'GAME_DATA.sectors',
                 explicitDifficultyResources: 'GAME_CONFIG.difficulty.profiles.*.cosmicZaps',
                 finalArtifact: 'single numbered HTML build',
-                extractedStateOwners: 'SettingsSystem / ScoreSystem / RunSession / HighScoreSystem / CampaignSystem / CosmicZapSystem'
+                extractedStateOwners: 'SettingsSystem / ScoreSystem / RunSession / HighScoreSystem / CampaignSystem / CosmicZapSystem / CrystalSystem / GridlockSystem'
             })
         });
 
@@ -10388,6 +10390,721 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
             }
         }
 
+/* Source: src/js/state/86-crystal-system.js */
+        class CrystalSystem {
+            constructor(config, data) {
+                this.config = config;
+                this.data = data;
+                this.colorOrder = data.colorOrder.slice();
+                this.currentBlinkingCrystalCount = config.campaign.baseBlinkingCrystalCount;
+                this.resetState();
+            }
+
+            resetState() {
+                this.crystals = [];
+                this.collectedPositions = [];
+                this.lines = [];
+                this.completedSquares = [];
+                this.currentColorIndex = 0;
+                this.nextCrystalOrder = 1;
+                this.activeBlinkingCrystals = [];
+                this.perfectSectorEligible = true;
+                return this.snapshot();
+            }
+
+            resetBoardState({ preservePerfectEligibility = false } = {}) {
+                this.crystals = [];
+                this.collectedPositions = [];
+                this.lines = [];
+                this.completedSquares = [];
+                this.currentColorIndex = 0;
+                this.nextCrystalOrder = 1;
+                this.activeBlinkingCrystals = [];
+                if (!preservePerfectEligibility) this.perfectSectorEligible = true;
+                return this.snapshot();
+            }
+
+            resetChoiceState() {
+                this.currentColorIndex = 0;
+                this.nextCrystalOrder = 1;
+                this.activeBlinkingCrystals = [];
+                return this.currentColorIndex;
+            }
+
+            setBlinkingChoiceCount(value) {
+                const numeric = Math.floor(Number(value) || 0);
+                this.currentBlinkingCrystalCount = Math.max(1, numeric);
+                return this.currentBlinkingCrystalCount;
+            }
+
+            invalidatePerfectSector() {
+                this.perfectSectorEligible = false;
+                return this.perfectSectorEligible;
+            }
+
+            isPerfectSectorEligible(zapsUsed = null) {
+                if (zapsUsed !== null && zapsUsed !== undefined && Number.isFinite(Number(zapsUsed))) return Number(zapsUsed) === 0;
+                return this.perfectSectorEligible;
+            }
+
+            getCurrentColor() {
+                return this.colorOrder[this.currentColorIndex] || this.colorOrder[0] || 'blue';
+            }
+
+            getPointValue(valueRank = 1) {
+                const normalizedRank = Math.max(1, Math.min(3, Number(valueRank) || 1));
+                return GameRules.getCrystalPointValue(normalizedRank);
+            }
+
+            createSeededRandom(seed) {
+                let state = seed % 2147483647;
+                if (state <= 0) state += 2147483646;
+                return () => {
+                    state = state * 16807 % 2147483647;
+                    return (state - 1) / 2147483646;
+                };
+            }
+
+            assignOrders(cells, levelNumber) {
+                const level = Math.max(1, Math.floor(Number(levelNumber) || 1));
+                const sortAndNumber = (color, compareFn) => {
+                    cells
+                        .filter(cell => cell.color === color)
+                        .sort(compareFn)
+                        .forEach((cell, index) => {
+                            cell.order = index + 1;
+                        });
+                };
+
+                const snakeColumnValue = (cell) => cell.row % 2 === 0 ? 10 - cell.col : cell.col;
+                const squareRingIndex = (cell) => Math.max(Math.abs(cell.col - 5), Math.abs(cell.row - 5));
+                const diamondRingIndex = (cell) => Math.abs(cell.col - 5) + Math.abs(cell.row - 5);
+                const radialDistance = (cell) => Math.hypot(cell.col - 5, cell.row - 5);
+                const angleFromCenter = (cell) => Math.atan2(cell.row - 5, cell.col - 5);
+
+                if (level === 1 || level === 3) {
+                    this.colorOrder.forEach(color => sortAndNumber(color, (a, b) => a.col - b.col || a.row - b.row));
+                    return cells;
+                }
+
+                if ([2, 4, 7, 8, 11, 13, 14].includes(level)) {
+                    this.colorOrder.forEach(color => sortAndNumber(color, (a, b) => a.row - b.row || snakeColumnValue(a) - snakeColumnValue(b)));
+                    return cells;
+                }
+
+                if (level === 5) {
+                    this.colorOrder.forEach(color => {
+                        sortAndNumber(color, (a, b) => {
+                            const diagonalCompare = (a.col - a.row) - (b.col - b.row);
+                            return diagonalCompare || a.row - b.row || a.col - b.col;
+                        });
+                    });
+                    return cells;
+                }
+
+                if (level === 6) {
+                    this.colorOrder.forEach(color => {
+                        sortAndNumber(color, (a, b) => {
+                            const diagonalCompare = (a.col + a.row) - (b.col + b.row);
+                            return diagonalCompare || a.row - b.row || a.col - b.col;
+                        });
+                    });
+                    return cells;
+                }
+
+                if (level === 9) {
+                    this.colorOrder.forEach(color => {
+                        sortAndNumber(color, (a, b) => {
+                            const ringCompare = squareRingIndex(b) - squareRingIndex(a);
+                            return ringCompare || angleFromCenter(a) - angleFromCenter(b);
+                        });
+                    });
+                    return cells;
+                }
+
+                if (level === 10) {
+                    this.colorOrder.forEach(color => {
+                        sortAndNumber(color, (a, b) => {
+                            const ringCompare = diamondRingIndex(b) - diamondRingIndex(a);
+                            return ringCompare || angleFromCenter(a) - angleFromCenter(b);
+                        });
+                    });
+                    return cells;
+                }
+
+                if (level === 12) {
+                    this.colorOrder.forEach(color => {
+                        sortAndNumber(color, (a, b) => {
+                            const distanceCompare = radialDistance(b) - radialDistance(a);
+                            return distanceCompare || angleFromCenter(a) - angleFromCenter(b);
+                        });
+                    });
+                    return cells;
+                }
+
+                const rng = this.createSeededRandom(1009 + level * 7919);
+                const difficulty = 1.4;
+                this.colorOrder.forEach(color => {
+                    let remaining = cells.filter(cell => cell.color === color);
+                    let order = 1;
+                    let current = null;
+                    while (remaining.length > 0) {
+                        let chosenIndex = 0;
+                        if (!current) {
+                            chosenIndex = Math.floor(rng() * remaining.length);
+                        } else {
+                            const scored = remaining.map((cell, index) => {
+                                const dx = cell.col - current.col;
+                                const dy = cell.row - current.row;
+                                const distance = Math.hypot(dx, dy);
+                                const sameLinePenalty = (cell.col === current.col || cell.row === current.row) ? 2.25 : 0;
+                                const nearbyPenalty = distance < 2.5 ? 1.5 : 0;
+                                return { index, score: distance * difficulty - sameLinePenalty - nearbyPenalty + rng() * 0.35 };
+                            }).sort((a, b) => b.score - a.score);
+                            const topChoices = scored.slice(0, Math.min(3, scored.length));
+                            chosenIndex = topChoices[Math.floor(rng() * topChoices.length)].index;
+                        }
+                        const [chosen] = remaining.splice(chosenIndex, 1);
+                        chosen.order = order++;
+                        current = chosen;
+                    }
+                });
+                return cells;
+            }
+
+            createCells({ playfieldSize, gridSize, getColor }) {
+                const cells = [];
+                const gridCount = Math.round(playfieldSize / gridSize);
+                const centerCell = Math.round(gridCount / 2);
+                for (let col = 1; col < gridCount; col++) {
+                    for (let row = 1; row < gridCount; row++) {
+                        if (col === centerCell && row === centerCell) continue;
+                        cells.push({
+                            x: col * gridSize,
+                            y: row * gridSize,
+                            col,
+                            row,
+                            color: getColor(col, row),
+                            order: 0
+                        });
+                    }
+                }
+                return cells;
+            }
+
+            createCrystals({ game, levelNumber, playfieldSize, gridSize, crystalOffset, withIntro = false, getColor, now = performance.now() }) {
+                const cells = this.createCells({ playfieldSize, gridSize, getColor });
+                this.assignOrders(cells, levelNumber);
+                this.crystals = cells.map((cell, index) => {
+                    const crystal = new Crystal(game, cell.x - crystalOffset, cell.y - crystalOffset, cell.color, cell.order);
+                    if (withIntro) {
+                        crystal.introAnimation = {
+                            startedAt: now,
+                            delayMs: (index % 3) * 200,
+                            durationMs: 800
+                        };
+                    }
+                    return crystal;
+                });
+                return this.crystals;
+            }
+
+            clearIntroAnimations() {
+                this.crystals.forEach(crystal => { crystal.introAnimation = null; });
+            }
+
+            getGridPosition(crystal, gridSize) {
+                return {
+                    col: Math.round((crystal.x + crystal.size / 2) / gridSize),
+                    row: Math.round((crystal.y + crystal.size / 2) / gridSize)
+                };
+            }
+
+            getDistanceFromPlayer(crystal, player) {
+                if (!crystal || !player) return Number.POSITIVE_INFINITY;
+                const playerCenterX = player.x + player.size / 2;
+                const playerCenterY = player.y + player.size / 2;
+                const crystalCenterX = crystal.x + crystal.size / 2;
+                const crystalCenterY = crystal.y + crystal.size / 2;
+                return Math.hypot(playerCenterX - crystalCenterX, playerCenterY - crystalCenterY);
+            }
+
+            getChoiceDistanceBands(currentColorCrystals, player) {
+                const activeColor = this.getCurrentColor();
+                const sorted = currentColorCrystals
+                    .filter(crystal => crystal.color === activeColor && this.crystals.includes(crystal))
+                    .map(crystal => ({ crystal, distance: this.getDistanceFromPlayer(crystal, player) }))
+                    .sort((a, b) => {
+                        const difference = a.distance - b.distance;
+                        if (Math.abs(difference) > 0.000001) return difference;
+                        return a.crystal.y - b.crystal.y || a.crystal.x - b.crystal.x;
+                    });
+                const bands = [[], [], []];
+                const tierByCrystal = new Map();
+                sorted.forEach(({ crystal }, index) => {
+                    const tier = Math.min(2, Math.floor(index * 3 / Math.max(1, sorted.length)));
+                    bands[tier].push(crystal);
+                    tierByCrystal.set(crystal, tier);
+                });
+                return { sorted, bands, tierByCrystal };
+            }
+
+            chooseRepresentativeFromBand(band, excluded = new Set()) {
+                const available = band.filter(crystal => !excluded.has(crystal));
+                if (available.length === 0) return null;
+                const inset = Math.floor(available.length * 0.25);
+                const end = Math.max(inset + 1, Math.ceil(available.length * 0.75));
+                const pool = available.slice(inset, end);
+                return pool[Math.floor(Math.random() * pool.length)] || available[0];
+            }
+
+            chooseSpread(currentColorCrystals, desiredCount, player) {
+                const count = Math.max(0, Math.min(desiredCount, currentColorCrystals.length));
+                if (count === 0) return [];
+                const { sorted, bands } = this.getChoiceDistanceBands(currentColorCrystals, player);
+                const selected = [];
+                const selectedSet = new Set();
+                const preferredTiers = count >= 3 ? [0, 1, 2] : count === 2 ? [0, 2] : [1];
+                preferredTiers.forEach(tier => {
+                    if (selected.length >= count) return;
+                    const crystal = this.chooseRepresentativeFromBand(bands[tier], selectedSet);
+                    if (!crystal) return;
+                    selected.push(crystal);
+                    selectedSet.add(crystal);
+                });
+                while (selected.length < count) {
+                    const remaining = sorted.map(entry => entry.crystal).filter(crystal => !selectedSet.has(crystal));
+                    if (!remaining.length) break;
+                    const next = remaining.map(crystal => {
+                        const distance = this.getDistanceFromPlayer(crystal, player);
+                        const separation = selected.length === 0 ? 0 : Math.min(...selected.map(choice => Math.abs(distance - this.getDistanceFromPlayer(choice, player))));
+                        return { crystal, separation };
+                    }).sort((a, b) => b.separation - a.separation)[0].crystal;
+                    selected.push(next);
+                    selectedSet.add(next);
+                }
+                return selected;
+            }
+
+            chooseOneNew(currentColorCrystals, player) {
+                const activeColor = this.getCurrentColor();
+                const selected = new Set(this.activeBlinkingCrystals);
+                const options = currentColorCrystals.filter(crystal => crystal.color === activeColor && !selected.has(crystal));
+                if (!options.length) return null;
+                const { tierByCrystal } = this.getChoiceDistanceBands(currentColorCrystals, player);
+                const occupiedTiers = new Set(this.activeBlinkingCrystals.map(crystal => tierByCrystal.get(crystal)).filter(Number.isInteger));
+                const missingTiers = new Set([0, 1, 2].filter(tier => !occupiedTiers.has(tier)));
+                const tierCandidates = options.filter(crystal => missingTiers.has(tierByCrystal.get(crystal)));
+                const candidates = tierCandidates.length ? tierCandidates : options;
+                const ranked = candidates.map(crystal => {
+                    const choices = [...this.activeBlinkingCrystals, crystal];
+                    const distances = choices.map(choice => this.getDistanceFromPlayer(choice, player)).sort((a, b) => a - b);
+                    const gaps = [];
+                    for (let index = 1; index < distances.length; index++) gaps.push(distances[index] - distances[index - 1]);
+                    return {
+                        crystal,
+                        tierDiversity: new Set(choices.map(choice => tierByCrystal.get(choice))).size,
+                        minGap: gaps.length ? Math.min(...gaps) : 0,
+                        totalSpread: distances.length > 1 ? distances[distances.length - 1] - distances[0] : 0
+                    };
+                }).sort((a, b) => b.tierDiversity - a.tierDiversity || b.minGap - a.minGap || b.totalSpread - a.totalSpread);
+                const best = ranked[0];
+                const nearBest = ranked.filter(candidate =>
+                    candidate.tierDiversity === best.tierDiversity &&
+                    candidate.minGap >= best.minGap * 0.92 &&
+                    candidate.totalSpread >= best.totalSpread * 0.90
+                );
+                return nearBest[Math.floor(Math.random() * nearBest.length)].crystal;
+            }
+
+            assessValues(player) {
+                const ranked = this.activeBlinkingCrystals
+                    .filter(crystal => this.crystals.includes(crystal))
+                    .map(crystal => ({ crystal, distance: this.getDistanceFromPlayer(crystal, player) }))
+                    .sort((a, b) => {
+                        const distanceDifference = a.distance - b.distance;
+                        if (Math.abs(distanceDifference) > 0.000001) return distanceDifference;
+                        const orderDifference = (Number(a.crystal.order) || 0) - (Number(b.crystal.order) || 0);
+                        return orderDifference || a.crystal.y - b.crystal.y || a.crystal.x - b.crystal.x;
+                    });
+                ranked.forEach(({ crystal }, index) => {
+                    const rank = Math.min(3, index + 1);
+                    crystal.setValueRank(rank, this.getPointValue(rank));
+                });
+                return ranked.map(entry => entry.crystal);
+            }
+
+            updateHighlight(player) {
+                this.crystals.forEach(crystal => {
+                    crystal.setSelectable(false);
+                    crystal.setValueRank(0, this.getPointValue(1));
+                });
+
+                let colorChanged = false;
+                let currentColorCrystals = this.crystals.filter(crystal => crystal.color === this.getCurrentColor());
+                if (currentColorCrystals.length === 0 && this.crystals.length > 0) {
+                    for (let index = 0; index < this.colorOrder.length; index++) {
+                        this.currentColorIndex = (this.currentColorIndex + 1) % this.colorOrder.length;
+                        currentColorCrystals = this.crystals.filter(crystal => crystal.color === this.getCurrentColor());
+                        if (currentColorCrystals.length > 0) break;
+                    }
+                    this.nextCrystalOrder = 1;
+                    this.activeBlinkingCrystals = [];
+                    colorChanged = true;
+                }
+
+                const activeColor = this.getCurrentColor();
+                this.activeBlinkingCrystals = this.activeBlinkingCrystals.filter(crystal => this.crystals.includes(crystal) && crystal.color === activeColor);
+                const desired = Math.min(this.currentBlinkingCrystalCount, currentColorCrystals.length);
+                while (this.activeBlinkingCrystals.length > desired) this.activeBlinkingCrystals.pop();
+                if (this.activeBlinkingCrystals.length === 0 && desired > 0) {
+                    this.activeBlinkingCrystals = this.chooseSpread(currentColorCrystals, desired, player);
+                } else {
+                    while (this.activeBlinkingCrystals.length < desired) {
+                        const next = this.chooseOneNew(currentColorCrystals, player);
+                        if (!next) break;
+                        this.activeBlinkingCrystals.push(next);
+                    }
+                }
+                if (this.activeBlinkingCrystals.length > 0) {
+                    this.nextCrystalOrder = this.activeBlinkingCrystals[0].order;
+                    this.activeBlinkingCrystals.forEach(crystal => crystal.setSelectable(true));
+                    this.assessValues(player);
+                }
+                return Object.freeze({ colorChanged, activeColor, selectableCount: this.activeBlinkingCrystals.length });
+            }
+
+            collect(index, crystal, gridSize) {
+                if (!crystal || !crystal.isSelectable || this.crystals[index] !== crystal) {
+                    return Object.freeze({ collected: false });
+                }
+                const position = this.createGridPointFromPixels(
+                    crystal.x + crystal.size / 2,
+                    crystal.y + crystal.size / 2,
+                    gridSize
+                );
+                this.collectedPositions.push(position);
+                this.crystals.splice(index, 1);
+                this.activeBlinkingCrystals = this.activeBlinkingCrystals.filter(choice => choice !== crystal);
+                const completedColor = !this.crystals.some(candidate => candidate.color === this.getCurrentColor());
+                return Object.freeze({
+                    collected: true,
+                    position,
+                    points: this.getPointValue(crystal.valueRank),
+                    completedColor,
+                    remaining: this.crystals.length
+                });
+            }
+
+            advanceColor() {
+                this.currentColorIndex = (this.currentColorIndex + 1) % this.colorOrder.length;
+                this.nextCrystalOrder = 1;
+                this.activeBlinkingCrystals = [];
+                return this.getCurrentColor();
+            }
+
+            createGridPoint(col, row, gridSize) {
+                const gridCol = Math.round(Number(col) || 0);
+                const gridRow = Math.round(Number(row) || 0);
+                return { col: gridCol, row: gridRow, x: gridCol * gridSize, y: gridRow * gridSize };
+            }
+
+            createGridPointFromPixels(x, y, gridSize) {
+                return this.createGridPoint(Math.round((Number(x) || 0) / gridSize), Math.round((Number(y) || 0) / gridSize), gridSize);
+            }
+
+            normalizeGridPoint(point, gridSize) {
+                if (point && Number.isInteger(point.col) && Number.isInteger(point.row)) {
+                    return this.createGridPoint(point.col, point.row, gridSize);
+                }
+                return this.createGridPointFromPixels(point?.x, point?.y, gridSize);
+            }
+
+            hasCollectedGridPoint(point, gridSize) {
+                const target = this.normalizeGridPoint(point, gridSize);
+                return this.collectedPositions.some(position => {
+                    const candidate = this.normalizeGridPoint(position, gridSize);
+                    return candidate.col === target.col && candidate.row === target.row;
+                });
+            }
+
+            hasGridLine(startPoint, endPoint, gridSize) {
+                const start = this.normalizeGridPoint(startPoint, gridSize);
+                const end = this.normalizeGridPoint(endPoint, gridSize);
+                return this.lines.some(line => {
+                    const lineStart = this.normalizeGridPoint(line.start, gridSize);
+                    const lineEnd = this.normalizeGridPoint(line.end, gridSize);
+                    return (
+                        lineStart.col === start.col && lineStart.row === start.row &&
+                        lineEnd.col === end.col && lineEnd.row === end.row
+                    ) || (
+                        lineStart.col === end.col && lineStart.row === end.row &&
+                        lineEnd.col === start.col && lineEnd.row === start.row
+                    );
+                });
+            }
+
+            addGridLine(startPoint, endPoint, horizontal, gridSize) {
+                const start = this.normalizeGridPoint(startPoint, gridSize);
+                const end = this.normalizeGridPoint(endPoint, gridSize);
+                if (this.hasGridLine(start, end, gridSize)) return null;
+                const line = { start, end, horizontal: Boolean(horizontal), element: null };
+                this.lines.push(line);
+                return line;
+            }
+
+            findCompletedSquares(startPoint, endPoint, gridSize) {
+                const start = this.normalizeGridPoint(startPoint, gridSize);
+                const end = this.normalizeGridPoint(endPoint, gridSize);
+                const minCol = Math.min(start.col, end.col);
+                const minRow = Math.min(start.row, end.row);
+                const potential = start.col === end.col
+                    ? [{ col: minCol - 1, row: minRow }, { col: minCol, row: minRow }]
+                    : [{ col: minCol, row: minRow - 1 }, { col: minCol, row: minRow }];
+                return potential.filter(square => {
+                    const corners = [
+                        this.createGridPoint(square.col, square.row, gridSize),
+                        this.createGridPoint(square.col + 1, square.row, gridSize),
+                        this.createGridPoint(square.col, square.row + 1, gridSize),
+                        this.createGridPoint(square.col + 1, square.row + 1, gridSize)
+                    ];
+                    if (!corners.every(corner => this.hasCollectedGridPoint(corner, gridSize))) return false;
+                    const sides = [
+                        { start: corners[0], end: corners[1] },
+                        { start: corners[1], end: corners[3] },
+                        { start: corners[2], end: corners[3] },
+                        { start: corners[0], end: corners[2] }
+                    ];
+                    return sides.every(side => this.hasGridLine(side.start, side.end, gridSize));
+                });
+            }
+
+            addCompletedSquare(col, row, className = 'filled-square') {
+                if (this.completedSquares.some(square => square.col === col && square.row === row)) return null;
+                const square = { col, row, className, element: null };
+                this.completedSquares.push(square);
+                return square;
+            }
+
+            snapshot() {
+                return Object.freeze({
+                    remainingCrystals: this.crystals.length,
+                    collectedPositions: this.collectedPositions.length,
+                    connectionLines: this.lines.length,
+                    completedSquares: this.completedSquares.length,
+                    currentColorIndex: this.currentColorIndex,
+                    currentColor: this.getCurrentColor(),
+                    nextCrystalOrder: this.nextCrystalOrder,
+                    selectableCrystals: this.activeBlinkingCrystals.length,
+                    perfectSectorEligible: this.perfectSectorEligible
+                });
+            }
+        }
+
+/* Source: src/js/state/87-gridlock-system.js */
+        class GridlockSystem {
+            constructor(config) {
+                this.config = config;
+                this.activationCueDelayMs = config.gridlock.activationCueDelayMs;
+                this.resetState();
+            }
+
+            resetState() {
+                this.maxSwarmActive = false;
+                this.maxSwarmCueTimer = null;
+                this.maxSwarmCueDelayMs = this.activationCueDelayMs;
+                this.overtimeActive = false;
+                this.overtimeEnemyTimer = null;
+                this.overtimeEnemiesAdded = 0;
+                this.overtimeBehaviorQueue = [];
+                this.superGridlockBonusesThisSector = 0;
+                this.superGridlockBonusPointsThisSector = 0;
+                this.prismRelic = null;
+                this.prismRelicCueTimer = null;
+                this.prismRelicSpawnEnemyThreshold = 0;
+                this.prismRelicCueDelayMs = this.config.gridlock.initialRelicCueDelayMs;
+                this.prismRelicSpawnedThisSector = false;
+                this.prismRelicRecoveredThisSector = false;
+                this.gridlockRelicAttemptNumber = 0;
+                return this.snapshot();
+            }
+
+            resetSector(normalSwarmSize) {
+                this.maxSwarmActive = false;
+                this.maxSwarmCueTimer = null;
+                this.overtimeActive = false;
+                this.overtimeEnemyTimer = null;
+                this.overtimeEnemiesAdded = 0;
+                this.overtimeBehaviorQueue = [];
+                this.superGridlockBonusesThisSector = 0;
+                this.superGridlockBonusPointsThisSector = 0;
+                this.prismRelic = null;
+                this.prismRelicCueTimer = null;
+                this.prismRelicSpawnedThisSector = false;
+                this.prismRelicRecoveredThisSector = false;
+                this.gridlockRelicAttemptNumber = 0;
+                this.resetRelicTiming(normalSwarmSize);
+                return this.snapshot();
+            }
+
+            resetRelicTiming(normalSwarmSize) {
+                this.prismRelicSpawnEnemyThreshold = Math.max(0, Math.floor(Number(normalSwarmSize) || 0));
+                this.prismRelicCueDelayMs = this.config.gridlock.relicDelayMs;
+                return this.prismRelicCueDelayMs;
+            }
+
+            patchGridlock(patch = {}) {
+                const previous = this.maxSwarmActive;
+                if (Object.prototype.hasOwnProperty.call(patch, 'maxSwarmActive')) this.maxSwarmActive = !!patch.maxSwarmActive;
+                if (Object.prototype.hasOwnProperty.call(patch, 'overtimeActive')) this.overtimeActive = !!patch.overtimeActive;
+                return Object.freeze({ changed: previous !== this.maxSwarmActive, previous, current: this.maxSwarmActive });
+            }
+
+            patchRelic(patch = {}) {
+                if (Object.prototype.hasOwnProperty.call(patch, 'prismRelic')) this.prismRelic = patch.prismRelic;
+                if (Object.prototype.hasOwnProperty.call(patch, 'prismRelicSpawnedThisSector')) this.prismRelicSpawnedThisSector = !!patch.prismRelicSpawnedThisSector;
+                if (Object.prototype.hasOwnProperty.call(patch, 'prismRelicRecoveredThisSector')) this.prismRelicRecoveredThisSector = !!patch.prismRelicRecoveredThisSector;
+                return this.prismRelic;
+            }
+
+            canScheduleGridlock({ liveAction, enemyCount, normalSwarmSize }) {
+                return !this.maxSwarmActive && !this.maxSwarmCueTimer && !!liveAction && enemyCount >= normalSwarmSize;
+            }
+
+            activateGridlock({ liveAction, enemyCount, normalSwarmSize }) {
+                if (!liveAction || enemyCount < normalSwarmSize) return false;
+                this.maxSwarmActive = true;
+                return true;
+            }
+
+            startOvertime() {
+                if (this.overtimeActive) return false;
+                this.overtimeActive = true;
+                this.overtimeEnemiesAdded = 0;
+                this.overtimeBehaviorQueue = [];
+                return true;
+            }
+
+            resetOvertime({ preserveSectorRewardProgress = false } = {}) {
+                this.overtimeActive = false;
+                this.overtimeEnemiesAdded = 0;
+                this.overtimeBehaviorQueue = [];
+                if (!preserveSectorRewardProgress) {
+                    this.superGridlockBonusesThisSector = 0;
+                    this.superGridlockBonusPointsThisSector = 0;
+                }
+                return this.snapshot();
+            }
+
+            registerOvertimeEnemy() {
+                this.overtimeEnemiesAdded += 1;
+                const rewards = this.config.gridlock.superGridlockRewards;
+                let reward = 0;
+                if (this.superGridlockBonusesThisSector < rewards.length) {
+                    reward = rewards[this.superGridlockBonusesThisSector];
+                    this.superGridlockBonusesThisSector += 1;
+                    this.superGridlockBonusPointsThisSector += reward;
+                }
+                return Object.freeze({
+                    overtimeEnemiesAdded: this.overtimeEnemiesAdded,
+                    reward,
+                    bonusesThisSector: this.superGridlockBonusesThisSector,
+                    bonusPointsThisSector: this.superGridlockBonusPointsThisSector
+                });
+            }
+
+            refillBehaviorQueue(authoredPlan) {
+                const queue = Array.isArray(authoredPlan) ? authoredPlan.slice() : [];
+                if (!queue.length) queue.push(ENEMY_BEHAVIOR_TYPES.DRIFTER);
+                for (let index = queue.length - 1; index > 0; index--) {
+                    const swapIndex = Math.floor(Math.random() * (index + 1));
+                    [queue[index], queue[swapIndex]] = [queue[swapIndex], queue[index]];
+                }
+                this.overtimeBehaviorQueue = queue;
+                return this.overtimeBehaviorQueue;
+            }
+
+            chooseBehavior(authoredPlan) {
+                if (!Array.isArray(this.overtimeBehaviorQueue) || this.overtimeBehaviorQueue.length === 0) {
+                    this.refillBehaviorQueue(authoredPlan);
+                }
+                return this.overtimeBehaviorQueue.shift() || ENEMY_BEHAVIOR_TYPES.DRIFTER;
+            }
+
+            restoreBehaviorToFront(behaviorType) {
+                this.overtimeBehaviorQueue.unshift(behaviorType);
+            }
+
+            canSpawnRelic({ finalGridlockActive, liveAction, enemyCount, normalSwarmSize }) {
+                if (finalGridlockActive || !liveAction) return false;
+                if (this.prismRelicSpawnedThisSector || this.prismRelicRecoveredThisSector || this.prismRelic || this.prismRelicCueTimer) return false;
+                return this.maxSwarmActive && enemyCount >= normalSwarmSize;
+            }
+
+            beginRelicAttempt(context) {
+                if (!this.canSpawnRelic(context)) return 0;
+                this.gridlockRelicAttemptNumber += 1;
+                return this.gridlockRelicAttemptNumber;
+            }
+
+            isRelicAttemptCurrent(attemptNumber) {
+                return Number(attemptNumber) === this.gridlockRelicAttemptNumber;
+            }
+
+            markRelicSpawned(relic) {
+                this.prismRelic = relic;
+                this.prismRelicSpawnedThisSector = true;
+                return this.prismRelic;
+            }
+
+            hasPendingRelicAttempt() {
+                return !!this.prismRelic || !!this.prismRelicCueTimer || this.prismRelicSpawnedThisSector;
+            }
+
+            canCancelRelicAttempt() {
+                return this.hasPendingRelicAttempt() && !this.prismRelicRecoveredThisSector;
+            }
+
+            cancelRelicAttempt() {
+                if (!this.canCancelRelicAttempt()) return false;
+                this.prismRelicCueTimer = null;
+                this.prismRelic = null;
+                this.prismRelicSpawnedThisSector = false;
+                return true;
+            }
+
+            markRelicRecovered() {
+                if (!this.prismRelic || this.prismRelicRecoveredThisSector) return false;
+                this.prismRelicRecoveredThisSector = true;
+                return true;
+            }
+
+            clearRelic() {
+                const relic = this.prismRelic;
+                this.prismRelic = null;
+                this.prismRelicCueTimer = null;
+                return relic;
+            }
+
+            getRelicSectorKey(levelNumber) {
+                return `${levelNumber}`;
+            }
+
+            snapshot() {
+                return Object.freeze({
+                    maxSwarmActive: this.maxSwarmActive,
+                    overtimeActive: this.overtimeActive,
+                    overtimeEnemiesAdded: this.overtimeEnemiesAdded,
+                    superGridlockBonusesThisSector: this.superGridlockBonusesThisSector,
+                    superGridlockBonusPointsThisSector: this.superGridlockBonusPointsThisSector,
+                    prismRelicVisible: !!this.prismRelic,
+                    prismRelicSpawnedThisSector: this.prismRelicSpawnedThisSector,
+                    prismRelicRecoveredThisSector: this.prismRelicRecoveredThisSector,
+                    gridlockRelicAttemptNumber: this.gridlockRelicAttemptNumber
+                });
+            }
+        }
+
 /* Source: src/js/development/90-architecture-validator.js */
         class ArchitectureValidator {
             constructor() {
@@ -10585,6 +11302,46 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 this.assert('CosmicZapSystem owns protection window', zaps.isProtecting(zapTime + 1) === true);
                 zaps.requireNeutralReset(zapTime + 2);
                 this.assert('CosmicZapSystem clears protection for neutral reset', zaps.isProtecting(zapTime + 3) === false);
+
+
+                const crystals = new CrystalSystem(GAME_CONFIG, GAME_DATA);
+                this.assert('CrystalSystem owns color order', crystals.colorOrder.join(',') === GAME_DATA.colorOrder.join(','));
+                this.assert('CrystalSystem owns crystal values', crystals.getPointValue(1) === GAME_CONFIG.scoring.crystalPointValues[1] && crystals.getPointValue(3) === GAME_CONFIG.scoring.crystalPointValues[3]);
+                const topologySize = 60;
+                const corners = [
+                    crystals.createGridPoint(1, 1, topologySize),
+                    crystals.createGridPoint(2, 1, topologySize),
+                    crystals.createGridPoint(1, 2, topologySize),
+                    crystals.createGridPoint(2, 2, topologySize)
+                ];
+                crystals.collectedPositions = corners.slice();
+                crystals.addGridLine(corners[0], corners[1], true, topologySize);
+                crystals.addGridLine(corners[1], corners[3], false, topologySize);
+                crystals.addGridLine(corners[2], corners[3], true, topologySize);
+                crystals.addGridLine(corners[0], corners[2], false, topologySize);
+                const completed = crystals.findCompletedSquares(corners[0], corners[1], topologySize);
+                this.assert('CrystalSystem owns connection topology', crystals.lines.length === 4 && completed.some(square => square.col === 1 && square.row === 1));
+                this.assert('CrystalSystem owns completed cells', !!crystals.addCompletedSquare(1, 1) && crystals.addCompletedSquare(1, 1) === null);
+                crystals.invalidatePerfectSector();
+                this.assert('CrystalSystem owns Perfect Sector eligibility', crystals.isPerfectSectorEligible() === false && crystals.isPerfectSectorEligible(0) === true);
+                crystals.resetBoardState();
+                this.assert('CrystalSystem resets sector crystal state', crystals.crystals.length === 0 && crystals.lines.length === 0 && crystals.perfectSectorEligible === true);
+
+                const gridlock = new GridlockSystem(GAME_CONFIG);
+                const gridlockContext = { liveAction: true, enemyCount: GAME_CONFIG.enemySpawning.normalSwarmSize, normalSwarmSize: GAME_CONFIG.enemySpawning.normalSwarmSize };
+                this.assert('GridlockSystem owns activation readiness', gridlock.canScheduleGridlock(gridlockContext) === true);
+                this.assert('GridlockSystem owns Gridlock activation', gridlock.activateGridlock(gridlockContext) === true && gridlock.maxSwarmActive === true);
+                this.assert('GridlockSystem owns Overtime start', gridlock.startOvertime() === true && gridlock.overtimeActive === true);
+                const firstOvertime = gridlock.registerOvertimeEnemy();
+                this.assert('GridlockSystem owns Super Gridlock rewards', firstOvertime.reward === GAME_CONFIG.gridlock.superGridlockRewards[0] && gridlock.superGridlockBonusPointsThisSector === firstOvertime.reward);
+                const relicAttempt = gridlock.beginRelicAttempt({ ...gridlockContext, finalGridlockActive: false });
+                this.assert('GridlockSystem owns relic attempts', relicAttempt === 1 && gridlock.gridlockRelicAttemptNumber === 1);
+                const fakeRelic = { id: 'test-relic' };
+                gridlock.markRelicSpawned(fakeRelic);
+                this.assert('GridlockSystem owns relic visibility', gridlock.prismRelic === fakeRelic && gridlock.prismRelicSpawnedThisSector === true);
+                this.assert('GridlockSystem owns relic recovery state', gridlock.markRelicRecovered() === true && gridlock.prismRelicRecoveredThisSector === true);
+                gridlock.resetSector(GAME_CONFIG.enemySpawning.normalSwarmSize);
+                this.assert('GridlockSystem resets sector state', !gridlock.maxSwarmActive && !gridlock.overtimeActive && !gridlock.prismRelicRecoveredThisSector && gridlock.superGridlockBonusPointsThisSector === 0);
             }
 
             validateFlow() {
@@ -14352,6 +15109,8 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 this.highScoreSystem = new HighScoreSystem(storageService);
                 this.campaign = new CampaignSystem(storageService, GAME_CONFIG, GAME_DATA);
                 this.cosmicZapSystem = new CosmicZapSystem(GAME_CONFIG);
+                this.crystalSystem = new CrystalSystem(GAME_CONFIG, GAME_DATA);
+                this.gridlockSystem = new GridlockSystem(GAME_CONFIG);
 
                 // Compatibility properties keep existing call sites stable while state ownership
                 // moves out of the legacy Game coordinator one responsibility at a time.
@@ -14388,6 +15147,32 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 installOwnedStateProxy(this, 'cosmicZapProtectionUntil', this.cosmicZapSystem, 'protectionUntil');
                 installOwnedStateProxy(this, 'cosmicZapInputCooldownMs', this.cosmicZapSystem, 'inputCooldownMs');
                 installOwnedStateProxy(this, 'cosmicZapProtectionMs', this.cosmicZapSystem, 'protectionMs');
+                installOwnedStateProxy(this, 'crystals', this.crystalSystem, 'crystals');
+                installOwnedStateProxy(this, 'collectedPositions', this.crystalSystem, 'collectedPositions');
+                installOwnedStateProxy(this, 'lines', this.crystalSystem, 'lines');
+                installOwnedStateProxy(this, 'completedSquares', this.crystalSystem, 'completedSquares');
+                installOwnedStateProxy(this, 'currentColorIndex', this.crystalSystem, 'currentColorIndex');
+                installOwnedStateProxy(this, 'nextCrystalOrder', this.crystalSystem, 'nextCrystalOrder');
+                installOwnedStateProxy(this, 'activeBlinkingCrystals', this.crystalSystem, 'activeBlinkingCrystals');
+                installOwnedStateProxy(this, 'currentBlinkingCrystalCount', this.crystalSystem, 'currentBlinkingCrystalCount');
+                installOwnedStateProxy(this, 'colorOrder', this.crystalSystem, 'colorOrder');
+                installOwnedStateProxy(this, 'perfectSectorEligible', this.crystalSystem, 'perfectSectorEligible');
+                installOwnedStateProxy(this, 'maxSwarmActive', this.gridlockSystem, 'maxSwarmActive');
+                installOwnedStateProxy(this, 'maxSwarmCueTimer', this.gridlockSystem, 'maxSwarmCueTimer');
+                installOwnedStateProxy(this, 'maxSwarmCueDelayMs', this.gridlockSystem, 'maxSwarmCueDelayMs');
+                installOwnedStateProxy(this, 'overtimeActive', this.gridlockSystem, 'overtimeActive');
+                installOwnedStateProxy(this, 'overtimeEnemyTimer', this.gridlockSystem, 'overtimeEnemyTimer');
+                installOwnedStateProxy(this, 'overtimeEnemiesAdded', this.gridlockSystem, 'overtimeEnemiesAdded');
+                installOwnedStateProxy(this, 'overtimeBehaviorQueue', this.gridlockSystem, 'overtimeBehaviorQueue');
+                installOwnedStateProxy(this, 'superGridlockBonusesThisSector', this.gridlockSystem, 'superGridlockBonusesThisSector');
+                installOwnedStateProxy(this, 'superGridlockBonusPointsThisSector', this.gridlockSystem, 'superGridlockBonusPointsThisSector');
+                installOwnedStateProxy(this, 'prismRelic', this.gridlockSystem, 'prismRelic');
+                installOwnedStateProxy(this, 'prismRelicCueTimer', this.gridlockSystem, 'prismRelicCueTimer');
+                installOwnedStateProxy(this, 'prismRelicSpawnEnemyThreshold', this.gridlockSystem, 'prismRelicSpawnEnemyThreshold');
+                installOwnedStateProxy(this, 'prismRelicCueDelayMs', this.gridlockSystem, 'prismRelicCueDelayMs');
+                installOwnedStateProxy(this, 'prismRelicSpawnedThisSector', this.gridlockSystem, 'prismRelicSpawnedThisSector');
+                installOwnedStateProxy(this, 'prismRelicRecoveredThisSector', this.gridlockSystem, 'prismRelicRecoveredThisSector');
+                installOwnedStateProxy(this, 'gridlockRelicAttemptNumber', this.gridlockSystem, 'gridlockRelicAttemptNumber');
                 this.visualEffectSequence = 0;
                 this.crystalCollectionFx = { lastPickupAt: -Infinity, chain: 0, halo: null };
                 this.gameplayTaskSequence = 0;
@@ -16708,7 +17493,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 sector.superGridlockBonuses = this.superGridlockBonusesThisSector || 0;
                 sector.superGridlockBonusPoints = this.superGridlockBonusPointsThisSector || 0;
                 sector.prismRelicRecovered = this.prismRelicRecoveredThisSector;
-                const perfectEligibleNoZapOnly = result === 'completed' && (sector.cosmicZapsUsed || 0) === 0;
+                const perfectEligibleNoZapOnly = result === 'completed' && this.crystalSystem.isPerfectSectorEligible(sector.cosmicZapsUsed || 0);
                 const perfectEligibleWithGridlockRelic = perfectEligibleNoZapOnly && !!this.prismRelicRecoveredThisSector;
                 sector.perfectEligibleNoZapOnly = perfectEligibleNoZapOnly;
                 sector.perfectEligibleWithGridlockRelic = perfectEligibleWithGridlockRelic;
@@ -17533,20 +18318,12 @@ Best Score: ${bestScore}${recoveredLine}` :
 
                 this.enemies.forEach(enemy => this.playfieldRenderer.removeEnemy(enemy));
                 this.enemies = [];
-
                 this.explosions.forEach(explosion => this.playfieldRenderer.removeExplosion(explosion));
                 this.explosions = [];
-
                 this.crystals.forEach(crystal => this.playfieldRenderer.removeCrystal(crystal));
-                this.crystals = [];
-
-                this.collectedPositions = [];
-
                 this.lines.forEach(line => this.playfieldRenderer.removeConnectionLine(line));
-                this.lines = [];
-
                 this.completedSquares.forEach(square => this.playfieldRenderer.removeFilledSquare(square));
-                this.completedSquares = [];
+                this.crystalSystem.resetBoardState();
             }
 
             // Clear the retired scheduled-spawn compatibility token.
@@ -17573,15 +18350,10 @@ Best Score: ${bestScore}${recoveredLine}` :
             }
 
             resetOvertimeState(options = {}) {
-                const preserveSectorRewardProgress = options.preserveSectorRewardProgress === true;
                 this.clearOvertimeEnemyTimer();
-                this.setGridlockState({ overtimeActive: false });
-                this.overtimeEnemiesAdded = 0;
-                this.overtimeBehaviorQueue = [];
-                if (!preserveSectorRewardProgress) {
-                    this.superGridlockBonusesThisSector = 0;
-                    this.superGridlockBonusPointsThisSector = 0;
-                }
+                this.gridlockSystem.resetOvertime({
+                    preserveSectorRewardProgress: options.preserveSectorRewardProgress === true
+                });
                 if (this.audio && this.audio.setMaxSwarmBeatIntensity) {
                     this.audio.setMaxSwarmBeatIntensity(0);
                 }
@@ -17650,8 +18422,7 @@ Best Score: ${bestScore}${recoveredLine}` :
 
             // Gridlock Relic timing is deterministic so the bonus is easier to understand and tune.
             resetPrismRelicTiming() {
-                this.prismRelicSpawnEnemyThreshold = this.normalSwarmSize;
-                this.prismRelicCueDelayMs = GAME_CONFIG.gridlock.relicDelayMs;
+                return this.gridlockSystem.resetRelicTiming(this.normalSwarmSize);
             }
 
             // Phase 4E controlled state mutation: sensitive flags are changed through named patch methods.
@@ -17671,18 +18442,15 @@ Best Score: ${bestScore}${recoveredLine}` :
             }
 
             setGridlockState(patch = {}) {
-                const previousMaxSwarmActive = this.maxSwarmActive;
-                if (Object.prototype.hasOwnProperty.call(patch, 'maxSwarmActive')) this.maxSwarmActive = patch.maxSwarmActive;
-                if (Object.prototype.hasOwnProperty.call(patch, 'overtimeActive')) this.overtimeActive = patch.overtimeActive;
-                if (previousMaxSwarmActive !== this.maxSwarmActive && this.ui && this.ui.updateRadarColorIndicator) {
+                const result = this.gridlockSystem.patchGridlock(patch);
+                if (result.changed && this.ui && this.ui.updateRadarColorIndicator) {
                     this.ui.updateRadarColorIndicator();
                 }
+                return result;
             }
 
             setPrismRelicState(patch = {}) {
-                if (Object.prototype.hasOwnProperty.call(patch, 'prismRelic')) this.prismRelic = patch.prismRelic;
-                if (Object.prototype.hasOwnProperty.call(patch, 'prismRelicSpawnedThisSector')) this.prismRelicSpawnedThisSector = patch.prismRelicSpawnedThisSector;
-                if (Object.prototype.hasOwnProperty.call(patch, 'prismRelicRecoveredThisSector')) this.prismRelicRecoveredThisSector = patch.prismRelicRecoveredThisSector;
+                return this.gridlockSystem.patchRelic(patch);
             }
 
             setTutorialState(patch = {}) {
@@ -17767,23 +18535,20 @@ Best Score: ${bestScore}${recoveredLine}` :
 
             resetSectorState() {
                 this.removePrismRelic();
-                this.setPrismRelicState({ prismRelicSpawnedThisSector: false });
-                this.setPrismRelicState({ prismRelicRecoveredThisSector: false });
-                this.gridlockRelicAttemptNumber = 0;
+                this.clearMaxSwarmCueTimer();
+                this.clearOvertimeEnemyTimer();
+                this.clearPrismRelicCueTimer();
+                this.gridlockSystem.resetSector(this.normalSwarmSize);
                 this.cosmicZapSystem.resetSector(this.difficultyMode);
-                this.currentBlinkingCrystalCount = this.BASE_BLINKING_CRYSTAL_COUNT;
+                this.crystalSystem.setBlinkingChoiceCount(this.BASE_BLINKING_CRYSTAL_COUNT);
+                this.crystalSystem.resetChoiceState();
+                this.crystalSystem.perfectSectorEligible = true;
                 this.enemySpawnElapsedMs = 0;
                 this.lastFrameTime = performance.now();
                 this.spawnedCount = { small: 0, medium: 0, large: 0 };
-                this.currentColorIndex = 0;
-                this.nextCrystalOrder = 1;
-                this.activeBlinkingCrystals = [];
                 this.survivalScoreAccumulator = 0;
                 this.sectorElapsedMs = 0;
-                this.setGridlockState({ maxSwarmActive: false });
-                this.resetOvertimeState();
-                this.clearMaxSwarmCueTimer();
-                this.clearPrismRelicCueTimer();
+                if (this.audio && this.audio.setMaxSwarmBeatIntensity) this.audio.setMaxSwarmBeatIntensity(0);
                 this.applyLevelParameters();
                 this.resetPrismRelicTiming();
             }
@@ -20140,259 +20905,121 @@ Best Score: ${bestScore}${recoveredLine}` :
             // Assign order numbers inside each color.
             // Routes are tuned by pattern family so each sector supports its intended movement style.
             assignCrystalOrders(cells) {
-                const sortAndNumber = (color, compareFn) => {
-                    cells
-                        .filter(cell => cell.color === color)
-                        .sort(compareFn)
-                        .forEach((cell, index) => {
-                            cell.order = index + 1;
-                        });
-                };
-
-                const snakeColumnValue = (cell) => cell.row % 2 === 0 ? 10 - cell.col : cell.col;
-                const squareRingIndex = (cell) => Math.max(Math.abs(cell.col - 5), Math.abs(cell.row - 5));
-                const diamondRingIndex = (cell) => Math.abs(cell.col - 5) + Math.abs(cell.row - 5);
-                const radialDistance = (cell) => Math.hypot(cell.col - 5, cell.row - 5);
-                const angleFromCenter = (cell) => Math.atan2(cell.row - 5, cell.col - 5);
-
-                if (this.level === 1 || this.level === 3) {
-                    this.colorOrder.forEach(color => {
-                        sortAndNumber(color, (a, b) => a.col - b.col || a.row - b.row);
-                    });
-                    return;
-                }
-
-                if (this.level === 2 || this.level === 4 || this.level === 7 || this.level === 8 || this.level === 11 || this.level === 13 || this.level === 14) {
-                    this.colorOrder.forEach(color => {
-                        sortAndNumber(color, (a, b) => a.row - b.row || snakeColumnValue(a) - snakeColumnValue(b));
-                    });
-                    return;
-                }
-
-                if (this.level === 5) {
-                    this.colorOrder.forEach(color => {
-                        sortAndNumber(color, (a, b) => {
-                            const diagonalCompare = (a.col - a.row) - (b.col - b.row);
-                            if (diagonalCompare !== 0) return diagonalCompare;
-                            return a.row - b.row || a.col - b.col;
-                        });
-                    });
-                    return;
-                }
-
-                if (this.level === 6) {
-                    this.colorOrder.forEach(color => {
-                        sortAndNumber(color, (a, b) => {
-                            const diagonalCompare = (a.col + a.row) - (b.col + b.row);
-                            if (diagonalCompare !== 0) return diagonalCompare;
-                            return a.row - b.row || a.col - b.col;
-                        });
-                    });
-                    return;
-                }
-
-                if (this.level === 9) {
-                    this.colorOrder.forEach(color => {
-                        sortAndNumber(color, (a, b) => {
-                            const ringCompare = squareRingIndex(b) - squareRingIndex(a);
-                            if (ringCompare !== 0) return ringCompare;
-                            return angleFromCenter(a) - angleFromCenter(b);
-                        });
-                    });
-                    return;
-                }
-
-                if (this.level === 10) {
-                    this.colorOrder.forEach(color => {
-                        sortAndNumber(color, (a, b) => {
-                            const ringCompare = diamondRingIndex(b) - diamondRingIndex(a);
-                            if (ringCompare !== 0) return ringCompare;
-                            return angleFromCenter(a) - angleFromCenter(b);
-                        });
-                    });
-                    return;
-                }
-
-                if (this.level === 12) {
-                    this.colorOrder.forEach(color => {
-                        sortAndNumber(color, (a, b) => {
-                            const distanceCompare = radialDistance(b) - radialDistance(a);
-                            if (distanceCompare !== 0) return distanceCompare;
-                            return angleFromCenter(a) - angleFromCenter(b);
-                        });
-                    });
-                    return;
-                }
-
-                // Confetti: route selection becomes less predictable and more travel-heavy.
-                const rng = this.createSeededRandom(1009 + this.level * 7919);
-                const difficulty = 1.4;
-
-                this.colorOrder.forEach(color => {
-                    const colorCells = cells.filter(cell => cell.color === color);
-                    let remaining = colorCells.slice();
-                    let order = 1;
-                    let current = null;
-
-                    while (remaining.length > 0) {
-                        let chosenIndex = 0;
-
-                        if (!current) {
-                            chosenIndex = Math.floor(rng() * remaining.length);
-                        } else {
-                            const scored = remaining.map((cell, index) => {
-                                const dx = cell.col - current.col;
-                                const dy = cell.row - current.row;
-                                const distance = Math.sqrt(dx * dx + dy * dy);
-                                const sameLinePenalty = (cell.col === current.col || cell.row === current.row) ? 2.25 : 0;
-                                const nearbyPenalty = distance < 2.5 ? 1.5 : 0;
-                                const jitter = rng() * 0.35;
-                                return {
-                                    index,
-                                    score: distance * difficulty - sameLinePenalty - nearbyPenalty + jitter
-                                };
-                            });
-
-                            scored.sort((a, b) => b.score - a.score);
-                            const topChoices = scored.slice(0, Math.min(3, scored.length));
-                            chosenIndex = topChoices[Math.floor(rng() * topChoices.length)].index;
-                        }
-
-                        const [chosen] = remaining.splice(chosenIndex, 1);
-                        chosen.order = order++;
-                        current = chosen;
-                    }
-                });
+                return this.crystalSystem.assignOrders(cells, this.level);
             }
 
             // Rank of a cell along an outside-in clockwise spiral path.
 // Spawn crystals on the 10x10 grid, optionally with intro animation
             spawnCrystals(withIntro = false) {
-                const gridSize = this.GRID_SIZE; // Grid cell size
-                const centerX = this.PLAYFIELD_SIZE / 2; // Center X coordinate
-                const centerY = this.PLAYFIELD_SIZE / 2; // Center Y coordinate
-                let colorIndex = 0; // Used only for intro animation timing
-                const cells = [];
-                
-                const gridCount = Math.round(this.PLAYFIELD_SIZE / gridSize);
-                const centerCell = Math.round(gridCount / 2);
-
-                // Iterate by integer grid coordinates rather than repeatedly adding fractional
-                // pixel sizes. This keeps the 9x9 crystal map exact on every responsive viewport.
-                for (let col = 1; col < gridCount; col++) {
-                    for (let row = 1; row < gridCount; row++) {
-                        if (col !== centerCell || row !== centerCell) { // Skip player spawn point
-                            const x = col * gridSize;
-                            const y = row * gridSize;
-                            const color = this.getCrystalColorForLevelPattern(col, row);
-                            cells.push({ x, y, col, row, color, order: 0 });
-                        }
-                    }
-                }
-
-                this.assignCrystalOrders(cells);
-
-                cells.forEach(cell => {
-                    const crystal = new Crystal(this, cell.x - this.CRYSTAL_OFFSET, cell.y - this.CRYSTAL_OFFSET, cell.color, cell.order); // Create crystal
-                    if (withIntro) {
-                        const delay = (colorIndex % 3) * 0.2; // Staggered delay
-                        crystal.introAnimation = { startedAt: performance.now(), delayMs: delay * 1000, durationMs: 800 };
-                    }
-                    this.crystals.push(crystal); // Add to crystals array
-                    colorIndex++;
+                this.crystalSystem.createCrystals({
+                    game: this,
+                    levelNumber: this.level,
+                    playfieldSize: this.PLAYFIELD_SIZE,
+                    gridSize: this.GRID_SIZE,
+                    crystalOffset: this.CRYSTAL_OFFSET,
+                    withIntro,
+                    getColor: (col, row) => this.getCrystalColorForLevelPattern(col, row)
                 });
-                
                 if (withIntro) {
                     this.scheduler.scheduleTimeout('transitions', 'crystal-intro-cleanup', () => {
-                        this.crystals.forEach(crys => {
-                            crys.introAnimation = null;
-                        });
-                        this.updateCrystalHighlight(); // Highlight first crystal
-                    }, GAME_CONFIG.transitions.sectorCrystalDropMs); // Wait for intro to complete
+                        this.crystalSystem.clearIntroAnimations();
+                        this.updateCrystalHighlight();
+                    }, GAME_CONFIG.transitions.sectorCrystalDropMs);
                 } else {
-                    this.updateCrystalHighlight(); // Immediate highlight
+                    this.updateCrystalHighlight();
                 }
-                this.updateEnemyColors(); // Sync enemy colors
+                this.updateEnemyColors();
             }
 
             getRelicSectorKey(levelNumber = this.level) {
-                return `${levelNumber}`;
+                return this.gridlockSystem.getRelicSectorKey(levelNumber);
             }
 
             spawnPrismRelic() {
-                if (this.finalGridlockActive) return;
-                if (this.prismRelicSpawnedThisSector || this.prismRelicRecoveredThisSector || this.prismRelic || this.prismRelicCueTimer) return;
-                if (!this.maxSwarmActive || this.enemies.length < this.normalSwarmSize) return;
+                const attemptNumber = this.gridlockSystem.beginRelicAttempt({
+                    finalGridlockActive: this.finalGridlockActive,
+                    liveAction: this.flow.isLiveAction(),
+                    enemyCount: this.enemies.length,
+                    normalSwarmSize: this.normalSwarmSize
+                });
+                if (!attemptNumber) return false;
 
-                this.gridlockRelicAttemptNumber++;
-                const attemptNumber = this.gridlockRelicAttemptNumber;
                 this.prismRelicCueTimer = this.scheduler.scheduleTimeout('gameplay', 'prism-relic-cue', () => {
                     this.prismRelicCueTimer = null;
-                    if (attemptNumber !== this.gridlockRelicAttemptNumber) return;
+                    if (!this.gridlockSystem.isRelicAttemptCurrent(attemptNumber)) return;
                     if (this.prismRelicSpawnedThisSector || this.prismRelicRecoveredThisSector || this.prismRelic) return;
                     if (!this.flow.isLiveAction()) return;
                     if (!this.maxSwarmActive || this.enemies.length < this.normalSwarmSize) return;
 
                     const center = this.PLAYFIELD_SIZE / 2;
-                    const relicX = center - this.PRISM_RELIC_SIZE / 2;
-                    const relicY = center - this.PRISM_RELIC_SIZE / 2;
-                    this.setPrismRelicState({ prismRelic: new PrismRelic(this, relicX, relicY) });
-                    this.setPrismRelicState({ prismRelicSpawnedThisSector: true });
+                    const relic = new PrismRelic(
+                        this,
+                        center - this.PRISM_RELIC_SIZE / 2,
+                        center - this.PRISM_RELIC_SIZE / 2
+                    );
+                    this.gridlockSystem.markRelicSpawned(relic);
                     this.noteTelemetryPrismRelicAppeared();
                     this.audio.playPrismRelicAppear();
                     this.audio.startPrismRelicHum();
                 }, this.prismRelicCueDelayMs);
+                return true;
             }
 
             checkPrismRelicSpawnProgress() {
-                if (this.finalGridlockActive) return;
-                if (this.prismRelicSpawnedThisSector || this.prismRelicRecoveredThisSector || this.prismRelic || this.prismRelicCueTimer) return;
-                if (!this.flow.isLiveAction()) return;
-                if (!this.maxSwarmActive || this.enemies.length < this.normalSwarmSize) return;
-                this.spawnPrismRelic();
+                if (!this.gridlockSystem.canSpawnRelic({
+                    finalGridlockActive: this.finalGridlockActive,
+                    liveAction: this.flow.isLiveAction(),
+                    enemyCount: this.enemies.length,
+                    normalSwarmSize: this.normalSwarmSize
+                })) return false;
+                return this.spawnPrismRelic();
             }
 
             cancelGridlockRelicAttempt(reason = 'canceled') {
-                const hadPendingAttempt = !!this.prismRelic || !!this.prismRelicCueTimer || this.prismRelicSpawnedThisSector;
-                if (!hadPendingAttempt || this.prismRelicRecoveredThisSector) return;
+                if (!this.gridlockSystem.canCancelRelicAttempt()) return false;
                 this.noteTelemetryPrismRelicCanceled(reason);
                 this.clearPrismRelicCueTimer();
                 this.removePrismRelic();
-                this.setPrismRelicState({ prismRelicSpawnedThisSector: false });
+                this.gridlockSystem.patchRelic({ prismRelicSpawnedThisSector: false });
+                return true;
             }
 
 
             checkMaxSwarmProgress() {
-                if (this.maxSwarmActive || this.maxSwarmCueTimer) return;
-                if (!this.flow.isLiveAction()) return;
+                if (!this.gridlockSystem.canScheduleGridlock({
+                    liveAction: this.flow.isLiveAction(),
+                    enemyCount: this.enemies.length,
+                    normalSwarmSize: this.normalSwarmSize
+                })) return false;
 
-                if (this.enemies.length >= this.normalSwarmSize) {
-                    this.maxSwarmCueTimer = this.scheduler.scheduleTimeout('gameplay', 'gridlock-cue', () => {
-                        this.maxSwarmCueTimer = null;
-                        if (!this.flow.isLiveAction()) return;
-                        if (this.enemies.length < this.normalSwarmSize) return;
-                        this.setGridlockState({ maxSwarmActive: true });
-                        this.noteTelemetryGridlock();
-                        if (!this.finalGridlockActive) {
-                            this.triggerCrtEvent('gridlock');
-                            if (this.ui && this.ui.flashGridlockAlert) this.ui.flashGridlockAlert();
-                            this.audio.playMaxSwarmCue();
-                        }
-                        this.startOvertime();
-                        this.checkPrismRelicSpawnProgress();
-                    }, this.maxSwarmCueDelayMs);
-                }
+                this.maxSwarmCueTimer = this.scheduler.scheduleTimeout('gameplay', 'gridlock-cue', () => {
+                    this.maxSwarmCueTimer = null;
+                    const activated = this.gridlockSystem.activateGridlock({
+                        liveAction: this.flow.isLiveAction(),
+                        enemyCount: this.enemies.length,
+                        normalSwarmSize: this.normalSwarmSize
+                    });
+                    if (!activated) return;
+                    if (this.ui && this.ui.updateRadarColorIndicator) this.ui.updateRadarColorIndicator();
+                    this.noteTelemetryGridlock();
+                    if (!this.finalGridlockActive) {
+                        this.triggerCrtEvent('gridlock');
+                        if (this.ui && this.ui.flashGridlockAlert) this.ui.flashGridlockAlert();
+                        this.audio.playMaxSwarmCue();
+                    }
+                    this.startOvertime();
+                    this.checkPrismRelicSpawnProgress();
+                }, this.maxSwarmCueDelayMs);
+                return true;
             }
 
             startOvertime() {
-                if (this.overtimeActive) return;
-                this.setGridlockState({ overtimeActive: true });
-                this.overtimeEnemiesAdded = 0;
-                this.overtimeBehaviorQueue = [];
+                if (!this.gridlockSystem.startOvertime()) return false;
                 if (this.audio && this.audio.setMaxSwarmBeatIntensity) {
                     this.audio.setMaxSwarmBeatIntensity(0);
                 }
                 this.scheduleOvertimeEnemy();
+                return true;
             }
 
             scheduleOvertimeEnemy(delayMs = null) {
@@ -20430,20 +21057,11 @@ Best Score: ${bestScore}${recoveredLine}` :
             }
 
             refillOvertimeBehaviorQueue() {
-                const authoredPlan = this.getSectorEnemyBehaviorPlan().slice();
-                if (authoredPlan.length === 0) authoredPlan.push(ENEMY_BEHAVIOR_TYPES.DRIFTER);
-                for (let index = authoredPlan.length - 1; index > 0; index--) {
-                    const swapIndex = Math.floor(Math.random() * (index + 1));
-                    [authoredPlan[index], authoredPlan[swapIndex]] = [authoredPlan[swapIndex], authoredPlan[index]];
-                }
-                this.overtimeBehaviorQueue = authoredPlan;
+                return this.gridlockSystem.refillBehaviorQueue(this.getSectorEnemyBehaviorPlan());
             }
 
             chooseOvertimeEnemyBehavior() {
-                if (!Array.isArray(this.overtimeBehaviorQueue) || this.overtimeBehaviorQueue.length === 0) {
-                    this.refillOvertimeBehaviorQueue();
-                }
-                return this.overtimeBehaviorQueue.shift() || ENEMY_BEHAVIOR_TYPES.DRIFTER;
+                return this.gridlockSystem.chooseBehavior(this.getSectorEnemyBehaviorPlan());
             }
 
             spawnOvertimeEnemy() {
@@ -20455,20 +21073,15 @@ Best Score: ${bestScore}${recoveredLine}` :
                 const warningStarted = this.startEnemySpawnWarning(spawnRequest, {
                     requeueOnCancel: false,
                     onSpawn: () => {
-                        this.overtimeEnemiesAdded++;
-                        const rewards = GAME_CONFIG.gridlock.superGridlockRewards;
-                        if (this.superGridlockBonusesThisSector < rewards.length) {
-                            const rewardIndex = this.superGridlockBonusesThisSector;
-                            const superGridlockPoints = rewards[rewardIndex];
-                            this.superGridlockBonusesThisSector++;
-                            this.superGridlockBonusPointsThisSector += superGridlockPoints;
+                        const progress = this.gridlockSystem.registerOvertimeEnemy();
+                        if (progress.reward > 0) {
                             if (this.ui && this.ui.flashSuperGridlockBonus) {
-                                this.ui.flashSuperGridlockBonus(superGridlockPoints);
+                                this.ui.flashSuperGridlockBonus(progress.reward);
                             }
-                            this.addScore(superGridlockPoints);
+                            this.addScore(progress.reward);
                         }
                         if (this.audio && this.audio.setMaxSwarmBeatIntensity) {
-                            this.audio.setMaxSwarmBeatIntensity(this.overtimeEnemiesAdded);
+                            this.audio.setMaxSwarmBeatIntensity(progress.overtimeEnemiesAdded);
                         }
                         if (this.audio && this.audio.resyncMaxSwarmBeatAfterOvertimeSpawn) {
                             this.audio.resyncMaxSwarmBeatAfterOvertimeSpawn();
@@ -20476,17 +21089,19 @@ Best Score: ${bestScore}${recoveredLine}` :
                         this.scheduleOvertimeEnemy();
                     }
                 });
-                if (!warningStarted) this.overtimeBehaviorQueue.unshift(spawnRequest.behaviorType);
+                if (!warningStarted) this.gridlockSystem.restoreBehaviorToFront(spawnRequest.behaviorType);
                 return warningStarted;
             }
 
             removePrismRelic() {
                 this.clearPrismRelicCueTimer();
-                if (this.prismRelic) {
-                    this.playfieldRenderer.removePrismRelic(this.prismRelic);
-                    this.setPrismRelicState({ prismRelic: null });
+                const relic = this.prismRelic;
+                if (relic) {
+                    this.playfieldRenderer.removePrismRelic(relic);
+                    this.gridlockSystem.patchRelic({ prismRelic: null });
                 }
                 if (this.audio) this.audio.stopPrismRelicHum();
+                return relic;
             }
 
             updatePrismRelic(deltaTime) {
@@ -20496,10 +21111,10 @@ Best Score: ${bestScore}${recoveredLine}` :
             }
 
             collectPrismRelic() {
-                if (!this.prismRelic || this.prismRelicRecoveredThisSector) return;
+                if (!this.prismRelic || this.prismRelicRecoveredThisSector) return false;
+                if (!this.gridlockSystem.markRelicRecovered()) return false;
 
                 this.removePrismRelic();
-                this.setPrismRelicState({ prismRelicRecoveredThisSector: true });
                 this.noteTelemetryPrismRelicCollected();
                 const relicSectorKey = this.getRelicSectorKey();
                 const sectorAlreadyRepresented = this.hasRecoveredRelicForSector(this.level);
@@ -20509,252 +21124,67 @@ Best Score: ${bestScore}${recoveredLine}` :
                         this.relicsCollectedThisRun = Math.min(this.MAX_LEVEL, Math.max(0, this.relicsCollectedThisRun || 0) + 1);
                     }
                 }
-                const gridlockPoints = GAME_CONFIG.scoring.gridlockRelicBonus;
-                if (this.ui && this.ui.flashGridlockBonus) this.ui.flashGridlockBonus(gridlockPoints);
-                this.addScore(gridlockPoints);
+                const points = GAME_CONFIG.scoring.gridlockRelicBonus;
+                if (this.ui && this.ui.flashGridlockBonus) this.ui.flashGridlockBonus(points);
+                this.addScore(points);
                 this.audio.playPrismRelicCollect();
+                return true;
             }
 
             // Reset crystal-related gameplay elements for new level
             resetCrystalsGameplay() {
-                this.crystals.forEach(crystal => this.playfieldRenderer.removeCrystal(crystal)); // Remove all crystals
-                this.crystals = [];
-                this.collectedPositions = []; // Clear collected positions
-                this.lines.forEach(line => this.playfieldRenderer.removeConnectionLine(line)); // Remove connection lines
-                this.lines = [];
+                this.crystals.forEach(crystal => this.playfieldRenderer.removeCrystal(crystal));
+                this.lines.forEach(line => this.playfieldRenderer.removeConnectionLine(line));
                 this.completedSquares.forEach(square => this.playfieldRenderer.removeFilledSquare(square));
-                this.completedSquares = [];
-                this.currentColorIndex = 0; // Reset color index
-                this.nextCrystalOrder = 1; // Reset crystal order
-                this.activeBlinkingCrystals = []; // Reset active blinking choices
+                this.crystalSystem.resetBoardState();
             }
 
             // Convert a crystal position to its 9x9 grid coordinate.
             getCrystalGridPosition(crystal) {
-                const gridSize = this.GRID_SIZE;
-                return {
-                    col: Math.round((crystal.x + crystal.size / 2) / gridSize),
-                    row: Math.round((crystal.y + crystal.size / 2) / gridSize)
-                };
+                return this.crystalSystem.getGridPosition(crystal, this.GRID_SIZE);
             }
 
             // Divide the current color into player-relative near, medium, and far distance bands.
             // The middle half of each band is preferred so choices do not sit on ambiguous boundaries.
             getCrystalChoiceDistanceBands(currentColorCrystals) {
-                const activeColor = this.colorOrder[this.currentColorIndex];
-                const sorted = currentColorCrystals
-                    .filter(crystal => crystal.color === activeColor && this.crystals.includes(crystal))
-                    .map(crystal => ({ crystal, distance: this.getCrystalDistanceFromPlayer(crystal) }))
-                    .sort((a, b) => {
-                        const distanceDifference = a.distance - b.distance;
-                        if (Math.abs(distanceDifference) > 0.000001) return distanceDifference;
-                        if (a.crystal.y !== b.crystal.y) return a.crystal.y - b.crystal.y;
-                        return a.crystal.x - b.crystal.x;
-                    });
-
-                const bands = [[], [], []];
-                const tierByCrystal = new Map();
-                sorted.forEach(({ crystal }, index) => {
-                    const tier = Math.min(2, Math.floor(index * 3 / Math.max(1, sorted.length)));
-                    bands[tier].push(crystal);
-                    tierByCrystal.set(crystal, tier);
-                });
-
-                return { sorted, bands, tierByCrystal };
+                return this.crystalSystem.getChoiceDistanceBands(currentColorCrystals, this.player);
             }
 
             chooseRepresentativeCrystalFromBand(band, excluded = new Set()) {
-                const available = band.filter(crystal => !excluded.has(crystal));
-                if (available.length === 0) return null;
-                const inset = Math.floor(available.length * 0.25);
-                const end = Math.max(inset + 1, Math.ceil(available.length * 0.75));
-                const representativePool = available.slice(inset, end);
-                return representativePool[Math.floor(Math.random() * representativePool.length)] || available[0];
+                return this.crystalSystem.chooseRepresentativeFromBand(band, excluded);
             }
 
             // Create the first decision set intentionally: one near, one medium, and one far choice.
             chooseSpreadBlinkingCrystals(currentColorCrystals, desiredCount) {
-                const count = Math.max(0, Math.min(desiredCount, currentColorCrystals.length));
-                if (count === 0) return [];
-
-                const { sorted, bands } = this.getCrystalChoiceDistanceBands(currentColorCrystals);
-                const selected = [];
-                const selectedSet = new Set();
-                const preferredTiers = count >= 3 ? [0, 1, 2] : count === 2 ? [0, 2] : [1];
-
-                preferredTiers.forEach(tier => {
-                    if (selected.length >= count) return;
-                    const crystal = this.chooseRepresentativeCrystalFromBand(bands[tier], selectedSet);
-                    if (!crystal) return;
-                    selected.push(crystal);
-                    selectedSet.add(crystal);
-                });
-
-                // Defensive fallback for the final few crystals of a color, when a band may be empty.
-                while (selected.length < count) {
-                    const remaining = sorted
-                        .map(entry => entry.crystal)
-                        .filter(crystal => !selectedSet.has(crystal));
-                    if (remaining.length === 0) break;
-
-                    const next = remaining
-                        .map(crystal => {
-                            const distance = this.getCrystalDistanceFromPlayer(crystal);
-                            const separation = selected.length === 0
-                                ? 0
-                                : Math.min(...selected.map(choice => Math.abs(distance - this.getCrystalDistanceFromPlayer(choice))));
-                            return { crystal, separation };
-                        })
-                        .sort((a, b) => b.separation - a.separation)[0].crystal;
-
-                    selected.push(next);
-                    selectedSet.add(next);
-                }
-
-                return selected;
+                return this.crystalSystem.chooseSpread(currentColorCrystals, desiredCount, this.player);
             }
 
             // Preserve the declined choices after a pickup, then deliberately fill the distance band
             // that is missing. If movement pushed both survivors into one band, maximize separation.
             chooseOneNewBlinkingCrystal(currentColorCrystals) {
-                const activeColor = this.colorOrder[this.currentColorIndex];
-                const currentBlinking = new Set(this.activeBlinkingCrystals);
-                const options = currentColorCrystals.filter(crystal =>
-                    crystal.color === activeColor && !currentBlinking.has(crystal)
-                );
-
-                if (options.length === 0) return null;
-
-                const { bands, tierByCrystal } = this.getCrystalChoiceDistanceBands(currentColorCrystals);
-                const occupiedTiers = new Set(
-                    this.activeBlinkingCrystals
-                        .map(crystal => tierByCrystal.get(crystal))
-                        .filter(tier => Number.isInteger(tier))
-                );
-                const missingTiers = [0, 1, 2].filter(tier => !occupiedTiers.has(tier));
-                const missingTierSet = new Set(missingTiers);
-                const tierCandidates = options.filter(crystal => missingTierSet.has(tierByCrystal.get(crystal)));
-                const candidates = tierCandidates.length > 0 ? tierCandidates : options;
-
-                const ranked = candidates.map(crystal => {
-                    const choices = [...this.activeBlinkingCrystals, crystal];
-                    const distances = choices
-                        .map(choice => this.getCrystalDistanceFromPlayer(choice))
-                        .sort((a, b) => a - b);
-                    const gaps = [];
-                    for (let i = 1; i < distances.length; i++) gaps.push(distances[i] - distances[i - 1]);
-                    const minGap = gaps.length > 0 ? Math.min(...gaps) : 0;
-                    const totalSpread = distances.length > 1 ? distances[distances.length - 1] - distances[0] : 0;
-                    const tierDiversity = new Set(choices.map(choice => tierByCrystal.get(choice))).size;
-                    return { crystal, tierDiversity, minGap, totalSpread };
-                }).sort((a, b) =>
-                    b.tierDiversity - a.tierDiversity ||
-                    b.minGap - a.minGap ||
-                    b.totalSpread - a.totalSpread
-                );
-
-                const best = ranked[0];
-                const nearBest = ranked.filter(candidate =>
-                    candidate.tierDiversity === best.tierDiversity &&
-                    candidate.minGap >= best.minGap * 0.92 &&
-                    candidate.totalSpread >= best.totalSpread * 0.90
-                );
-
-                return nearBest[Math.floor(Math.random() * nearBest.length)].crystal;
+                return this.crystalSystem.chooseOneNew(currentColorCrystals, this.player);
             }
 
             getCrystalPointValue(valueRank = 1) {
-                const normalizedRank = Math.max(1, Math.min(3, Number(valueRank) || 1));
-                return GameRules.getCrystalPointValue(normalizedRank);
+                return this.crystalSystem.getPointValue(valueRank);
             }
 
             getCrystalDistanceFromPlayer(crystal) {
-                if (!crystal || !this.player) return Number.POSITIVE_INFINITY;
-                const playerCenterX = this.player.x + this.player.size / 2;
-                const playerCenterY = this.player.y + this.player.size / 2;
-                const crystalCenterX = crystal.x + crystal.size / 2;
-                const crystalCenterY = crystal.y + crystal.size / 2;
-                return Math.hypot(playerCenterX - crystalCenterX, playerCenterY - crystalCenterY);
+                return this.crystalSystem.getDistanceFromPlayer(crystal, this.player);
             }
 
             // Reassess only at authored decision moments: sector/color start, a pickup, or a Cosmic Zap.
             // Straight-line distance alone determines the 10/15/20 point rank.
             assessBlinkingCrystalValues() {
-                const rankedCrystals = this.activeBlinkingCrystals
-                    .filter(crystal => this.crystals.includes(crystal))
-                    .map(crystal => ({ crystal, distance: this.getCrystalDistanceFromPlayer(crystal) }))
-                    .sort((a, b) => {
-                        const distanceDifference = a.distance - b.distance;
-                        if (Math.abs(distanceDifference) > 0.000001) return distanceDifference;
-                        const orderDifference = (Number(a.crystal.order) || 0) - (Number(b.crystal.order) || 0);
-                        if (orderDifference !== 0) return orderDifference;
-                        if (a.crystal.y !== b.crystal.y) return a.crystal.y - b.crystal.y;
-                        return a.crystal.x - b.crystal.x;
-                    });
-
-                rankedCrystals.forEach(({ crystal }, index) => {
-                    const valueRank = Math.min(3, index + 1);
-                    crystal.setValueRank(valueRank, this.getCrystalPointValue(valueRank));
-                });
+                return this.crystalSystem.assessValues(this.player);
             }
 
             // Keep the current blinking crystals stable. After a pickup, retain the other two,
             // add one new choice, then reassess all current choices from the Orb's present position.
             updateCrystalHighlight() {
-                this.crystals.forEach(crystal => {
-                    crystal.setSelectable(false);
-                    crystal.setValueRank(0, this.getCrystalPointValue(1));
-                });
-
-                let currentColorCrystals = this.crystals.filter(crystal =>
-                    crystal.color === this.colorOrder[this.currentColorIndex]
-                );
-
-                // If the current color is gone, move to the next remaining color and start a fresh blinking set.
-                if (currentColorCrystals.length === 0 && this.crystals.length > 0) {
-                    for (let i = 0; i < this.colorOrder.length; i++) {
-                        this.currentColorIndex = (this.currentColorIndex + 1) % this.colorOrder.length;
-                        currentColorCrystals = this.crystals.filter(crystal =>
-                            crystal.color === this.colorOrder[this.currentColorIndex]
-                        );
-                        if (currentColorCrystals.length > 0) break;
-                    }
-                    this.nextCrystalOrder = 1;
-                    this.activeBlinkingCrystals = [];
-                    this.updateEnemyColors();
-                }
-
-                const activeColor = this.colorOrder[this.currentColorIndex];
-
-                // Keep already-selected blinking crystals if they still exist and still match the current color.
-                this.activeBlinkingCrystals = this.activeBlinkingCrystals.filter(crystal =>
-                    this.crystals.includes(crystal) && crystal.color === activeColor
-                );
-
-                const desiredBlinkingCount = Math.min(this.currentBlinkingCrystalCount, currentColorCrystals.length);
-
-                // This count is normally fixed at three, but trim defensively for end-of-color states.
-                while (this.activeBlinkingCrystals.length > desiredBlinkingCount) {
-                    this.activeBlinkingCrystals.pop();
-                }
-
-                // Author a fresh near/medium/far set at color start. After a pickup, preserve the
-                // declined choices and add only the crystal that best restores the distance spread.
-                if (this.activeBlinkingCrystals.length === 0 && desiredBlinkingCount > 0) {
-                    this.activeBlinkingCrystals = this.chooseSpreadBlinkingCrystals(currentColorCrystals, desiredBlinkingCount);
-                } else {
-                    while (this.activeBlinkingCrystals.length < desiredBlinkingCount) {
-                        const nextCrystal = this.chooseOneNewBlinkingCrystal(currentColorCrystals);
-                        if (!nextCrystal) break;
-                        this.activeBlinkingCrystals.push(nextCrystal);
-                    }
-                }
-
-                if (this.activeBlinkingCrystals.length > 0) {
-                    this.nextCrystalOrder = this.activeBlinkingCrystals[0].order;
-                    this.activeBlinkingCrystals.forEach(crystal => crystal.setSelectable(true));
-                    this.assessBlinkingCrystalValues();
-                }
+                const result = this.crystalSystem.updateHighlight(this.player);
+                if (result.colorChanged) this.updateEnemyColors();
+                return result;
             }
 
             // Central scoring helper. Final Gridlock freezes the completed campaign score.
@@ -21026,7 +21456,7 @@ Best Score: ${bestScore}${recoveredLine}` :
                 const unusedCosmicZapBonus = this.cosmicZapsLeft * GAME_CONFIG.scoring.unusedCosmicZapBonus;
                 const gridlockBonusEarned = this.prismRelicRecoveredThisSector ? GAME_CONFIG.scoring.gridlockRelicBonus : 0;
                 const superGridlockBonusEarned = this.superGridlockBonusPointsThisSector;
-                const perfectSectorBonus = this.cosmicZapPressure === 0 ? GAME_CONFIG.scoring.perfectSectorBonus : 0;
+                const perfectSectorBonus = this.crystalSystem.isPerfectSectorEligible(this.cosmicZapPressure) ? GAME_CONFIG.scoring.perfectSectorBonus : 0;
                 const totalBonus = unusedCosmicZapBonus + perfectSectorBonus;
                 const bonusLines = this.buildSectorBonusLines(unusedCosmicZapBonus, perfectSectorBonus);
                 this.finishTelemetrySector('completed', {
@@ -21323,32 +21753,26 @@ Best Score: ${bestScore}${recoveredLine}` :
             }
 
             collectCrystalAtIndex(index, crystal) {
-                const pos = this.createGridPointFromPixels(
-                    crystal.x + crystal.size / 2,
-                    crystal.y + crystal.size / 2
-                );
-                this.collectedPositions.push(pos);
-                this.connectToNearestIntersection(pos);
+                const collection = this.crystalSystem.collect(index, crystal, this.GRID_SIZE);
+                if (!collection.collected) return false;
+
+                this.connectToNearestIntersection(collection.position);
                 this.playCrystalCollectionEffect(crystal);
                 this.playfieldRenderer.removeCrystal(crystal);
-                this.crystals.splice(index, 1);
-
-                const crystalPoints = this.getCrystalPointValue(crystal.valueRank);
-                this.addScore(crystalPoints);
-                this.noteTelemetryCrystalCollected(crystal, pos);
+                this.addScore(collection.points);
+                this.noteTelemetryCrystalCollected(crystal, collection.position);
                 this.audio.playCollect();
 
-                if (!this.crystals.some(crys => crys.color === this.colorOrder[this.currentColorIndex])) {
+                if (collection.completedColor) {
                     this.addScore(GAME_CONFIG.scoring.colorCompleteBonus);
                     this.noteTelemetryColorComplete();
-                    this.currentColorIndex = (this.currentColorIndex + 1) % this.colorOrder.length;
-                    this.nextCrystalOrder = 1;
-                    this.activeBlinkingCrystals = [];
+                    this.crystalSystem.advanceColor();
                 }
 
                 this.updateCrystalHighlight();
                 this.updateEnemyColors();
                 this.ui.updateAll();
+                return true;
             }
 
             handleInvincibleCollision(enemy, enemyType = null) {
@@ -21414,52 +21838,23 @@ Best Score: ${bestScore}${recoveredLine}` :
             // Grid topology is stored as integer columns and rows. Pixel coordinates are always
             // derived from that topology so responsive fractional grid sizes cannot break adjacency.
             createGridPoint(col, row) {
-                const gridCol = Math.round(Number(col) || 0);
-                const gridRow = Math.round(Number(row) || 0);
-                return {
-                    col: gridCol,
-                    row: gridRow,
-                    x: gridCol * this.GRID_SIZE,
-                    y: gridRow * this.GRID_SIZE
-                };
+                return this.crystalSystem.createGridPoint(col, row, this.GRID_SIZE);
             }
 
             createGridPointFromPixels(x, y) {
-                return this.createGridPoint(
-                    Math.round((Number(x) || 0) / this.GRID_SIZE),
-                    Math.round((Number(y) || 0) / this.GRID_SIZE)
-                );
+                return this.crystalSystem.createGridPointFromPixels(x, y, this.GRID_SIZE);
             }
 
             normalizeGridPoint(point) {
-                if (point && Number.isInteger(point.col) && Number.isInteger(point.row)) {
-                    return this.createGridPoint(point.col, point.row);
-                }
-                return this.createGridPointFromPixels(point?.x, point?.y);
+                return this.crystalSystem.normalizeGridPoint(point, this.GRID_SIZE);
             }
 
             hasCollectedGridPoint(point) {
-                const target = this.normalizeGridPoint(point);
-                return this.collectedPositions.some(position => {
-                    const collected = this.normalizeGridPoint(position);
-                    return collected.col === target.col && collected.row === target.row;
-                });
+                return this.crystalSystem.hasCollectedGridPoint(point, this.GRID_SIZE);
             }
 
             hasGridLine(startPoint, endPoint) {
-                const start = this.normalizeGridPoint(startPoint);
-                const end = this.normalizeGridPoint(endPoint);
-                return this.lines.some(line => {
-                    const lineStart = this.normalizeGridPoint(line.start);
-                    const lineEnd = this.normalizeGridPoint(line.end);
-                    return (
-                        lineStart.col === start.col && lineStart.row === start.row &&
-                        lineEnd.col === end.col && lineEnd.row === end.row
-                    ) || (
-                        lineStart.col === end.col && lineStart.row === end.row &&
-                        lineEnd.col === start.col && lineEnd.row === start.row
-                    );
-                });
+                return this.crystalSystem.hasGridLine(startPoint, endPoint, this.GRID_SIZE);
             }
 
             // Connect a collected crystal to neighboring collected grid intersections.
@@ -21486,70 +21881,22 @@ Best Score: ${bestScore}${recoveredLine}` :
 
             // Draw a connection line between two canonical grid points.
             drawLine(startPos, endPos, horizontal) {
-                const start = this.normalizeGridPoint(startPos);
-                const end = this.normalizeGridPoint(endPos);
-                if (this.hasGridLine(start, end)) return;
-
-                const line = {
-                    start,
-                    end,
-                    horizontal: Boolean(horizontal),
-                    element: null
-                };
-                this.lines.push(line);
+                const line = this.crystalSystem.addGridLine(startPos, endPos, horizontal, this.GRID_SIZE);
+                if (!line) return;
                 this.playfieldRenderer.createConnectionLine(line);
                 this.requestPlayfieldRender();
             }
 
             // Check whether the new line closes either adjacent one-cell square.
             checkForCompletedSquare(startPos, endPos) {
-                const start = this.normalizeGridPoint(startPos);
-                const end = this.normalizeGridPoint(endPos);
-                const minCol = Math.min(start.col, end.col);
-                const minRow = Math.min(start.row, end.row);
-
-                const potentialSquares = [];
-                if (start.col === end.col) {
-                    potentialSquares.push({ col: minCol - 1, row: minRow });
-                    potentialSquares.push({ col: minCol, row: minRow });
-                } else {
-                    potentialSquares.push({ col: minCol, row: minRow - 1 });
-                    potentialSquares.push({ col: minCol, row: minRow });
-                }
-
-                potentialSquares.forEach(square => {
-                    const corners = [
-                        this.createGridPoint(square.col, square.row),
-                        this.createGridPoint(square.col + 1, square.row),
-                        this.createGridPoint(square.col, square.row + 1),
-                        this.createGridPoint(square.col + 1, square.row + 1)
-                    ];
-                    if (!corners.every(corner => this.hasCollectedGridPoint(corner))) return;
-
-                    const sides = [
-                        { start: corners[0], end: corners[1] },
-                        { start: corners[1], end: corners[3] },
-                        { start: corners[2], end: corners[3] },
-                        { start: corners[0], end: corners[2] }
-                    ];
-                    if (sides.every(side => this.hasGridLine(side.start, side.end))) {
-                        this.fillSquare(square.col, square.row);
-                    }
-                });
+                this.crystalSystem.findCompletedSquares(startPos, endPos, this.GRID_SIZE)
+                    .forEach(square => this.fillSquare(square.col, square.row));
             }
 
             // Fill a completed square visually only; no square score bonus.
             fillSquare(col, row) {
-                const alreadyFilled = this.completedSquares.some(square => square.col === col && square.row === row);
-                if (alreadyFilled) return;
-
-                const square = {
-                    col,
-                    row,
-                    className: 'filled-square',
-                    element: null
-                };
-                this.completedSquares.push(square);
+                const square = this.crystalSystem.addCompletedSquare(col, row);
+                if (!square) return;
                 this.playfieldRenderer.createFilledSquare(square);
                 this.requestPlayfieldRender();
             }
@@ -21789,6 +22136,7 @@ Best Score: ${bestScore}${recoveredLine}` :
 
                     const zapUse = this.cosmicZapSystem.consume(now);
                     if (!zapUse.consumed) return;
+                    this.crystalSystem.invalidatePerfectSector();
                     this.syncMotionListenerState();
                     this.ui.updateCosmicZapIndicators();
                     this.audio.playCosmicZapSound();
@@ -22749,12 +23097,11 @@ Best Score: ${bestScore}${recoveredLine}` :
 
             buildFinalGridlockGrid() {
                 this.completedSquares.forEach(square => this.playfieldRenderer.removeFilledSquare(square));
-                this.completedSquares = [];
+                this.crystalSystem.completedSquares = [];
                 for (let row = 1; row <= 8; row++) {
                     for (let col = 1; col <= 8; col++) {
-                        const square = { col, row, className: 'filled-square final-gridlock-square', element: null };
-                        this.completedSquares.push(square);
-                        this.playfieldRenderer.createFilledSquare(square);
+                        const square = this.crystalSystem.addCompletedSquare(col, row, 'filled-square final-gridlock-square');
+                        if (square) this.playfieldRenderer.createFilledSquare(square);
                     }
                 }
                 this.requestPlayfieldRender();
@@ -27111,7 +27458,9 @@ startMaxSwarmBeat(delaySeconds = 0) {
                 run: game.runSession.snapshot(),
                 records: game.highScoreSystem.snapshot(),
                 campaign: game.campaign.snapshot(),
-                cosmicZaps: game.cosmicZapSystem.snapshot()
+                cosmicZaps: game.cosmicZapSystem.snapshot(),
+                crystals: game.crystalSystem.snapshot(),
+                gridlock: game.gridlockSystem.snapshot()
             })
         });
     
