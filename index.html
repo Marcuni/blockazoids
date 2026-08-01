@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Block-A-Zoids p258: restores deterministic size-based difficulty tiers, retunes DASH toward same-size parity, and expands spawn-batch telemetry without presentation changes.
+Block-A-Zoids p259: presents Super Gridlock and Prism Relic as single-line top-HUD announcements at the existing Gridlock title size.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="p258">
+<html data-build-version="p259">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -1325,7 +1325,7 @@ Font License Notices
         
 
         
-        /* Super Gridlock uses a compact stacked announcement so it fits the score aperture. */
+        /* p259: Super Gridlock and Prism Relic use one readable line at the existing Gridlock title size. */
         #score.superGridlockAlert {
             width: 100%;
             min-width: 0;
@@ -1342,38 +1342,21 @@ Font License Notices
             text-shadow: 0 0 calc(var(--default-glow) * 1.45px) #fff,
                          0 0 calc(var(--default-glow) * 2.9px) rgba(255,255,255,0.92),
                          0 0 calc(var(--default-glow) * 4.8px) rgba(255,255,255,0.58);
-            white-space: normal;
+            white-space: nowrap;
             transform-origin: center;
             opacity: 1;
             animation: superGridlockBurst 0.62s ease-in-out 2;
         }
 
-        #score.superGridlockAlert .super-gridlock-stack {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            width: 100%;
-            line-height: 1;
-            transform: translateY(5%);
-        }
-
-        #score.superGridlockAlert .super-gridlock-prefix {
+        #score.superGridlockAlert .super-gridlock-line {
             display: block;
-            font-size: clamp(7px, 2.1vw, 11px);
-            line-height: 0.9;
-            letter-spacing: clamp(1.5px, 0.65vw, 3px);
-            margin: 0 0 1px;
-            text-align: center;
-        }
-
-        #score.superGridlockAlert .super-gridlock-main {
-            display: block;
+            width: max-content;
+            max-width: none;
             font-size: clamp(20px, 6.2vw, 34px);
-            line-height: 0.86;
+            line-height: 1;
             letter-spacing: 2px;
             text-align: center;
-            transform: translateY(2px);
+            white-space: nowrap;
         }
 
         #score.superGridlockAlert .super-gridlock-award {
@@ -1528,7 +1511,7 @@ Font License Notices
 
         /* v244: let Gridlock announcements temporarily occupy the top HUD alone. */
         #scoreHud.gridlock-announcement-active #highScoreHud,
-        #scoreHud.gridlock-announcement-active #cosmicZapHud {
+        #scoreHud.gridlock-announcement-active ~ #cosmicZapHud {
             opacity: 0 !important;
             visibility: hidden !important;
         }
@@ -4603,14 +4586,7 @@ Font License Notices
 
         
 
-        /* p046: preserve the enlarged prefix and raise the complete centered two-line Super Gridlock lockup slightly. */
-        #score.superGridlockAlert .super-gridlock-stack {
-            transform: translateY(-3%);
-        }
-
-        #score.superGridlockAlert .super-gridlock-prefix {
-            font-size: clamp(9px, 2.75vw, 15px);
-        }
+        /* p259: the former two-line Super Gridlock override is intentionally retired. */
 
 
         /* p071: crystal collection feedback is centered on the Orb because the Orb normally
@@ -7260,7 +7236,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
         const SOURCE_LAYOUT = window.BLOCKAZOIDS_SOURCE_LAYOUT = Object.freeze({
             developmentModel: 'modular-source',
             releaseModel: 'single-html',
-            buildOutput: 'block-a-zoids-p258.html',
+            buildOutput: 'block-a-zoids-p259.html',
             categories: Object.freeze([
                 'build', 'config', 'content', 'rules', 'state', 'services', 'app', 'gameplay',
                 'presentation', 'platform', 'audio', 'ui', 'development', 'docs'
@@ -7270,7 +7246,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
 
 /* Source: src/js/development/75-developer-documentation.js */
         const DEVELOPER_DOCUMENTATION = window.BLOCKAZOIDS_DEVELOPER_GUIDE = deepFreezeConfiguration({
-            version: 'p258',
+            version: 'p259',
             purpose: 'Make ownership, safe edit locations, state transitions, build steps, and maintenance rules discoverable without reverse-engineering the complete game.',
             architecture: {
                 application: {
@@ -27916,25 +27892,19 @@ startGridlockBeat(delaySeconds = 0) {
                 this.updateScore();
             }
 
-            renderStackedScoreTitle(prefixText, mainText) {
-                const stack = document.createElement('span');
-                stack.className = 'super-gridlock-stack';
-                const prefix = document.createElement('span');
-                prefix.className = 'super-gridlock-prefix';
-                prefix.textContent = prefixText;
-                const main = document.createElement('span');
-                main.className = 'super-gridlock-main';
-                main.textContent = mainText;
-                stack.append(prefix, main);
-                this.scoreElement.replaceChildren(stack);
+            renderSingleLineScoreTitle(titleText) {
+                const title = document.createElement('span');
+                title.className = 'super-gridlock-line';
+                title.textContent = titleText;
+                this.scoreElement.replaceChildren(title);
             }
 
             renderSuperGridlockTitle() {
-                this.renderStackedScoreTitle('SUPER', 'GRIDLOCK');
+                this.renderSingleLineScoreTitle('SUPER GRIDLOCK');
             }
 
             renderPrismRelicTitle() {
-                this.renderStackedScoreTitle('PRISM', 'RELIC');
+                this.renderSingleLineScoreTitle('PRISM RELIC');
             }
 
             finishScoreAnnouncement(pulseLiveTotal = true) {
