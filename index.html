@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Block-A-Zoids p257: adds Perfect Sector high-score records, unified menu spacing, restrained Sector-circle glow, and refined Help/High Score layouts.
+Block-A-Zoids p258: restores deterministic size-based difficulty tiers, retunes DASH toward same-size parity, and expands spawn-batch telemetry without presentation changes.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="p257">
+<html data-build-version="p258">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -7229,9 +7229,9 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
         const BUILD_METADATA = window.BLOCKAZOIDS_BUILD = Object.freeze({
             version: document.documentElement.dataset.buildVersion || 'unknown',
             label: BUILD_VERSION,
-            architecturePhase: 'score-record-and-menu-visual-polish',
-            sourceBaseline: 'p256',
-            behaviorPolicy: 'behavior-controls-movement-size-controls-presence'
+            architecturePhase: 'deterministic-size-difficulty-and-behavior-parity',
+            sourceBaseline: 'p257',
+            behaviorPolicy: 'size-controls-intensity-behavior-controls-style'
         });
 
 
@@ -7260,7 +7260,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
         const SOURCE_LAYOUT = window.BLOCKAZOIDS_SOURCE_LAYOUT = Object.freeze({
             developmentModel: 'modular-source',
             releaseModel: 'single-html',
-            buildOutput: 'block-a-zoids-p257.html',
+            buildOutput: 'block-a-zoids-p258.html',
             categories: Object.freeze([
                 'build', 'config', 'content', 'rules', 'state', 'services', 'app', 'gameplay',
                 'presentation', 'platform', 'audio', 'ui', 'development', 'docs'
@@ -7270,7 +7270,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
 
 /* Source: src/js/development/75-developer-documentation.js */
         const DEVELOPER_DOCUMENTATION = window.BLOCKAZOIDS_DEVELOPER_GUIDE = deepFreezeConfiguration({
-            version: 'p257',
+            version: 'p258',
             purpose: 'Make ownership, safe edit locations, state transitions, build steps, and maintenance rules discoverable without reverse-engineering the complete game.',
             architecture: {
                 application: {
@@ -7340,7 +7340,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                     primarySource: 'src/js/gameplay/220-enemy-definitions-and-behaviors.js',
                     supportingSources: ['src/js/config/30-game-config.js', 'src/js/gameplay/87-enemy-spawn-system.js', 'src/js/gameplay/230-enemy.js'],
                     owners: ['EnemyBehaviorRegistry', 'EnemySpawnSystem', 'Enemy'],
-                    note: 'Behavior definitions, spawn policy, and entity state remain separate.'
+                    note: 'Size-tier base speeds and DASH parity values live only in GAME_CONFIG; behavior definitions, deterministic queue policy, telemetry projection, and entity state remain separate.'
                 },
                 gridlockAndPrismRelic: {
                     primarySource: 'src/js/state/87-gridlock-system.js',
@@ -7555,10 +7555,14 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
         // balancing and content edits do not require changes inside lifecycle or gameplay logic.
 
 /* Source: src/js/config/30-game-config.js */
-        // p252 balance baseline: behavior determines movement; visual size determines presence.
-        // The value below is the former medium-size base speed and is the only authoritative
-        // base movement value for small, medium, and large Block-A-Zoids.
-        const SHARED_BLOCKAZOID_BASE_SPEED = 2;
+        // p258 balance baseline: visual size determines the movement intensity tier, while
+        // behavior determines movement style. These authored design-space speeds are the single
+        // source of truth for every responsive runtime and telemetry projection.
+        const ENEMY_SIZE_BASE_SPEEDS = Object.freeze({
+            small: 3,
+            medium: 2,
+            large: 1.5
+        });
         const DEFAULT_SECTOR_ENEMY_SIZE_SEQUENCE = Object.freeze([
             'large', 'medium', 'medium', 'medium', 'medium', 'medium', 'medium', 'small'
         ]);
@@ -7587,14 +7591,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 playfieldOuterBorderSize: 4
             },
             enemyMovement: {
-                sharedBaseSpeed: SHARED_BLOCKAZOID_BASE_SPEED,
-                // Compatibility projection for older code and telemetry exports. All three values
-                // derive from the single shared base above; size no longer modifies movement.
-                baseSpeeds: {
-                    small: SHARED_BLOCKAZOID_BASE_SPEED,
-                    medium: SHARED_BLOCKAZOID_BASE_SPEED,
-                    large: SHARED_BLOCKAZOID_BASE_SPEED
-                },
+                baseSpeeds: ENEMY_SIZE_BASE_SPEEDS,
                 sectorSpeedBoost: 0.03
             },
             enemySpawning: {
@@ -7620,11 +7617,11 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                     cruiseSpeedMultiplier: 0.62,
                     cruiseMinMs: 1300,
                     cruiseMaxMs: 2200,
-                    warningMs: 520,
-                    chargeSpeedMultiplier: 3.2,
-                    chargeMaxMs: 850,
+                    warningMs: 650,
+                    chargeSpeedMultiplier: 2.55,
+                    chargeMaxMs: 700,
                     recoverySpeedMultiplier: 0.34,
-                    recoveryMs: 650
+                    recoveryMs: 800
                 },
                 pulse: {
                     speedMultiplier: 0.70,
@@ -10127,7 +10124,10 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 this.telemetrySpawnSequence = 0;
                 this.lastMaterializationSectorTimeMs = null;
                 this.queueGenerationSequence = 0;
+                this.spawnBatchSequence = 0;
                 this.currentQueueGenerationId = null;
+                this.currentQueueGeneration = null;
+                this.currentSpawnBatchId = null;
                 this.currentQueueOrigin = null;
                 this.deterministicSizeStates = Object.create(null);
                 return this.snapshot();
@@ -10233,6 +10233,9 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                         spawnCategory: 'normal',
                         queueOrigin: 'legacy',
                         queueGenerationId: null,
+                        queueGeneration: null,
+                        spawnBatchId: null,
+                        creationReason: 'legacy',
                         expectedSpawnIntervalMs: null,
                         telemetryId: null
                     };
@@ -10249,6 +10252,9 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                     spawnCategory: request && request.spawnCategory ? String(request.spawnCategory) : 'normal',
                     queueOrigin: request && request.queueOrigin ? String(request.queueOrigin) : 'legacy',
                     queueGenerationId: request && request.queueGenerationId ? String(request.queueGenerationId) : null,
+                    queueGeneration: Number.isFinite(request && request.queueGeneration) ? Number(request.queueGeneration) : null,
+                    spawnBatchId: request && request.spawnBatchId ? String(request.spawnBatchId) : null,
+                    creationReason: request && request.creationReason ? String(request.creationReason) : (request && request.queueOrigin ? String(request.queueOrigin) : 'legacy'),
                     expectedSpawnIntervalMs: Number.isFinite(request && request.expectedSpawnIntervalMs) ? Number(request.expectedSpawnIntervalMs) : null,
                     telemetryId: request && request.telemetryId ? String(request.telemetryId) : null
                 };
@@ -10263,6 +10269,17 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 const sector = game.campaign && Number.isFinite(game.campaign.currentSector) ? game.campaign.currentSector : 0;
                 const safeOrigin = String(queueOrigin || 'queue').replace(/[^a-z0-9-]+/gi, '-').toLowerCase();
                 return `${runId}-sector-${sector}-${safeOrigin}-queue-${this.queueGenerationSequence}`;
+            }
+
+            nextSpawnBatchId(queueOrigin = 'initial', queueGeneration = this.queueGenerationSequence) {
+                const game = this.requireGame();
+                this.spawnBatchSequence += 1;
+                const runId = game.telemetrySystem && game.telemetrySystem.currentTelemetryRun && game.telemetrySystem.currentTelemetryRun.id
+                    ? game.telemetrySystem.currentTelemetryRun.id
+                    : `session-${Date.now()}`;
+                const sector = game.campaign && Number.isFinite(game.campaign.currentSector) ? game.campaign.currentSector : 0;
+                const safeOrigin = String(queueOrigin || 'batch').replace(/[^a-z0-9-]+/gi, '-').toLowerCase();
+                return `${runId}-sector-${sector}-${safeOrigin}-batch-${this.spawnBatchSequence}-generation-${queueGeneration}`;
             }
 
             resetDeterministicSizeSequences() {
@@ -10280,14 +10297,17 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                     ? sizePlan.slice()
                     : Array.from(this.config.enemySpawning.defaultSectorSizeSequence || []);
                 const normalizedBehaviors = Array.isArray(behaviorPlan) ? behaviorPlan.slice() : [];
-                const count = normalizedSizes.length;
                 const queueGenerationId = this.nextQueueGenerationId(queueOrigin);
+                const queueGeneration = this.queueGenerationSequence;
+                const spawnBatchId = this.nextSpawnBatchId(queueOrigin, queueGeneration);
 
                 if (queueOrigin === 'initial' || queueOrigin === 'final-gridlock') {
                     this.resetDeterministicSizeSequences();
                 }
 
                 this.currentQueueGenerationId = queueGenerationId;
+                this.currentQueueGeneration = queueGeneration;
+                this.currentSpawnBatchId = spawnBatchId;
                 this.currentQueueOrigin = queueOrigin;
                 this.spawnQueue = normalizedSizes.map((type, index) => ({
                     type,
@@ -10296,12 +10316,18 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                     spawnCategory,
                     queueOrigin,
                     queueGenerationId,
+                    queueGeneration,
+                    spawnBatchId,
+                    creationReason: queueOrigin,
                     expectedSpawnIntervalMs: Number.isFinite(expectedSpawnIntervalMs) ? Number(expectedSpawnIntervalMs) : null,
                     telemetryId: null
                 }));
                 this.safeTelemetryCall('noteTelemetryQueueGenerated', this.spawnQueue, {
                     queueGenerationId,
+                    queueGeneration,
+                    spawnBatchId,
                     queueOrigin,
+                    creationReason: queueOrigin,
                     spawnCategory
                 });
                 return this.spawnQueue;
@@ -10316,6 +10342,12 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 const fallbackGenerationId = options.queueGenerationId
                     ? String(options.queueGenerationId)
                     : this.currentQueueGenerationId;
+                const fallbackGeneration = Number.isFinite(options.queueGeneration)
+                    ? Number(options.queueGeneration)
+                    : this.currentQueueGeneration;
+                const fallbackSpawnBatchId = options.spawnBatchId
+                    ? String(options.spawnBatchId)
+                    : this.currentSpawnBatchId;
                 const prepared = (Array.isArray(queue) ? queue : []).map((request, index) => {
                     const normalized = this.normalizeRequest(request);
                     return {
@@ -10324,6 +10356,9 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                         spawnCategory: normalized.spawnCategory || fallbackSpawnCategory,
                         queueOrigin: normalized.queueOrigin && normalized.queueOrigin !== 'legacy' ? normalized.queueOrigin : fallbackQueueOrigin,
                         queueGenerationId: normalized.queueGenerationId || fallbackGenerationId,
+                        queueGeneration: Number.isFinite(normalized.queueGeneration) ? normalized.queueGeneration : fallbackGeneration,
+                        spawnBatchId: normalized.spawnBatchId || fallbackSpawnBatchId,
+                        creationReason: normalized.creationReason || fallbackQueueOrigin,
                         expectedSpawnIntervalMs: Number.isFinite(normalized.expectedSpawnIntervalMs)
                             ? normalized.expectedSpawnIntervalMs
                             : expectedSpawnIntervalMs
@@ -10343,9 +10378,13 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 const category = String(spawnCategory || 'gridlock');
                 let state = this.deterministicSizeStates[category];
                 if (!state) {
+                    const queueGenerationId = this.nextQueueGenerationId(category);
+                    const queueGeneration = this.queueGenerationSequence;
                     state = this.deterministicSizeStates[category] = {
                         index: 0,
-                        queueGenerationId: this.nextQueueGenerationId(category)
+                        queueGenerationId,
+                        queueGeneration,
+                        spawnBatchId: this.nextSpawnBatchId(category, queueGeneration)
                     };
                 }
                 const sequence = this.getDeterministicSizeSequence(category);
@@ -10353,6 +10392,9 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                     type: sequence[state.index % sequence.length],
                     queuePosition: (state.index % sequence.length) + 1,
                     queueGenerationId: state.queueGenerationId,
+                    queueGeneration: state.queueGeneration,
+                    spawnBatchId: state.spawnBatchId,
+                    creationReason: category,
                     queueOrigin: category
                 });
             }
@@ -10366,6 +10408,8 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 if (state.index >= sequence.length) {
                     state.index = 0;
                     state.queueGenerationId = this.nextQueueGenerationId(category);
+                    state.queueGeneration = this.queueGenerationSequence;
+                    state.spawnBatchId = this.nextSpawnBatchId(category, state.queueGeneration);
                 }
                 return state;
             }
@@ -10418,6 +10462,9 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 enemy.telemetrySpawnCategory = request.spawnCategory;
                 enemy.telemetryQueueOrigin = request.queueOrigin;
                 enemy.telemetryQueueGenerationId = request.queueGenerationId;
+                enemy.telemetryQueueGeneration = request.queueGeneration;
+                enemy.telemetrySpawnBatchId = request.spawnBatchId;
+                enemy.telemetryCreationReason = request.creationReason || request.queueOrigin;
                 enemy.telemetryExpectedSpawnIntervalMs = request.expectedSpawnIntervalMs;
                 enemy.telemetryWarningStartedAtSectorMs = warningContext && Number.isFinite(warningContext.warningStartSectorTimeMs)
                     ? warningContext.warningStartSectorTimeMs
@@ -10458,6 +10505,9 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 if (options.spawnCategory) normalizedRequest.spawnCategory = String(options.spawnCategory);
                 if (options.queueOrigin) normalizedRequest.queueOrigin = String(options.queueOrigin);
                 if (options.queueGenerationId) normalizedRequest.queueGenerationId = String(options.queueGenerationId);
+                if (Number.isFinite(options.queueGeneration)) normalizedRequest.queueGeneration = Number(options.queueGeneration);
+                if (options.spawnBatchId) normalizedRequest.spawnBatchId = String(options.spawnBatchId);
+                if (options.creationReason) normalizedRequest.creationReason = String(options.creationReason);
                 if (Number.isFinite(options.queuePosition)) normalizedRequest.queuePosition = Number(options.queuePosition);
 
                 const type = normalizedRequest.type;
@@ -10479,6 +10529,9 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                     spawnCategory: normalizedRequest.spawnCategory,
                     queueOrigin: normalizedRequest.queueOrigin,
                     queueGenerationId: normalizedRequest.queueGenerationId,
+                    queueGeneration: normalizedRequest.queueGeneration,
+                    spawnBatchId: normalizedRequest.spawnBatchId,
+                    creationReason: normalizedRequest.creationReason || normalizedRequest.queueOrigin,
                     remainingQueueCount: Number.isFinite(options.remainingQueueCount)
                         ? Number(options.remainingQueueCount)
                         : this.spawnQueue.length,
@@ -10551,6 +10604,9 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                     spawnCategory: normalizedNextRequest.spawnCategory || 'normal',
                     queueOrigin: normalizedNextRequest.queueOrigin,
                     queueGenerationId: normalizedNextRequest.queueGenerationId,
+                    queueGeneration: normalizedNextRequest.queueGeneration,
+                    spawnBatchId: normalizedNextRequest.spawnBatchId,
+                    creationReason: normalizedNextRequest.creationReason || normalizedNextRequest.queueOrigin,
                     remainingQueueCount: Math.max(0, this.spawnQueue.length - 1)
                 })) return false;
 
@@ -10569,7 +10625,10 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                     telemetrySpawnSequence: this.telemetrySpawnSequence,
                     lastMaterializationSectorTimeMs: this.lastMaterializationSectorTimeMs,
                     queueGenerationSequence: this.queueGenerationSequence,
+                    spawnBatchSequence: this.spawnBatchSequence,
                     currentQueueGenerationId: this.currentQueueGenerationId,
+                    currentQueueGeneration: this.currentQueueGeneration,
+                    currentSpawnBatchId: this.currentSpawnBatchId,
                     currentQueueOrigin: this.currentQueueOrigin,
                     deterministicSizeStates: Object.freeze(Object.fromEntries(
                         Object.entries(this.deterministicSizeStates).map(([key, state]) => [key, Object.freeze({ ...state })])
@@ -13382,8 +13441,8 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
         TelemetrySystem.implementations = Object.freeze({
             loadTelemetryData: function() {
                 const emptyTelemetry = {
-                    schema: 'blockazoids-balance-v9',
-                    schemaVersion: 9,
+                    schema: 'blockazoids-balance-v10',
+                    schemaVersion: 10,
                     loadedSchema: null,
                     runs: [],
                     restoredFromLocalStorage: false,
@@ -13395,8 +13454,8 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                     if (!saved) return emptyTelemetry;
 
                     const telemetry = {
-                        schema: 'blockazoids-balance-v9',
-                        schemaVersion: 9,
+                        schema: 'blockazoids-balance-v10',
+                        schemaVersion: 10,
                         loadedSchema: saved.schema || null,
                         runs: Array.isArray(saved.runs) ? saved.runs.slice() : [],
                         restoredFromLocalStorage: true,
@@ -13453,8 +13512,8 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
 
                 while (storedRuns.length >= 0) {
                     const payload = {
-                        schema: 'blockazoids-balance-v9',
-                        schemaVersion: 9,
+                        schema: 'blockazoids-balance-v10',
+                        schemaVersion: 10,
                         savedAt,
                         runs: storedRuns,
                         activeRun,
@@ -13465,7 +13524,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                     try {
                         storageService.setItem(this.telemetrySystem.telemetryStorageKey, JSON.stringify(payload));
                         this.telemetrySystem.telemetry.schema = payload.schema;
-                        this.telemetrySystem.telemetry.schemaVersion = 9;
+                        this.telemetrySystem.telemetry.schemaVersion = 10;
                         this.telemetrySystem.telemetry.runs = storedRuns;
                         this.telemetrySystem.telemetry.lastSavedAt = savedAt;
                         this.telemetrySystem.updateTelemetrySummary();
@@ -13488,8 +13547,12 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
 
             getEffectiveEnemySpeedsSnapshot: function() {
                 const multiplier = this.telemetrySystem.getCurrentSpeedMultiplier();
-                const effective = Number((this.SHARED_BLOCKAZOID_BASE_SPEED * multiplier).toFixed(4));
-                return { small: effective, medium: effective, large: effective };
+                return Object.fromEntries(
+                    Object.entries(this.BASE_SPEEDS).map(([size, baseSpeed]) => [
+                        size,
+                        Number((baseSpeed * multiplier).toFixed(4))
+                    ])
+                );
                         },
 
             getRemainingCrystalsByColor: function() {
@@ -13528,15 +13591,11 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                     spawnDelaySectorReduction: GAME_CONFIG.enemySpawning.sectorDelayReductionSeconds,
                     normalBlockAZoidLimit: this.gridlockEnemyThreshold,
                     overtimeEnemyIntervalMs: GAME_CONFIG.gridlock.overtimeEnemyIntervalMs,
-                    movementPolicy: 'behavior-controls-movement-size-controls-presence',
-                    sharedBaseSpeed: GAME_CONFIG.enemyMovement.sharedBaseSpeed,
+                    movementPolicy: 'size-controls-intensity-behavior-controls-style',
                     baseSpeeds: Object.assign({}, GAME_CONFIG.enemyMovement.baseSpeeds),
-                    responsiveSharedBaseSpeed: Number(this.SHARED_BLOCKAZOID_BASE_SPEED.toFixed(4)),
-                    responsiveBaseSpeeds: {
-                        small: Number(this.SHARED_BLOCKAZOID_BASE_SPEED.toFixed(4)),
-                        medium: Number(this.SHARED_BLOCKAZOID_BASE_SPEED.toFixed(4)),
-                        large: Number(this.SHARED_BLOCKAZOID_BASE_SPEED.toFixed(4))
-                    },
+                    responsiveBaseSpeeds: Object.fromEntries(
+                        Object.entries(this.BASE_SPEEDS).map(([size, speed]) => [size, Number(speed.toFixed(4))])
+                    ),
                     speedMultiplier: Number(this.telemetrySystem.getCurrentSpeedMultiplier().toFixed(4)),
                     effectiveSpeeds: this.telemetrySystem.getEffectiveEnemySpeedsSnapshot(),
                     sectorSpeedBoost: GAME_CONFIG.enemyMovement.sectorSpeedBoost,
@@ -13569,7 +13628,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                     startingSector: this.campaign.currentSector,
                     fullRunStartedFromSectorOne: this.campaign.currentSector === 1 && sourceInfo.category === 'regular-play',
                     difficultyMode: this.settings.difficultyMode,
-                    telemetrySchemaVersion: 9,
+                    telemetrySchemaVersion: 10,
                     startedAt: new Date().toISOString(),
                     startPerformanceMs: Math.round(performance.now()),
                     pausedDurationMs: 0,
@@ -13620,7 +13679,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                     runSourceRaw: this.telemetrySystem.currentTelemetryRun.sourceRaw || this.telemetrySystem.currentTelemetryRun.source || null,
                     buildVersion: document.documentElement.dataset.buildVersion || BUILD_VERSION,
                     difficultyMode: this.settings.difficultyMode,
-                    telemetrySchemaVersion: 9,
+                    telemetrySchemaVersion: 10,
                     difficultySnapshot,
                     startedAt: new Date().toISOString(),
                     startPerformanceMs: performance.now(),
@@ -13648,7 +13707,11 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                     spawnedByBehaviorAndSize: {},
                     spawnQueueGenerations: difficultySnapshot.initialQueueGenerationId ? [{
                         queueGenerationId: difficultySnapshot.initialQueueGenerationId,
+                        queueGeneration: difficultySnapshot.initialQueueGeneration,
+                        spawnBatchId: difficultySnapshot.initialSpawnBatchId,
                         queueOrigin: difficultySnapshot.initialQueueOrigin || 'initial',
+                        creationReason: difficultySnapshot.initialQueueOrigin || 'initial',
+                        waveType: difficultySnapshot.initialQueueOrigin === 'cosmic-zap-replacement' ? 'replacement' : (difficultySnapshot.initialQueueOrigin === 'initial' ? 'initial' : 'special'),
                         spawnCategory: difficultySnapshot.finalFixedSpawnQueue && difficultySnapshot.finalFixedSpawnQueue.length
                             ? difficultySnapshot.finalFixedSpawnQueue[0].spawnCategory
                             : 'normal',
@@ -13836,6 +13899,10 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                         spawnCategory: normalized.spawnCategory || 'normal',
                         queueOrigin: normalized.queueOrigin || 'legacy',
                         queueGenerationId: normalized.queueGenerationId || null,
+                        queueGeneration: Number.isFinite(normalized.queueGeneration) ? normalized.queueGeneration : null,
+                        spawnBatchId: normalized.spawnBatchId || null,
+                        creationReason: normalized.creationReason || normalized.queueOrigin || 'legacy',
+                        waveType: normalized.queueOrigin === 'cosmic-zap-replacement' ? 'replacement' : (normalized.queueOrigin === 'initial' ? 'initial' : 'special'),
                         expectedSpawnIntervalMs: Number.isFinite(normalized.expectedSpawnIntervalMs)
                             ? normalized.expectedSpawnIntervalMs
                             : Math.round(this.spawnDelay * 1000)
@@ -13888,6 +13955,8 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                     finalShuffledSpawnQueue: finalQueue,
                     finalFixedSpawnQueue: finalQueue,
                     initialQueueGenerationId: finalQueue.length ? finalQueue[0].queueGenerationId : null,
+                    initialQueueGeneration: finalQueue.length ? finalQueue[0].queueGeneration : null,
+                    initialSpawnBatchId: finalQueue.length ? finalQueue[0].spawnBatchId : null,
                     initialQueueOrigin: finalQueue.length ? finalQueue[0].queueOrigin : null,
                     behaviorSizePairings: finalQueue.map((item) => ({
                         queuePosition: item.queuePosition,
@@ -13895,7 +13964,11 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                         identity: item.identity,
                         size: item.size,
                         queueOrigin: item.queueOrigin,
-                        queueGenerationId: item.queueGenerationId
+                        queueGenerationId: item.queueGenerationId,
+                        queueGeneration: item.queueGeneration,
+                        spawnBatchId: item.spawnBatchId,
+                        creationReason: item.creationReason,
+                        waveType: item.waveType
                     })),
                     fixedBehaviorSizePairings: finalQueue.map((item) => ({
                         queuePosition: item.queuePosition,
@@ -13903,7 +13976,11 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                         identity: item.identity,
                         size: item.size,
                         queueOrigin: item.queueOrigin,
-                        queueGenerationId: item.queueGenerationId
+                        queueGenerationId: item.queueGenerationId,
+                        queueGeneration: item.queueGeneration,
+                        spawnBatchId: item.spawnBatchId,
+                        creationReason: item.creationReason,
+                        waveType: item.waveType
                     })),
                     normalSwarmBlockAZoidCount: finalQueue.length,
                     gridlockEnemyThreshold: this.gridlockEnemyThreshold,
@@ -13919,11 +13996,21 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                         difficultySpeedMultiplier: Number(difficultySpeedMultiplier.toFixed(4)),
                         finalEffectiveSpeedMultiplier: Number(finalSpeedMultiplier.toFixed(4))
                     },
-                    movementPolicy: 'behavior-controls-movement-size-controls-presence',
-                    sharedSizeIndependentBaseSpeed: Number(this.SHARED_BLOCKAZOID_BASE_SPEED.toFixed(4)),
+                    movementPolicy: 'size-controls-intensity-behavior-controls-style',
+                    dashParityConfiguration: {
+                        profile: 'controlled-first-pass',
+                        cruiseSpeedMultiplier: charger.cruiseSpeedMultiplier,
+                        chargeSpeedMultiplier: charger.chargeSpeedMultiplier,
+                        recoverySpeedMultiplier: charger.recoverySpeedMultiplier,
+                        cruiseMinMs: charger.cruiseMinMs,
+                        cruiseMaxMs: charger.cruiseMaxMs,
+                        telegraphMs: charger.warningMs,
+                        chargeMaxMs: charger.chargeMaxMs,
+                        recoveryMs: charger.recoveryMs
+                    },
                     effectiveMovementSpeeds: {
-                        sizeIndependent: true,
-                        sharedBase: Number(this.SHARED_BLOCKAZOID_BASE_SPEED.toFixed(4)),
+                        sizeIndependent: false,
+                        sizeTierOrder: ['large', 'medium', 'small'],
                         sizeBase: sizeSpeeds,
                         zig: {
                             perAxis: { ...sizeSpeeds },
@@ -13965,6 +14052,10 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 }));
                 const first = normalizedQueue[0] || {};
                 const queueGenerationId = metadata.queueGenerationId || first.queueGenerationId || null;
+                const queueGeneration = Number.isFinite(metadata.queueGeneration)
+                    ? Number(metadata.queueGeneration)
+                    : (Number.isFinite(first.queueGeneration) ? Number(first.queueGeneration) : null);
+                const spawnBatchId = metadata.spawnBatchId || first.spawnBatchId || null;
                 if (!queueGenerationId) return null;
                 const newPairings = normalizedQueue.map((item) => ({
                     queuePosition: item.queuePosition,
@@ -13982,7 +14073,11 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 }
                 const record = {
                     queueGenerationId,
+                    queueGeneration,
+                    spawnBatchId,
                     queueOrigin: metadata.queueOrigin || first.queueOrigin || 'legacy',
+                    creationReason: metadata.creationReason || first.creationReason || metadata.queueOrigin || first.queueOrigin || 'legacy',
+                    waveType: (metadata.queueOrigin || first.queueOrigin) === 'cosmic-zap-replacement' ? 'replacement' : ((metadata.queueOrigin || first.queueOrigin) === 'initial' ? 'initial' : 'special'),
                     spawnCategory: metadata.spawnCategory || first.spawnCategory || 'normal',
                     generatedAtTimeMs: this.telemetrySystem.telemetrySectorElapsedMs(),
                     plannedCount: Math.max(normalizedQueue.length, ...newPairings.map((pairing) => pairing.queuePosition || 0)),
@@ -13999,10 +14094,18 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 const identity = getEnemyIdentity(request && request.behaviorType);
                 const queueGenerationId = request && request.queueGenerationId ? request.queueGenerationId : (context.queueGenerationId || null);
                 const queueOrigin = request && request.queueOrigin ? request.queueOrigin : (context.queueOrigin || 'legacy');
+                const queueGeneration = Number.isFinite(request && request.queueGeneration)
+                    ? Number(request.queueGeneration)
+                    : (Number.isFinite(context.queueGeneration) ? Number(context.queueGeneration) : null);
+                const spawnBatchId = request && request.spawnBatchId ? request.spawnBatchId : (context.spawnBatchId || null);
+                const creationReason = request && request.creationReason ? request.creationReason : (context.creationReason || queueOrigin);
                 if (queueGenerationId) {
                     this.telemetrySystem.noteTelemetryQueueGenerated([request], {
                         queueGenerationId,
+                        queueGeneration,
+                        spawnBatchId,
                         queueOrigin,
+                        creationReason,
                         spawnCategory: request && request.spawnCategory ? request.spawnCategory : (context.spawnCategory || 'normal')
                     });
                 }
@@ -14031,6 +14134,10 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                     spawnCategory: request && request.spawnCategory ? request.spawnCategory : (context.spawnCategory || 'normal'),
                     queueOrigin,
                     queueGenerationId,
+                    queueGeneration,
+                    spawnBatchId,
+                    creationReason,
+                    waveType: queueOrigin === 'cosmic-zap-replacement' ? 'replacement' : (queueOrigin === 'initial' ? 'initial' : 'special'),
                     status: 'warning'
                 };
                 sector.spawnWarningEvents.push(record);
@@ -14092,7 +14199,14 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                     spawnCategory: request && request.spawnCategory ? request.spawnCategory : 'normal',
                     queueOrigin: request && request.queueOrigin ? request.queueOrigin : (enemy && enemy.telemetryQueueOrigin ? enemy.telemetryQueueOrigin : 'legacy'),
                     queueGenerationId: request && request.queueGenerationId ? request.queueGenerationId : (enemy && enemy.telemetryQueueGenerationId ? enemy.telemetryQueueGenerationId : null),
+                    queueGeneration: Number.isFinite(request && request.queueGeneration)
+                        ? Number(request.queueGeneration)
+                        : (enemy && Number.isFinite(enemy.telemetryQueueGeneration) ? Number(enemy.telemetryQueueGeneration) : null),
+                    spawnBatchId: request && request.spawnBatchId ? request.spawnBatchId : (enemy && enemy.telemetrySpawnBatchId ? enemy.telemetrySpawnBatchId : null),
+                    creationReason: request && request.creationReason ? request.creationReason : (enemy && enemy.telemetryCreationReason ? enemy.telemetryCreationReason : (request && request.queueOrigin ? request.queueOrigin : 'legacy')),
+                    waveType: (request && request.queueOrigin) === 'cosmic-zap-replacement' ? 'replacement' : ((request && request.queueOrigin) === 'initial' ? 'initial' : 'special'),
                     visualSize: enemy && enemy.type ? enemy.type : (request && request.type ? request.type : 'medium'),
+                    behaviorStateAtMaterialization: enemy && enemy.behavior && enemy.behavior.state ? enemy.behavior.state : 'active',
                     effectiveMovementSpeedAtMaterialization: enemy ? Number(Math.hypot(enemy.dx, enemy.dy).toFixed(4)) : null
                 };
                 if (!Array.isArray(sector.enemyMaterializationEvents)) sector.enemyMaterializationEvents = [];
@@ -14112,6 +14226,11 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                     spawnCategory: record.spawnCategory,
                     queueOrigin: record.queueOrigin,
                     queueGenerationId: record.queueGenerationId,
+                    queueGeneration: record.queueGeneration,
+                    spawnBatchId: record.spawnBatchId,
+                    creationReason: record.creationReason,
+                    waveType: record.waveType,
+                    behaviorStateAtMaterialization: record.behaviorStateAtMaterialization,
                     effectiveMovementSpeedAtMaterialization: record.effectiveMovementSpeedAtMaterialization
                 });
                 if (Array.isArray(sector.spawnWarningEvents)) {
@@ -14189,11 +14308,17 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                     enemyTelemetryId: sector.death.enemyTelemetryId || null,
                     queueOrigin: sector.death.enemyQueueOrigin || null,
                     queueGenerationId: sector.death.enemyQueueGenerationId || null,
+                    queueGeneration: Number.isFinite(sector.death.enemyQueueGeneration) ? sector.death.enemyQueueGeneration : null,
+                    spawnBatchId: sector.death.enemySpawnBatchId || null,
+                    creationReason: sector.death.enemyCreationReason || null,
                     behaviorType: sector.death.enemyBehaviorType || null,
                     identityKey: sector.death.enemyIdentityKey || null,
                     identity: sector.death.enemyDisplayName || null,
                     size: sector.death.enemySize || null,
                     state: sector.death.enemyBehaviorState || null,
+                    configuredBaseSpeed: Number.isFinite(sector.death.configuredBaseSpeedAtCollision) ? sector.death.configuredBaseSpeedAtCollision : null,
+                    behaviorSpeedMultiplier: Number.isFinite(sector.death.behaviorSpeedMultiplierAtCollision) ? sector.death.behaviorSpeedMultiplierAtCollision : null,
+                    combinedSpeedMultiplier: Number.isFinite(sector.death.combinedSpeedMultiplierAtCollision) ? sector.death.combinedSpeedMultiplierAtCollision : null,
                     effectiveSpeed: Number.isFinite(sector.death.effectiveSpeedAtCollision) ? sector.death.effectiveSpeedAtCollision : null
                 } : null;
                 return {
@@ -14929,9 +15054,9 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                     this.telemetrySystem.buildSectorPressureReport({ sourceCategory, fullRunsOnly: sourceCategory === 'regular-play' })
                 ]));
                 const exportData = {
-                    schema: 'blockazoids-balance-export-v8',
-                    telemetrySchema: 'blockazoids-balance-v9',
-                    telemetrySchemaVersion: 9,
+                    schema: 'blockazoids-balance-export-v9',
+                    telemetrySchema: 'blockazoids-balance-v10',
+                    telemetrySchemaVersion: 10,
                     exportedAt: new Date().toISOString(),
                     build: BUILD_VERSION,
                     buildVersion: document.documentElement.dataset.buildVersion || BUILD_VERSION,
@@ -14972,7 +15097,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                     this.telemetrySystem.setTelemetryStatus('Developer Mode required.');
                     return;
                 }
-                this.telemetrySystem.telemetry = { schema: 'blockazoids-balance-v9', schemaVersion: 9, loadedSchema: null, runs: [], restoredFromLocalStorage: false, recoveredActiveRuns: 0, lastSavedAt: null };
+                this.telemetrySystem.telemetry = { schema: 'blockazoids-balance-v10', schemaVersion: 10, loadedSchema: null, runs: [], restoredFromLocalStorage: false, recoveredActiveRuns: 0, lastSavedAt: null };
                 this.telemetrySystem.currentTelemetryRun = null;
                 this.telemetrySystem.currentTelemetrySector = null;
                 try { storageService.removeItem(this.telemetrySystem.telemetryStorageKey); } catch (_) {}
@@ -15515,9 +15640,13 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                     return counts;
                 }, { small: 0, medium: 0, large: 0 });
                 const expectedDefaultSizeSequence = ['large', 'medium', 'medium', 'medium', 'medium', 'medium', 'medium', 'small'];
-                const sharedSpeed = Number(config.enemyMovement.sharedBaseSpeed);
-                this.assert('Block-A-Zoid shared movement base is configured', Number.isFinite(sharedSpeed) && sharedSpeed > 0);
-                this.assert('Small, medium, and large use the shared movement base', ['small', 'medium', 'large'].every((size) => config.enemyMovement.baseSpeeds[size] === sharedSpeed));
+                const authoredBaseSpeeds = config.enemyMovement.baseSpeeds || {};
+                this.assert('Block-A-Zoid size movement tiers are configured', ['small', 'medium', 'large'].every((size) => Number.isFinite(Number(authoredBaseSpeeds[size])) && Number(authoredBaseSpeeds[size]) > 0));
+                this.assert('Small movement tier is faster than medium', Number(authoredBaseSpeeds.small) > Number(authoredBaseSpeeds.medium));
+                this.assert('Medium movement tier is faster than large', Number(authoredBaseSpeeds.medium) > Number(authoredBaseSpeeds.large));
+                this.assert('Authored size tiers preserve the approved 3 / 2 / 1.5 baseline', authoredBaseSpeeds.small === 3 && authoredBaseSpeeds.medium === 2 && authoredBaseSpeeds.large === 1.5);
+                const dash = config.enemyBehaviors.charger;
+                this.assert('DASH parity tuning is centralized in gameplay configuration', dash.cruiseSpeedMultiplier === 0.62 && dash.chargeSpeedMultiplier === 2.55 && dash.recoverySpeedMultiplier === 0.34 && dash.cruiseMinMs === 1300 && dash.cruiseMaxMs === 2200 && dash.warningMs === 650 && dash.chargeMaxMs === 700 && dash.recoveryMs === 800);
                 this.assert('Default sector size sequence is deterministic', JSON.stringify(defaultSizeSequence) === JSON.stringify(expectedDefaultSizeSequence));
                 const defaultSizeCounts = countSizes(defaultSizeSequence);
                 this.assert('Default sector size sequence preserves 1 small, 6 medium, and 1 large', defaultSizeCounts.small === 1 && defaultSizeCounts.medium === 6 && defaultSizeCounts.large === 1);
@@ -16662,6 +16791,9 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                         enemySpawnCategory: deathDetails.deathCause ? deathDetails.deathCause.spawnCategory || null : null,
                         enemyQueueOrigin: deathDetails.deathCause ? deathDetails.deathCause.queueOrigin || null : null,
                         enemyQueueGenerationId: deathDetails.deathCause ? deathDetails.deathCause.queueGenerationId || null : null,
+                        enemyQueueGeneration: deathDetails.deathCause && Number.isFinite(deathDetails.deathCause.queueGeneration) ? deathDetails.deathCause.queueGeneration : null,
+                        enemySpawnBatchId: deathDetails.deathCause ? deathDetails.deathCause.spawnBatchId || null : null,
+                        enemyCreationReason: deathDetails.deathCause ? deathDetails.deathCause.creationReason || null : null,
                         enemySize: deathDetails.deathEnemySize || null,
                         enemyIdentity: deathDetails.deathCause || null,
                         enemyIdentityKey: deathDetails.deathCause ? deathDetails.deathCause.identityKey : null,
@@ -16671,6 +16803,9 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                         enemyBehaviorState: deathDetails.deathCause ? deathDetails.deathCause.behaviorState : null,
                         deathCategory: deathDetails.deathCause ? deathDetails.deathCause.telemetryCategory : null,
                         effectiveSpeedAtCollision: deathDetails.deathCause ? deathDetails.deathCause.effectiveVelocity : null,
+                        configuredBaseSpeedAtCollision: deathDetails.deathCause ? deathDetails.deathCause.baseSpeed : null,
+                        behaviorSpeedMultiplierAtCollision: deathDetails.deathCause ? deathDetails.deathCause.specialMovementMultiplier : null,
+                        combinedSpeedMultiplierAtCollision: deathDetails.deathCause ? deathDetails.deathCause.combinedSpeedMultiplier : null,
                         materializationAgeMs: deathDetails.deathCause ? deathDetails.deathCause.materializationAgeMs : null,
                         orbPosition: deathDetails.deathCause ? deathDetails.deathCause.orbPosition || null : null,
                         enemyPosition: deathDetails.deathCause ? deathDetails.deathCause.enemyPosition || null : null,
@@ -21531,12 +21666,12 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 this.LINE_THICKNESS = Math.max(1 / Math.max(1, Number(window.devicePixelRatio) || 1), this.snapPlayfieldPixel(2 * gameplayScale));
                 this.CRYSTAL_OFFSET = this.CRYSTAL_SIZE / 2;
                 this.MIN_SPAWN_DISTANCE = this.snapPlayfieldPixel(config.minSpawnDistance * gameplayScale);
-                this.SHARED_BLOCKAZOID_BASE_SPEED = GAME_CONFIG.enemyMovement.sharedBaseSpeed * gameplayScale;
-                this.BASE_SPEEDS = {
-                    small: this.SHARED_BLOCKAZOID_BASE_SPEED,
-                    medium: this.SHARED_BLOCKAZOID_BASE_SPEED,
-                    large: this.SHARED_BLOCKAZOID_BASE_SPEED
-                };
+                this.BASE_SPEEDS = Object.fromEntries(
+                    Object.entries(GAME_CONFIG.enemyMovement.baseSpeeds).map(([size, speed]) => [
+                        size,
+                        Number(speed) * gameplayScale
+                    ])
+                );
 
                 this.container.style.width = `${this.PLAYFIELD_SIZE}px`;
                 this.container.style.height = `${this.PLAYFIELD_SIZE}px`;
@@ -21615,9 +21750,11 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
             }
 
 
-            // Behavior determines movement. Visual size does not alter speed.
-            getEnemySpeed(_type) {
-                return this.SHARED_BLOCKAZOID_BASE_SPEED * this.telemetrySystem.getCurrentSpeedMultiplier();
+            // Size determines the authored intensity tier; behavior modifies that tier without
+            // owning or duplicating the base-speed table.
+            getEnemySpeed(type) {
+                const normalizedType = Object.prototype.hasOwnProperty.call(this.BASE_SPEEDS, type) ? type : 'medium';
+                return this.BASE_SPEEDS[normalizedType] * this.telemetrySystem.getCurrentSpeedMultiplier();
             }
             // Try to keep the screen awake during active gameplay.
             async requestWakeLock() {
@@ -22821,6 +22958,9 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                     spawnCategory,
                     queueOrigin: deterministicSize.queueOrigin,
                     queueGenerationId: deterministicSize.queueGenerationId,
+                    queueGeneration: deterministicSize.queueGeneration,
+                    spawnBatchId: deterministicSize.spawnBatchId,
+                    creationReason: deterministicSize.creationReason,
                     queuePosition: deterministicSize.queuePosition,
                     expectedSpawnIntervalMs: GAME_CONFIG.gridlock.overtimeEnemyIntervalMs + this.enemySpawnSystem.spawnWarningDurationMs
                 };
@@ -22829,6 +22969,9 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                     spawnCategory,
                     queueOrigin: spawnRequest.queueOrigin,
                     queueGenerationId: spawnRequest.queueGenerationId,
+                    queueGeneration: spawnRequest.queueGeneration,
+                    spawnBatchId: spawnRequest.spawnBatchId,
+                    creationReason: spawnRequest.creationReason,
                     queuePosition: spawnRequest.queuePosition,
                     expectedSpawnIntervalMs: spawnRequest.expectedSpawnIntervalMs,
                     remainingQueueCount: 0,
@@ -23730,6 +23873,9 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                     spawnCategory: enemy.telemetrySpawnCategory || null,
                     queueOrigin: enemy.telemetryQueueOrigin || null,
                     queueGenerationId: enemy.telemetryQueueGenerationId || null,
+                    queueGeneration: Number.isFinite(enemy.telemetryQueueGeneration) ? enemy.telemetryQueueGeneration : null,
+                    spawnBatchId: enemy.telemetrySpawnBatchId || null,
+                    creationReason: enemy.telemetryCreationReason || enemy.telemetryQueueOrigin || null,
                     behaviorType: enemy.behaviorType,
                     behaviorState,
                     telemetryCategory,
@@ -23755,7 +23901,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                     sectorTimeMs: this.telemetrySystem.telemetrySectorElapsedMs() || this.sectorElapsedMs,
                     materializationAgeMs,
                     reactivationAgeMs,
-                    baseSpeed: Number((this.SHARED_BLOCKAZOID_BASE_SPEED || 0).toFixed(4)),
+                    baseSpeed: Number((this.BASE_SPEEDS[enemy.type] || this.BASE_SPEEDS.medium || 0).toFixed(4)),
                     sectorSpeedBoost: Number(sectorBoost.toFixed(4)),
                     cosmicZapPressureBoost: Number(zapBoost.toFixed(4)),
                     difficultyMultiplier: Number(difficultyMultiplier.toFixed(4)),
@@ -28248,11 +28394,19 @@ startGridlockBeat(delaySeconds = 0) {
                 assert('Browser lifecycle owner is attached', game.browserLifecycleSystem?.snapshot().attached === true);
                 assert('Shared monitor aperture owns both canvases', ['playfieldCanvas', 'playfieldWebglCanvas'].every((id) => document.getElementById(id)?.classList.contains('monitor-pixel-layer')));
                 assert('CRT grid remains Canvas-owned', getComputedStyle(game.container).backgroundImage === 'none' || !game.container.classList.contains('crt-fx-grid-rgb'));
-                assert('Telemetry schema v9 is active', game.telemetrySystem.telemetry && game.telemetrySystem.telemetry.schema === 'blockazoids-balance-v9');
+                assert('Telemetry schema v10 is active', game.telemetrySystem.telemetry && game.telemetrySystem.telemetry.schema === 'blockazoids-balance-v10');
                 assert('Telemetry remains event-based without a frame logger', !Object.values(TelemetrySystem.implementations).some((implementation) => implementation.toString().includes('requestAnimationFrame')));
                 assert('Telemetry pressure analysis is owned by TelemetrySystem', game.telemetrySystem.hasImplementation('buildSectorPressureReport') && game.telemetrySystem.hasImplementation('noteTelemetryEnemyMaterialized'));
-                const sharedSpeed = GAME_CONFIG.enemyMovement.sharedBaseSpeed;
-                assert('Block-A-Zoid movement is size-independent', ['small', 'medium', 'large'].every((size) => GAME_CONFIG.enemyMovement.baseSpeeds[size] === sharedSpeed && game.getEnemySpeed(size) === game.getEnemySpeed('medium')));
+                const configuredBaseSpeeds = GAME_CONFIG.enemyMovement.baseSpeeds;
+                assert('Block-A-Zoid movement uses deterministic size difficulty tiers', configuredBaseSpeeds.small === 3 && configuredBaseSpeeds.medium === 2 && configuredBaseSpeeds.large === 1.5);
+                assert('Small Block-A-Zoids remain faster than medium', game.getEnemySpeed('small') > game.getEnemySpeed('medium'));
+                assert('Medium Block-A-Zoids remain faster than large', game.getEnemySpeed('medium') > game.getEnemySpeed('large'));
+                const dashParity = GAME_CONFIG.enemyBehaviors.charger;
+                assert('DASH uses the controlled parity profile', dashParity.cruiseSpeedMultiplier === 0.62 && dashParity.chargeSpeedMultiplier === 2.55 && dashParity.recoverySpeedMultiplier === 0.34 && dashParity.cruiseMinMs === 1300 && dashParity.cruiseMaxMs === 2200 && dashParity.warningMs === 650 && dashParity.chargeMaxMs === 700 && dashParity.recoveryMs === 800);
+                assert('DASH charge profile applies proportionally to all sizes', ['small', 'medium', 'large'].every((size) => Math.abs((game.getEnemySpeed(size) * dashParity.chargeSpeedMultiplier) - (game.getEnemySpeed(size) * 2.55)) < 0.000001));
+                const drifterSource = DrifterBehavior.toString();
+                assert('ZIG movement profile remains unchanged', drifterSource.includes('enemy.speed') && drifterSource.includes('Math.SQRT2'));
+                assert('ECHO movement profile remains unchanged', GAME_CONFIG.enemyBehaviors.pulse.speedMultiplier === 0.70 && GAME_CONFIG.enemyBehaviors.pulse.activeMs === 1500 && GAME_CONFIG.enemyBehaviors.pulse.deactivationWarningMs === 300 && GAME_CONFIG.enemyBehaviors.pulse.reactivationWarningMs === 300);
                 const expectedSizeSequence = ['large', 'medium', 'medium', 'medium', 'medium', 'medium', 'medium', 'small'];
                 assert('Every authored Sector uses the deterministic size sequence', GAME_DATA.sectors.every((sector) => JSON.stringify(sector.enemySizePlan) === JSON.stringify(expectedSizeSequence)));
                 assert('No spawn category randomly selects visual size', !EnemySpawnSystem.prototype.createSectorQueue.toString().includes('Math.random') && !EnemySpawnSystem.prototype.peekDeterministicSizeRequest.toString().includes('Math.random'));
@@ -28340,26 +28494,43 @@ startGridlockBeat(delaySeconds = 0) {
                     difficulty: game.settings.difficultyMode,
                     spawnQueue: game.enemySpawnSystem.spawnQueue.slice(),
                     queueGenerationSequence: game.enemySpawnSystem.queueGenerationSequence,
+                    spawnBatchSequence: game.enemySpawnSystem.spawnBatchSequence,
                     currentQueueGenerationId: game.enemySpawnSystem.currentQueueGenerationId,
+                    currentQueueGeneration: game.enemySpawnSystem.currentQueueGeneration,
+                    currentSpawnBatchId: game.enemySpawnSystem.currentSpawnBatchId,
                     currentQueueOrigin: game.enemySpawnSystem.currentQueueOrigin,
                     deterministicSizeStates: JSON.parse(JSON.stringify(game.enemySpawnSystem.deterministicSizeStates || {})),
                     enemies: game.enemies.slice()
                 };
                 try {
                     game.telemetrySystem.telemetryEnabled = true;
-                    game.telemetrySystem.telemetry = { schema: 'blockazoids-balance-v9', schemaVersion: 9, loadedSchema: null, runs: [], restoredFromLocalStorage: false, recoveredActiveRuns: 0, lastSavedAt: null };
+                    game.telemetrySystem.telemetry = { schema: 'blockazoids-balance-v10', schemaVersion: 10, loadedSchema: null, runs: [], restoredFromLocalStorage: false, recoveredActiveRuns: 0, lastSavedAt: null };
                     game.telemetrySystem.currentTelemetryRun = null;
                     game.telemetrySystem.currentTelemetrySector = null;
                     game.campaign.currentSector = 1;
                     game.settings.difficultyMode = 'Normal';
+                    game.applySectorParameters({ queueOrigin: 'initial', spawnCategory: 'normal' });
+                    const firstAttemptQueue = game.enemySpawnSystem.spawnQueue.map((request) => ({
+                        type: request.type,
+                        behaviorType: request.behaviorType,
+                        queuePosition: request.queuePosition,
+                        expectedSpawnIntervalMs: request.expectedSpawnIntervalMs
+                    }));
+                    const initialSpawnDelay = game.spawnDelay;
                     game.applySectorParameters({ queueOrigin: 'initial', spawnCategory: 'normal' });
                     const initialQueue = game.enemySpawnSystem.spawnQueue.map((request) => ({
                         type: request.type,
                         behaviorType: request.behaviorType,
                         queuePosition: request.queuePosition,
                         queueOrigin: request.queueOrigin,
-                        queueGenerationId: request.queueGenerationId
+                        queueGenerationId: request.queueGenerationId,
+                        queueGeneration: request.queueGeneration,
+                        spawnBatchId: request.spawnBatchId,
+                        creationReason: request.creationReason,
+                        expectedSpawnIntervalMs: request.expectedSpawnIntervalMs
                     }));
+                    assert('Repeating the same Sector preserves identity-size pairings', firstAttemptQueue.every((item, index) => item.type === initialQueue[index]?.type && item.behaviorType === initialQueue[index]?.behaviorType && item.queuePosition === initialQueue[index]?.queuePosition));
+                    assert('Repeating the same Sector preserves configured spawn cadence', game.spawnDelay === initialSpawnDelay && firstAttemptQueue.every((item, index) => item.expectedSpawnIntervalMs === initialQueue[index]?.expectedSpawnIntervalMs));
                     game.telemetrySystem.beginTelemetryRun('start-game');
                     game.telemetrySystem.startTelemetrySector('sector-action-start');
                     const sector = game.telemetrySystem.currentTelemetrySector;
@@ -28368,7 +28539,10 @@ startGridlockBeat(delaySeconds = 0) {
                     assert('Difficulty snapshot records the authored deterministic size sequence', JSON.stringify(sector?.difficultySnapshot?.authoredSizeSequence) === JSON.stringify(GAME_CONFIG.enemySpawning.defaultSectorSizeSequence));
                     assert('Difficulty snapshot records actual runtime speed and spawn values', Number.isFinite(sector?.difficultySnapshot?.spawnTiming?.finalEffectiveSpawnDelayMs) && Number.isFinite(sector?.difficultySnapshot?.effectiveMovementSpeeds?.dash?.charge?.medium));
                     const sizeBase = sector?.difficultySnapshot?.effectiveMovementSpeeds?.sizeBase || {};
-                    assert('Difficulty snapshot proves shared movement across visual sizes', sizeBase.small === sizeBase.medium && sizeBase.medium === sizeBase.large && sector?.difficultySnapshot?.effectiveMovementSpeeds?.sizeIndependent === true);
+                    assert('Difficulty snapshot proves distinct size movement tiers', sizeBase.small > sizeBase.medium && sizeBase.medium > sizeBase.large && sector?.difficultySnapshot?.effectiveMovementSpeeds?.sizeIndependent === false);
+                    const dashSnapshot = sector?.difficultySnapshot?.dashParityConfiguration || {};
+                    assert('Difficulty snapshot records the DASH parity configuration', dashSnapshot.chargeSpeedMultiplier === 2.55 && dashSnapshot.telegraphMs === 650 && dashSnapshot.chargeMaxMs === 700 && dashSnapshot.recoveryMs === 800);
+                    assert('Difficulty snapshot retains ZIG and ECHO size-tier movement', sector?.difficultySnapshot?.effectiveMovementSpeeds?.zig?.perAxis?.small > sector?.difficultySnapshot?.effectiveMovementSpeeds?.zig?.perAxis?.medium && sector?.difficultySnapshot?.effectiveMovementSpeeds?.echo?.movement?.medium > sector?.difficultySnapshot?.effectiveMovementSpeeds?.echo?.movement?.large);
                     assert('Difficulty snapshot records actual proportional playfield geometry', sector?.difficultySnapshot?.playfieldGeometry?.presentationPolicy === 'proportional-scale' && sector?.difficultySnapshot?.playfieldGeometry?.profileMasterPlayfieldSize === 875 && sector?.difficultySnapshot?.playfieldGeometry?.renderedWidthPx === Number(game.PLAYFIELD_SIZE.toFixed(4)));
 
                     game.applySectorParameters({ queueOrigin: 'cosmic-zap-replacement', spawnCategory: 'normal' });
@@ -28377,12 +28551,16 @@ startGridlockBeat(delaySeconds = 0) {
                         behaviorType: request.behaviorType,
                         queuePosition: request.queuePosition,
                         queueOrigin: request.queueOrigin,
-                        queueGenerationId: request.queueGenerationId
+                        queueGenerationId: request.queueGenerationId,
+                        queueGeneration: request.queueGeneration,
+                        spawnBatchId: request.spawnBatchId,
+                        creationReason: request.creationReason
                     }));
                     assert('Cosmic Zap replacement preserves fixed behavior-size pairings', initialQueue.every((item, index) => item.type === replacementQueue[index]?.type && item.behaviorType === replacementQueue[index]?.behaviorType && item.queuePosition === replacementQueue[index]?.queuePosition));
-                    assert('Cosmic Zap replacement receives a new queue generation', replacementQueue[0]?.queueGenerationId && replacementQueue[0].queueGenerationId !== initialQueue[0]?.queueGenerationId && replacementQueue.every((item) => item.queueOrigin === 'cosmic-zap-replacement'));
+                    assert('Cosmic Zap replacement receives a new queue generation', replacementQueue[0]?.queueGenerationId && replacementQueue[0].queueGenerationId !== initialQueue[0]?.queueGenerationId && replacementQueue[0]?.queueGeneration > initialQueue[0]?.queueGeneration && replacementQueue.every((item) => item.queueOrigin === 'cosmic-zap-replacement'));
+                    assert('Cosmic Zap replacement receives a unique spawn batch', replacementQueue[0]?.spawnBatchId && replacementQueue[0].spawnBatchId !== initialQueue[0]?.spawnBatchId && replacementQueue.every((item) => item.spawnBatchId === replacementQueue[0].spawnBatchId && item.creationReason === 'cosmic-zap-replacement'));
                     const generatedQueues = sector?.spawnQueueGenerations || [];
-                    assert('Telemetry separates initial and replacement queue generations', generatedQueues.some((entry) => entry.queueGenerationId === initialQueue[0]?.queueGenerationId && entry.queueOrigin === 'initial') && generatedQueues.some((entry) => entry.queueGenerationId === replacementQueue[0]?.queueGenerationId && entry.queueOrigin === 'cosmic-zap-replacement'));
+                    assert('Telemetry separates initial and replacement queue generations', generatedQueues.some((entry) => entry.queueGenerationId === initialQueue[0]?.queueGenerationId && entry.queueOrigin === 'initial' && entry.waveType === 'initial' && entry.spawnBatchId === initialQueue[0]?.spawnBatchId) && generatedQueues.some((entry) => entry.queueGenerationId === replacementQueue[0]?.queueGenerationId && entry.queueOrigin === 'cosmic-zap-replacement' && entry.waveType === 'replacement' && entry.spawnBatchId === replacementQueue[0]?.spawnBatchId));
 
                     const deterministicSuperGridlockSizes = [];
                     for (let index = 0; index < GAME_CONFIG.enemySpawning.defaultSectorSizeSequence.length; index++) {
@@ -28398,6 +28576,11 @@ startGridlockBeat(delaySeconds = 0) {
                         telemetryId: 'regression-enemy-1',
                         queuePosition: 1,
                         spawnCategory: 'normal',
+                        queueOrigin: 'initial',
+                        queueGenerationId: 'regression-queue-1',
+                        queueGeneration: 1,
+                        spawnBatchId: 'regression-batch-1',
+                        creationReason: 'initial',
                         expectedSpawnIntervalMs: 5000
                     };
                     const location = { x: 0, y: 0, centerX: 20, centerY: 20, gridCol: 0, gridRow: 0 };
@@ -28427,7 +28610,7 @@ startGridlockBeat(delaySeconds = 0) {
                     });
                     const spawnEvent = sector.enemyMaterializationEvents[0];
                     assert('Spawn warning and materialization keep one telemetry ID', sector.spawnWarningEvents[0]?.enemyTelemetryId === spawnEvent?.enemyTelemetryId && spawnEvent?.enemyTelemetryId === 'regression-enemy-1');
-                    assert('Spawn telemetry records pairing, location, counts, and timing', spawnEvent?.identity === 'DASH' && spawnEvent?.size === 'medium' && spawnEvent?.spawnLocation?.gridCol === 0 && spawnEvent?.activeBlockAZoidCountAtMaterialization === 1);
+                    assert('Spawn telemetry records pairing, location, counts, timing, and batch ownership', spawnEvent?.identity === 'DASH' && spawnEvent?.size === 'medium' && spawnEvent?.spawnLocation?.gridCol === 0 && spawnEvent?.activeBlockAZoidCountAtMaterialization === 1 && spawnEvent?.spawnBatchId === 'regression-batch-1' && spawnEvent?.queueGeneration === 1);
 
                     game.enemies = [];
                     game.telemetrySystem.finishTelemetrySector('completed');
@@ -28446,7 +28629,10 @@ startGridlockBeat(delaySeconds = 0) {
                     game.settings.difficultyMode = original.difficulty;
                     game.enemySpawnSystem.spawnQueue = original.spawnQueue;
                     game.enemySpawnSystem.queueGenerationSequence = original.queueGenerationSequence;
+                    game.enemySpawnSystem.spawnBatchSequence = original.spawnBatchSequence;
                     game.enemySpawnSystem.currentQueueGenerationId = original.currentQueueGenerationId;
+                    game.enemySpawnSystem.currentQueueGeneration = original.currentQueueGeneration;
+                    game.enemySpawnSystem.currentSpawnBatchId = original.currentSpawnBatchId;
                     game.enemySpawnSystem.currentQueueOrigin = original.currentQueueOrigin;
                     game.enemySpawnSystem.deterministicSizeStates = original.deterministicSizeStates;
                     game.enemies = original.enemies;
