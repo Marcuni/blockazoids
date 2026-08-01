@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Block-A-Zoids p252: makes Block-A-Zoid movement size-independent and sector size pairings deterministic while extending balance telemetry compatibility.
+Block-A-Zoids p253: enlarges the shared playfield proportionally to the approved older-game footprint while preserving relative gameplay and monitor behavior.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="p252">
+<html data-build-version="p253">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -7198,8 +7198,8 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
         const BUILD_METADATA = window.BLOCKAZOIDS_BUILD = Object.freeze({
             version: document.documentElement.dataset.buildVersion || 'unknown',
             label: BUILD_VERSION,
-            architecturePhase: 'deterministic-size-shared-movement-v9',
-            sourceBaseline: 'p251',
+            architecturePhase: 'proportional-large-playfield-presentation',
+            sourceBaseline: 'p252',
             behaviorPolicy: 'behavior-controls-movement-size-controls-presence'
         });
 
@@ -7229,7 +7229,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
         const SOURCE_LAYOUT = window.BLOCKAZOIDS_SOURCE_LAYOUT = Object.freeze({
             developmentModel: 'modular-source',
             releaseModel: 'single-html',
-            buildOutput: 'block-a-zoids-p252.html',
+            buildOutput: 'block-a-zoids-p253.html',
             categories: Object.freeze([
                 'build', 'config', 'content', 'rules', 'state', 'services', 'app', 'gameplay',
                 'presentation', 'platform', 'audio', 'ui', 'development', 'docs'
@@ -7239,7 +7239,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
 
 /* Source: src/js/development/75-developer-documentation.js */
         const DEVELOPER_DOCUMENTATION = window.BLOCKAZOIDS_DEVELOPER_GUIDE = deepFreezeConfiguration({
-            version: 'p252',
+            version: 'p253',
             purpose: 'Make ownership, safe edit locations, state transitions, build steps, and maintenance rules discoverable without reverse-engineering the complete game.',
             architecture: {
                 application: {
@@ -7339,7 +7339,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                     primarySource: 'src/js/config/20-monitor-and-visual-presets.js',
                     supportingSources: ['src/js/presentation/134-monitor-effects-system.js', 'src/styles/38-monitor-foundation-and-profiles.css', 'src/styles/39-shared-monitor-aperture.css', 'src/styles/41-crt-canvas-grid-authority.css'],
                     owners: ['MONITOR_SHARED_FOUNDATION', 'MONITOR_PRESETS', 'MonitorEffectsSystem'],
-                    note: 'Curvature, sizing, clipping, and shared geometry come from the Vector-approved monitor foundation. Scanlines and raster sweep remain CRT-only.'
+                    note: 'Curvature and clipping come from the Vector-approved monitor foundation. The proportional cabinet footprint is owned by the Vector skin layout profile in Game initialization; Off, Vector, and CRT inherit the same rendered playfield dimensions. Scanlines and raster sweep remain CRT-only.'
                 },
                 audio: {
                     primarySource: 'src/js/audio/270-audio-manager.js',
@@ -13435,11 +13435,26 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                         },
 
             captureTelemetryParameters: function() {
+                const layoutProfile = this.developerTools.getCurrentSkinLayoutProfile
+                    ? this.developerTools.getCurrentSkinLayoutProfile()
+                    : null;
                 return {
                     build: BUILD_VERSION,
                     difficulty: this.settings.difficultyMode,
                     playfieldSize: this.PLAYFIELD_SIZE,
                     gridSize: this.GRID_SIZE,
+                    playfieldGeometry: {
+                        presentationPolicy: 'proportional-scale',
+                        layoutProfileId: this.developerTools.selectedSkinFrameId || 'vector',
+                        designSizeUnits: GAME_CONFIG.playfield.designSize,
+                        renderedWidthPx: Number((this.PLAYFIELD_SIZE || 0).toFixed(4)),
+                        renderedHeightPx: Number((this.PLAYFIELD_SIZE || 0).toFixed(4)),
+                        gameplayScale: Number((this.GAMEPLAY_SCALE || 0).toFixed(6)),
+                        presentationScale: Number((this.PLAYFIELD_PRESENTATION_SCALE || 0).toFixed(6)),
+                        profileMasterWidth: layoutProfile ? Number(layoutProfile.masterWidth) || null : null,
+                        profileMasterHeight: layoutProfile ? Number(layoutProfile.masterHeight) || null : null,
+                        profileMasterPlayfieldSize: layoutProfile ? Number(layoutProfile.masterPlayfieldSize) || null : null
+                    },
                     sector: this.campaign.currentSector,
                     sectorName: this.campaign.getSectorName(this.campaign.currentSector),
 
@@ -13767,6 +13782,26 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 const pulse = GAME_CONFIG.enemyBehaviors.pulse;
                 const charger = GAME_CONFIG.enemyBehaviors.charger;
                 const effectiveEchoDormantWindowMs = pulse.positionFlashIntervalMs * 3;
+                const layoutProfile = this.developerTools.getCurrentSkinLayoutProfile
+                    ? this.developerTools.getCurrentSkinLayoutProfile()
+                    : null;
+                const playfieldGeometry = {
+                    presentationPolicy: 'proportional-scale',
+                    layoutProfileId: this.developerTools.selectedSkinFrameId || 'vector',
+                    designSizeUnits: GAME_CONFIG.playfield.designSize,
+                    renderedWidthPx: Number((this.PLAYFIELD_SIZE || 0).toFixed(4)),
+                    renderedHeightPx: Number((this.PLAYFIELD_SIZE || 0).toFixed(4)),
+                    gridSizePx: Number((this.GRID_SIZE || 0).toFixed(4)),
+                    gameplayScale: Number((this.GAMEPLAY_SCALE || 0).toFixed(6)),
+                    presentationScale: Number((this.PLAYFIELD_PRESENTATION_SCALE || 0).toFixed(6)),
+                    viewportWidthPx: Number(window.innerWidth) || null,
+                    viewportHeightPx: Number(window.innerHeight) || null,
+                    profileMasterWidth: layoutProfile ? Number(layoutProfile.masterWidth) || null : null,
+                    profileMasterHeight: layoutProfile ? Number(layoutProfile.masterHeight) || null : null,
+                    profileMasterPlayfieldSize: layoutProfile ? Number(layoutProfile.masterPlayfieldSize) || null : null,
+                    profilePlayfieldLeftPercent: layoutProfile ? Number(layoutProfile.playfieldLeft) || 0 : null,
+                    profilePlayfieldTopPercent: layoutProfile ? Number(layoutProfile.playfieldTop) || 0 : null
+                };
                 return {
                     buildVersion: document.documentElement.dataset.buildVersion || BUILD_VERSION,
                     buildLabel: BUILD_VERSION,
@@ -13775,6 +13810,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                     difficultyMode,
                     sectorNumber,
                     sectorName: this.campaign.getSectorName(sectorNumber),
+                    playfieldGeometry,
                     authoredBehaviorSequence,
                     authoredIdentitySequence: authoredBehaviorSequence.map((behaviorType) => getEnemyIdentity(behaviorType).displayName),
                     authoredSizeSequence,
@@ -15373,6 +15409,13 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 this.assert('Playfield grid count is integral', Number.isInteger(config.playfield.gridCellsPerSide) && config.playfield.gridCellsPerSide > 1);
                 this.assert('Orb size is owned by playfield geometry', Number.isFinite(config.playfield.orbSize) && config.playfield.orbSize > 0);
                 this.assert('Minimum spawn distance is owned by playfield geometry', Number.isFinite(config.playfield.minSpawnDistance) && config.playfield.minSpawnDistance > 0);
+                if (this.game && this.game.developerTools && this.game.developerTools.getCurrentSkinLayoutProfile) {
+                    const profile = this.game.developerTools.getCurrentSkinLayoutProfile();
+                    const widthRatio = Number(profile.masterPlayfieldSize) / Number(profile.masterWidth);
+                    this.assert('Shared playfield uses the approved large footprint', Math.abs(widthRatio - (875 / 887)) < 0.000001, `received ${widthRatio}`);
+                    this.assert('Shared playfield is horizontally centered', Math.abs(Number(profile.playfieldLeft) - 0.676437) < 0.000001, `received ${profile.playfieldLeft}`);
+                    this.assert('Shared playfield uses the approved vertical position', Math.abs(Number(profile.playfieldTop) - 9.5826) < 0.000001, `received ${profile.playfieldTop}`);
+                }
 
                 const proportions = Object.values(spawning.proportions);
                 const proportionTotal = proportions.reduce((sum, value) => sum + Number(value || 0), 0);
@@ -20586,9 +20629,12 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                         layoutProfile: {
                             masterWidth: 887,
                             masterHeight: 1774,
-                            masterPlayfieldSize: 800,
-                            playfieldLeft: 4.904171,
-                            playfieldTop: 10.800000,
+                            // p253 proportional large-playfield baseline. The 875-unit square is
+                            // 98.65% of the cabinet width, matching the approved older-game footprint.
+                            // All gameplay geometry and monitor layers scale from this one value.
+                            masterPlayfieldSize: 875,
+                            playfieldLeft: 0.676437,
+                            playfieldTop: 9.582600,
                             scoreLeft: 25.817362,
                             scoreTop: 1.536640,
                             scoreWidth: 48.365276,
@@ -28018,6 +28064,9 @@ startGridlockBeat(delaySeconds = 0) {
                 const expectedSizeSequence = ['large', 'medium', 'medium', 'medium', 'medium', 'medium', 'medium', 'small'];
                 assert('Every authored Sector uses the deterministic size sequence', GAME_DATA.sectors.every((sector) => JSON.stringify(sector.enemySizePlan) === JSON.stringify(expectedSizeSequence)));
                 assert('No spawn category randomly selects visual size', !EnemySpawnSystem.prototype.createSectorQueue.toString().includes('Math.random') && !EnemySpawnSystem.prototype.peekDeterministicSizeRequest.toString().includes('Math.random'));
+                const playfieldProfile = game.developerTools.getCurrentSkinLayoutProfile();
+                assert('Large playfield profile matches the approved footprint', playfieldProfile.masterPlayfieldSize === 875 && Math.abs(playfieldProfile.playfieldLeft - 0.676437) < 0.000001 && Math.abs(playfieldProfile.playfieldTop - 9.5826) < 0.000001);
+                assert('Playfield gameplay geometry scales proportionally', game.ORB_SIZE === game.snapPlayfieldPixel(GAME_CONFIG.playfield.orbSize * game.GAMEPLAY_SCALE) && Math.abs(game.GRID_SIZE * GAME_CONFIG.playfield.gridCellsPerSide - game.PLAYFIELD_SIZE) < 0.01);
                 assert('No runtime errors captured before regression run', this.runtimeErrors.length === 0, this.runtimeErrors.map((entry) => entry.message).join(' | '));
             }
 
@@ -28062,6 +28111,7 @@ startGridlockBeat(delaySeconds = 0) {
                     assert('Difficulty snapshot records actual runtime speed and spawn values', Number.isFinite(sector?.difficultySnapshot?.spawnTiming?.finalEffectiveSpawnDelayMs) && Number.isFinite(sector?.difficultySnapshot?.effectiveMovementSpeeds?.dash?.charge?.medium));
                     const sizeBase = sector?.difficultySnapshot?.effectiveMovementSpeeds?.sizeBase || {};
                     assert('Difficulty snapshot proves shared movement across visual sizes', sizeBase.small === sizeBase.medium && sizeBase.medium === sizeBase.large && sector?.difficultySnapshot?.effectiveMovementSpeeds?.sizeIndependent === true);
+                    assert('Difficulty snapshot records actual proportional playfield geometry', sector?.difficultySnapshot?.playfieldGeometry?.presentationPolicy === 'proportional-scale' && sector?.difficultySnapshot?.playfieldGeometry?.profileMasterPlayfieldSize === 875 && sector?.difficultySnapshot?.playfieldGeometry?.renderedWidthPx === Number(game.PLAYFIELD_SIZE.toFixed(4)));
 
                     game.applySectorParameters({ queueOrigin: 'cosmic-zap-replacement', spawnCategory: 'normal' });
                     const replacementQueue = game.enemySpawnSystem.spawnQueue.map((request) => ({
