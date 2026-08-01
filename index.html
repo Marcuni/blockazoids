@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Block-A-Zoids p255: anchors the pause control to the playfield left edge and applies a restrained, shared glow baseline to the top HUD.
+Block-A-Zoids p256: pauses active browser gameplay on visibility loss or pagehide and requires an explicit Resume countdown after return.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="p255">
+<html data-build-version="p256">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -7209,8 +7209,8 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
         const BUILD_METADATA = window.BLOCKAZOIDS_BUILD = Object.freeze({
             version: document.documentElement.dataset.buildVersion || 'unknown',
             label: BUILD_VERSION,
-            architecturePhase: 'top-hud-anchor-and-low-glow-polish',
-            sourceBaseline: 'p254',
+            architecturePhase: 'browser-lifecycle-pause-safety',
+            sourceBaseline: 'p255',
             behaviorPolicy: 'behavior-controls-movement-size-controls-presence'
         });
 
@@ -7240,7 +7240,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
         const SOURCE_LAYOUT = window.BLOCKAZOIDS_SOURCE_LAYOUT = Object.freeze({
             developmentModel: 'modular-source',
             releaseModel: 'single-html',
-            buildOutput: 'block-a-zoids-p255.html',
+            buildOutput: 'block-a-zoids-p256.html',
             categories: Object.freeze([
                 'build', 'config', 'content', 'rules', 'state', 'services', 'app', 'gameplay',
                 'presentation', 'platform', 'audio', 'ui', 'development', 'docs'
@@ -7250,7 +7250,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
 
 /* Source: src/js/development/75-developer-documentation.js */
         const DEVELOPER_DOCUMENTATION = window.BLOCKAZOIDS_DEVELOPER_GUIDE = deepFreezeConfiguration({
-            version: 'p255',
+            version: 'p256',
             purpose: 'Make ownership, safe edit locations, state transitions, build steps, and maintenance rules discoverable without reverse-engineering the complete game.',
             architecture: {
                 application: {
@@ -7270,8 +7270,8 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                     responsibility: 'Draw state, project HUD and screens, and apply visual effects without deciding gameplay outcomes.'
                 },
                 platform: {
-                    owner: 'SchedulingManager / BrowserStorageService / FullSurfaceGestureCoordinator / AudioManager',
-                    responsibility: 'Browser timing, persistence, touch and motion input, and audio services.'
+                    owner: 'SchedulingManager / BrowserStorageService / FullSurfaceGestureCoordinator / BrowserLifecycleSystem / AudioManager',
+                    responsibility: 'Browser timing, persistence, touch and motion input, visibility/pagehide interruption safety, and audio services.'
                 },
                 development: {
                     owner: 'DeveloperToolsSystem / TelemetrySystem / DiagnosticsSystem / ArchitectureValidator',
@@ -7334,6 +7334,12 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                     owners: ['FullSurfaceGestureCoordinator', 'Orb', 'BoardCoordinateMapper'],
                     note: 'Screen gestures translate into Orb commands; coordinate mapping remains centralized.'
                 },
+                browserLifecycle: {
+                    primarySource: 'src/js/platform/145-browser-lifecycle-system.js',
+                    supportingSources: ['src/js/app/180-game-controller.js', 'src/js/app/130-game-system-coordinator.js'],
+                    owners: ['BrowserLifecycleSystem', 'Game', 'GameSystemCoordinator'],
+                    note: 'Visibility loss and pagehide pause active gameplay through the canonical pause path. Returning to the page never resumes automatically.'
+                },
                 screensAndMenus: {
                     primarySource: 'src/js/presentation/120-screen-manager.js',
                     supportingSources: ['src/styles/20-menus-and-screens.css', 'src/styles/35-launch-settings-pause.css', 'src/styles/36-score-and-sector-screens.css', 'src/styles/37-tutorial-and-transition-screens.css'],
@@ -7377,7 +7383,9 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 { id: 'attract-to-sector-intro', from: 'attract', to: 'sector-intro', trigger: 'Play is pressed and tutorial is already complete', owner: 'Game / CampaignSystem / GameFlowController' },
                 { id: 'tutorial-to-sector-intro', from: 'tutorial', to: 'sector-intro', trigger: 'Tutorial completes or is reset into normal entry', owner: 'TutorialSystem / Game' },
                 { id: 'sector-intro-to-playing', from: 'sector-intro', to: 'playing', trigger: 'Sector countdown completes', owner: 'Game / GameSystemCoordinator' },
-                { id: 'playing-to-paused', from: 'playing', to: 'paused', trigger: 'Manual pause', owner: 'Game / GameSystemCoordinator' },
+                { id: 'playing-to-paused', from: 'playing', to: 'paused', trigger: 'Manual pause or browser lifecycle interruption', owner: 'BrowserLifecycleSystem / Game / GameSystemCoordinator' },
+                { id: 'resume-countdown-to-paused', from: 'resume-countdown', to: 'paused', trigger: 'The page becomes hidden during the Resume countdown', owner: 'BrowserLifecycleSystem / Game' },
+                { id: 'final-gridlock-to-paused', from: 'final-gridlock', to: 'paused', trigger: 'Browser lifecycle interruption during active Final Gridlock', owner: 'BrowserLifecycleSystem / Game / GameSystemCoordinator' },
                 { id: 'paused-to-resume-countdown', from: 'paused', to: 'resume-countdown', trigger: 'Resume is selected', owner: 'Game / ScreenManager' },
                 { id: 'resume-countdown-to-playing', from: 'resume-countdown', to: 'playing', trigger: 'Resume countdown completes', owner: 'Game / GameSystemCoordinator' },
                 { id: 'playing-to-sector-restore', from: 'playing', to: 'sector-restore', trigger: 'Sector objective completes', owner: 'CrystalSystem / GridlockSystem / Game' },
@@ -7392,12 +7400,13 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 'Configuration and content may be read by systems but must not depend on DOM elements.',
                 'Gameplay systems may emit outcomes but must not position screens or mutate stylesheet geometry.',
                 'Presentation may read snapshots and events but must not award score, advance sectors, or decide collisions.',
-                'Platform services own browser APIs and expose narrow commands to game systems.',
+                'Platform services own browser APIs and expose narrow commands to game systems; lifecycle events never resume gameplay directly.',
                 'Development systems must not affect production play unless an explicit developer test is active.'
             ],
             maintenanceRules: [
                 'Every adjustable value has one authoritative source.',
                 'New delayed work uses SchedulingManager with a named scope and task.',
+                'Browser visibility and pagehide handling remains owned by BrowserLifecycleSystem and must route through the canonical pause path.',
                 'New screens use ScreenManager and a dedicated controller when screen-specific logic is substantial.',
                 'New persistent values use BrowserStorageService and include a compatibility or migration decision.',
                 'New gameplay mechanics do not manipulate DOM or CSS directly.',
@@ -8197,6 +8206,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 runtimeState: Object.freeze({ owner: 'RuntimeStateSystem', responsibility: 'Mutable gameplay, transition, tutorial, and terminal lifecycle flags' }),
                 flow: Object.freeze({ owner: 'GameFlowController', responsibility: 'Authoritative major game-flow state' }),
                 scheduling: Object.freeze({ owner: 'SchedulingManager', responsibility: 'Named cancellable delayed work' }),
+                browserLifecycle: Object.freeze({ owner: 'BrowserLifecycleSystem / Game / GameSystemCoordinator', responsibility: 'Visibility and pagehide interruption detection, canonical pause routing, and explicit-resume safety' }),
                 coordination: Object.freeze({ owner: 'GameSystemCoordinator', responsibility: 'Ordered cross-system lifecycle calls' }),
                 gameplay: Object.freeze({ owner: 'Game', responsibility: 'Application coordination and live gameplay sequencing through explicit system ownership' }),
                 frameCoordination: Object.freeze({ owner: 'FrameCoordinator', responsibility: 'One render request path and one live gameplay animation-frame owner' }),
@@ -8240,7 +8250,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 canonicalCampaign: 'GAME_DATA.sectors',
                 explicitDifficultyResources: 'GAME_CONFIG.difficulty.profiles.*.cosmicZaps',
                 finalArtifact: 'single numbered HTML build',
-                extractedStateOwners: 'SettingsSystem / ScoreSystem / RunSession / HighScoreSystem / CampaignSystem / CosmicZapSystem / CrystalSystem / GridlockSystem / EnemySpawnSystem / CollisionSystem / RuntimeStateSystem / TutorialSystem / AttractModeSystem / FrameCoordinator / VisualEffectsSystem / MonitorEffectsSystem / DeveloperToolsSystem / TelemetrySystem / DiagnosticsSystem'
+                extractedStateOwners: 'SettingsSystem / ScoreSystem / RunSession / HighScoreSystem / CampaignSystem / CosmicZapSystem / CrystalSystem / GridlockSystem / EnemySpawnSystem / CollisionSystem / RuntimeStateSystem / BrowserLifecycleSystem / TutorialSystem / AttractModeSystem / FrameCoordinator / VisualEffectsSystem / MonitorEffectsSystem / DeveloperToolsSystem / TelemetrySystem / DiagnosticsSystem'
             })
         });
 
@@ -15837,6 +15847,8 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 this.assert('Flow includes Playing', states.includes('playing'));
                 this.assert('Flow includes Paused', states.includes('paused'));
                 this.assert('Flow includes Game Over', states.includes('game-over'));
+                this.assert('Browser lifecycle owner is available', typeof BrowserLifecycleSystem === 'function');
+                this.assert('Browser lifecycle pauses through the canonical Game path', typeof Game.prototype.pauseForLifecycleInterruption === 'function' && typeof Game.prototype.returnResumeCountdownToPause === 'function');
             }
 
             validateDom() {
@@ -15885,7 +15897,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
 
                 const requiredChangeTopics = [
                     'colorsAndGlow', 'difficultyAndCosmicZaps', 'scoring', 'sectorsAndCampaign', 'crystals',
-                    'blockAZoids', 'gridlockAndPrismRelic', 'inputAndOrbMovement', 'screensAndMenus',
+                    'blockAZoids', 'gridlockAndPrismRelic', 'inputAndOrbMovement', 'browserLifecycle', 'screensAndMenus',
                     'tutorialAndAttractMode', 'monitorProfiles', 'audio', 'persistence', 'developerToolsAndTelemetry'
                 ];
                 requiredChangeTopics.forEach((topic) => {
@@ -15923,6 +15935,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 this.assert('Sector Select screen owner is available', typeof SectorSelectScreenController === 'function');
                 this.assert('TutorialSystem owner is available', typeof TutorialSystem === 'function');
                 this.assert('AttractModeSystem owner is available', typeof AttractModeSystem === 'function');
+                this.assert('BrowserLifecycleSystem owner is available', typeof BrowserLifecycleSystem === 'function');
                 this.assert('FrameCoordinator owner is available', typeof FrameCoordinator === 'function');
                 this.assert('VisualEffectsSystem owner is available', typeof VisualEffectsSystem === 'function');
                 this.assert('MonitorEffectsSystem owner is available', typeof MonitorEffectsSystem === 'function');
@@ -16934,6 +16947,61 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
 
         // p168 state boundary for Canvas presentation. Gameplay objects keep plain JavaScript
         // state only; no live-playfield HTML elements are created or inspected.
+
+/* Source: src/js/platform/145-browser-lifecycle-system.js */
+        class BrowserLifecycleSystem {
+            constructor(game) {
+                this.game = game;
+                this.attached = false;
+                this.interruptionCount = 0;
+                this.lastInterruptionReason = null;
+                this.lastInterruptionPausedGameplay = false;
+                this.lastReturnReason = null;
+                this.visibilityHandler = () => this.handleVisibilityChange();
+                this.pageHideHandler = (event) => this.handlePageHide(event);
+            }
+
+            attach() {
+                if (this.attached) return false;
+                document.addEventListener('visibilitychange', this.visibilityHandler, { passive: true });
+                window.addEventListener('pagehide', this.pageHideHandler, { passive: true });
+                this.attached = true;
+                return true;
+            }
+
+            handleVisibilityChange() {
+                if (document.visibilityState === 'hidden') {
+                    return this.interrupt('visibility-hidden');
+                }
+                this.lastReturnReason = 'visibility-visible';
+                this.game.handleBrowserLifecycleReturn(this.lastReturnReason);
+                return false;
+            }
+
+            handlePageHide(event) {
+                const reason = event && event.persisted ? 'pagehide-bfcache' : 'pagehide';
+                return this.interrupt(reason);
+            }
+
+            interrupt(reason = 'browser-backgrounded') {
+                this.lastInterruptionReason = String(reason || 'browser-backgrounded');
+                const pausedGameplay = !!this.game.pauseForLifecycleInterruption(this.lastInterruptionReason);
+                this.lastInterruptionPausedGameplay = pausedGameplay;
+                if (pausedGameplay) this.interruptionCount++;
+                return pausedGameplay;
+            }
+
+            snapshot() {
+                return Object.freeze({
+                    attached: this.attached,
+                    interruptionCount: this.interruptionCount,
+                    lastInterruptionReason: this.lastInterruptionReason,
+                    lastInterruptionPausedGameplay: this.lastInterruptionPausedGameplay,
+                    lastReturnReason: this.lastReturnReason
+                });
+            }
+        }
+
 
 /* Source: src/js/presentation/150-playfield-renderer-state.js */
         class PlayfieldRendererState {
@@ -20501,6 +20569,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 this.developerTools = new DeveloperToolsSystem(this);
                 this.telemetrySystem = new TelemetrySystem(this);
                 this.diagnosticsSystem = new DiagnosticsSystem(this);
+                this.browserLifecycleSystem = new BrowserLifecycleSystem(this);
 
 
 
@@ -20991,11 +21060,11 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 }
                 window.addEventListener('blur', this.handleWindowBlur, { passive: true });
                 this.enableShakeInput(false); // Android/desktop motion can listen immediately; iOS waits for an explicit action.
-                document.addEventListener('visibilitychange', () => this.handleVisibilityChange());
                 this.screenManager = new ScreenManager(this);
                 this.highScoreScreen = this.screenManager.highScoreScreen;
                 this.sectorSelectScreen = this.screenManager.sectorSelectScreen;
                 this.screenManager.bindControls();
+                this.browserLifecycleSystem.attach();
                 this.updateSoundToggleLabel();
                 this.updateMusicToggleLabel();
                 this.developerTools.updateInvincibilityToggleLabel();
@@ -22149,23 +22218,53 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
             // Build the sector-select buttons once.
 
 
-            handleVisibilityChange() {
-                if (document.visibilityState === 'hidden') {
-                    this.orb.invalidateDragSession('page-hidden');
-                    this.lastMotionSample = null;
-                    if (this.flow.isLiveAction() && this.runtimeState.active && this.runtimeState.sectorGameplayStarted && !this.runtimeState.isGameOver) {
-                        void this.endRun({ deathCause: 'app-backgrounded' })
-                            .catch((error) => {
-                                console.error('[Block-A-Zoids] Background Game Over transition failed.', error);
-                                this.recoverFromEndingTransitionFailure('background-game-over-transition-error');
-                            });
-                    }
-                    return;
+            pauseForLifecycleInterruption(reason = 'browser-backgrounded') {
+                const interruptionReason = String(reason || 'browser-backgrounded');
+                this.orb.invalidateDragSession(interruptionReason);
+                if (this.gestures) this.gestures.reset(interruptionReason);
+                this.lastMotionSample = null;
+
+                if (this.flow.is(GAME_FLOW_STATES.RESUME_COUNTDOWN)) {
+                    return this.returnResumeCountdownToPause(interruptionReason);
                 }
-                if (this.flow.isLiveAction()) {
-                    this.lastFrameTime = performance.now();
-                    this.requestWakeLock();
-                }
+
+                const liveGameplay = this.flow.isLiveAction() && this.runtimeState.active &&
+                    this.runtimeState.sectorGameplayStarted && !this.runtimeState.isGameOver;
+                if (!liveGameplay) return false;
+
+                return this.pauseGameplay({
+                    reason: interruptionReason,
+                    telemetryReason: interruptionReason,
+                    allowFinalGridlock: true,
+                    showOverlay: true
+                });
+            }
+
+            returnResumeCountdownToPause(reason = 'browser-backgrounded') {
+                if (!this.flow.is(GAME_FLOW_STATES.RESUME_COUNTDOWN) || !this.runtimeState.isPaused) return false;
+
+                ++this.sectorTransitionToken;
+                this.cancelTransitionGroup(`lifecycle-interruption:${reason}`);
+                this.runtimeState.patchGameplay({ active: false, isPaused: true, resumeCountdownActive: false });
+                this.flow.enter(GAME_FLOW_STATES.PAUSED, reason);
+                this.bonusTextElement.style.opacity = '0';
+                this.bonusTextElement.classList.remove('resumeCountdownText');
+                this.bonusTextElement.textContent = '';
+                this.systems.pauseGameplay(true);
+                this.diagnosticsSystem.validateStateInvariants('browserLifecycle:resume-countdown-paused');
+                return true;
+            }
+
+            handleBrowserLifecycleReturn(reason = 'visibility-visible') {
+                this.lastFrameTime = performance.now();
+                if (!this.flow.is(GAME_FLOW_STATES.PAUSED) || !this.runtimeState.isPaused) return false;
+
+                this.screenManager.setPauseShellVisible(true);
+                this.screenManager.updatePauseGridMenu();
+                this.screenManager.setOverlayVisible(true);
+                this.ui.updateAll();
+                this.screenManager.refreshOverlay();
+                return true;
             }
 
 
@@ -22265,22 +22364,31 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 this.beginNewRun();
             }
 
-            // Restore manual play/pause via the top-left HUD control.
-            pauseGameplay() {
+            // Restore manual play/pause via the top-left HUD control. Browser lifecycle
+            // interruptions use the same canonical pause path with an explicit source reason.
+            pauseGameplay(options = {}) {
+                const pauseOptions = options && typeof options === 'object' ? options : {};
+                const reason = String(pauseOptions.reason || 'manual-pause');
+                const telemetryReason = String(pauseOptions.telemetryReason || reason);
+                const allowFinalGridlock = pauseOptions.allowFinalGridlock === true;
+                const showOverlay = pauseOptions.showOverlay !== false;
+                const pauseAllowed = this.flow.allowsPause() && !this.runtimeState.sectorTransitionActive &&
+                    !this.runtimeState.finalGridlockResultActive &&
+                    (!this.runtimeState.finalGridlockActive || allowFinalGridlock);
+
                 if (!this.diagnosticsSystem.requireLifecycleAction(
                     'pauseGameplay',
-                    this.flow.allowsPause() && !this.runtimeState.sectorTransitionActive && !this.runtimeState.finalGridlockActive && !this.runtimeState.finalGridlockResultActive,
-                    'pause-not-available'
+                    pauseAllowed,
+                    'pause-not-available',
+                    { reason, allowFinalGridlock }
                 )) return false;
 
-                this.cancelTransitionGroup('pause-gameplay');
-                this.telemetrySystem.beginTelemetryPause('manual-pause');
+                this.cancelTransitionGroup(`pause-gameplay:${reason}`);
+                this.telemetrySystem.beginTelemetryPause(telemetryReason);
                 this.beginRunRecordPause();
-                this.runtimeState.patchGameplay({ active: false });
-                this.runtimeState.patchGameplay({ isPaused: true });
-                this.runtimeState.patchGameplay({ resumeCountdownActive: false });
-                this.flow.enter(GAME_FLOW_STATES.PAUSED, 'manual-pause');
-                this.systems.pauseGameplay(true);
+                this.runtimeState.patchGameplay({ active: false, isPaused: true, resumeCountdownActive: false });
+                this.flow.enter(GAME_FLOW_STATES.PAUSED, reason);
+                this.systems.pauseGameplay(showOverlay);
                 this.diagnosticsSystem.validateStateInvariants('pauseGameplay');
                 return true;
             }
@@ -28058,6 +28166,9 @@ startGridlockBeat(delaySeconds = 0) {
                 const endRunSource = Game.prototype.endRun.toString();
                 const restartSource = Game.prototype.restartRun.toString();
                 const resumeSource = Game.prototype.resumeGameplay.toString();
+                const lifecycleSource = Game.prototype.pauseForLifecycleInterruption.toString();
+                const lifecycleReturnSource = Game.prototype.handleBrowserLifecycleReturn.toString();
+                const lifecycleOwnerSource = BrowserLifecycleSystem.toString();
 
                 assert('Architecture startup validation passed', window.BLOCKAZOIDS_ARCHITECTURE_REPORT?.status === 'passed');
                 assert('Configuration projection is ready', document.documentElement.dataset.configurationProjection === 'ready');
@@ -28070,6 +28181,11 @@ startGridlockBeat(delaySeconds = 0) {
                 assert('Restart saves pace with score and RunSession', restartSource.includes('saveCurrentRunPaceProfileIfRecord(this.scoreSystem.value, this.runSession)'));
                 assert('Restart re-enters the canonical new-run path', restartSource.includes('this.beginNewRun()'));
                 assert('Resume requires the canonical countdown state', resumeSource.includes('GAME_FLOW_STATES.RESUME_COUNTDOWN'));
+                assert('Browser lifecycle listens for visibilitychange and pagehide', lifecycleOwnerSource.includes("visibilitychange") && lifecycleOwnerSource.includes("pagehide"));
+                assert('Browser backgrounding pauses instead of ending the run', lifecycleSource.includes('this.pauseGameplay') && !lifecycleSource.includes('endRun'));
+                assert('Browser lifecycle can return Resume Countdown to Pause', lifecycleSource.includes('GAME_FLOW_STATES.RESUME_COUNTDOWN') && typeof Game.prototype.returnResumeCountdownToPause === 'function');
+                assert('Foreground return never resumes gameplay automatically', !lifecycleReturnSource.includes('resumeGameplay') && !lifecycleReturnSource.includes('resumeLiveAction'));
+                assert('Browser lifecycle owner is attached', game.browserLifecycleSystem?.snapshot().attached === true);
                 assert('Shared monitor aperture owns both canvases', ['playfieldCanvas', 'playfieldWebglCanvas'].every((id) => document.getElementById(id)?.classList.contains('monitor-pixel-layer')));
                 assert('CRT grid remains Canvas-owned', getComputedStyle(game.container).backgroundImage === 'none' || !game.container.classList.contains('crt-fx-grid-rgb'));
                 assert('Telemetry schema v9 is active', game.telemetrySystem.telemetry && game.telemetrySystem.telemetry.schema === 'blockazoids-balance-v9');
@@ -28294,9 +28410,25 @@ startGridlockBeat(delaySeconds = 0) {
                     game.beginSectorGameplay();
                     assert('Live regression enters Sector 1', began && game.campaign.currentSector === 1 && game.flow.is(GAME_FLOW_STATES.PLAYING));
 
+                    const lifecyclePaused = game.browserLifecycleSystem.interrupt('regression-visibility-hidden');
+                    assert('Browser lifecycle interruption pauses live gameplay', lifecyclePaused && game.flow.is(GAME_FLOW_STATES.PAUSED) && game.runtimeState.isPaused && !game.runtimeState.active && !game.runtimeState.isGameOver);
+                    game.browserLifecycleSystem.handleVisibilityChange();
+                    assert('Foreground lifecycle handling leaves the game paused', game.flow.is(GAME_FLOW_STATES.PAUSED) && game.runtimeState.isPaused && !game.runtimeState.active);
+                    const lifecycleResumed = await game.resumeGameplay();
+                    assert('Lifecycle pause resumes only through the countdown path', lifecycleResumed && game.flow.is(GAME_FLOW_STATES.PLAYING) && game.runtimeState.active && !game.runtimeState.isPaused);
+
                     const paused = game.pauseGameplay();
                     const resumed = await game.resumeGameplay();
-                    assert('Pause and resume return to live gameplay', paused && resumed && game.flow.is(GAME_FLOW_STATES.PLAYING) && game.runtimeState.active && !game.runtimeState.isPaused);
+                    assert('Manual pause and resume return to live gameplay', paused && resumed && game.flow.is(GAME_FLOW_STATES.PLAYING) && game.runtimeState.active && !game.runtimeState.isPaused);
+
+                    const pausedForCountdownInterruption = game.pauseGameplay();
+                    game.runtimeState.patchGameplay({ resumeCountdownActive: true });
+                    game.flow.enter(GAME_FLOW_STATES.RESUME_COUNTDOWN, 'regression-resume-countdown');
+                    game.systems.prepareResumeCountdown();
+                    const countdownInterrupted = game.browserLifecycleSystem.interrupt('regression-pagehide');
+                    assert('Lifecycle interruption cancels Resume Countdown back to Pause', pausedForCountdownInterruption && countdownInterrupted && game.flow.is(GAME_FLOW_STATES.PAUSED) && game.runtimeState.isPaused && !game.runtimeState.resumeCountdownActive);
+                    const resumedAfterCountdownInterruption = await game.resumeGameplay();
+                    assert('Interrupted Resume Countdown can be explicitly resumed again', resumedAfterCountdownInterruption && game.flow.is(GAME_FLOW_STATES.PLAYING) && game.runtimeState.active);
 
                     game.crystalSystem.crystals = [];
                     const completionStarted = game.completeSector() !== false;
@@ -28425,6 +28557,7 @@ startGridlockBeat(delaySeconds = 0) {
                 developerTools: game.developerTools.snapshot(),
                 telemetry: game.telemetrySystem.snapshot(),
                 diagnostics: game.diagnosticsSystem.snapshot(),
+                browserLifecycle: game.browserLifecycleSystem.snapshot(),
                 screens: game.screenManager.snapshot(),
                 regression: regressionHarness.snapshot()
             })
