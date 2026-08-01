@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Block-A-Zoids p259: presents Super Gridlock and Prism Relic as single-line top-HUD announcements at the existing Gridlock title size.
+Block-A-Zoids p259: adds one authoritative top-HUD announcement mode, centers the record value within its visual band, and restores shared Settings spacing.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -1325,7 +1325,7 @@ Font License Notices
         
 
         
-        /* p259: Super Gridlock and Prism Relic use one readable line at the existing Gridlock title size. */
+        /* p259: long Gridlock titles share the standard Gridlock size and stay on one line. */
         #score.superGridlockAlert {
             width: 100%;
             min-width: 0;
@@ -1342,31 +1342,14 @@ Font License Notices
             text-shadow: 0 0 calc(var(--default-glow) * 1.45px) #fff,
                          0 0 calc(var(--default-glow) * 2.9px) rgba(255,255,255,0.92),
                          0 0 calc(var(--default-glow) * 4.8px) rgba(255,255,255,0.58);
+            font-size: clamp(20px, 6.2vw, 34px);
+            font-weight: 700;
+            letter-spacing: 2px;
+            line-height: 1;
             white-space: nowrap;
             transform-origin: center;
             opacity: 1;
             animation: superGridlockBurst 0.62s ease-in-out 2;
-        }
-
-        #score.superGridlockAlert .super-gridlock-line {
-            display: block;
-            width: max-content;
-            max-width: none;
-            font-size: clamp(20px, 6.2vw, 34px);
-            line-height: 1;
-            letter-spacing: 2px;
-            text-align: center;
-            white-space: nowrap;
-        }
-
-        #score.superGridlockAlert .super-gridlock-award {
-            display: block;
-            margin-top: clamp(2px, 0.8vw, 5px);
-            font-size: clamp(11px, 3.2vw, 18px);
-            font-weight: 800;
-            line-height: 1;
-            letter-spacing: clamp(1px, 0.55vw, 3px);
-            white-space: nowrap;
         }
 
         @keyframes superGridlockBurst {
@@ -1509,17 +1492,6 @@ Font License Notices
             display: none !important;
         }
 
-        /* v244: let Gridlock announcements temporarily occupy the top HUD alone. */
-        #scoreHud.gridlock-announcement-active #highScoreHud,
-        #scoreHud.gridlock-announcement-active ~ #cosmicZapHud {
-            opacity: 0 !important;
-            visibility: hidden !important;
-        }
-
-        #scoreHud.gridlock-announcement-active #score {
-            opacity: 1 !important;
-            visibility: visible !important;
-        }
 
         body,
         button,
@@ -4129,11 +4101,6 @@ Font License Notices
         /* Trackpad Prototype p008: mirror the top HUD's playfield clearance and horizontal inset. */
         
 
-        .tracking-speed-control {
-            margin-top: 8px;
-            margin-bottom: 4px;
-        }
-
         .tracking-speed-control .settings-stepper-value {
             font-variant-numeric: tabular-nums;
             letter-spacing: 1px;
@@ -4399,7 +4366,23 @@ Font License Notices
             display: none !important;
         }
 
-        
+        /* p259: one cabinet-level state owns the complete top-HUD announcement layout.
+           The title receives the playfield width while the utility control and Zap meter
+           remain hidden, then all three return through the same UI projection. */
+        html body #skinShell.top-hud-announcement-active > #scoreHud {
+            left: var(--skin-playfield-left, 4.904171%);
+            width: var(--playfield-render-size, 300px);
+            padding-left: 0;
+            padding-right: 0;
+        }
+
+        html body #skinShell.top-hud-announcement-active > #cosmicZapHud,
+        html body #skinShell.top-hud-announcement-active > #startButton {
+            opacity: 0 !important;
+            visibility: hidden !important;
+            pointer-events: none !important;
+            animation: none !important;
+        }
 
         /* Top right Zap window. */
         
@@ -4585,8 +4568,6 @@ Font License Notices
         
 
         
-
-        /* p259: the former two-line Super Gridlock override is intentionally retired. */
 
 
         /* p071: crystal collection feedback is centered on the Orb because the Orb normally
@@ -6196,6 +6177,7 @@ Font License Notices
 }
 
 #scoringPanel .scoring-record-area {
+    --scoring-score-band-gap: clamp(28px, 7vw, 40px);
     display: flex;
     flex: 0 0 auto;
     flex-direction: column;
@@ -6215,7 +6197,7 @@ Font License Notices
 #scoringHighScoreLabel {
     display: block;
     flex: 0 0 auto;
-    margin: 0 0 clamp(10px, 3vw, 16px);
+    margin: 0 0 var(--scoring-score-band-gap);
     color: #fff;
     font-family: "Orbitron";
     font-size: clamp(22px, 6.4vw, 31px);
@@ -6231,7 +6213,7 @@ Font License Notices
     align-items: center;
     justify-content: center;
     min-height: 0;
-    margin: 0 0 var(--high-score-primary-gap, clamp(9px, 2.5vw, 14px));
+    margin: 0 0 var(--scoring-score-band-gap);
     font-size: clamp(34px, 10.5vw, 58px);
     font-weight: 700;
     line-height: 1;
@@ -6246,7 +6228,7 @@ Font License Notices
     position: static;
     width: 100%;
     max-width: 430px;
-    margin: clamp(42px, 10vw, 64px) auto clamp(10px, 3vw, 18px);
+    margin: 0 auto clamp(10px, 3vw, 18px);
     column-gap: clamp(12px, 4vw, 30px);
     font-size: clamp(12px, 3.5vw, 16px);
     line-height: 1.38;
@@ -7205,9 +7187,9 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
         const BUILD_METADATA = window.BLOCKAZOIDS_BUILD = Object.freeze({
             version: document.documentElement.dataset.buildVersion || 'unknown',
             label: BUILD_VERSION,
-            architecturePhase: 'deterministic-size-difficulty-and-behavior-parity',
-            sourceBaseline: 'p257',
-            behaviorPolicy: 'size-controls-intensity-behavior-controls-style'
+            architecturePhase: 'authoritative-top-hud-and-menu-layout-refinement',
+            sourceBaseline: 'p258',
+            behaviorPolicy: 'presentation-only-no-gameplay-rule-change'
         });
 
 
@@ -15930,6 +15912,10 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 this.assert('Cosmic Zap HUD has one CSS owner', countSelector('#skinShell > #cosmicZapHud') === 1, `received ${countSelector('#skinShell > #cosmicZapHud')}`);
                 this.assert('Cosmic Zap indicator row has one CSS owner', countSelector('#cosmicZapIndicators') === 1, `received ${countSelector('#cosmicZapIndicators')}`);
                 this.assert('Cosmic Zap icon has one CSS owner', countSelector('.cosmic-zap-icon') === 1, `received ${countSelector('.cosmic-zap-icon')}`);
+                this.assert('Top HUD announcement geometry has one CSS owner', countSelector('html body #skinShell.top-hud-announcement-active > #scoreHud') === 1, `received ${countSelector('html body #skinShell.top-hud-announcement-active > #scoreHud')}`);
+                this.assert('Top HUD announcement adjacent-control state has one CSS owner', countSelector('html body #skinShell.top-hud-announcement-active > #cosmicZapHud, html body #skinShell.top-hud-announcement-active > #startButton') === 1, `received ${countSelector('html body #skinShell.top-hud-announcement-active > #cosmicZapHud, html body #skinShell.top-hud-announcement-active > #startButton')}`);
+                this.assert('Retired score-local announcement state removed', selectors.every((selector) => !selector.includes('#scoreHud.' + 'gridlock-announcement-active')));
+                this.assert('Single-line score announcement renderer is authoritative', typeof UI.prototype.renderScoreAnnouncementTitle === 'function' && !UI.prototype['render' + 'StackedScoreTitle']);
                 this.assert('Sector progress HUD has one CSS owner', countSelector('#skinShell > #sectorProgressPanel') === 1, `received ${countSelector('#skinShell > #sectorProgressPanel')}`);
                 this.assert('Retired lower HUD CSS removed', selectors.every((selector) => !selector.includes('#bottomStatusHud') && !selector.includes('.skin-status-') && !selector.includes('#sectorNumberHud')));
                 this.assert('Shared menu-control foundation has one CSS owner', countSelector('.menu-button, .settings-icon-toggle, .settings-stepper, .start-secondary-button, .sector-select-button, .menu-close-button') === 1, `received ${countSelector('.menu-button, .settings-icon-toggle, .settings-stepper, .start-secondary-button, .sector-select-button, .menu-close-button')}`);
@@ -15946,6 +15932,9 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 this.assert('Settings screen has one CSS owner', countSelector('#settingsPanel') === 1, `received ${countSelector('#settingsPanel')}`);
                 this.assert('Settings control stack has one CSS owner', countSelector('#settingsPanel .settings-control-stack') === 1, `received ${countSelector('#settingsPanel .settings-control-stack')}`);
                 this.assert('Settings icon row has one CSS owner', countSelector('#settingsPanel #settingsIconControls') === 1, `received ${countSelector('#settingsPanel #settingsIconControls')}`);
+                const trackingSpeedControl = document.getElementById('trackingSpeedControl');
+                const trackingSpeedStyle = trackingSpeedControl ? getComputedStyle(trackingSpeedControl) : null;
+                this.assert('Tracking Speed uses the shared Settings gap', !!trackingSpeedStyle && parseFloat(trackingSpeedStyle.marginTop) === 0 && parseFloat(trackingSpeedStyle.marginBottom) === 0);
                 this.assert('Launch screen has one CSS owner', countSelector('#launchSetupPanel') === 1, `received ${countSelector('#launchSetupPanel')}`);
                 this.assert('Launch control stack has one CSS owner', countSelector('#launchSetupPanel .launch-setup-controls') === 1, `received ${countSelector('#launchSetupPanel .launch-setup-controls')}`);
                 this.assert('Retired pause-screen specificity patches removed', !selectors.includes('html body #gameContainer > #pauseGridMenu .pause-grid-button') && !selectors.includes('#skinShell .pause-grid-button'));
@@ -15956,6 +15945,10 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 this.assert('Scoring screen has one CSS owner', countSelector('#scoringPanel') === 1, `received ${countSelector('#scoringPanel')}`);
                 this.assert('Scoring value has one CSS owner', countSelector('#scoringHighScoreValue') === 1, `received ${countSelector('#scoringHighScoreValue')}`);
                 this.assert('Scoring run details have one CSS owner', countSelector('#scoringHighScoreRunLine') === 1, `received ${countSelector('#scoringHighScoreRunLine')}`);
+                const scoringHighScoreLabelStyle = getComputedStyle(document.getElementById('scoringHighScoreLabel'));
+                const scoringHighScoreValueStyle = getComputedStyle(document.getElementById('scoringHighScoreValue'));
+                const scoringHighScoreRunLineStyle = getComputedStyle(document.getElementById('scoringHighScoreRunLine'));
+                this.assert('Record value is centered within one shared score band', scoringHighScoreLabelStyle.marginBottom === scoringHighScoreValueStyle.marginBottom && parseFloat(scoringHighScoreRunLineStyle.marginTop) === 0);
                 this.assert('Sector Select screen has one CSS owner', countSelector('#sectorSelectWindow') === 1, `received ${countSelector('#sectorSelectWindow')}`);
                 this.assert('Sector Select grid has one CSS owner', countSelector('#sectorSelectGrid') === 1, `received ${countSelector('#sectorSelectGrid')}`);
                 this.assert('High Score layout is CSS-owned', !HighScoreScreenController.prototype.scheduleLayout && !HighScoreScreenController.prototype.layout);
@@ -27882,37 +27875,46 @@ startGridlockBeat(delaySeconds = 0) {
                 this.scoreAlertTimer = null;
             }
 
+            syncTopHudAnnouncementPresentation() {
+                const active = !!this.scoreAlertActive;
+                if (this.game.skinShell) {
+                    this.game.skinShell.classList.toggle('top-hud-announcement-active', active);
+                }
+                if (this.cosmicZapIndicators) {
+                    this.cosmicZapIndicators.setAttribute('aria-hidden', active ? 'true' : 'false');
+                }
+                this.updateStartPauseButton();
+                this.updateRunStartPrompt();
+                this.updateCosmicZapIndicators();
+            }
+
             clearScoreAnnouncement() {
                 this.cancelScoreAnnouncement();
                 this.scoreAlertActive = false;
-                if (this.scoreHud) this.scoreHud.classList.remove('gridlock-announcement-active');
                 if (this.scoreElement) {
                     this.scoreElement.classList.remove('gridlockAlert', 'superGridlockAlert', 'gridlockAwardAlert', 'bonusScoreCount');
                 }
+                this.syncTopHudAnnouncementPresentation();
                 this.updateScore();
             }
 
-            renderSingleLineScoreTitle(titleText) {
-                const title = document.createElement('span');
-                title.className = 'super-gridlock-line';
-                title.textContent = titleText;
-                this.scoreElement.replaceChildren(title);
+            renderScoreAnnouncementTitle(titleText) {
+                this.scoreElement.textContent = titleText;
             }
 
             renderSuperGridlockTitle() {
-                this.renderSingleLineScoreTitle('SUPER GRIDLOCK');
+                this.renderScoreAnnouncementTitle('SUPER GRIDLOCK');
             }
 
             renderPrismRelicTitle() {
-                this.renderSingleLineScoreTitle('PRISM RELIC');
+                this.renderScoreAnnouncementTitle('PRISM RELIC');
             }
 
             finishScoreAnnouncement(pulseLiveTotal = true) {
                 this.scoreAlertActive = false;
-                if (this.scoreHud) this.scoreHud.classList.remove('gridlock-announcement-active');
                 this.scoreElement.classList.remove('gridlockAlert', 'superGridlockAlert', 'gridlockAwardAlert');
+                this.syncTopHudAnnouncementPresentation();
                 this.updateScore();
-                this.updateCosmicZapIndicators();
                 this.updateHighScore();
 
                 if (pulseLiveTotal) {
@@ -27935,7 +27937,7 @@ startGridlockBeat(delaySeconds = 0) {
                 const isPrismRelic = options.prismRelic === true;
                 const points = Math.max(0, Number(options.points) || 0);
                 this.scoreAlertActive = true;
-                if (this.scoreHud) this.scoreHud.classList.add('gridlock-announcement-active');
+                this.syncTopHudAnnouncementPresentation();
                 this.scoreElement.classList.remove('scoreHidden', 'attractHighScore', 'highScoreFlash', 'bonusScoreCount', 'gridlockAlert', 'superGridlockAlert', 'gridlockAwardAlert');
 
                 if (isSuperGridlock) {
@@ -28028,7 +28030,7 @@ startGridlockBeat(delaySeconds = 0) {
                     this.game.runtimeState.sectorTransitionActive
                 );
                 const primaryActionReady = !blockedTransition && (ordinaryStartReady || finalRestartReady);
-                const controlHidden = !inLivePlay && !canResume && !primaryActionReady;
+                const controlHidden = this.scoreAlertActive || (!inLivePlay && !canResume && !primaryActionReady);
                 const useUtilitySlot = !controlHidden && (inLivePlay || canResume);
                 const usePrimarySlot = !controlHidden && !useUtilitySlot;
                 const controlLabel = this.game.runtimeState.finalGridlockResultActive
@@ -28240,10 +28242,8 @@ startGridlockBeat(delaySeconds = 0) {
                 this.updateScore();
                 this.updateHighScore();
                 this.updateHudMenuButton();
-                this.updateStartPauseButton();
-                this.updateRunStartPrompt();
+                this.syncTopHudAnnouncementPresentation();
                 this.updateSectorProgressIndicators();
-                this.updateCosmicZapIndicators();
                 this.updateRadarColorIndicator();
             }
         }
