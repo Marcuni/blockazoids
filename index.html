@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Block-A-Zoids p259: adds one authoritative top-HUD announcement mode, centers the record value within its visual band, and restores shared Settings spacing.
+Block-A-Zoids p260: standardizes top-HUD announcement timing, adds Cosmic Zap depletion audio feedback, and extends ECHO invisibility through authoritative configuration.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="p259">
+<html data-build-version="p260">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -7187,9 +7187,9 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
         const BUILD_METADATA = window.BLOCKAZOIDS_BUILD = Object.freeze({
             version: document.documentElement.dataset.buildVersion || 'unknown',
             label: BUILD_VERSION,
-            architecturePhase: 'authoritative-top-hud-and-menu-layout-refinement',
-            sourceBaseline: 'p258',
-            behaviorPolicy: 'presentation-only-no-gameplay-rule-change'
+            architecturePhase: 'authoritative-feedback-and-behavior-timing',
+            sourceBaseline: 'p259',
+            behaviorPolicy: 'shared-config-no-parallel-systems'
         });
 
 
@@ -7218,7 +7218,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
         const SOURCE_LAYOUT = window.BLOCKAZOIDS_SOURCE_LAYOUT = Object.freeze({
             developmentModel: 'modular-source',
             releaseModel: 'single-html',
-            buildOutput: 'block-a-zoids-p259.html',
+            buildOutput: 'block-a-zoids-p260.html',
             categories: Object.freeze([
                 'build', 'config', 'content', 'rules', 'state', 'services', 'app', 'gameplay',
                 'presentation', 'platform', 'audio', 'ui', 'development', 'docs'
@@ -7228,7 +7228,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
 
 /* Source: src/js/development/75-developer-documentation.js */
         const DEVELOPER_DOCUMENTATION = window.BLOCKAZOIDS_DEVELOPER_GUIDE = deepFreezeConfiguration({
-            version: 'p259',
+            version: 'p260',
             purpose: 'Make ownership, safe edit locations, state transitions, build steps, and maintenance rules discoverable without reverse-engineering the complete game.',
             architecture: {
                 application: {
@@ -7585,7 +7585,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                     speedMultiplier: 0.70,
                     activeMs: 1500,
                     deactivationWarningMs: 300,
-                    dormantMs: 1000,
+                    dormantMs: 1500,
                     reactivationWarningMs: 300,
                     overlapRecheckMs: 100,
                     positionFlashIntervalMs: 350
@@ -7672,9 +7672,15 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 backgroundDisconnectMinimumMs: 160,
                 backgroundDisconnectTailMs: 240,
                 signalCleanupMs: 1300,
-                prismRelicHumPulseMs: 540
+                prismRelicHumPulseMs: 540,
+                cosmicZapDepletedCue: {
+                    durationMs: 460,
+                    finalUseDelayMs: 300,
+                    repeatCooldownMs: 650
+                }
             },
             visualTiming: {
+                topHudAnnouncement: { textMs: 2000, pointsMs: 1000 },
                 marqueeGlitchCleanupMs: 760,
                 marqueeImageSwapMs: 220,
                 gameOverShakeCleanupMs: 500,
@@ -11445,7 +11451,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 this.cosmicZapSystem.setRemaining(0);
                 this.runtimeState.patchTutorial({ tutorialZapTargetsReady: false });
                 this.requireShakeNeutralReset();
-                this.audio.playCosmicZapSound();
+                this.playCosmicZapUseAudio(this.cosmicZapSystem.remaining);
                 this.monitorEffectsSystem.triggerMonitorEvent('zap');
                 this.playCosmicZapDischarge(clearedEnemies);
                 clearedEnemies.forEach(enemy => {
@@ -13872,7 +13878,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 }, { small: 0, medium: 0, large: 0 });
                 const pulse = GAME_CONFIG.enemyBehaviors.pulse;
                 const charger = GAME_CONFIG.enemyBehaviors.charger;
-                const effectiveEchoDormantWindowMs = pulse.positionFlashIntervalMs * 3;
+                const effectiveEchoDormantWindowMs = pulse.dormantMs;
                 const layoutProfile = this.developerTools.getCurrentSkinLayoutProfile
                     ? this.developerTools.getCurrentSkinLayoutProfile()
                     : null;
@@ -15582,6 +15588,11 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 this.assert('Super Gridlock maximum is derived from rewards',
                     GameRules.getSuperGridlockMaximum() === config.gridlock.superGridlockRewards.reduce((sum, value) => sum + value, 0));
 
+                this.assert('Top HUD text timing is configured once', config.visualTiming.topHudAnnouncement.textMs === 2000);
+                this.assert('Top HUD points timing is configured once', config.visualTiming.topHudAnnouncement.pointsMs === 1000);
+                this.assert('Cosmic Zap depleted audio timing is valid', config.audioTiming.cosmicZapDepletedCue.durationMs > 0 && config.audioTiming.cosmicZapDepletedCue.finalUseDelayMs >= 0 && config.audioTiming.cosmicZapDepletedCue.repeatCooldownMs > 0);
+                this.assert('ECHO invisible phase is configured at 1.5 seconds', config.enemyBehaviors.pulse.dormantMs === 1500);
+
                 const sectors = data.sectors;
                 this.assert('Campaign contains sectors', sectors.length > 0);
                 this.assert('Campaign length is derived correctly', GameRules.getCampaignLength() === sectors.length);
@@ -17049,7 +17060,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 const game = this.game;
                 const now = this.now();
                 const interactiveTarget = this.isInteractiveTarget(pointer.target);
-                const zapInputOpen = typeof game.canTriggerCosmicZap === 'function' && game.canTriggerCosmicZap();
+                const zapInputOpen = typeof game.canRequestCosmicZap === 'function' && game.canRequestCosmicZap();
 
                 // Cosmic Zap double-tap detection is page-global whenever the current game state
                 // permits a Zap, including the tutorial. The target element does not own this command.
@@ -23451,20 +23462,38 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 this.enemies.forEach(enemy => enemy.applyVisualColor(currentColor));
             }
 
-            canTriggerCosmicZap() {
+            canRequestCosmicZap() {
                 if (this.runtimeState.tutorialActive) {
                     return this.flow.is(GAME_FLOW_STATES.TUTORIAL) && this.runtimeState.tutorialStep === 'zap' &&
-                        this.runtimeState.tutorialZapTargetsReady && this.cosmicZapSystem.remaining > 0 &&
-                        this.runtimeState.active && !this.runtimeState.isPaused && !this.runtimeState.isGameOver;
+                        this.runtimeState.tutorialZapTargetsReady && this.runtimeState.active &&
+                        !this.runtimeState.isPaused && !this.runtimeState.isGameOver;
                 }
-                return this.flow.is(GAME_FLOW_STATES.PLAYING) && this.cosmicZapSystem.remaining > 0 &&
-                    this.runtimeState.active && !this.runtimeState.isPaused && !this.runtimeState.isGameOver && !this.runtimeState.finalGridlockActive;
+                return this.flow.is(GAME_FLOW_STATES.PLAYING) && this.runtimeState.active &&
+                    !this.runtimeState.isPaused && !this.runtimeState.isGameOver && !this.runtimeState.finalGridlockActive;
+            }
+
+            canTriggerCosmicZap() {
+                return this.canRequestCosmicZap() && this.cosmicZapSystem.remaining > 0;
+            }
+
+            playCosmicZapUseAudio(remaining) {
+                this.audio.playCosmicZapSound();
+                if (Number(remaining) <= 0) {
+                    this.audio.playCosmicZapDepletedCue({
+                        delayMs: GAME_CONFIG.audioTiming.cosmicZapDepletedCue.finalUseDelayMs
+                    });
+                }
             }
 
             // All Zap inputs converge here so simultaneous signals can consume only one charge.
-            // Double tap is the official control; any dormant motion input uses the same eligibility gate.
+            // The request context remains open at zero charges so the shared depleted cue can
+            // communicate the empty HUD state without requiring the player to look away.
             requestCosmicZap(source = 'unknown') {
-                if (!this.canTriggerCosmicZap()) return false;
+                if (!this.canRequestCosmicZap()) return false;
+                if (this.cosmicZapSystem.remaining <= 0) {
+                    this.audio.playCosmicZapDepletedCue();
+                    return false;
+                }
                 const before = this.cosmicZapSystem.remaining;
                 this.handleCosmicZap(source);
                 return this.cosmicZapSystem.remaining < before;
@@ -23569,7 +23598,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                     return;
                 }
 
-                if (!this.canTriggerCosmicZap()) return;
+                if (!this.canRequestCosmicZap()) return;
                 if (now - this.lastShakeCosmicZapTime >= this.shakeCosmicZapCooldownMs) {
                     this.lastShakeCosmicZapTime = now;
                     this.requestCosmicZap('shake');
@@ -23682,7 +23711,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                     this.crystalSystem.invalidatePerfectSector();
                     this.syncMotionListenerState();
                     this.ui.updateCosmicZapIndicators();
-                    this.audio.playCosmicZapSound();
+                    this.playCosmicZapUseAudio(zapUse.remaining);
                     this.monitorEffectsSystem.triggerMonitorEvent('zap');
                     this.playCosmicZapDischarge(clearedEnemies);
                     this.playfieldRenderer.restartCosmicZapShake(280);
@@ -24981,10 +25010,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 this.dormantBeganAt = now;
                 this.dormantPingCount = 0;
                 this.nextDormantPingAt = now;
-                const beatMs = this.tuning.positionFlashIntervalMs;
-                const safeWindowMs = beatMs * 3;
-                const visualWarningMs = Math.min(this.tuning.reactivationWarningMs, safeWindowMs);
-                this.stateEndsAt = now + Math.max(0, safeWindowMs - visualWarningMs);
+                this.stateEndsAt = now + this.tuning.dormantMs;
                 this.setVisualState(this.state, now);
             }
 
@@ -25557,6 +25583,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 this.enemyAudioEventTimes = new Map();
                 this.enemyAudioPriorityUntil = 0;
                 this.enemyAudioPriorityLevel = 0;
+                this.lastCosmicZapDepletedCueAt = -Infinity;
 
                 // Audio contexts are created only from a direct orb gesture. This avoids
                 // Safari keeping a pre-created context alive but inaudible after the page loads.
@@ -26791,6 +26818,50 @@ startGridlockBeat(delaySeconds = 0) {
                 });
             }
 
+            // Shared low-power cue. The final Zap appends it to the discharge; an empty
+            // Zap request uses the same cue alone. Audio owns only sound throttling, not Zap state.
+            playCosmicZapDepletedCue(options = {}) {
+                const tuning = GAME_CONFIG.audioTiming.cosmicZapDepletedCue;
+                const delayMs = Math.max(0, Number(options.delayMs) || 0);
+                const scheduledAtMs = performance.now() + delayMs;
+                if (scheduledAtMs - this.lastCosmicZapDepletedCueAt < tuning.repeatCooldownMs) return false;
+                this.lastCosmicZapDepletedCueAt = scheduledAtMs;
+
+                const start = this.ctx.currentTime + delayMs / 1000;
+                const duration = Math.max(0.1, Number(tuning.durationMs) / 1000);
+                const end = start + duration;
+                const output = this.createAudioNode('createGain');
+                const filter = this.createAudioNode('createBiquadFilter');
+                const primary = this.createAudioNode('createOscillator');
+                const undertone = this.createAudioNode('createOscillator');
+
+                filter.type = 'lowpass';
+                filter.frequency.setValueAtTime(920, start);
+                filter.frequency.exponentialRampToValueAtTime(210, end);
+                filter.Q.setValueAtTime(2.4, start);
+
+                primary.type = 'triangle';
+                primary.frequency.setValueAtTime(430, start);
+                primary.frequency.exponentialRampToValueAtTime(112, end);
+                undertone.type = 'square';
+                undertone.frequency.setValueAtTime(215, start);
+                undertone.frequency.exponentialRampToValueAtTime(68, end);
+
+                primary.connect(filter);
+                undertone.connect(filter);
+                filter.connect(output);
+                this.connectOutput(output);
+                output.gain.setValueAtTime(0.001, start);
+                output.gain.linearRampToValueAtTime(0.066, start + 0.018);
+                output.gain.exponentialRampToValueAtTime(0.003, end);
+
+                primary.start(start);
+                undertone.start(start);
+                primary.stop(end + 0.035);
+                undertone.stop(end + 0.035);
+                return true;
+            }
+
             // Play explosion sound
             playExplosionSound() {
                 this.ensureAudio();
@@ -27756,6 +27827,7 @@ startGridlockBeat(delaySeconds = 0) {
             playBonusCountUp: 6500,
             playPrismRelicAppear: 5500,
             playCosmicZapSound: 6500,
+            playCosmicZapDepletedCue: 2200,
             playExplosionSound: 6000,
             playExplosion: 6500,
             playUnlockPiccoloArpeggio: 10000,
@@ -27952,7 +28024,7 @@ startGridlockBeat(delaySeconds = 0) {
                 }
                 void this.scoreElement.offsetWidth;
 
-                const titleHoldMs = points > 0 ? 900 : 2300;
+                const titleHoldMs = GAME_CONFIG.visualTiming.topHudAnnouncement.textMs;
                 this.scoreAlertTimer = this.game.scheduler.scheduleTimeout('ui-effects', 'score-alert-title', () => {
                     if (points <= 0) {
                         this.finishScoreAnnouncement(false);
@@ -27965,7 +28037,7 @@ startGridlockBeat(delaySeconds = 0) {
                     this.scoreElement.classList.add('gridlockAwardAlert');
                     this.scoreAlertTimer = this.game.scheduler.scheduleTimeout('ui-effects', 'score-alert-award', () => {
                         this.finishScoreAnnouncement();
-                    }, 850);
+                    }, GAME_CONFIG.visualTiming.topHudAnnouncement.pointsMs);
                 }, titleHoldMs);
             }
 
@@ -28376,7 +28448,9 @@ startGridlockBeat(delaySeconds = 0) {
                 assert('DASH charge profile applies proportionally to all sizes', ['small', 'medium', 'large'].every((size) => Math.abs((game.getEnemySpeed(size) * dashParity.chargeSpeedMultiplier) - (game.getEnemySpeed(size) * 2.55)) < 0.000001));
                 const drifterSource = DrifterBehavior.toString();
                 assert('ZIG movement profile remains unchanged', drifterSource.includes('enemy.speed') && drifterSource.includes('Math.SQRT2'));
-                assert('ECHO movement profile remains unchanged', GAME_CONFIG.enemyBehaviors.pulse.speedMultiplier === 0.70 && GAME_CONFIG.enemyBehaviors.pulse.activeMs === 1500 && GAME_CONFIG.enemyBehaviors.pulse.deactivationWarningMs === 300 && GAME_CONFIG.enemyBehaviors.pulse.reactivationWarningMs === 300);
+                assert('ECHO movement and rhythm profile is authoritative', GAME_CONFIG.enemyBehaviors.pulse.speedMultiplier === 0.70 && GAME_CONFIG.enemyBehaviors.pulse.activeMs === 1500 && GAME_CONFIG.enemyBehaviors.pulse.deactivationWarningMs === 300 && GAME_CONFIG.enemyBehaviors.pulse.dormantMs === 1500 && GAME_CONFIG.enemyBehaviors.pulse.reactivationWarningMs === 300 && PulseBlockBehavior.prototype.beginDormant.toString().includes('this.tuning.dormantMs'));
+                assert('Top HUD announcement timing is shared', GAME_CONFIG.visualTiming.topHudAnnouncement.textMs === 2000 && GAME_CONFIG.visualTiming.topHudAnnouncement.pointsMs === 1000 && !UI.prototype.flashGridlockMessage.toString().includes('points > 0 ?'));
+                assert('Cosmic Zap depleted cue is shared by final-use and empty-request feedback', typeof AudioManager.prototype.playCosmicZapDepletedCue === 'function' && Game.prototype.playCosmicZapUseAudio.toString().includes('playCosmicZapDepletedCue') && Game.prototype.requestCosmicZap.toString().includes('playCosmicZapDepletedCue'));
                 const expectedSizeSequence = ['large', 'medium', 'medium', 'medium', 'medium', 'medium', 'medium', 'small'];
                 assert('Every authored Sector uses the deterministic size sequence', GAME_DATA.sectors.every((sector) => JSON.stringify(sector.enemySizePlan) === JSON.stringify(expectedSizeSequence)));
                 assert('No spawn category randomly selects visual size', !EnemySpawnSystem.prototype.createSectorQueue.toString().includes('Math.random') && !EnemySpawnSystem.prototype.peekDeterministicSizeRequest.toString().includes('Math.random'));
