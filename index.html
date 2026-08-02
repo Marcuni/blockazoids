@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Block-A-Zoids p269: adds developer-only attract-mode double-tap diagnostics with audible feedback and exportable gesture measurements while preserving the shared input recognizer, radar geometry, campaign progression, and Final Gridlock rules.
+Block-A-Zoids p270: fixes Cosmic Zap double-tap recognition by classifying tap movement from maximum distance to the touch origin instead of accumulated Safari movement samples, while retaining diagnostic evidence and the shared input recognizer.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="p269">
+<html data-build-version="p270">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -7291,7 +7291,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
         const SOURCE_LAYOUT = window.BLOCKAZOIDS_SOURCE_LAYOUT = Object.freeze({
             developmentModel: 'modular-source',
             releaseModel: 'single-html',
-            buildOutput: 'block-a-zoids-p269.html',
+            buildOutput: 'block-a-zoids-p270.html',
             categories: Object.freeze([
                 'build', 'config', 'content', 'rules', 'state', 'services', 'app', 'gameplay',
                 'presentation', 'platform', 'audio', 'ui', 'development', 'docs'
@@ -7301,7 +7301,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
 
 /* Source: src/js/development/75-developer-documentation.js */
         const DEVELOPER_DOCUMENTATION = window.BLOCKAZOIDS_DEVELOPER_GUIDE = deepFreezeConfiguration({
-            version: 'p269',
+            version: 'p270',
             purpose: 'Make ownership, safe edit locations, state transitions, build steps, and maintenance rules discoverable without reverse-engineering the complete game.',
             architecture: {
                 application: {
@@ -16160,6 +16160,9 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 const gestureEndSource = FullSurfaceGestureCoordinator.prototype.handlePointerEnd.toString();
                 this.assert('Cosmic Zap tap movement tolerance is authored once in input configuration', GAME_CONFIG.input.gestureTapMaxMove === 20);
                 this.assert('Cosmic Zap tap recognition consumes the configured movement tolerance', gestureEndSource.includes('GAME_CONFIG.input.gestureTapMaxMove'));
+                const gestureUpdateSource = FullSurfaceGestureCoordinator.prototype.updatePointer.toString();
+                this.assert('Tap movement classification uses maximum distance from the touch origin', gestureUpdateSource.includes('maxDistanceFromStart') && gestureUpdateSource.includes('> GAME_CONFIG.input.gestureTapMaxMove') && !gestureUpdateSource.includes('pointer.travel > GAME_CONFIG.input.gestureTapMaxMove'));
+                this.assert('Tap completion ignores accumulated Safari travel noise', gestureEndSource.includes('(pointer.maxDistanceFromStart || 0) <= GAME_CONFIG.input.gestureTapMaxMove') && !gestureEndSource.includes('pointer.travel <= GAME_CONFIG.input.gestureTapMaxMove'));
                 this.assert('Gesture diagnostics use the shared gesture coordinator', FullSurfaceGestureCoordinator.prototype.handleDiagnosticPointerEnd && FullSurfaceGestureCoordinator.prototype.handlePointerEnd.toString().includes('handleDiagnosticPointerEnd'));
                 this.assert('Gesture diagnostics retain both accumulated travel and displacement evidence', FullSurfaceGestureCoordinator.prototype.summarizePointer.toString().includes('accumulatedTravelPx') && FullSurfaceGestureCoordinator.prototype.summarizePointer.toString().includes('maxDistanceFromStartPx'));
                 this.assert('Gesture diagnostic record capacity is authored once', GAME_CONFIG.input.gestureDiagnosticMaxRecords === 240);
@@ -17238,10 +17241,8 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 if (canceled) return 'pointer-cancelled';
                 if (pointer.multitouchSeen) return 'multitouch-detected';
                 if (duration > GAME_CONFIG.input.gestureTapMaxDurationMs) return 'held-too-long';
-                if (pointer.travel > GAME_CONFIG.input.gestureTapMaxMove) {
-                    return (pointer.maxDistanceFromStart || 0) <= GAME_CONFIG.input.gestureTapMaxMove
-                        ? 'accumulated-travel-too-large'
-                        : 'movement-too-large';
+                if ((pointer.maxDistanceFromStart || 0) > GAME_CONFIG.input.gestureTapMaxMove) {
+                    return 'movement-too-large';
                 }
                 return 'tap-rejected';
             }
@@ -17475,7 +17476,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                     pointer.maxDistanceFromStart || 0,
                     Math.hypot(pointer.x - pointer.startX, pointer.y - pointer.startY)
                 );
-                if (pointer.travel > GAME_CONFIG.input.gestureTapMaxMove) {
+                if ((pointer.maxDistanceFromStart || 0) > GAME_CONFIG.input.gestureTapMaxMove) {
                     pointer.movementCommitted = true;
                 }
                 return { deltaX, deltaY, distance };
@@ -17494,7 +17495,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
 
                 for (const sample of events) {
                     const movement = this.updatePointer(pointer, sample);
-                    if (pointer.attractOrbHoldActive && pointer.travel > GAME_CONFIG.input.gestureTapMaxMove) {
+                    if (pointer.attractOrbHoldActive && (pointer.maxDistanceFromStart || 0) > GAME_CONFIG.input.gestureTapMaxMove) {
                         this.cancelAttractOrbHold('moved');
                     }
                     if (this.multitouchBlocked) {
@@ -17542,7 +17543,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 }
                 const duration = this.now() - pointer.startedAt;
                 const wasTap = !canceled && !pointer.multitouchSeen && !pointer.movementCommitted &&
-                    pointer.travel <= GAME_CONFIG.input.gestureTapMaxMove &&
+                    (pointer.maxDistanceFromStart || 0) <= GAME_CONFIG.input.gestureTapMaxMove &&
                     duration <= GAME_CONFIG.input.gestureTapMaxDurationMs;
 
                 if (pointer.movementCommitted && this.isInteractiveTarget(pointer.target)) {
