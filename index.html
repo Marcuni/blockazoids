@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Block-A-Zoids p275: removes all temporary gesture-test instrumentation while preserving the production Cosmic Zap recognizer and its verified second-touch-down behavior.
+Block-A-Zoids p276: unifies Gridlock and Super Gridlock into one collectible Prism milestone sequence with interruption-safe per-sector progression.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="p275">
+<html data-build-version="p276">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -6970,13 +6970,17 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                             <li>A Cosmic Zap keeps the same selectable crystals and only updates their distance values.</li>
                         </ul>
 
-                        <div class="scoring-section-title">EXTRA</div>
-                        <div class="scoring-row"><span>Gridlock Relic <span class="scoring-label-note">(awarded on pickup)</span></span><span data-config-value="scoring.gridlockRelicBonus"></span></div>
-                        <div class="scoring-row"><span>Super Gridlock <span class="scoring-label-note">(awarded on spawn)</span></span><span data-config-list="gridlock.superGridlockRewards" data-config-separator="/"></span></div>
-                        <div class="scoring-row"><span>Super Gridlock maximum</span><span data-rule-value="superGridlockMaximum"></span></div>
+                        <div class="scoring-section-title">GRIDLOCK PRISMS</div>
+                        <div class="scoring-row"><span>White Prism Relic <span class="scoring-label-note">(collect)</span></span><span data-rule-value="whitePrismValue"></span></div>
+                        <div class="scoring-row"><span>Red Super Prism <span class="scoring-label-note">(collect)</span></span><span data-rule-value="redPrismValue"></span></div>
+                        <div class="scoring-row"><span>Green Super Prism <span class="scoring-label-note">(collect)</span></span><span data-rule-value="greenPrismValue"></span></div>
+                        <div class="scoring-row"><span>Blue Super Prism <span class="scoring-label-note">(collect)</span></span><span data-rule-value="bluePrismValue"></span></div>
+                        <div class="scoring-row"><span>Super Prism maximum</span><span data-rule-value="superGridlockMaximum"></span></div>
                         <ul class="scoring-rules-list">
-                            <li>Gridlock and Super Gridlock points are added to the live score immediately.</li>
-                            <li>A Cosmic Zap never removes earned points or restarts the Super Gridlock sequence.</li>
+                            <li>Survive Gridlock for 30 seconds and the white Prism appears first.</li>
+                            <li>Super Gridlock adds one Block-A-Zoid. Red, green, and blue Prisms appear later in sequence.</li>
+                            <li>Prism points are earned only when the Orb physically touches the Prism.</li>
+                            <li>A Cosmic Zap forfeits any visible Prism, preserves completed milestones, and resumes at the next unresolved event when Gridlock returns.</li>
                         </ul>
                         <div class="scoring-row"><span>Unused Cosmic Zap</span><span data-config-value="scoring.unusedCosmicZapBonus" data-config-suffix="/ea"></span></div>
                         <div class="scoring-row"><span>Perfect Sector <span class="scoring-label-note">(no Zap)</span></span><span data-config-value="scoring.perfectSectorBonus"></span></div>
@@ -7247,7 +7251,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
         const SOURCE_LAYOUT = window.BLOCKAZOIDS_SOURCE_LAYOUT = Object.freeze({
             developmentModel: 'modular-source',
             releaseModel: 'single-html',
-            buildOutput: 'block-a-zoids-p275.html',
+            buildOutput: 'block-a-zoids-p276.html',
             categories: Object.freeze([
                 'build', 'config', 'content', 'rules', 'state', 'services', 'app', 'gameplay',
                 'presentation', 'platform', 'audio', 'ui', 'development', 'docs'
@@ -7257,7 +7261,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
 
 /* Source: src/js/development/75-developer-documentation.js */
         const DEVELOPER_DOCUMENTATION = window.BLOCKAZOIDS_DEVELOPER_GUIDE = deepFreezeConfiguration({
-            version: 'p275',
+            version: 'p276',
             purpose: 'Make ownership, safe edit locations, state transitions, build steps, and maintenance rules discoverable without reverse-engineering the complete game.',
             architecture: {
                 application: {
@@ -7428,7 +7432,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 'Attract mode interruption by Play',
                 'Sector start, pause, resume, completion, restoration, and next-sector entry',
                 'Death, Game Over, return to attract mode, and restart',
-                'Gridlock, Cosmic Zap use, Prism Relic, and Super Gridlock reward progression',
+                'Gridlock, Cosmic Zap interruption, Prism milestone progression, and collectible reward outcomes',
                 'Campaign completion and Final Gridlock',
                 'High-score, settings, tutorial, and sector-unlock persistence',
                 'Off, CRT, and Vector monitor modes including resize and pause',
@@ -7685,10 +7689,17 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
             },
             gridlock: {
                 activationCueDelayMs: 1000,
-                initialRelicCueDelayMs: 1000,
-                relicDelayMs: 30000,
+                milestoneIntervalMs: 30000,
                 overtimeEnemyIntervalMs: 60000,
-                superGridlockRewards: [100, 150, 250]
+                milestones: Object.freeze([
+                    Object.freeze({ id: 'white-prism', type: 'prism', color: 'white', points: 300, label: 'PRISM RELIC' }),
+                    Object.freeze({ id: 'super-gridlock-1', type: 'enemy', ordinal: 1, label: 'SUPER GRIDLOCK 1' }),
+                    Object.freeze({ id: 'red-prism', type: 'prism', color: 'red', points: 100, label: 'RED PRISM' }),
+                    Object.freeze({ id: 'super-gridlock-2', type: 'enemy', ordinal: 2, label: 'SUPER GRIDLOCK 2' }),
+                    Object.freeze({ id: 'green-prism', type: 'prism', color: 'green', points: 150, label: 'GREEN PRISM' }),
+                    Object.freeze({ id: 'super-gridlock-3', type: 'enemy', ordinal: 3, label: 'SUPER GRIDLOCK 3' }),
+                    Object.freeze({ id: 'blue-prism', type: 'prism', color: 'blue', points: 250, label: 'BLUE PRISM', final: true })
+                ])
             },
             transitions: {
                 countdownStepMs: 1000,
@@ -8223,7 +8234,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 campaign: Object.freeze({ owner: 'CampaignSystem', responsibility: 'Current sector, campaign content access, Sector Select, and progression unlocks' }),
                 cosmicZaps: Object.freeze({ owner: 'CosmicZapSystem', responsibility: 'Zap capacity, remaining charges, usage count, cooldown, and protection window' }),
                 crystals: Object.freeze({ owner: 'CrystalSystem', responsibility: 'Crystal state, selectable choices, value ranking, collection topology, completed cells, and Perfect Sector eligibility' }),
-                gridlock: Object.freeze({ owner: 'GridlockSystem', responsibility: 'Gridlock activation, Overtime progression, Super Gridlock rewards, Prism Relic state, and attempt counters' }),
+                gridlock: Object.freeze({ owner: 'GridlockSystem', responsibility: 'Gridlock activation, unified milestone progression, overtime enemies, collectible Prism rewards, and interruption state' }),
                 enemySpawning: Object.freeze({ owner: 'EnemySpawnSystem', responsibility: 'Spawn queue, warnings, safe peripheral placement, materialization, and active-play spawn timing' }),
                 collision: Object.freeze({ owner: 'CollisionSystem', responsibility: 'Enemy separation, swept Orb hit testing, danger filtering, and collision outcome routing' }),
                 runtimeState: Object.freeze({ owner: 'RuntimeStateSystem', responsibility: 'Mutable gameplay, transition, tutorial, and terminal lifecycle flags' }),
@@ -8334,8 +8345,19 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 return values[normalizedRank] || values[1];
             }
 
+            static getGridlockMilestone(id) {
+                return GAME_CONFIG.gridlock.milestones.find((milestone) => milestone.id === id) || null;
+            }
+
+            static getGridlockPrismValue(color) {
+                const milestone = GAME_CONFIG.gridlock.milestones.find((item) => item.type === 'prism' && item.color === color);
+                return milestone ? Number(milestone.points) || 0 : 0;
+            }
+
             static getSuperGridlockMaximum() {
-                return GAME_CONFIG.gridlock.superGridlockRewards.reduce((total, value) => total + Number(value || 0), 0);
+                return GAME_CONFIG.gridlock.milestones
+                    .filter((milestone) => milestone.type === 'prism' && milestone.color !== 'white')
+                    .reduce((total, milestone) => total + Number(milestone.points || 0), 0);
             }
         }
         window.BLOCKAZOIDS_RULES = GameRules;
@@ -8407,6 +8429,14 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                     const ruleName = element.dataset.ruleValue;
                     if (ruleName === 'superGridlockMaximum') {
                         element.textContent = String(GameRules.getSuperGridlockMaximum());
+                    } else if (ruleName === 'whitePrismValue') {
+                        element.textContent = String(GameRules.getGridlockPrismValue('white'));
+                    } else if (ruleName === 'redPrismValue') {
+                        element.textContent = String(GameRules.getGridlockPrismValue('red'));
+                    } else if (ruleName === 'greenPrismValue') {
+                        element.textContent = String(GameRules.getGridlockPrismValue('green'));
+                    } else if (ruleName === 'bluePrismValue') {
+                        element.textContent = String(GameRules.getGridlockPrismValue('blue'));
                     }
                 });
 
@@ -9962,20 +9992,54 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 this.resetState();
             }
 
+            buildMilestoneStates() {
+                return this.config.gridlock.milestones.map((milestone, index) => ({
+                    id: milestone.id,
+                    index,
+                    type: milestone.type,
+                    color: milestone.color || null,
+                    points: Number(milestone.points) || 0,
+                    status: 'pending',
+                    countdownStarts: 0,
+                    countdownInterruptions: 0,
+                    triggeredAtSectorMs: null,
+                    materializedAtSectorMs: null,
+                    appearedAtSectorMs: null,
+                    collectedAtSectorMs: null,
+                    expiredAtSectorMs: null,
+                    forfeitedAtSectorMs: null,
+                    forfeitureReason: null
+                }));
+            }
+
             resetState() {
                 this.gridlockActive = false;
                 this.gridlockCueTimer = null;
                 this.gridlockCueDelayMs = this.activationCueDelayMs;
+                this.gridlockEntryCount = 0;
                 this.overtimeActive = false;
                 this.overtimeEnemyTimer = null;
                 this.overtimeEnemiesAdded = 0;
                 this.overtimeBehaviorQueue = [];
                 this.superGridlockBonusesThisSector = 0;
                 this.superGridlockBonusPointsThisSector = 0;
+                this.gridlockPrismPointsThisSector = 0;
+                this.totalGridlockPrismPointsThisSector = 0;
+                this.milestoneStates = this.buildMilestoneStates();
+                this.nextMilestoneIndex = 0;
+                this.milestoneCountdownActive = false;
+                this.milestoneCountdownElapsedMs = 0;
+                this.milestoneWaitingForMaterialization = false;
+                this.milestoneSpawnRetryRemainingMs = 0;
+                this.postSequenceOvertimeElapsedMs = 0;
+                this.postSequenceWarningPending = false;
+                this.pendingOvertimeSpawnRequest = null;
+                this.pendingOvertimeSpawnContext = null;
                 this.prismRelic = null;
+                this.currentPrismMilestoneId = null;
                 this.prismRelicCueTimer = null;
                 this.prismRelicSpawnEnemyThreshold = 0;
-                this.prismRelicCueDelayMs = this.config.gridlock.initialRelicCueDelayMs;
+                this.prismRelicCueDelayMs = this.config.gridlock.milestoneIntervalMs;
                 this.prismRelicSpawnedThisSector = false;
                 this.prismRelicRecoveredThisSector = false;
                 this.gridlockRelicAttemptNumber = 0;
@@ -9983,26 +10047,14 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
             }
 
             resetSector(gridlockEnemyThreshold) {
-                this.gridlockActive = false;
-                this.gridlockCueTimer = null;
-                this.overtimeActive = false;
-                this.overtimeEnemyTimer = null;
-                this.overtimeEnemiesAdded = 0;
-                this.overtimeBehaviorQueue = [];
-                this.superGridlockBonusesThisSector = 0;
-                this.superGridlockBonusPointsThisSector = 0;
-                this.prismRelic = null;
-                this.prismRelicCueTimer = null;
-                this.prismRelicSpawnedThisSector = false;
-                this.prismRelicRecoveredThisSector = false;
-                this.gridlockRelicAttemptNumber = 0;
-                this.resetRelicTiming(gridlockEnemyThreshold);
+                this.resetState();
+                this.prismRelicSpawnEnemyThreshold = Math.max(0, Math.floor(Number(gridlockEnemyThreshold) || 0));
                 return this.snapshot();
             }
 
             resetRelicTiming(gridlockEnemyThreshold) {
                 this.prismRelicSpawnEnemyThreshold = Math.max(0, Math.floor(Number(gridlockEnemyThreshold) || 0));
-                this.prismRelicCueDelayMs = this.config.gridlock.relicDelayMs;
+                this.prismRelicCueDelayMs = this.config.gridlock.milestoneIntervalMs;
                 return this.prismRelicCueDelayMs;
             }
 
@@ -10017,7 +10069,30 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 if (Object.prototype.hasOwnProperty.call(patch, 'prismRelic')) this.prismRelic = patch.prismRelic;
                 if (Object.prototype.hasOwnProperty.call(patch, 'prismRelicSpawnedThisSector')) this.prismRelicSpawnedThisSector = !!patch.prismRelicSpawnedThisSector;
                 if (Object.prototype.hasOwnProperty.call(patch, 'prismRelicRecoveredThisSector')) this.prismRelicRecoveredThisSector = !!patch.prismRelicRecoveredThisSector;
+                if (Object.prototype.hasOwnProperty.call(patch, 'currentPrismMilestoneId')) this.currentPrismMilestoneId = patch.currentPrismMilestoneId || null;
                 return this.prismRelic;
+            }
+
+            getMilestoneDefinition(idOrIndex) {
+                if (Number.isInteger(idOrIndex)) return this.config.gridlock.milestones[idOrIndex] || null;
+                return this.config.gridlock.milestones.find((milestone) => milestone.id === idOrIndex) || null;
+            }
+
+            getMilestoneState(idOrIndex) {
+                if (Number.isInteger(idOrIndex)) return this.milestoneStates[idOrIndex] || null;
+                return this.milestoneStates.find((milestone) => milestone.id === idOrIndex) || null;
+            }
+
+            getCurrentMilestone() {
+                return this.getMilestoneDefinition(this.nextMilestoneIndex);
+            }
+
+            getCurrentMilestoneState() {
+                return this.getMilestoneState(this.nextMilestoneIndex);
+            }
+
+            isSequenceComplete() {
+                return this.nextMilestoneIndex >= this.config.gridlock.milestones.length;
             }
 
             canScheduleGridlock({ liveAction, enemyCount, gridlockEnemyThreshold }) {
@@ -10027,40 +10102,193 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
             activateGridlock({ liveAction, enemyCount, gridlockEnemyThreshold }) {
                 if (!liveAction || enemyCount < gridlockEnemyThreshold) return false;
                 this.gridlockActive = true;
+                this.gridlockEntryCount += 1;
                 return true;
             }
 
             startOvertime() {
                 if (this.overtimeActive) return false;
                 this.overtimeActive = true;
-                this.overtimeEnemiesAdded = 0;
-                this.overtimeBehaviorQueue = [];
                 return true;
             }
 
             resetOvertime({ preserveSectorRewardProgress = false } = {}) {
                 this.overtimeActive = false;
-                this.overtimeEnemiesAdded = 0;
+                this.overtimeEnemyTimer = null;
+                this.milestoneCountdownActive = false;
+                this.milestoneCountdownElapsedMs = 0;
+                this.milestoneWaitingForMaterialization = false;
+                this.milestoneSpawnRetryRemainingMs = 0;
+                this.postSequenceWarningPending = false;
+                this.postSequenceOvertimeElapsedMs = 0;
                 this.overtimeBehaviorQueue = [];
                 if (!preserveSectorRewardProgress) {
+                    this.pendingOvertimeSpawnRequest = null;
+                    this.pendingOvertimeSpawnContext = null;
+                    this.overtimeEnemiesAdded = 0;
                     this.superGridlockBonusesThisSector = 0;
                     this.superGridlockBonusPointsThisSector = 0;
+                    this.gridlockPrismPointsThisSector = 0;
+                    this.totalGridlockPrismPointsThisSector = 0;
                 }
                 return this.snapshot();
             }
 
-            registerOvertimeEnemy({ superGridlockEnabled = true } = {}) {
-                this.overtimeEnemiesAdded += 1;
-                const rewards = this.config.gridlock.superGridlockRewards;
-                let reward = 0;
-                if (superGridlockEnabled && this.superGridlockBonusesThisSector < rewards.length) {
-                    reward = rewards[this.superGridlockBonusesThisSector];
-                    this.superGridlockBonusesThisSector += 1;
-                    this.superGridlockBonusPointsThisSector += reward;
+            beginMilestoneCountdown() {
+                if (!this.gridlockActive || this.isSequenceComplete() || this.milestoneWaitingForMaterialization) return null;
+                const state = this.getCurrentMilestoneState();
+                if (!state || state.status !== 'pending') return null;
+                state.countdownStarts += 1;
+                this.milestoneCountdownActive = true;
+                this.milestoneCountdownElapsedMs = 0;
+                this.milestoneSpawnRetryRemainingMs = 0;
+                return this.getCurrentMilestone();
+            }
+
+            interruptMilestoneCountdown() {
+                const state = this.getCurrentMilestoneState();
+                if (state && this.milestoneCountdownActive) state.countdownInterruptions += 1;
+                if (state && this.milestoneWaitingForMaterialization && state.status === 'triggered') {
+                    // A warning canceled before materialization has not completed its milestone.
+                    // Re-entry must offer the same enemy event after a fresh 30-second countdown.
+                    state.status = 'pending';
+                    state.triggeredAtSectorMs = null;
+                    state.countdownInterruptions += 1;
                 }
+                this.milestoneCountdownActive = false;
+                this.milestoneCountdownElapsedMs = 0;
+                this.milestoneWaitingForMaterialization = false;
+                this.milestoneSpawnRetryRemainingMs = 0;
+                this.postSequenceWarningPending = false;
+                this.postSequenceOvertimeElapsedMs = 0;
+                return state;
+            }
+
+            advanceMilestone(id, status, sectorTimeMs = null) {
+                const state = this.getMilestoneState(id);
+                if (!state || state.index !== this.nextMilestoneIndex) return false;
+                state.status = status;
+                state.triggeredAtSectorMs = Number.isFinite(sectorTimeMs) ? sectorTimeMs : state.triggeredAtSectorMs;
+                this.nextMilestoneIndex += 1;
+                this.milestoneCountdownActive = false;
+                this.milestoneCountdownElapsedMs = 0;
+                this.milestoneWaitingForMaterialization = false;
+                this.milestoneSpawnRetryRemainingMs = 0;
+                return true;
+            }
+
+            markMilestoneTriggered(id, sectorTimeMs = null) {
+                const state = this.getMilestoneState(id);
+                if (!state || state.index !== this.nextMilestoneIndex || state.status !== 'pending') return false;
+                state.status = 'triggered';
+                state.triggeredAtSectorMs = Number.isFinite(sectorTimeMs) ? sectorTimeMs : null;
+                this.milestoneCountdownActive = false;
+                this.milestoneCountdownElapsedMs = 0;
+                return true;
+            }
+
+            revertTriggeredMilestoneForRetry(id, retryMs = 5000) {
+                const state = this.getMilestoneState(id);
+                if (!state || state.index !== this.nextMilestoneIndex) return false;
+                state.status = 'pending';
+                this.milestoneWaitingForMaterialization = false;
+                this.milestoneSpawnRetryRemainingMs = Math.max(0, Number(retryMs) || 0);
+                this.milestoneCountdownActive = false;
+                return true;
+            }
+
+            markEnemyMilestoneWaiting(id) {
+                const state = this.getMilestoneState(id);
+                if (!state || state.index !== this.nextMilestoneIndex || state.type !== 'enemy') return false;
+                this.milestoneWaitingForMaterialization = true;
+                return true;
+            }
+
+            markEnemyMilestoneMaterialized(id, sectorTimeMs = null) {
+                const state = this.getMilestoneState(id);
+                if (!state || state.index !== this.nextMilestoneIndex || state.type !== 'enemy') return false;
+                state.materializedAtSectorMs = Number.isFinite(sectorTimeMs) ? sectorTimeMs : null;
+                return this.advanceMilestone(id, 'completed', state.triggeredAtSectorMs);
+            }
+
+            beginRelicAttempt(milestone) {
+                if (!milestone || milestone.type !== 'prism' || this.prismRelic) return 0;
+                this.gridlockRelicAttemptNumber += 1;
+                return this.gridlockRelicAttemptNumber;
+            }
+
+            isRelicAttemptCurrent(attemptNumber) {
+                return Number(attemptNumber) === this.gridlockRelicAttemptNumber;
+            }
+
+            markRelicSpawned(relic, milestone, sectorTimeMs = null) {
+                if (!relic || !milestone || milestone.type !== 'prism') return null;
+                const state = this.getMilestoneState(milestone.id);
+                if (!state || state.index !== this.nextMilestoneIndex) return null;
+                this.prismRelic = relic;
+                this.currentPrismMilestoneId = milestone.id;
+                this.prismRelicSpawnedThisSector = true;
+                state.appearedAtSectorMs = Number.isFinite(sectorTimeMs) ? sectorTimeMs : null;
+                this.advanceMilestone(milestone.id, 'available', state.triggeredAtSectorMs);
+                return this.prismRelic;
+            }
+
+            hasPendingRelicAttempt() {
+                return !!this.prismRelic;
+            }
+
+            canCancelRelicAttempt() {
+                return !!this.prismRelic;
+            }
+
+            resolveVisiblePrism(status, reason = null, sectorTimeMs = null) {
+                const relic = this.prismRelic;
+                if (!relic || !this.currentPrismMilestoneId) return null;
+                const state = this.getMilestoneState(this.currentPrismMilestoneId);
+                if (state) {
+                    state.status = status;
+                    if (status === 'collected') state.collectedAtSectorMs = Number.isFinite(sectorTimeMs) ? sectorTimeMs : null;
+                    if (status === 'expired') state.expiredAtSectorMs = Number.isFinite(sectorTimeMs) ? sectorTimeMs : null;
+                    if (status === 'forfeited') {
+                        state.forfeitedAtSectorMs = Number.isFinite(sectorTimeMs) ? sectorTimeMs : null;
+                        state.forfeitureReason = reason || 'forfeited';
+                    }
+                }
+                if (status === 'collected') {
+                    const points = Math.max(0, Number(relic.points) || 0);
+                    this.prismRelicRecoveredThisSector = true;
+                    this.totalGridlockPrismPointsThisSector += points;
+                    if (relic.color === 'white') {
+                        this.gridlockPrismPointsThisSector += points;
+                    } else {
+                        this.superGridlockBonusesThisSector += 1;
+                        this.superGridlockBonusPointsThisSector += points;
+                    }
+                }
+                this.prismRelic = null;
+                this.currentPrismMilestoneId = null;
+                return relic;
+            }
+
+            forfeitPendingPrism(reason = 'sector-end', sectorTimeMs = null) {
+                const milestone = this.getCurrentMilestone();
+                const state = this.getCurrentMilestoneState();
+                if (!milestone || !state || milestone.type !== 'prism' || state.status !== 'pending') return null;
+                state.status = 'forfeited';
+                state.forfeitedAtSectorMs = Number.isFinite(sectorTimeMs) ? sectorTimeMs : null;
+                state.forfeitureReason = reason;
+                this.nextMilestoneIndex += 1;
+                this.milestoneCountdownActive = false;
+                this.milestoneCountdownElapsedMs = 0;
+                return milestone;
+            }
+
+            registerOvertimeEnemy({ milestoneId = null } = {}) {
+                this.overtimeEnemiesAdded += 1;
                 return Object.freeze({
                     overtimeEnemiesAdded: this.overtimeEnemiesAdded,
-                    reward,
+                    milestoneId,
+                    reward: 0,
                     bonusesThisSector: this.superGridlockBonusesThisSector,
                     bonusPointsThisSector: this.superGridlockBonusPointsThisSector
                 });
@@ -10088,42 +10316,6 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 this.overtimeBehaviorQueue.unshift(behaviorType);
             }
 
-            canSpawnRelic({ finalGridlockActive, liveAction, enemyCount, gridlockEnemyThreshold }) {
-                if (finalGridlockActive || !liveAction) return false;
-                if (this.prismRelicSpawnedThisSector || this.prismRelicRecoveredThisSector || this.prismRelic || this.prismRelicCueTimer) return false;
-                return this.gridlockActive && enemyCount >= gridlockEnemyThreshold;
-            }
-
-            beginRelicAttempt(context) {
-                if (!this.canSpawnRelic(context)) return 0;
-                this.gridlockRelicAttemptNumber += 1;
-                return this.gridlockRelicAttemptNumber;
-            }
-
-            isRelicAttemptCurrent(attemptNumber) {
-                return Number(attemptNumber) === this.gridlockRelicAttemptNumber;
-            }
-
-            markRelicSpawned(relic) {
-                this.prismRelic = relic;
-                this.prismRelicSpawnedThisSector = true;
-                return this.prismRelic;
-            }
-
-            hasPendingRelicAttempt() {
-                return !!this.prismRelic || !!this.prismRelicCueTimer || this.prismRelicSpawnedThisSector;
-            }
-
-            canCancelRelicAttempt() {
-                return this.hasPendingRelicAttempt() && !this.prismRelicRecoveredThisSector;
-            }
-
-            markRelicRecovered() {
-                if (!this.prismRelic || this.prismRelicRecoveredThisSector) return false;
-                this.prismRelicRecoveredThisSector = true;
-                return true;
-            }
-
             getRelicSectorKey(sectorNumber) {
                 return `${sectorNumber}`;
             }
@@ -10131,17 +10323,30 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
             snapshot() {
                 return Object.freeze({
                     gridlockActive: this.gridlockActive,
+                    gridlockEntryCount: this.gridlockEntryCount,
                     overtimeActive: this.overtimeActive,
                     overtimeEnemiesAdded: this.overtimeEnemiesAdded,
+                    nextMilestoneIndex: this.nextMilestoneIndex,
+                    currentMilestone: this.getCurrentMilestone() ? this.getCurrentMilestone().id : null,
+                    milestoneCountdownActive: this.milestoneCountdownActive,
+                    milestoneCountdownElapsedMs: this.milestoneCountdownElapsedMs,
+                    milestoneWaitingForMaterialization: this.milestoneWaitingForMaterialization,
+                    pendingOvertimeSpawn: this.pendingOvertimeSpawnContext ? { ...this.pendingOvertimeSpawnContext } : null,
+                    sequenceComplete: this.isSequenceComplete(),
+                    milestones: this.milestoneStates.map((milestone) => ({ ...milestone })),
                     superGridlockBonusesThisSector: this.superGridlockBonusesThisSector,
                     superGridlockBonusPointsThisSector: this.superGridlockBonusPointsThisSector,
+                    gridlockPrismPointsThisSector: this.gridlockPrismPointsThisSector,
+                    totalGridlockPrismPointsThisSector: this.totalGridlockPrismPointsThisSector,
                     prismRelicVisible: !!this.prismRelic,
+                    currentPrismMilestoneId: this.currentPrismMilestoneId,
                     prismRelicSpawnedThisSector: this.prismRelicSpawnedThisSector,
                     prismRelicRecoveredThisSector: this.prismRelicRecoveredThisSector,
                     gridlockRelicAttemptNumber: this.gridlockRelicAttemptNumber
                 });
             }
         }
+
 
 
 /* Source: src/js/gameplay/87-enemy-spawn-system.js */
@@ -13461,6 +13666,8 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
             buildTelemetrySectorOutcomeSummary(...args) { return TelemetrySystem.implementations.buildTelemetrySectorOutcomeSummary.apply(this.game, args); }
             buildSectorPressureReport(...args) { return TelemetrySystem.implementations.buildSectorPressureReport.apply(this.game, args); }
             noteTelemetryGridlock(...args) { return TelemetrySystem.implementations.noteTelemetryGridlock.apply(this.game, args); }
+            noteTelemetryGridlockExit(...args) { return TelemetrySystem.implementations.noteTelemetryGridlockExit.apply(this.game, args); }
+            noteTelemetryGridlockSequenceEvent(...args) { return TelemetrySystem.implementations.noteTelemetryGridlockSequenceEvent.apply(this.game, args); }
             noteTelemetryPrismRelicAppeared(...args) { return TelemetrySystem.implementations.noteTelemetryPrismRelicAppeared.apply(this.game, args); }
             noteTelemetryPrismRelicCollected(...args) { return TelemetrySystem.implementations.noteTelemetryPrismRelicCollected.apply(this.game, args); }
             noteTelemetryPrismRelicCanceled(...args) { return TelemetrySystem.implementations.noteTelemetryPrismRelicCanceled.apply(this.game, args); }
@@ -13495,8 +13702,8 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
         TelemetrySystem.implementations = Object.freeze({
             loadTelemetryData: function() {
                 const emptyTelemetry = {
-                    schema: 'blockazoids-balance-v10',
-                    schemaVersion: 10,
+                    schema: 'blockazoids-balance-v11',
+                    schemaVersion: 11,
                     loadedSchema: null,
                     runs: [],
                     restoredFromLocalStorage: false,
@@ -13508,8 +13715,8 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                     if (!saved) return emptyTelemetry;
 
                     const telemetry = {
-                        schema: 'blockazoids-balance-v10',
-                        schemaVersion: 10,
+                        schema: 'blockazoids-balance-v11',
+                        schemaVersion: 11,
                         loadedSchema: saved.schema || null,
                         runs: Array.isArray(saved.runs) ? saved.runs.slice() : [],
                         restoredFromLocalStorage: true,
@@ -13566,8 +13773,8 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
 
                 while (storedRuns.length >= 0) {
                     const payload = {
-                        schema: 'blockazoids-balance-v10',
-                        schemaVersion: 10,
+                        schema: 'blockazoids-balance-v11',
+                        schemaVersion: 11,
                         savedAt,
                         runs: storedRuns,
                         activeRun,
@@ -13578,7 +13785,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                     try {
                         storageService.setItem(this.telemetrySystem.telemetryStorageKey, JSON.stringify(payload));
                         this.telemetrySystem.telemetry.schema = payload.schema;
-                        this.telemetrySystem.telemetry.schemaVersion = 10;
+                        this.telemetrySystem.telemetry.schemaVersion = 11;
                         this.telemetrySystem.telemetry.runs = storedRuns;
                         this.telemetrySystem.telemetry.lastSavedAt = savedAt;
                         this.telemetrySystem.updateTelemetrySummary();
@@ -13656,11 +13863,12 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                     cosmicZapPressure: this.cosmicZapSystem.usesThisSector,
                     cosmicZapsAvailable: this.cosmicZapSystem.getCapacity(this.settings.difficultyMode),
                     blinkingCrystalCount: this.crystalSystem.currentBlinkingCrystalCount,
-                    prismRelicSpawnMode: 'gridlock-only',
+                    prismRelicSpawnMode: 'unified-gridlock-milestone-sequence',
                     prismRelicSpawnEnemyThreshold: this.gridlockEnemyThreshold,
-                    gridlockRelicDelayMs: GAME_CONFIG.gridlock.relicDelayMs,
+                    gridlockMilestoneIntervalMs: GAME_CONFIG.gridlock.milestoneIntervalMs,
+                    gridlockMilestones: GAME_CONFIG.gridlock.milestones.map((milestone) => ({ ...milestone })),
                     prismRelicCueDelayMs: this.gridlockSystem.prismRelicCueDelayMs,
-                    prismRelicLifetimeMs: null,
+                    prismRelicLifetimeMs: 'until-next-gridlock-event',
                     minSpawnDistance: this.MIN_SPAWN_DISTANCE
                 };
                         },
@@ -13682,7 +13890,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                     startingSector: this.campaign.currentSector,
                     fullRunStartedFromSectorOne: this.campaign.currentSector === 1 && sourceInfo.category === 'regular-play',
                     difficultyMode: this.settings.difficultyMode,
-                    telemetrySchemaVersion: 10,
+                    telemetrySchemaVersion: 11,
                     startedAt: new Date().toISOString(),
                     startPerformanceMs: Math.round(performance.now()),
                     pausedDurationMs: 0,
@@ -13733,7 +13941,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                     runSourceRaw: this.telemetrySystem.currentTelemetryRun.sourceRaw || this.telemetrySystem.currentTelemetryRun.source || null,
                     buildVersion: document.documentElement.dataset.buildVersion || BUILD_VERSION,
                     difficultyMode: this.settings.difficultyMode,
-                    telemetrySchemaVersion: 10,
+                    telemetrySchemaVersion: 11,
                     difficultySnapshot,
                     startedAt: new Date().toISOString(),
                     startPerformanceMs: performance.now(),
@@ -13796,6 +14004,24 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                     gridlockReached: false,
                     gridlockTimeMs: null,
                     gridlockEntries: [],
+                    gridlockExits: [],
+                    gridlockSequenceEvents: [],
+                    gridlockCountdownEvents: [],
+                    gridlockMilestoneEvents: [],
+                    overtimeEnemyMilestones: [],
+                    prismEvents: [],
+                    currentGridlockMilestone: 'white-prism',
+                    gridlockMilestoneSequence: GAME_CONFIG.gridlock.milestones.map((milestone, index) => ({
+                        id: milestone.id,
+                        index,
+                        type: milestone.type,
+                        color: milestone.color || null,
+                        pointValue: Number(milestone.points) || 0,
+                        status: 'pending'
+                    })),
+                    gridlockPrismPointsEarned: 0,
+                    superGridlockPrismPointsEarned: 0,
+                    totalGridlockPrismPointsEarned: 0,
                     gridlockDurationMs: 0,
                     timeInGridlockMs: 0,
                     clearedAfterGridlock: false,
@@ -14572,132 +14798,211 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 );
                         },
 
-            noteTelemetryGridlock: function() {
+            noteTelemetryGridlockSequenceEvent: function(eventType, details = {}) {
+                if (!this.telemetrySystem.currentTelemetrySector || this.telemetrySystem.currentTelemetrySector.endedAt) return null;
+                const sector = this.telemetrySystem.currentTelemetrySector;
+                const elapsed = this.telemetrySystem.telemetrySectorElapsedMs();
+                const event = {
+                    eventType,
+                    sectorTimeMs: elapsed,
+                    gridlockEntry: this.gridlockSystem.gridlockEntryCount,
+                    milestoneId: details.milestoneId || null,
+                    milestoneType: details.milestoneType || null,
+                    color: details.color || null,
+                    pointValue: Math.max(0, Number(details.pointValue) || 0),
+                    ...details
+                };
+                if (!Array.isArray(sector.gridlockSequenceEvents)) sector.gridlockSequenceEvents = [];
+                sector.gridlockSequenceEvents.push(event);
+                if (event.milestoneId) sector.currentGridlockMilestone = event.milestoneId;
+
+                if (eventType === 'countdown-start' || eventType === 'countdown-interrupted') {
+                    if (!Array.isArray(sector.gridlockCountdownEvents)) sector.gridlockCountdownEvents = [];
+                    sector.gridlockCountdownEvents.push(event);
+                }
+                if (eventType === 'milestone-triggered') {
+                    if (!Array.isArray(sector.gridlockMilestoneEvents)) sector.gridlockMilestoneEvents = [];
+                    sector.gridlockMilestoneEvents.push(event);
+                }
+                if (eventType === 'overtime-enemy-milestone' || eventType === 'overtime-enemy-materialized' || eventType === 'post-sequence-overtime-enemy') {
+                    if (!Array.isArray(sector.overtimeEnemyMilestones)) sector.overtimeEnemyMilestones = [];
+                    sector.overtimeEnemyMilestones.push(event);
+                }
+                if (eventType.startsWith('prism-')) {
+                    if (!Array.isArray(sector.prismEvents)) sector.prismEvents = [];
+                    sector.prismEvents.push(event);
+                }
+
+                if (event.milestoneId && Array.isArray(sector.gridlockMilestoneSequence)) {
+                    const milestone = sector.gridlockMilestoneSequence.find((item) => item.id === event.milestoneId);
+                    if (milestone) {
+                        if (eventType === 'milestone-triggered') milestone.status = 'triggered';
+                        if (eventType === 'overtime-enemy-materialized') milestone.status = 'completed';
+                        if (eventType === 'prism-appeared') milestone.status = 'available';
+                        if (eventType === 'prism-collected') milestone.status = 'collected';
+                        if (eventType === 'prism-expired') milestone.status = 'expired';
+                        if (eventType === 'prism-forfeited') milestone.status = 'forfeited';
+                    }
+                }
+                return event;
+                        },
+
+            noteTelemetryGridlock: function(context = {}) {
                 if (!this.telemetrySystem.currentTelemetrySector || this.telemetrySystem.currentTelemetrySector.endedAt) return;
                 const elapsed = this.telemetrySystem.telemetrySectorElapsedMs();
                 const colorState = this.telemetrySystem.getCurrentColorTelemetryState();
-                if (!this.telemetrySystem.currentTelemetrySector.gridlockReached) {
-                    this.telemetrySystem.currentTelemetrySector.gridlockReached = true;
-                    this.telemetrySystem.currentTelemetrySector.gridlockTimeMs = elapsed;
+                const sector = this.telemetrySystem.currentTelemetrySector;
+                if (!sector.gridlockReached) {
+                    sector.gridlockReached = true;
+                    sector.gridlockTimeMs = elapsed;
                 }
-                if (!Array.isArray(this.telemetrySystem.currentTelemetrySector.gridlockEntries)) this.telemetrySystem.currentTelemetrySector.gridlockEntries = [];
-                this.telemetrySystem.currentTelemetrySector.gridlockEntries.push({
-                    entry: this.telemetrySystem.currentTelemetrySector.gridlockEntries.length + 1,
+                if (!Array.isArray(sector.gridlockEntries)) sector.gridlockEntries = [];
+                const entry = {
+                    entry: sector.gridlockEntries.length + 1,
                     sectorTimeMs: elapsed,
+                    isReentry: context.isReentry === true,
+                    milestoneId: context.milestoneId || null,
+                    gridlockEntry: context.gridlockEntry || this.gridlockSystem.gridlockEntryCount,
                     activeBlockAZoids: this.enemies.length,
                     remainingCrystals: this.crystalSystem.crystals.length,
                     remainingCrystalsByColor: colorState.remainingCrystalsByColor,
                     currentColor: colorState.currentColor,
                     currentColorRemaining: colorState.currentColorRemaining,
-                    timeSinceLastCrystalPickupMs: this.telemetrySystem.currentTelemetrySector.lastCrystalPickupMs !== null ? Math.max(0, elapsed - this.telemetrySystem.currentTelemetrySector.lastCrystalPickupMs) : null,
+                    timeSinceLastCrystalPickupMs: sector.lastCrystalPickupMs !== null ? Math.max(0, elapsed - sector.lastCrystalPickupMs) : null,
                     nearestEnemyDistanceFromOrbPx: this.telemetrySystem.getNearestEnemyDistanceFromOrb()
+                };
+                sector.gridlockEntries.push(entry);
+                this.telemetrySystem.noteTelemetryGridlockSequenceEvent(context.isReentry ? 'gridlock-reentry' : 'gridlock-entry', entry);
+                        },
+
+            noteTelemetryGridlockExit: function(reason = 'exit', details = {}) {
+                if (!this.telemetrySystem.currentTelemetrySector || this.telemetrySystem.currentTelemetrySector.endedAt) return;
+                const sector = this.telemetrySystem.currentTelemetrySector;
+                const elapsed = this.telemetrySystem.telemetrySectorElapsedMs();
+                if (!Array.isArray(sector.gridlockExits)) sector.gridlockExits = [];
+                const exit = {
+                    exit: sector.gridlockExits.length + 1,
+                    sectorTimeMs: elapsed,
+                    reason,
+                    milestoneId: details.milestoneId || (this.gridlockSystem.getCurrentMilestone() ? this.gridlockSystem.getCurrentMilestone().id : null),
+                    sequenceComplete: details.sequenceComplete === true || this.gridlockSystem.isSequenceComplete(),
+                    activeBlockAZoids: this.enemies.length
+                };
+                sector.gridlockExits.push(exit);
+                this.telemetrySystem.noteTelemetryGridlockSequenceEvent('gridlock-exit', exit);
+                        },
+
+            noteTelemetryPrismRelicAppeared: function(relic = this.gridlockSystem.prismRelic) {
+                if (!this.telemetrySystem.currentTelemetrySector || this.telemetrySystem.currentTelemetrySector.endedAt || !relic) return;
+                const sector = this.telemetrySystem.currentTelemetrySector;
+                const elapsed = this.telemetrySystem.telemetrySectorElapsedMs();
+                const colorState = this.telemetrySystem.getCurrentColorTelemetryState();
+                const relicCenter = { x: relic.x + relic.size / 2, y: relic.y + relic.size / 2 };
+                const timeFromGridlockMs = sector.gridlockTimeMs !== null ? Math.max(0, elapsed - sector.gridlockTimeMs) : null;
+                if (!sector.prismRelicAppeared) {
+                    sector.prismRelicAppeared = true;
+                    sector.prismRelicAppearTimeMs = elapsed;
+                }
+                const attempts = sector.gridlockRelicAttempts || [];
+                const attempt = {
+                    attempt: relic.attemptNumber || this.gridlockSystem.gridlockRelicAttemptNumber || attempts.length + 1,
+                    milestoneId: relic.milestoneId,
+                    color: relic.color,
+                    pointValue: relic.points,
+                    label: relic.label,
+                    appearTimeMs: elapsed,
+                    gridlockElapsedMs: timeFromGridlockMs,
+                    timeFromGridlockToRelicAppearanceMs: timeFromGridlockMs,
+                    activeBlockAZoids: this.enemies.length,
+                    remainingCrystals: this.crystalSystem.crystals.length,
+                    remainingCrystalsByColor: colorState.remainingCrystalsByColor,
+                    currentColor: colorState.currentColor,
+                    currentColorRemaining: colorState.currentColorRemaining,
+                    timeSinceLastCrystalPickupMs: sector.lastCrystalPickupMs !== null ? Math.max(0, elapsed - sector.lastCrystalPickupMs) : null,
+                    nearestEnemyDistanceAtRelicAppearancePx: this.telemetrySystem.getNearestEnemyDistanceFromPoint(relicCenter),
+                    nearestEnemyDistanceFromOrbAtRelicAppearancePx: this.telemetrySystem.getNearestEnemyDistanceFromOrb(),
+                    collected: false,
+                    canceledBy: null,
+                    endedAtMs: null
+                };
+                attempts.push(attempt);
+                sector.gridlockRelicAttempts = attempts;
+                sector.gridlockRelicAttemptCount = attempts.length;
+                this.telemetrySystem.noteTelemetryGridlockSequenceEvent('prism-appeared', {
+                    milestoneId: relic.milestoneId,
+                    milestoneType: 'prism',
+                    color: relic.color,
+                    pointValue: relic.points,
+                    appearanceTimeMs: elapsed,
+                    attempt: attempt.attempt
                 });
                         },
 
-            noteTelemetryPrismRelicAppeared: function() {
-                if (!this.telemetrySystem.currentTelemetrySector || this.telemetrySystem.currentTelemetrySector.endedAt) return;
+            noteTelemetryPrismRelicCollected: function(relic = this.gridlockSystem.prismRelic) {
+                if (!this.telemetrySystem.currentTelemetrySector || this.telemetrySystem.currentTelemetrySector.endedAt || !relic) return;
+                const sector = this.telemetrySystem.currentTelemetrySector;
                 const elapsed = this.telemetrySystem.telemetrySectorElapsedMs();
-                const colorState = this.telemetrySystem.getCurrentColorTelemetryState();
-                const relicCenter = this.gridlockSystem.prismRelic ? {
-                    x: this.gridlockSystem.prismRelic.x + this.gridlockSystem.prismRelic.size / 2,
-                    y: this.gridlockSystem.prismRelic.y + this.gridlockSystem.prismRelic.size / 2
-                } : { x: this.PLAYFIELD_SIZE / 2, y: this.PLAYFIELD_SIZE / 2 };
-                const timeFromGridlockMs = this.telemetrySystem.currentTelemetrySector.gridlockTimeMs !== null ? Math.max(0, elapsed - this.telemetrySystem.currentTelemetrySector.gridlockTimeMs) : null;
-                if (!this.telemetrySystem.currentTelemetrySector.prismRelicAppeared) {
-                    this.telemetrySystem.currentTelemetrySector.prismRelicAppeared = true;
-                    this.telemetrySystem.currentTelemetrySector.prismRelicAppearTimeMs = elapsed;
+                if (!sector.prismRelicCollected) {
+                    sector.prismRelicCollected = true;
+                    sector.prismRelicCollectTimeMs = elapsed;
                 }
-                const attemptNumber = this.gridlockSystem.gridlockRelicAttemptNumber || 1;
-                const attempts = this.telemetrySystem.currentTelemetrySector.gridlockRelicAttempts || [];
-                if (!attempts.some(attempt => attempt.attempt === attemptNumber)) {
-                    attempts.push({
-                        attempt: attemptNumber,
-                        appearTimeMs: elapsed,
-                        gridlockElapsedMs: timeFromGridlockMs,
-                        timeFromGridlockToRelicAppearanceMs: timeFromGridlockMs,
-                        activeBlockAZoids: this.enemies.length,
-                        remainingCrystals: this.crystalSystem.crystals.length,
-                        remainingCrystalsByColor: colorState.remainingCrystalsByColor,
-                        currentColor: colorState.currentColor,
-                        currentColorRemaining: colorState.currentColorRemaining,
-                        timeSinceLastCrystalPickupMs: this.telemetrySystem.currentTelemetrySector.lastCrystalPickupMs !== null ? Math.max(0, elapsed - this.telemetrySystem.currentTelemetrySector.lastCrystalPickupMs) : null,
-                        nearestEnemyDistanceAtRelicAppearancePx: this.telemetrySystem.getNearestEnemyDistanceFromPoint(relicCenter),
-                        nearestEnemyDistanceFromOrbAtRelicAppearancePx: this.telemetrySystem.getNearestEnemyDistanceFromOrb(),
-                        collected: false,
-                        canceledBy: null,
-                        endedAtMs: null
-                    });
-                }
-                this.telemetrySystem.currentTelemetrySector.gridlockRelicAttempts = attempts;
-                this.telemetrySystem.currentTelemetrySector.gridlockRelicAttemptCount = Math.max(this.telemetrySystem.currentTelemetrySector.gridlockRelicAttemptCount || 0, attempts.length);
-                        },
-
-            noteTelemetryPrismRelicCollected: function() {
-                if (!this.telemetrySystem.currentTelemetrySector || this.telemetrySystem.currentTelemetrySector.endedAt) return;
-                const elapsed = this.telemetrySystem.telemetrySectorElapsedMs();
-                if (!this.telemetrySystem.currentTelemetrySector.prismRelicCollected) {
-                    this.telemetrySystem.currentTelemetrySector.prismRelicCollected = true;
-                    this.telemetrySystem.currentTelemetrySector.prismRelicCollectTimeMs = elapsed;
-                }
-                this.telemetrySystem.currentTelemetrySector.gridlockBonusCollected = true;
-                this.telemetrySystem.currentTelemetrySector.gridlockBonusCollectTimeMs = elapsed;
-                const attempts = this.telemetrySystem.currentTelemetrySector.gridlockRelicAttempts || [];
-                const attempt = [...attempts].reverse().find(item => !item.collected && !item.canceledBy);
+                sector.gridlockBonusCollected = true;
+                sector.gridlockBonusCollectTimeMs = elapsed;
+                const attempts = sector.gridlockRelicAttempts || [];
+                const attempt = [...attempts].reverse().find((item) => item.milestoneId === relic.milestoneId && !item.collected && !item.canceledBy);
                 if (attempt) {
                     attempt.collected = true;
                     attempt.collectedAtMs = elapsed;
                     attempt.endedAtMs = elapsed;
                     attempt.timeVisibleMs = Math.max(0, elapsed - (attempt.appearTimeMs || elapsed));
                     attempt.timeFromRelicAppearanceToCollectMs = attempt.appearTimeMs !== null && attempt.appearTimeMs !== undefined ? Math.max(0, elapsed - attempt.appearTimeMs) : null;
-                    attempt.timeFromGridlockToCollectMs = this.telemetrySystem.currentTelemetrySector.gridlockTimeMs !== null ? Math.max(0, elapsed - this.telemetrySystem.currentTelemetrySector.gridlockTimeMs) : null;
+                    attempt.timeFromGridlockToCollectMs = sector.gridlockTimeMs !== null ? Math.max(0, elapsed - sector.gridlockTimeMs) : null;
                     attempt.nearestEnemyDistanceAtRelicCollectPx = this.telemetrySystem.getNearestEnemyDistanceFromOrb();
                 }
+                const points = Math.max(0, Number(relic.points) || 0);
+                if (relic.color === 'white') sector.gridlockPrismPointsEarned += points;
+                else sector.superGridlockPrismPointsEarned += points;
+                sector.totalGridlockPrismPointsEarned += points;
+                this.telemetrySystem.noteTelemetryGridlockSequenceEvent('prism-collected', {
+                    milestoneId: relic.milestoneId,
+                    milestoneType: 'prism',
+                    color: relic.color,
+                    pointValue: points,
+                    collectionTimeMs: elapsed,
+                    attempt: relic.attemptNumber || null
+                });
                         },
 
-            noteTelemetryPrismRelicCanceled: function(reason = 'canceled') {
-                if (!this.telemetrySystem.currentTelemetrySector || this.telemetrySystem.currentTelemetrySector.endedAt) return;
+            noteTelemetryPrismRelicCanceled: function(reason = 'canceled', relic = this.gridlockSystem.prismRelic, status = 'forfeited') {
+                if (!this.telemetrySystem.currentTelemetrySector || this.telemetrySystem.currentTelemetrySector.endedAt || !relic) return;
+                const sector = this.telemetrySystem.currentTelemetrySector;
                 const elapsed = this.telemetrySystem.telemetrySectorElapsedMs();
                 const colorState = this.telemetrySystem.getCurrentColorTelemetryState();
-                const timeFromGridlockMs = this.telemetrySystem.currentTelemetrySector.gridlockTimeMs !== null ? Math.max(0, elapsed - this.telemetrySystem.currentTelemetrySector.gridlockTimeMs) : null;
-                const attempts = this.telemetrySystem.currentTelemetrySector.gridlockRelicAttempts || [];
-                let attempt = [...attempts].reverse().find(item => !item.collected && !item.canceledBy);
-                if (!attempt && this.gridlockSystem.gridlockRelicAttemptNumber > 0) {
-                    attempt = {
-                        attempt: this.gridlockSystem.gridlockRelicAttemptNumber,
-                        appearTimeMs: null,
-                        gridlockElapsedMs: timeFromGridlockMs,
-                        timeFromGridlockToCancelMs: timeFromGridlockMs,
-                        activeBlockAZoids: this.enemies.length,
-                        remainingCrystals: this.crystalSystem.crystals.length,
-                        remainingCrystalsByColor: colorState.remainingCrystalsByColor,
-                        currentColor: colorState.currentColor,
-                        currentColorRemaining: colorState.currentColorRemaining,
-                        collected: false,
-                        canceledBy: null,
-                        endedAtMs: null,
-                        canceledBeforeAppearance: true
-                    };
-                    attempts.push(attempt);
-                    this.telemetrySystem.currentTelemetrySector.gridlockRelicAttempts = attempts;
-                    this.telemetrySystem.currentTelemetrySector.gridlockRelicAttemptCount = Math.max(this.telemetrySystem.currentTelemetrySector.gridlockRelicAttemptCount || 0, attempts.length);
-                }
+                const attempts = sector.gridlockRelicAttempts || [];
+                const attempt = [...attempts].reverse().find((item) => item.milestoneId === relic.milestoneId && !item.collected && !item.canceledBy);
                 if (attempt) {
                     attempt.canceledBy = reason;
+                    attempt.status = status;
                     attempt.canceledAtMs = elapsed;
+                    attempt.expirationTimeMs = status === 'expired' ? elapsed : null;
                     attempt.endedAtMs = elapsed;
                     attempt.timeVisibleMs = attempt.appearTimeMs !== null && attempt.appearTimeMs !== undefined ? Math.max(0, elapsed - attempt.appearTimeMs) : null;
-                    attempt.timeFromRelicAppearanceToCancelMs = attempt.appearTimeMs !== null && attempt.appearTimeMs !== undefined ? Math.max(0, elapsed - attempt.appearTimeMs) : null;
-                    attempt.timeFromGridlockToCancelMs = timeFromGridlockMs;
                     attempt.nearestEnemyDistanceAtCancelPx = this.telemetrySystem.getNearestEnemyDistanceFromOrb();
                     attempt.currentColorAtCancel = colorState.currentColor;
-                    attempt.currentColorRemainingAtCancel = colorState.currentColorRemaining;
                     attempt.remainingCrystalsAtCancel = this.crystalSystem.crystals.length;
                     attempt.remainingCrystalsByColorAtCancel = colorState.remainingCrystalsByColor;
-                    attempt.timeSinceLastCrystalPickupAtCancelMs = this.telemetrySystem.currentTelemetrySector.lastCrystalPickupMs !== null ? Math.max(0, elapsed - this.telemetrySystem.currentTelemetrySector.lastCrystalPickupMs) : null;
                 }
-                if (reason === 'cosmic-zap') {
-                    this.telemetrySystem.currentTelemetrySector.gridlockRelicCanceledByZap = (this.telemetrySystem.currentTelemetrySector.gridlockRelicCanceledByZap || 0) + 1;
-                }
+                if (reason === 'cosmic-zap') sector.gridlockRelicCanceledByZap = (sector.gridlockRelicCanceledByZap || 0) + 1;
+                this.telemetrySystem.noteTelemetryGridlockSequenceEvent(status === 'expired' ? 'prism-expired' : 'prism-forfeited', {
+                    milestoneId: relic.milestoneId,
+                    milestoneType: 'prism',
+                    color: relic.color,
+                    pointValue: relic.points,
+                    expirationTimeMs: status === 'expired' ? elapsed : null,
+                    forfeitureTimeMs: status === 'forfeited' ? elapsed : null,
+                    forfeitureReason: reason,
+                    cosmicZapCancellation: reason === 'cosmic-zap'
+                });
                         },
 
             noteTelemetryCosmicZap: function(clearedEnemies = []) {
@@ -14940,6 +15245,11 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 sector.overtimeEnemiesAdded = this.gridlockSystem.overtimeEnemiesAdded;
                 sector.superGridlockBonuses = this.gridlockSystem.superGridlockBonusesThisSector || 0;
                 sector.superGridlockBonusPoints = this.gridlockSystem.superGridlockBonusPointsThisSector || 0;
+                sector.gridlockPrismPointsEarned = this.gridlockSystem.gridlockPrismPointsThisSector || sector.gridlockPrismPointsEarned || 0;
+                sector.superGridlockPrismPointsEarned = this.gridlockSystem.superGridlockBonusPointsThisSector || sector.superGridlockPrismPointsEarned || 0;
+                sector.totalGridlockPrismPointsEarned = this.gridlockSystem.totalGridlockPrismPointsThisSector || sector.totalGridlockPrismPointsEarned || 0;
+                sector.currentGridlockMilestone = this.gridlockSystem.getCurrentMilestone() ? this.gridlockSystem.getCurrentMilestone().id : null;
+                sector.gridlockMilestoneSequence = this.gridlockSystem.milestoneStates.map((milestone) => ({ ...milestone }));
                 sector.prismRelicRecovered = this.gridlockSystem.prismRelicRecoveredThisSector;
                 const perfectEligibleNoZapOnly = result === 'completed' && this.crystalSystem.isPerfectSectorEligible(sector.cosmicZapsUsed || 0);
                 const perfectEligibleWithGridlockRelic = perfectEligibleNoZapOnly && !!this.gridlockSystem.prismRelicRecoveredThisSector;
@@ -15099,6 +15409,11 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                         gridlockReached: this.telemetrySystem.currentTelemetrySector.gridlockReached,
                         prismRelicAppeared: this.telemetrySystem.currentTelemetrySector.prismRelicAppeared,
                         prismRelicCollected: this.telemetrySystem.currentTelemetrySector.prismRelicCollected,
+                        currentGridlockMilestone: this.gridlockSystem.getCurrentMilestone() ? this.gridlockSystem.getCurrentMilestone().id : null,
+                        gridlockMilestoneSequence: this.gridlockSystem.milestoneStates.map((milestone) => ({ ...milestone })),
+                        gridlockPrismPointsEarned: this.gridlockSystem.gridlockPrismPointsThisSector,
+                        superGridlockPrismPointsEarned: this.gridlockSystem.superGridlockBonusPointsThisSector,
+                        totalGridlockPrismPointsEarned: this.gridlockSystem.totalGridlockPrismPointsThisSector,
                         stallingStats: this.telemetrySystem.getTelemetryStallingStats(this.telemetrySystem.telemetrySectorElapsedMs())
                     } : null
                 } : null;
@@ -15108,9 +15423,9 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                     this.telemetrySystem.buildSectorPressureReport({ sourceCategory, fullRunsOnly: sourceCategory === 'regular-play' })
                 ]));
                 const exportData = {
-                    schema: 'blockazoids-balance-export-v9',
-                    telemetrySchema: 'blockazoids-balance-v10',
-                    telemetrySchemaVersion: 10,
+                    schema: 'blockazoids-balance-export-v10',
+                    telemetrySchema: 'blockazoids-balance-v11',
+                    telemetrySchemaVersion: 11,
                     exportedAt: new Date().toISOString(),
                     build: BUILD_VERSION,
                     buildVersion: document.documentElement.dataset.buildVersion || BUILD_VERSION,
@@ -15151,7 +15466,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                     this.telemetrySystem.setTelemetryStatus('Developer Mode required.');
                     return;
                 }
-                this.telemetrySystem.telemetry = { schema: 'blockazoids-balance-v10', schemaVersion: 10, loadedSchema: null, runs: [], restoredFromLocalStorage: false, recoveredActiveRuns: 0, lastSavedAt: null };
+                this.telemetrySystem.telemetry = { schema: 'blockazoids-balance-v11', schemaVersion: 11, loadedSchema: null, runs: [], restoredFromLocalStorage: false, recoveredActiveRuns: 0, lastSavedAt: null };
                 this.telemetrySystem.currentTelemetryRun = null;
                 this.telemetrySystem.currentTelemetrySector = null;
                 try { storageService.removeItem(this.telemetrySystem.telemetryStorageKey); } catch (_) {}
@@ -15680,8 +15995,16 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 ['unusedCosmicZapBonus', 'perfectSectorBonus', 'gridlockRelicBonus', 'colorCompleteBonus'].forEach((key) => {
                     this.assert(`Scoring value is nonnegative: ${key}`, Number.isFinite(scoring[key]) && scoring[key] >= 0);
                 });
-                this.assert('Super Gridlock maximum is derived from rewards',
-                    GameRules.getSuperGridlockMaximum() === config.gridlock.superGridlockRewards.reduce((sum, value) => sum + value, 0));
+                this.assert('Gridlock milestone sequence has seven alternating events',
+                    Array.isArray(config.gridlock.milestones) && config.gridlock.milestones.length === 7 &&
+                    config.gridlock.milestones.every((milestone, index) => milestone.type === (index % 2 === 0 ? 'prism' : 'enemy')));
+                this.assert('Gridlock milestones use one 30-second interval', config.gridlock.milestoneIntervalMs === 30000);
+                this.assert('Gridlock Prism values match the authored progression',
+                    GameRules.getGridlockPrismValue('white') === 300 &&
+                    GameRules.getGridlockPrismValue('red') === 100 &&
+                    GameRules.getGridlockPrismValue('green') === 150 &&
+                    GameRules.getGridlockPrismValue('blue') === 250);
+                this.assert('Super Gridlock maximum is derived from colored Prism milestones', GameRules.getSuperGridlockMaximum() === 500);
 
                 this.assert('Top HUD text timing is configured once', config.visualTiming.topHudAnnouncement.textMs === 2000);
                 this.assert('Top HUD points timing is configured once', config.visualTiming.topHudAnnouncement.pointsMs === 1000);
@@ -15895,24 +16218,21 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 const gridlock = new GridlockSystem(GAME_CONFIG);
                 const gridlockContext = { liveAction: true, enemyCount: GAME_CONFIG.enemySpawning.gridlockEnemyThreshold, gridlockEnemyThreshold: GAME_CONFIG.enemySpawning.gridlockEnemyThreshold };
                 this.assert('GridlockSystem owns activation readiness', gridlock.canScheduleGridlock(gridlockContext) === true);
-                this.assert('GridlockSystem owns Gridlock activation', gridlock.activateGridlock(gridlockContext) === true && gridlock.gridlockActive === true);
+                this.assert('GridlockSystem owns Gridlock activation', gridlock.activateGridlock(gridlockContext) === true && gridlock.gridlockActive === true && gridlock.gridlockEntryCount === 1);
                 this.assert('GridlockSystem owns Overtime start', gridlock.startOvertime() === true && gridlock.overtimeActive === true);
-                const firstOvertime = gridlock.registerOvertimeEnemy();
-                this.assert('GridlockSystem owns Super Gridlock rewards', firstOvertime.reward === GAME_CONFIG.gridlock.superGridlockRewards[0] && gridlock.superGridlockBonusPointsThisSector === firstOvertime.reward);
-                gridlock.resetSector(3);
-                gridlock.startOvertime();
-                const finalGridlockOvertime = gridlock.registerOvertimeEnemy({ superGridlockEnabled: false });
-                this.assert('Final Gridlock overtime cannot award Super Gridlock', finalGridlockOvertime.reward === 0 && gridlock.superGridlockBonusesThisSector === 0 && gridlock.superGridlockBonusPointsThisSector === 0);
+                const firstMilestone = gridlock.beginMilestoneCountdown();
+                this.assert('GridlockSystem starts with the white Prism milestone', firstMilestone && firstMilestone.id === 'white-prism' && gridlock.milestoneCountdownActive);
+                gridlock.markMilestoneTriggered('white-prism', 30000);
+                const relicAttempt = gridlock.beginRelicAttempt(firstMilestone);
+                const fakeRelic = { id: 'test-relic', milestoneId: 'white-prism', color: 'white', points: 300 };
+                gridlock.markRelicSpawned(fakeRelic, firstMilestone, 30000);
+                this.assert('GridlockSystem advances after Prism appearance', gridlock.prismRelic === fakeRelic && gridlock.getCurrentMilestone().id === 'super-gridlock-1');
+                gridlock.resolveVisiblePrism('collected', 'orb-contact', 31000);
+                this.assert('GridlockSystem awards only collected Prism points', gridlock.gridlockPrismPointsThisSector === 300 && gridlock.totalGridlockPrismPointsThisSector === 300 && gridlock.superGridlockBonusPointsThisSector === 0);
+                const overtime = gridlock.registerOvertimeEnemy({ milestoneId: 'super-gridlock-1' });
+                this.assert('Overtime enemy materialization awards no automatic points', overtime.reward === 0 && gridlock.superGridlockBonusPointsThisSector === 0);
                 gridlock.resetSector(GAME_CONFIG.enemySpawning.gridlockEnemyThreshold);
-                gridlock.activateGridlock(gridlockContext);
-                const relicAttempt = gridlock.beginRelicAttempt({ ...gridlockContext, finalGridlockActive: false });
-                this.assert('GridlockSystem owns relic attempts', relicAttempt === 1 && gridlock.gridlockRelicAttemptNumber === 1);
-                const fakeRelic = { id: 'test-relic' };
-                gridlock.markRelicSpawned(fakeRelic);
-                this.assert('GridlockSystem owns relic visibility', gridlock.prismRelic === fakeRelic && gridlock.prismRelicSpawnedThisSector === true);
-                this.assert('GridlockSystem owns relic recovery state', gridlock.markRelicRecovered() === true && gridlock.prismRelicRecoveredThisSector === true);
-                gridlock.resetSector(GAME_CONFIG.enemySpawning.gridlockEnemyThreshold);
-                this.assert('GridlockSystem resets sector state', !gridlock.gridlockActive && !gridlock.overtimeActive && !gridlock.prismRelicRecoveredThisSector && gridlock.superGridlockBonusPointsThisSector === 0);
+                this.assert('GridlockSystem resets sector milestones', !gridlock.gridlockActive && !gridlock.overtimeActive && gridlock.nextMilestoneIndex === 0 && gridlock.totalGridlockPrismPointsThisSector === 0);
 
 
                 const enemySpawns = new EnemySpawnSystem(null, GAME_CONFIG);
@@ -16787,7 +17107,19 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 if (game.gridlockSystem.overtimeActive) {
                     game.audio.setGridlockBeatIntensity(game.runtimeState.finalGridlockActive ? 0 : game.gridlockSystem.overtimeEnemiesAdded);
                     game.audio.startGridlockBeat(0);
-                    game.scheduleOvertimeEnemy();
+                    if (game.runtimeState.finalGridlockActive) {
+                        game.scheduleOvertimeEnemy();
+                    } else if (game.gridlockSystem.milestoneWaitingForMaterialization) {
+                        const milestone = game.gridlockSystem.getCurrentMilestone();
+                        if (milestone && !game.spawnOvertimeEnemy({ milestoneId: milestone.id })) {
+                            game.gridlockSystem.revertTriggeredMilestoneForRetry(milestone.id, 5000);
+                        }
+                    } else if (game.gridlockSystem.postSequenceWarningPending) {
+                        if (!game.spawnOvertimeEnemy({ postSequence: true })) {
+                            game.gridlockSystem.postSequenceWarningPending = false;
+                            game.gridlockSystem.postSequenceOvertimeElapsedMs = Math.max(0, GAME_CONFIG.gridlock.overtimeEnemyIntervalMs - 5000);
+                        }
+                    }
                 }
                 if (game.gridlockSystem.prismRelic) game.audio.startPrismRelicHum();
                 game.requestWakeLock();
@@ -16806,11 +17138,10 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 const game = this.game;
                 game.screenManager.updatePauseGridMenu();
                 game.ui.updateAll();
+                if (game.gridlockSystem.gridlockActive) game.telemetrySystem.noteTelemetryGridlockExit('sector-complete');
+                game.forfeitGridlockPrismsAtSectorEnd('sector-complete');
                 game.cancelGameplayScheduling();
                 game.releaseWakeLock();
-                if (!game.gridlockSystem.prismRelicRecoveredThisSector && (game.gridlockSystem.prismRelic || game.gridlockSystem.prismRelicCueTimer || game.gridlockSystem.prismRelicSpawnedThisSector)) {
-                    game.telemetrySystem.noteTelemetryPrismRelicCanceled('sector-complete');
-                }
                 game.removePrismRelic();
                 game.audio.stopBackgroundMusic();
             }
@@ -16911,9 +17242,8 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 game.screenManager.setOverlayVisible(false);
                 game.audio.stopBackgroundMusic(); // Stop music
 
-                if (!game.gridlockSystem.prismRelicRecoveredThisSector && (game.gridlockSystem.prismRelic || game.gridlockSystem.prismRelicCueTimer || game.gridlockSystem.prismRelicSpawnedThisSector)) {
-                    game.telemetrySystem.noteTelemetryPrismRelicCanceled('death');
-                }
+                if (game.gridlockSystem.gridlockActive) game.telemetrySystem.noteTelemetryGridlockExit('death');
+                game.forfeitGridlockPrismsAtSectorEnd('death');
                 game.telemetrySystem.finishTelemetrySector('death', {
                     death: {
                         x: Math.round(game.orb.x + game.orb.size / 2),
@@ -19194,11 +19524,18 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                     !container.classList.contains('monitor-ui-suspended') &&
                     (container.classList.contains('crt-fx-object-rgb') || container.classList.contains('monitor-crt'))
                 );
+                const prismPalette = {
+                    white: { solid: '#fff', rgb: '255,255,255' },
+                    red: { solid: this.getPaletteColor('red'), rgb: '255,64,64' },
+                    green: { solid: this.getPaletteColor('green'), rgb: '64,255,128' },
+                    blue: { solid: this.getPaletteColor('blue'), rgb: '64,144,255' }
+                };
+                const prismColor = prismPalette[relic.color] || prismPalette.white;
 
                 const gradient = context.createRadialGradient(centerX, centerY, 0, centerX, centerY, size * 1.75 * auraScale);
-                gradient.addColorStop(0, `rgba(255,255,255,${0.72 * auraOpacity})`);
-                gradient.addColorStop(0.38, `rgba(255,255,255,${0.30 * auraOpacity})`);
-                gradient.addColorStop(1, 'rgba(255,255,255,0)');
+                gradient.addColorStop(0, `rgba(${prismColor.rgb},${0.72 * auraOpacity})`);
+                gradient.addColorStop(0.38, `rgba(${prismColor.rgb},${0.30 * auraOpacity})`);
+                gradient.addColorStop(1, `rgba(${prismColor.rgb},0)`);
                 context.save();
                 context.fillStyle = gradient;
                 context.beginPath();
@@ -19222,17 +19559,17 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
 
                 context.save();
                 context.globalAlpha = bodyAlpha;
-                context.fillStyle = '#fff';
-                context.shadowColor = '#fff';
+                context.fillStyle = prismColor.solid;
+                context.shadowColor = prismColor.solid;
                 context.shadowBlur = this.scalePlayfieldGlow(glowSpread);
                 context.fillRect(-size / 2, -size / 2, size, size);
                 context.restore();
 
                 context.save();
                 context.globalAlpha = borderAlpha;
-                context.strokeStyle = '#fff';
+                context.strokeStyle = prismColor.solid;
                 context.lineWidth = 1;
-                context.shadowColor = '#fff';
+                context.shadowColor = prismColor.solid;
                 context.shadowBlur = this.scalePlayfieldGlow(14 + 20 * eased);
                 context.strokeRect(-size / 2 + 0.5, -size / 2 + 0.5, Math.max(0, size - 1), Math.max(0, size - 1));
                 context.restore();
@@ -21347,18 +21684,8 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 this.crystalSystem.activeBlinkingCrystals = [];     // Current selectable blinking crystals; kept stable between pickups
                 this.survivalScoreAccumulator = 0;   // Tracks active gameplay seconds for +1 point per second
                 this.sectorElapsedMs = 0;            // Total active time in the current sector
-                this.gridlockSystem.gridlockActive = false; // Gameplay/audio flag: resets after Cosmic Zaps so Gridlock can trigger again
-                this.gridlockSystem.gridlockCueTimer = null;      // Delays the actual gridlock bonus trigger so it does not overlap the final spawn sound
-                this.gridlockSystem.gridlockCueDelayMs = GAME_CONFIG.gridlock.activationCueDelayMs; // Gap after the final enemy materializes
-                this.gridlockSystem.overtimeActive = false;       // Overtime starts after Gridlock and lasts until sector end/death/restart
-                this.gridlockSystem.overtimeEnemyTimer = null;    // Adds extra Block-A-Zoids during Overtime
-                this.gridlockSystem.overtimeEnemiesAdded = 0;     // Raises the Gridlock beat tempo/pitch as Overtime escalates
-                this.gridlockSystem.overtimeBehaviorQueue = [];     // Shuffled copy of the current sector's authored enemy mixture
-                this.gridlockSystem.superGridlockBonusesThisSector = 0;
-                this.gridlockSystem.superGridlockBonusPointsThisSector = 0;
-                this.gridlockSystem.prismRelicCueTimer = null;       // Delays the actual Prism Relic trigger so it does not overlap an enemy spawn sound
-                this.gridlockSystem.prismRelicSpawnEnemyThreshold = 0; // Hidden per-sector Block-A-Zoid count that triggers the Prism Relic
-                this.gridlockSystem.prismRelicCueDelayMs = GAME_CONFIG.gridlock.initialRelicCueDelayMs; // Replaced by the configured Gridlock delay at sector reset
+                // GridlockSystem owns the complete per-sector milestone sequence and all reward state.
+                this.gridlockSystem.resetState();
                 this.crystalSystem.colorOrder = GAME_DATA.colorOrder.slice(); // Order of crystal colors
                 this.colorMap = { 
                     red: this.RED_COLOR, 
@@ -21505,7 +21832,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 this.initializeResponsiveViewportHandling();
                 this.setupSplashIntro();
                 this.applySectorParameters();
-                this.gridlockSystem.resetRelicTiming(this.gridlockEnemyThreshold);
+                this.gridlockSystem.resetSector(this.gridlockEnemyThreshold);
                 this.highScoreScreen.update();
                 this.attractModeSystem.returnToAttractMode();
                 this.screenManager.refreshOverlay();
@@ -23032,55 +23359,131 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
 
 
 
-            spawnPrismRelic() {
-                const attemptNumber = this.gridlockSystem.beginRelicAttempt({
-                    finalGridlockActive: this.runtimeState.finalGridlockActive,
-                    liveAction: this.flow.isLiveAction(),
-                    enemyCount: this.enemies.length,
-                    gridlockEnemyThreshold: this.gridlockEnemyThreshold
+            getGridlockMilestoneDefinition(id) {
+                return this.gridlockSystem.getMilestoneDefinition(id);
+            }
+
+            getGridlockSequenceTimeMs() {
+                return this.telemetrySystem.currentTelemetrySector
+                    ? this.telemetrySystem.telemetrySectorElapsedMs()
+                    : Math.max(0, Number(this.sectorElapsedMs) || 0);
+            }
+
+            startGridlockMilestoneCountdown(reason = 'gridlock-entry') {
+                if (this.runtimeState.finalGridlockActive) return false;
+                const milestone = this.gridlockSystem.beginMilestoneCountdown();
+                if (!milestone) return false;
+                this.telemetrySystem.noteTelemetryGridlockSequenceEvent('countdown-start', {
+                    reason,
+                    milestoneId: milestone.id,
+                    milestoneType: milestone.type,
+                    color: milestone.color || null,
+                    pointValue: Number(milestone.points) || 0,
+                    countdownDurationMs: GAME_CONFIG.gridlock.milestoneIntervalMs,
+                    gridlockEntry: this.gridlockSystem.gridlockEntryCount
                 });
+                return true;
+            }
+
+            spawnPrismRelic(milestone) {
+                if (!milestone || milestone.type !== 'prism' || this.runtimeState.finalGridlockActive) return false;
+                if (!this.flow.isLiveAction() || !this.gridlockSystem.gridlockActive) return false;
+                if (this.gridlockSystem.prismRelic) return false;
+                const attemptNumber = this.gridlockSystem.beginRelicAttempt(milestone);
                 if (!attemptNumber) return false;
 
-                this.gridlockSystem.prismRelicCueTimer = this.scheduler.scheduleTimeout('gameplay', 'prism-relic-cue', () => {
-                    this.gridlockSystem.prismRelicCueTimer = null;
-                    if (!this.gridlockSystem.isRelicAttemptCurrent(attemptNumber)) return;
-                    if (this.gridlockSystem.prismRelicSpawnedThisSector || this.gridlockSystem.prismRelicRecoveredThisSector || this.gridlockSystem.prismRelic) return;
-                    if (!this.flow.isLiveAction()) return;
-                    if (!this.gridlockSystem.gridlockActive || this.enemies.length < this.gridlockEnemyThreshold) return;
+                const center = this.PLAYFIELD_SIZE / 2;
+                const relic = new PrismRelic(
+                    this,
+                    center - this.PRISM_RELIC_SIZE / 2,
+                    center - this.PRISM_RELIC_SIZE / 2,
+                    {
+                        milestoneId: milestone.id,
+                        color: milestone.color,
+                        points: milestone.points,
+                        label: milestone.label,
+                        attemptNumber
+                    }
+                );
+                const sectorTimeMs = this.getGridlockSequenceTimeMs();
+                if (!this.gridlockSystem.markRelicSpawned(relic, milestone, sectorTimeMs)) {
+                    this.playfieldRenderer.removePrismRelic(relic);
+                    return false;
+                }
+                this.telemetrySystem.noteTelemetryPrismRelicAppeared(relic);
+                if (this.ui && this.ui.flashPrismOpportunity) this.ui.flashPrismOpportunity(milestone.label, milestone.points);
+                this.audio.playPrismRelicAppear();
+                this.audio.startPrismRelicHum();
 
-                    const center = this.PLAYFIELD_SIZE / 2;
-                    const relic = new PrismRelic(
-                        this,
-                        center - this.PRISM_RELIC_SIZE / 2,
-                        center - this.PRISM_RELIC_SIZE / 2
-                    );
-                    this.gridlockSystem.markRelicSpawned(relic);
-                    this.telemetrySystem.noteTelemetryPrismRelicAppeared();
-                    this.audio.playPrismRelicAppear();
-                    this.audio.startPrismRelicHum();
-                }, this.gridlockSystem.prismRelicCueDelayMs);
+                if (this.gridlockSystem.isSequenceComplete()) {
+                    this.gridlockSystem.postSequenceOvertimeElapsedMs = 0;
+                } else {
+                    this.startGridlockMilestoneCountdown('previous-prism-appeared');
+                }
                 return true;
             }
 
             checkPrismRelicSpawnProgress() {
-                if (!this.gridlockSystem.canSpawnRelic({
-                    finalGridlockActive: this.runtimeState.finalGridlockActive,
-                    liveAction: this.flow.isLiveAction(),
-                    enemyCount: this.enemies.length,
-                    gridlockEnemyThreshold: this.gridlockEnemyThreshold
-                })) return false;
-                return this.spawnPrismRelic();
+                // Prism opportunities are owned exclusively by the Gridlock milestone sequence.
+                return false;
+            }
+
+            resolveVisiblePrismRelic(status, reason = null) {
+                const relic = this.gridlockSystem.prismRelic;
+                if (!relic) return null;
+                const sectorTimeMs = this.getGridlockSequenceTimeMs();
+                this.telemetrySystem.noteTelemetryPrismRelicCanceled(reason || status, relic, status);
+                const resolved = this.gridlockSystem.resolveVisiblePrism(status, reason, sectorTimeMs);
+                if (resolved) {
+                    this.playfieldRenderer.removePrismRelic(resolved);
+                    if (this.audio) this.audio.stopPrismRelicHum();
+                }
+                return resolved;
             }
 
             cancelGridlockRelicAttempt(reason = 'canceled') {
-                if (!this.gridlockSystem.canCancelRelicAttempt()) return false;
-                this.telemetrySystem.noteTelemetryPrismRelicCanceled(reason);
-                this.clearPrismRelicCueTimer();
-                this.removePrismRelic();
-                this.gridlockSystem.patchRelic({ prismRelicSpawnedThisSector: false });
-                return true;
+                return !!this.resolveVisiblePrismRelic('forfeited', reason);
             }
 
+            forfeitGridlockPrismsAtSectorEnd(reason = 'sector-end') {
+                if (this.gridlockSystem.prismRelic) this.resolveVisiblePrismRelic('forfeited', reason);
+                const sectorTimeMs = this.getGridlockSequenceTimeMs();
+                const pending = this.gridlockSystem.forfeitPendingPrism(reason, sectorTimeMs);
+                if (pending) {
+                    this.telemetrySystem.noteTelemetryGridlockSequenceEvent('prism-forfeited', {
+                        milestoneId: pending.id,
+                        milestoneType: pending.type,
+                        color: pending.color,
+                        pointValue: pending.points,
+                        forfeitureReason: reason,
+                        pendingBeforeAppearance: true
+                    });
+                }
+            }
+
+            interruptGridlockMilestoneSequence(reason = 'interrupted') {
+                if (this.runtimeState.finalGridlockActive) return false;
+                if (this.gridlockSystem.prismRelic) this.resolveVisiblePrismRelic('forfeited', reason);
+                const current = this.gridlockSystem.getCurrentMilestone();
+                const hadCountdown = this.gridlockSystem.milestoneCountdownActive;
+                const wasWaiting = this.gridlockSystem.milestoneWaitingForMaterialization;
+                this.gridlockSystem.interruptMilestoneCountdown();
+                this.telemetrySystem.noteTelemetryGridlockSequenceEvent('countdown-interrupted', {
+                    reason,
+                    milestoneId: current ? current.id : null,
+                    milestoneType: current ? current.type : null,
+                    color: current ? current.color || null : null,
+                    pointValue: current ? Number(current.points) || 0 : 0,
+                    countdownWasActive: hadCountdown,
+                    materializationWasPending: wasWaiting,
+                    cosmicZapCancellation: reason === 'cosmic-zap'
+                });
+                this.telemetrySystem.noteTelemetryGridlockExit(reason, {
+                    milestoneId: current ? current.id : null,
+                    sequenceComplete: this.gridlockSystem.isSequenceComplete()
+                });
+                return true;
+            }
 
             checkGridlockProgress() {
                 if (!this.gridlockSystem.canScheduleGridlock({
@@ -23098,14 +23501,19 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                     });
                     if (!activated) return;
                     if (this.ui && this.ui.updateRadarColorIndicator) this.ui.updateRadarColorIndicator();
-                    this.telemetrySystem.noteTelemetryGridlock();
+                    const isReentry = this.gridlockSystem.gridlockEntryCount > 1;
+                    const current = this.gridlockSystem.getCurrentMilestone();
+                    this.telemetrySystem.noteTelemetryGridlock({
+                        isReentry,
+                        milestoneId: current ? current.id : null,
+                        gridlockEntry: this.gridlockSystem.gridlockEntryCount
+                    });
                     if (!this.runtimeState.finalGridlockActive) {
                         this.monitorEffectsSystem.triggerMonitorEvent('gridlock');
                         if (this.ui && this.ui.flashGridlockAlert) this.ui.flashGridlockAlert();
                         this.audio.playGridlockCue();
                     }
                     this.startOvertime();
-                    this.checkPrismRelicSpawnProgress();
                 }, this.gridlockSystem.gridlockCueDelayMs);
                 return true;
             }
@@ -23113,19 +23521,34 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
             startOvertime() {
                 if (!this.gridlockSystem.startOvertime()) return false;
                 if (this.audio && this.audio.setGridlockBeatIntensity) {
-                    this.audio.setGridlockBeatIntensity(0);
+                    this.audio.setGridlockBeatIntensity(this.gridlockSystem.overtimeEnemiesAdded);
                 }
-                this.scheduleOvertimeEnemy();
+                if (this.runtimeState.finalGridlockActive) {
+                    this.scheduleOvertimeEnemy();
+                } else if (this.gridlockSystem.isSequenceComplete()) {
+                    this.gridlockSystem.postSequenceOvertimeElapsedMs = 0;
+                } else {
+                    this.startGridlockMilestoneCountdown(this.gridlockSystem.gridlockEntryCount > 1 ? 'gridlock-reentry' : 'gridlock-entry');
+                }
                 return true;
             }
 
             scheduleOvertimeEnemy(delayMs = null) {
                 this.clearOvertimeEnemyTimer();
-                if (!this.gridlockSystem.overtimeActive || !this.flow.isLiveAction()) return;
+                if (!this.gridlockSystem.overtimeActive || !this.flow.isLiveAction()) return false;
+
+                if (!this.runtimeState.finalGridlockActive) {
+                    if (!this.gridlockSystem.isSequenceComplete()) return false;
+                    const interval = GAME_CONFIG.gridlock.overtimeEnemyIntervalMs;
+                    this.gridlockSystem.postSequenceOvertimeElapsedMs = Number.isFinite(delayMs)
+                        ? Math.max(0, interval - Math.max(0, delayMs))
+                        : 0;
+                    return true;
+                }
 
                 let resolvedDelay = delayMs;
                 if (!Number.isFinite(resolvedDelay)) {
-                    if (this.runtimeState.finalGridlockActive && this.gridlockSystem.overtimeEnemiesAdded === 0) {
+                    if (this.gridlockSystem.overtimeEnemiesAdded === 0) {
                         resolvedDelay = Math.max(
                             0,
                             GAME_CONFIG.gridlock.overtimeEnemyIntervalMs - this.enemySpawnSystem.spawnWarningDurationMs - this.runtimeState.finalGridlockElapsedMs
@@ -23138,41 +23561,140 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 this.gridlockSystem.overtimeEnemyTimer = this.scheduler.scheduleTimeout('gameplay', 'overtime-enemy', () => {
                     this.gridlockSystem.overtimeEnemyTimer = null;
                     if (!this.gridlockSystem.overtimeActive || !this.flow.isLiveAction()) return;
-
-                    const warningStarted = this.spawnOvertimeEnemy();
+                    const warningStarted = this.spawnOvertimeEnemy({ finalGridlock: true });
                     if (!warningStarted) this.scheduleOvertimeEnemy(5000);
-                    // When the warning succeeds, the next 60-second Overtime interval is scheduled
-                    // only after the new Block-A-Zoid actually materializes.
                 }, resolvedDelay);
+                return true;
             }
 
             chooseOvertimeEnemyType(spawnCategory = 'gridlock') {
                 return this.enemySpawnSystem.peekDeterministicSizeRequest(spawnCategory).type;
             }
 
+            updateGridlockMilestoneSequence(deltaTime) {
+                if (this.runtimeState.finalGridlockActive || !this.gridlockSystem.gridlockActive || !this.gridlockSystem.overtimeActive) return;
+                const elapsed = Math.max(0, Number(deltaTime) || 0);
 
+                if (this.gridlockSystem.milestoneSpawnRetryRemainingMs > 0) {
+                    this.gridlockSystem.milestoneSpawnRetryRemainingMs = Math.max(0, this.gridlockSystem.milestoneSpawnRetryRemainingMs - elapsed);
+                    if (this.gridlockSystem.milestoneSpawnRetryRemainingMs === 0) {
+                        const retryMilestone = this.gridlockSystem.getCurrentMilestone();
+                        if (retryMilestone) this.triggerGridlockMilestone(retryMilestone);
+                    }
+                    return;
+                }
 
+                if (!this.gridlockSystem.isSequenceComplete()) {
+                    if (!this.gridlockSystem.milestoneCountdownActive || this.gridlockSystem.milestoneWaitingForMaterialization) return;
+                    this.gridlockSystem.milestoneCountdownElapsedMs += elapsed;
+                    if (this.gridlockSystem.milestoneCountdownElapsedMs >= GAME_CONFIG.gridlock.milestoneIntervalMs) {
+                        const milestone = this.gridlockSystem.getCurrentMilestone();
+                        if (milestone) this.triggerGridlockMilestone(milestone);
+                    }
+                    return;
+                }
 
+                if (this.gridlockSystem.postSequenceWarningPending) return;
+                this.gridlockSystem.postSequenceOvertimeElapsedMs += elapsed;
+                if (this.gridlockSystem.postSequenceOvertimeElapsedMs >= GAME_CONFIG.gridlock.overtimeEnemyIntervalMs) {
+                    this.gridlockSystem.postSequenceOvertimeElapsedMs = 0;
+                    this.gridlockSystem.postSequenceWarningPending = true;
+                    if (!this.spawnOvertimeEnemy({ postSequence: true })) {
+                        this.gridlockSystem.postSequenceWarningPending = false;
+                        this.gridlockSystem.postSequenceOvertimeElapsedMs = Math.max(0, GAME_CONFIG.gridlock.overtimeEnemyIntervalMs - 5000);
+                    }
+                }
+            }
 
-            spawnOvertimeEnemy() {
+            triggerGridlockMilestone(milestone) {
+                if (!milestone || !this.gridlockSystem.gridlockActive || !this.flow.isLiveAction()) return false;
+                if (this.gridlockSystem.prismRelic) this.resolveVisiblePrismRelic('expired', 'next-gridlock-event');
+                const sectorTimeMs = this.getGridlockSequenceTimeMs();
+                if (!this.gridlockSystem.markMilestoneTriggered(milestone.id, sectorTimeMs)) return false;
+                this.telemetrySystem.noteTelemetryGridlockSequenceEvent('milestone-triggered', {
+                    milestoneId: milestone.id,
+                    milestoneType: milestone.type,
+                    color: milestone.color || null,
+                    pointValue: Number(milestone.points) || 0,
+                    ordinal: milestone.ordinal || null
+                });
+
+                if (milestone.type === 'prism') {
+                    if (!this.spawnPrismRelic(milestone)) {
+                        this.gridlockSystem.revertTriggeredMilestoneForRetry(milestone.id, 5000);
+                        return false;
+                    }
+                    return true;
+                }
+
+                this.gridlockSystem.markEnemyMilestoneWaiting(milestone.id);
+                this.telemetrySystem.noteTelemetryGridlockSequenceEvent('overtime-enemy-milestone', {
+                    milestoneId: milestone.id,
+                    milestoneType: milestone.type,
+                    ordinal: milestone.ordinal,
+                    phase: 'warning-started'
+                });
+                if (!this.spawnOvertimeEnemy({ milestoneId: milestone.id })) {
+                    this.gridlockSystem.revertTriggeredMilestoneForRetry(milestone.id, 5000);
+                    return false;
+                }
+                return true;
+            }
+
+            completeGridlockEnemyMilestone(milestoneId) {
+                const sectorTimeMs = this.getGridlockSequenceTimeMs();
+                if (!this.gridlockSystem.markEnemyMilestoneMaterialized(milestoneId, sectorTimeMs)) return false;
+                const milestone = this.gridlockSystem.getMilestoneDefinition(milestoneId);
+                this.telemetrySystem.noteTelemetryGridlockSequenceEvent('overtime-enemy-materialized', {
+                    milestoneId,
+                    milestoneType: 'enemy',
+                    ordinal: milestone ? milestone.ordinal : null,
+                    phase: 'materialized',
+                    overtimeEnemiesAdded: this.gridlockSystem.overtimeEnemiesAdded
+                });
+                if (this.gridlockSystem.isSequenceComplete()) {
+                    this.gridlockSystem.postSequenceOvertimeElapsedMs = 0;
+                } else {
+                    this.startGridlockMilestoneCountdown('overtime-enemy-materialized');
+                }
+                return true;
+            }
+
+            spawnOvertimeEnemy(options = {}) {
                 if (!this.gridlockSystem.overtimeActive || !this.flow.isLiveAction()) return false;
-                const hasSuperGridlockRewardRemaining = this.gridlockSystem.superGridlockBonusesThisSector < GAME_CONFIG.gridlock.superGridlockRewards.length;
-                const spawnCategory = this.runtimeState.finalGridlockActive
-                    ? 'final-gridlock'
-                    : (hasSuperGridlockRewardRemaining ? 'super-gridlock' : 'gridlock');
-                const deterministicSize = this.enemySpawnSystem.peekDeterministicSizeRequest(spawnCategory);
-                const spawnRequest = {
-                    type: deterministicSize.type,
-                    behaviorType: this.gridlockSystem.chooseBehavior(this.campaign.getEnemyBehaviorPlan(this.campaign.currentSector, this.gridlockEnemyThreshold)),
-                    spawnCategory,
-                    queueOrigin: deterministicSize.queueOrigin,
-                    queueGenerationId: deterministicSize.queueGenerationId,
-                    queueGeneration: deterministicSize.queueGeneration,
-                    spawnBatchId: deterministicSize.spawnBatchId,
-                    creationReason: deterministicSize.creationReason,
-                    queuePosition: deterministicSize.queuePosition,
-                    expectedSpawnIntervalMs: GAME_CONFIG.gridlock.overtimeEnemyIntervalMs + this.enemySpawnSystem.spawnWarningDurationMs
-                };
+                const milestoneId = options.milestoneId || null;
+                const finalGridlock = options.finalGridlock === true || this.runtimeState.finalGridlockActive;
+                const postSequence = options.postSequence === true;
+                const spawnCategory = finalGridlock ? 'final-gridlock' : (milestoneId ? 'super-gridlock' : 'gridlock');
+                const requestedContext = { milestoneId, finalGridlock, postSequence, spawnCategory };
+                const pendingContext = this.gridlockSystem.pendingOvertimeSpawnContext;
+                const canReusePending = !!(
+                    this.gridlockSystem.pendingOvertimeSpawnRequest && pendingContext &&
+                    pendingContext.milestoneId === requestedContext.milestoneId &&
+                    pendingContext.finalGridlock === requestedContext.finalGridlock &&
+                    pendingContext.postSequence === requestedContext.postSequence &&
+                    pendingContext.spawnCategory === requestedContext.spawnCategory
+                );
+                let spawnRequest;
+                if (canReusePending) {
+                    spawnRequest = { ...this.gridlockSystem.pendingOvertimeSpawnRequest };
+                } else {
+                    const deterministicSize = this.enemySpawnSystem.peekDeterministicSizeRequest(spawnCategory);
+                    spawnRequest = {
+                        type: deterministicSize.type,
+                        behaviorType: this.gridlockSystem.chooseBehavior(this.campaign.getEnemyBehaviorPlan(this.campaign.currentSector, this.gridlockEnemyThreshold)),
+                        spawnCategory,
+                        queueOrigin: deterministicSize.queueOrigin,
+                        queueGenerationId: deterministicSize.queueGenerationId,
+                        queueGeneration: deterministicSize.queueGeneration,
+                        spawnBatchId: deterministicSize.spawnBatchId,
+                        creationReason: deterministicSize.creationReason,
+                        queuePosition: deterministicSize.queuePosition,
+                        expectedSpawnIntervalMs: GAME_CONFIG.gridlock.overtimeEnemyIntervalMs + this.enemySpawnSystem.spawnWarningDurationMs
+                    };
+                    this.gridlockSystem.pendingOvertimeSpawnRequest = { ...spawnRequest };
+                    this.gridlockSystem.pendingOvertimeSpawnContext = { ...requestedContext };
+                }
                 const warningStarted = this.enemySpawnSystem.startWarning(spawnRequest, {
                     requeueOnCancel: false,
                     spawnCategory,
@@ -23185,28 +23707,35 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                     expectedSpawnIntervalMs: spawnRequest.expectedSpawnIntervalMs,
                     remainingQueueCount: 0,
                     onSpawn: () => {
-                        const superGridlockEnabled = !this.runtimeState.finalGridlockActive;
-                        const progress = this.gridlockSystem.registerOvertimeEnemy({ superGridlockEnabled });
-                        if (superGridlockEnabled && progress.reward > 0) {
-                            if (this.ui && this.ui.flashSuperGridlockBonus) {
-                                this.ui.flashSuperGridlockBonus(progress.reward);
-                            }
-                            this.addScore(progress.reward);
-                        }
-                        if (superGridlockEnabled && this.audio && this.audio.setGridlockBeatIntensity) {
+                        this.enemySpawnSystem.commitDeterministicSizeRequest(spawnCategory);
+                        this.gridlockSystem.pendingOvertimeSpawnRequest = null;
+                        this.gridlockSystem.pendingOvertimeSpawnContext = null;
+                        const progress = this.gridlockSystem.registerOvertimeEnemy({ milestoneId });
+                        if (!finalGridlock && this.audio && this.audio.setGridlockBeatIntensity) {
                             this.audio.setGridlockBeatIntensity(progress.overtimeEnemiesAdded);
                         }
-                        if (superGridlockEnabled && this.audio && this.audio.resyncGridlockBeatAfterOvertimeSpawn) {
+                        if (!finalGridlock && this.audio && this.audio.resyncGridlockBeatAfterOvertimeSpawn) {
                             this.audio.resyncGridlockBeatAfterOvertimeSpawn();
                         }
-                        this.scheduleOvertimeEnemy();
+                        if (milestoneId) {
+                            this.completeGridlockEnemyMilestone(milestoneId);
+                        } else if (finalGridlock) {
+                            this.scheduleOvertimeEnemy();
+                        } else if (postSequence) {
+                            this.gridlockSystem.postSequenceWarningPending = false;
+                            this.gridlockSystem.postSequenceOvertimeElapsedMs = 0;
+                            this.telemetrySystem.noteTelemetryGridlockSequenceEvent('post-sequence-overtime-enemy', {
+                                milestoneId: null,
+                                milestoneType: 'enemy',
+                                overtimeEnemiesAdded: progress.overtimeEnemiesAdded,
+                                pointValue: 0
+                            });
+                        }
                     }
                 });
-                if (warningStarted) {
-                    this.enemySpawnSystem.commitDeterministicSizeRequest(spawnCategory);
-                } else {
-                    this.gridlockSystem.restoreBehaviorToFront(spawnRequest.behaviorType);
-                }
+                // The deterministic request is committed only when materialization completes.
+                // Pauses, backgrounding, or Cosmic Zap interruption can therefore restart the
+                // same warning without skipping a size or changing the authored behavior pairing.
                 return warningStarted;
             }
 
@@ -23215,34 +23744,39 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 const relic = this.gridlockSystem.prismRelic;
                 if (relic) {
                     this.playfieldRenderer.removePrismRelic(relic);
-                    this.gridlockSystem.patchRelic({ prismRelic: null });
+                    this.gridlockSystem.patchRelic({ prismRelic: null, currentPrismMilestoneId: null });
                 }
                 if (this.audio) this.audio.stopPrismRelicHum();
                 return relic;
             }
 
             updatePrismRelic(deltaTime) {
-                // The Gridlock Relic no longer expires by timer.
-                // It stays until collected, a Cosmic Zap cancels the attempt, the orb dies, or the sector ends.
-                if (!this.gridlockSystem.prismRelic || this.gridlockSystem.prismRelicRecoveredThisSector) return;
+                this.updateGridlockMilestoneSequence(deltaTime);
             }
 
             collectPrismRelic() {
-                if (!this.gridlockSystem.prismRelic || this.gridlockSystem.prismRelicRecoveredThisSector) return false;
-                if (!this.gridlockSystem.markRelicRecovered()) return false;
+                const relic = this.gridlockSystem.prismRelic;
+                if (!relic) return false;
+                const sectorTimeMs = this.getGridlockSequenceTimeMs();
+                this.telemetrySystem.noteTelemetryPrismRelicCollected(relic);
+                const resolved = this.gridlockSystem.resolveVisiblePrism('collected', 'orb-contact', sectorTimeMs);
+                if (!resolved) return false;
+                this.playfieldRenderer.removePrismRelic(resolved);
+                if (this.audio) this.audio.stopPrismRelicHum();
 
-                this.removePrismRelic();
-                this.telemetrySystem.noteTelemetryPrismRelicCollected();
-                const relicSectorKey = this.gridlockSystem.getRelicSectorKey(this.campaign.currentSector);
-                const sectorAlreadyRepresented = this.runSession.hasRecoveredRelic(this.campaign.currentSector, this.CAMPAIGN_SECTOR_COUNT);
-                if (!this.runSession.relicRecoveredBySector[relicSectorKey]) {
-                    this.runSession.relicRecoveredBySector[relicSectorKey] = true;
-                    if (!sectorAlreadyRepresented) {
-                        this.runSession.relicsCollected = Math.min(this.CAMPAIGN_SECTOR_COUNT, Math.max(0, this.runSession.relicsCollected || 0) + 1);
+                if (resolved.color === 'white') {
+                    const relicSectorKey = this.gridlockSystem.getRelicSectorKey(this.campaign.currentSector);
+                    const sectorAlreadyRepresented = this.runSession.hasRecoveredRelic(this.campaign.currentSector, this.CAMPAIGN_SECTOR_COUNT);
+                    if (!this.runSession.relicRecoveredBySector[relicSectorKey]) {
+                        this.runSession.relicRecoveredBySector[relicSectorKey] = true;
+                        if (!sectorAlreadyRepresented) {
+                            this.runSession.relicsCollected = Math.min(this.CAMPAIGN_SECTOR_COUNT, Math.max(0, this.runSession.relicsCollected || 0) + 1);
+                        }
                     }
                 }
-                const points = GAME_CONFIG.scoring.gridlockRelicBonus;
-                if (this.ui && this.ui.flashGridlockBonus) this.ui.flashGridlockBonus(points);
+
+                const points = Math.max(0, Number(resolved.points) || 0);
+                if (this.ui && this.ui.flashPrismCollection) this.ui.flashPrismCollection(points);
                 this.addScore(points);
                 this.audio.playPrismRelicCollect();
                 return true;
@@ -23384,7 +23918,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 this.systems.stopSectorForCompletion();
 
                 const unusedCosmicZapBonus = this.cosmicZapSystem.remaining * GAME_CONFIG.scoring.unusedCosmicZapBonus;
-                const gridlockBonusEarned = this.gridlockSystem.prismRelicRecoveredThisSector ? GAME_CONFIG.scoring.gridlockRelicBonus : 0;
+                const gridlockBonusEarned = this.gridlockSystem.gridlockPrismPointsThisSector;
                 const superGridlockBonusEarned = this.gridlockSystem.superGridlockBonusPointsThisSector;
                 const perfectSectorBonus = this.crystalSystem.isPerfectSectorEligible(this.cosmicZapSystem.usesThisSector) ? GAME_CONFIG.scoring.perfectSectorBonus : 0;
                 if (perfectSectorBonus > 0) this.runSession.markPerfectSector(completedSector);
@@ -23567,12 +24101,9 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 this.clearGridlockCueTimer();
                 this.clearPrismRelicCueTimer();
                 this.removePrismRelic();
-                this.gridlockSystem.patchRelic({ prismRelicSpawnedThisSector: false });
-                this.gridlockSystem.patchRelic({ prismRelicRecoveredThisSector: false });
-                this.gridlockSystem.gridlockRelicAttemptNumber = 0;
                 this.enemySpawnSystem.spawnedCount = { small: 0, medium: 0, large: 0 };
                 this.applySectorParameters();
-                this.gridlockSystem.resetRelicTiming(this.gridlockEnemyThreshold);
+                this.gridlockSystem.resetSector(this.gridlockEnemyThreshold);
                 this.ui.updateAll();
 
                 this.stopRunRecordActionClock();
@@ -23927,9 +24458,6 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                     if (now - this.cosmicZapSystem.lastTriggerTime < this.cosmicZapSystem.inputCooldownMs) return;
                     const clearedEnemies = this.enemies.slice();
                     this.telemetrySystem.noteTelemetryCosmicZap(clearedEnemies);
-                    if (!this.gridlockSystem.prismRelicRecoveredThisSector && (this.gridlockSystem.gridlockActive || this.gridlockSystem.prismRelic || this.gridlockSystem.prismRelicCueTimer)) {
-                        this.cancelGridlockRelicAttempt('cosmic-zap');
-                    }
 
                     const zapUse = this.cosmicZapSystem.consume(now);
                     if (!zapUse.consumed) return;
@@ -23950,8 +24478,11 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                     }
                     this.enemySpawnSystem.clearPendingWarnings(true);
 
-                    // Cosmic Zaps clear the active Gridlock state but never remove earned points
-                    // or restart the current sector's 100 / 150 / 250 Super Gridlock sequence.
+                    // Cosmic Zaps forfeit a visible Prism, stop the active milestone countdown,
+                    // and preserve every completed or collected per-sector milestone.
+                    if (this.gridlockSystem.gridlockActive || this.gridlockSystem.prismRelic || this.gridlockSystem.milestoneCountdownActive || this.gridlockSystem.milestoneWaitingForMaterialization) {
+                        this.interruptGridlockMilestoneSequence('cosmic-zap');
+                    }
                     this.clearGridlockCueTimer();
                     this.setGridlockState({ gridlockActive: false });
                     this.resetOvertimeState({ preserveSectorRewardProgress: true });
@@ -25653,11 +26184,16 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
 
 /* Source: src/js/gameplay/240-prism-relic.js */
         class PrismRelic {
-            constructor(game, x, y) {
+            constructor(game, x, y, options = {}) {
                 this.game = game;
                 this.size = game.PRISM_RELIC_SIZE;
                 this.x = x;
                 this.y = y;
+                this.milestoneId = options.milestoneId || 'white-prism';
+                this.color = options.color || 'white';
+                this.points = Math.max(0, Number(options.points) || 0);
+                this.label = options.label || 'PRISM RELIC';
+                this.attemptNumber = Math.max(1, Number(options.attemptNumber) || 1);
                 this.createdAt = performance.now();
                 this.isVisible = true;
                 this.removedAt = 0;
@@ -28322,6 +28858,34 @@ startGridlockBeat(delaySeconds = 0) {
                 this.flashGridlockMessage('GRIDLOCK');
             }
 
+            flashPrismOpportunity(label, points) {
+                if (!this.scoreElement) return;
+                this.cancelScoreAnnouncement();
+                this.scoreAlertActive = true;
+                this.syncTopHudAnnouncementPresentation();
+                this.scoreElement.classList.remove('scoreHidden', 'attractHighScore', 'highScoreFlash', 'bonusScoreCount', 'gridlockAlert', 'superGridlockAlert', 'gridlockAwardAlert');
+                this.scoreElement.textContent = `${label} +${Math.max(0, Number(points) || 0)}`;
+                void this.scoreElement.offsetWidth;
+                this.scoreElement.classList.add('superGridlockAlert');
+                this.scoreAlertTimer = this.game.scheduler.scheduleTimeout('ui-effects', 'prism-opportunity-cue', () => {
+                    this.finishScoreAnnouncement(false);
+                }, GAME_CONFIG.visualTiming.topHudAnnouncement.textMs);
+            }
+
+            flashPrismCollection(points) {
+                if (!this.scoreElement) return;
+                this.cancelScoreAnnouncement();
+                this.scoreAlertActive = true;
+                this.syncTopHudAnnouncementPresentation();
+                this.scoreElement.classList.remove('scoreHidden', 'attractHighScore', 'highScoreFlash', 'bonusScoreCount', 'gridlockAlert', 'superGridlockAlert', 'gridlockAwardAlert');
+                this.scoreElement.textContent = `+${Math.max(0, Number(points) || 0)}`;
+                void this.scoreElement.offsetWidth;
+                this.scoreElement.classList.add('gridlockAwardAlert');
+                this.scoreAlertTimer = this.game.scheduler.scheduleTimeout('ui-effects', 'prism-collection-cue', () => {
+                    this.finishScoreAnnouncement();
+                }, GAME_CONFIG.visualTiming.topHudAnnouncement.pointsMs);
+            }
+
             flashGridlockBonus(points) {
                 this.flashGridlockMessage('PRISM RELIC', {
                     prismRelic: true,
@@ -28723,7 +29287,7 @@ startGridlockBeat(delaySeconds = 0) {
                 assert('Final Gridlock hides the manual Pause control', game.startButton.classList.contains('control-hidden-layout'));
                 game.runtimeState.patchTerminal({ finalGridlockActive: previousFinalGridlockState });
                 game.ui.updateStartPauseButton();
-                assert('Telemetry schema v10 is active', game.telemetrySystem.telemetry && game.telemetrySystem.telemetry.schema === 'blockazoids-balance-v10');
+                assert('Telemetry schema v11 is active', game.telemetrySystem.telemetry && game.telemetrySystem.telemetry.schema === 'blockazoids-balance-v11');
                 assert('Telemetry remains event-based without a frame logger', !Object.values(TelemetrySystem.implementations).some((implementation) => implementation.toString().includes('requestAnimationFrame')));
                 assert('Telemetry pressure analysis is owned by TelemetrySystem', game.telemetrySystem.hasImplementation('buildSectorPressureReport') && game.telemetrySystem.hasImplementation('noteTelemetryEnemyMaterialized'));
                 const configuredBaseSpeeds = GAME_CONFIG.enemyMovement.baseSpeeds;
@@ -28850,7 +29414,7 @@ startGridlockBeat(delaySeconds = 0) {
                 };
                 try {
                     game.telemetrySystem.telemetryEnabled = true;
-                    game.telemetrySystem.telemetry = { schema: 'blockazoids-balance-v10', schemaVersion: 10, loadedSchema: null, runs: [], restoredFromLocalStorage: false, recoveredActiveRuns: 0, lastSavedAt: null };
+                    game.telemetrySystem.telemetry = { schema: 'blockazoids-balance-v11', schemaVersion: 11, loadedSchema: null, runs: [], restoredFromLocalStorage: false, recoveredActiveRuns: 0, lastSavedAt: null };
                     game.telemetrySystem.currentTelemetryRun = null;
                     game.telemetrySystem.currentTelemetrySector = null;
                     game.campaign.currentSector = 1;
