@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Block-A-Zoids p276: unifies Gridlock and Super Gridlock into one collectible Prism milestone sequence with interruption-safe per-sector progression.
+Block-A-Zoids p277: adds a managed three-second studio intro, authoritative bottom-HUD mode projection, full-cast message styling parity, and removes retired Gridlock reward compatibility hooks.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="p276">
+<html data-build-version="p277">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -1348,17 +1348,28 @@ Font License Notices
             justify-content: center;
             overflow: hidden;
             background: #000;
-            touch-action: manipulation;
+            touch-action: none;
             -webkit-tap-highlight-color: transparent;
-            cursor: pointer;
-            opacity: 1;
-            transition: opacity 0.34s ease-in-out, visibility 0.34s ease-in-out;
+            cursor: default;
+            opacity: 0;
+            visibility: visible;
+            pointer-events: auto;
+            animation: splashStudioLifecycle var(--splash-duration, 3000ms) linear both;
         }
 
         #splashScreen.hidden {
+            display: none;
             opacity: 0;
             visibility: hidden;
             pointer-events: none;
+            animation: none;
+        }
+
+        @keyframes splashStudioLifecycle {
+            0% { opacity: 0; }
+            16.6667% { opacity: 1; }
+            83.3333% { opacity: 1; }
+            100% { opacity: 0; }
         }
 
         #splashScreen::before {
@@ -4248,6 +4259,15 @@ Font License Notices
             visibility: hidden !important;
         }
 
+        /* p277: one UI projection owns the shared lower-HUD center. The primary Play
+           action and the radar presentation are mutually exclusive by construction. */
+        html body #skinShell[data-bottom-hud-mode="play"] > #liveRadarGeometry,
+        html body #skinShell[data-bottom-hud-mode="play"] > #radarColorIndicator {
+            opacity: 0 !important;
+            visibility: hidden !important;
+            pointer-events: none !important;
+        }
+
         html body #skinShell > #playfieldShell {
             box-sizing: border-box;
             left: var(--skin-playfield-left, 4.904171%);
@@ -4832,14 +4852,6 @@ Font License Notices
             display: none;
         }
 
-        #enemyIdentityCard[data-card="full-cast"] .enemy-card-name {
-            width: 100%;
-            font-size: clamp(21px, 6.1vw, 35px);
-            line-height: 1.08;
-            letter-spacing: clamp(1px, 0.55vw, 3px);
-            white-space: pre-line;
-        }
-
         #enemyIdentityCard[data-card="full-cast"] .enemy-card-class {
             font-size: clamp(16px, 4.5vw, 25px);
             font-weight: 800;
@@ -4847,18 +4859,24 @@ Font License Notices
         }
 
 
-        /* p090: the finale challenge frames the moving trio instead of stacking both sentences together. */
+        /* p277: the finale challenge frames the moving trio while both messages use
+           one identical lower-message typography treatment. */
         #enemyIdentityCard[data-card="full-cast"] .enemy-card-heading {
             top: clamp(38px, 10%, 60px);
             left: 3%;
             width: 94%;
         }
 
-        #enemyIdentityCard[data-card="full-cast"] .enemy-card-name {
-            font-size: clamp(18px, 5.2vw, 30px);
-            line-height: 0.96;
-            letter-spacing: clamp(0px, 0.2vw, 2px);
+        #enemyIdentityCard[data-card="full-cast"] .enemy-card-name,
+        #enemyIdentityCard[data-card="full-cast"] .enemy-card-personality {
+            width: 100%;
+            color: #fff;
+            font-size: clamp(15px, 4.25vw, 23px);
+            font-weight: 800;
+            line-height: 1.18;
+            letter-spacing: 1.5px;
             white-space: nowrap;
+            text-shadow: none;
         }
 
         #enemyIdentityCard[data-card="full-cast"] .enemy-card-class {
@@ -4874,13 +4892,6 @@ Font License Notices
             left: 3%;
             bottom: clamp(38px, 10%, 60px);
             width: 94%;
-        }
-
-        #enemyIdentityCard[data-card="full-cast"] .enemy-card-personality {
-            font-size: clamp(15px, 4.25vw, 23px);
-            line-height: 1.18;
-            letter-spacing: 1.5px;
-            white-space: nowrap;
         }
 
         .enemy-card-heading {
@@ -7216,7 +7227,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
         const BUILD_METADATA = window.BLOCKAZOIDS_BUILD = Object.freeze({
             version: document.documentElement.dataset.buildVersion || 'unknown',
             label: BUILD_VERSION,
-            architecturePhase: 'shared-radar-center-primary-control-and-difficulty-isolated-progression',
+            architecturePhase: 'managed-studio-intro-and-authoritative-bottom-hud-projection',
             sourceBaseline: 'p263',
             behaviorPolicy: 'authoritative-state-reference-matched-live-vector-no-parallel-systems'
         });
@@ -7251,7 +7262,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
         const SOURCE_LAYOUT = window.BLOCKAZOIDS_SOURCE_LAYOUT = Object.freeze({
             developmentModel: 'modular-source',
             releaseModel: 'single-html',
-            buildOutput: 'block-a-zoids-p276.html',
+            buildOutput: 'block-a-zoids-p277.html',
             categories: Object.freeze([
                 'build', 'config', 'content', 'rules', 'state', 'services', 'app', 'gameplay',
                 'presentation', 'platform', 'audio', 'ui', 'development', 'docs'
@@ -7261,7 +7272,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
 
 /* Source: src/js/development/75-developer-documentation.js */
         const DEVELOPER_DOCUMENTATION = window.BLOCKAZOIDS_DEVELOPER_GUIDE = deepFreezeConfiguration({
-            version: 'p276',
+            version: 'p277',
             purpose: 'Make ownership, safe edit locations, state transitions, build steps, and maintenance rules discoverable without reverse-engineering the complete game.',
             architecture: {
                 application: {
@@ -7715,7 +7726,8 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 screenFadeMs: 500,
                 campaignCompletionPreludeMs: 300,
                 campaignCompletionPresentationMs: 6200,
-                splashHoldMs: 8000
+                splashDurationMs: 3000,
+                splashFadeMs: 500
             },
             audioTiming: {
                 oneShotCleanupMinimumMs: 1200,
@@ -10021,8 +10033,8 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 this.overtimeEnemyTimer = null;
                 this.overtimeEnemiesAdded = 0;
                 this.overtimeBehaviorQueue = [];
-                this.superGridlockBonusesThisSector = 0;
-                this.superGridlockBonusPointsThisSector = 0;
+                this.superGridlockPrismsCollectedThisSector = 0;
+                this.superGridlockPrismPointsThisSector = 0;
                 this.gridlockPrismPointsThisSector = 0;
                 this.totalGridlockPrismPointsThisSector = 0;
                 this.milestoneStates = this.buildMilestoneStates();
@@ -10037,9 +10049,6 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 this.pendingOvertimeSpawnContext = null;
                 this.prismRelic = null;
                 this.currentPrismMilestoneId = null;
-                this.prismRelicCueTimer = null;
-                this.prismRelicSpawnEnemyThreshold = 0;
-                this.prismRelicCueDelayMs = this.config.gridlock.milestoneIntervalMs;
                 this.prismRelicSpawnedThisSector = false;
                 this.prismRelicRecoveredThisSector = false;
                 this.gridlockRelicAttemptNumber = 0;
@@ -10048,14 +10057,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
 
             resetSector(gridlockEnemyThreshold) {
                 this.resetState();
-                this.prismRelicSpawnEnemyThreshold = Math.max(0, Math.floor(Number(gridlockEnemyThreshold) || 0));
                 return this.snapshot();
-            }
-
-            resetRelicTiming(gridlockEnemyThreshold) {
-                this.prismRelicSpawnEnemyThreshold = Math.max(0, Math.floor(Number(gridlockEnemyThreshold) || 0));
-                this.prismRelicCueDelayMs = this.config.gridlock.milestoneIntervalMs;
-                return this.prismRelicCueDelayMs;
             }
 
             patchGridlock(patch = {}) {
@@ -10095,6 +10097,11 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 return this.nextMilestoneIndex >= this.config.gridlock.milestones.length;
             }
 
+            isPrismMilestoneCountdownActive() {
+                const milestone = this.getCurrentMilestone();
+                return !!(this.milestoneCountdownActive && milestone && milestone.type === 'prism');
+            }
+
             canScheduleGridlock({ liveAction, enemyCount, gridlockEnemyThreshold }) {
                 return !this.gridlockActive && !this.gridlockCueTimer && !!liveAction && enemyCount >= gridlockEnemyThreshold;
             }
@@ -10126,8 +10133,8 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                     this.pendingOvertimeSpawnRequest = null;
                     this.pendingOvertimeSpawnContext = null;
                     this.overtimeEnemiesAdded = 0;
-                    this.superGridlockBonusesThisSector = 0;
-                    this.superGridlockBonusPointsThisSector = 0;
+                    this.superGridlockPrismsCollectedThisSector = 0;
+                    this.superGridlockPrismPointsThisSector = 0;
                     this.gridlockPrismPointsThisSector = 0;
                     this.totalGridlockPrismPointsThisSector = 0;
                 }
@@ -10261,8 +10268,8 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                     if (relic.color === 'white') {
                         this.gridlockPrismPointsThisSector += points;
                     } else {
-                        this.superGridlockBonusesThisSector += 1;
-                        this.superGridlockBonusPointsThisSector += points;
+                        this.superGridlockPrismsCollectedThisSector += 1;
+                        this.superGridlockPrismPointsThisSector += points;
                     }
                 }
                 this.prismRelic = null;
@@ -10289,8 +10296,8 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                     overtimeEnemiesAdded: this.overtimeEnemiesAdded,
                     milestoneId,
                     reward: 0,
-                    bonusesThisSector: this.superGridlockBonusesThisSector,
-                    bonusPointsThisSector: this.superGridlockBonusPointsThisSector
+                    superPrismsCollectedThisSector: this.superGridlockPrismsCollectedThisSector,
+                    superPrismPointsThisSector: this.superGridlockPrismPointsThisSector
                 });
             }
 
@@ -10334,8 +10341,8 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                     pendingOvertimeSpawn: this.pendingOvertimeSpawnContext ? { ...this.pendingOvertimeSpawnContext } : null,
                     sequenceComplete: this.isSequenceComplete(),
                     milestones: this.milestoneStates.map((milestone) => ({ ...milestone })),
-                    superGridlockBonusesThisSector: this.superGridlockBonusesThisSector,
-                    superGridlockBonusPointsThisSector: this.superGridlockBonusPointsThisSector,
+                    superGridlockPrismsCollectedThisSector: this.superGridlockPrismsCollectedThisSector,
+                    superGridlockPrismPointsThisSector: this.superGridlockPrismPointsThisSector,
                     gridlockPrismPointsThisSector: this.gridlockPrismPointsThisSector,
                     totalGridlockPrismPointsThisSector: this.totalGridlockPrismPointsThisSector,
                     prismRelicVisible: !!this.prismRelic,
@@ -10725,7 +10732,6 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                     : null;
                 if (Number.isFinite(materializedSectorTimeMs)) this.lastMaterializationSectorTimeMs = materializedSectorTimeMs;
                 game.checkGridlockProgress();
-                game.checkPrismRelicSpawnProgress();
                 if (typeof onSpawn === 'function') onSpawn(enemy);
                 return enemy;
             }
@@ -13864,10 +13870,10 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                     cosmicZapsAvailable: this.cosmicZapSystem.getCapacity(this.settings.difficultyMode),
                     blinkingCrystalCount: this.crystalSystem.currentBlinkingCrystalCount,
                     prismRelicSpawnMode: 'unified-gridlock-milestone-sequence',
-                    prismRelicSpawnEnemyThreshold: this.gridlockEnemyThreshold,
+                    gridlockEnemyThreshold: this.gridlockEnemyThreshold,
                     gridlockMilestoneIntervalMs: GAME_CONFIG.gridlock.milestoneIntervalMs,
                     gridlockMilestones: GAME_CONFIG.gridlock.milestones.map((milestone) => ({ ...milestone })),
-                    prismRelicCueDelayMs: this.gridlockSystem.prismRelicCueDelayMs,
+                    gridlockMilestoneIntervalMs: GAME_CONFIG.gridlock.milestoneIntervalMs,
                     prismRelicLifetimeMs: 'until-next-gridlock-event',
                     minSpawnDistance: this.MIN_SPAWN_DISTANCE
                 };
@@ -15041,8 +15047,8 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                     timeSinceGridlockMs,
                     timeFromGridlockToZapMs: timeSinceGridlockMs,
                     relicVisible: !!this.gridlockSystem.prismRelic,
-                    relicCuePending: !!this.gridlockSystem.prismRelicCueTimer,
-                    relicAttemptCanceled: !this.gridlockSystem.prismRelicRecoveredThisSector && (this.gridlockSystem.gridlockActive || !!this.gridlockSystem.prismRelic || !!this.gridlockSystem.prismRelicCueTimer),
+                    relicCuePending: this.gridlockSystem.isPrismMilestoneCountdownActive(),
+                    relicAttemptCanceled: !this.gridlockSystem.prismRelicRecoveredThisSector && (this.gridlockSystem.gridlockActive || !!this.gridlockSystem.prismRelic || this.gridlockSystem.isPrismMilestoneCountdownActive()),
                     firstZapThisSector,
                     perfectNoZapLostByThisZap: firstZapThisSector,
                     cosmicZapsLeftBeforeUse: this.cosmicZapSystem.remaining
@@ -15243,10 +15249,12 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                     sector.clearedAfterGridlock = result === 'completed';
                 }
                 sector.overtimeEnemiesAdded = this.gridlockSystem.overtimeEnemiesAdded;
-                sector.superGridlockBonuses = this.gridlockSystem.superGridlockBonusesThisSector || 0;
-                sector.superGridlockBonusPoints = this.gridlockSystem.superGridlockBonusPointsThisSector || 0;
+                sector.superGridlockPrismsCollected = this.gridlockSystem.superGridlockPrismsCollectedThisSector || 0;
+                // Compatibility aliases remain export-only for older balance-analysis readers.
+                sector.superGridlockBonuses = sector.superGridlockPrismsCollected;
+                sector.superGridlockBonusPoints = this.gridlockSystem.superGridlockPrismPointsThisSector || 0;
                 sector.gridlockPrismPointsEarned = this.gridlockSystem.gridlockPrismPointsThisSector || sector.gridlockPrismPointsEarned || 0;
-                sector.superGridlockPrismPointsEarned = this.gridlockSystem.superGridlockBonusPointsThisSector || sector.superGridlockPrismPointsEarned || 0;
+                sector.superGridlockPrismPointsEarned = this.gridlockSystem.superGridlockPrismPointsThisSector || sector.superGridlockPrismPointsEarned || 0;
                 sector.totalGridlockPrismPointsEarned = this.gridlockSystem.totalGridlockPrismPointsThisSector || sector.totalGridlockPrismPointsEarned || 0;
                 sector.currentGridlockMilestone = this.gridlockSystem.getCurrentMilestone() ? this.gridlockSystem.getCurrentMilestone().id : null;
                 sector.gridlockMilestoneSequence = this.gridlockSystem.milestoneStates.map((milestone) => ({ ...milestone }));
@@ -15412,7 +15420,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                         currentGridlockMilestone: this.gridlockSystem.getCurrentMilestone() ? this.gridlockSystem.getCurrentMilestone().id : null,
                         gridlockMilestoneSequence: this.gridlockSystem.milestoneStates.map((milestone) => ({ ...milestone })),
                         gridlockPrismPointsEarned: this.gridlockSystem.gridlockPrismPointsThisSector,
-                        superGridlockPrismPointsEarned: this.gridlockSystem.superGridlockBonusPointsThisSector,
+                        superGridlockPrismPointsEarned: this.gridlockSystem.superGridlockPrismPointsThisSector,
                         totalGridlockPrismPointsEarned: this.gridlockSystem.totalGridlockPrismPointsThisSector,
                         stallingStats: this.telemetrySystem.getTelemetryStallingStats(this.telemetrySystem.telemetrySectorElapsedMs())
                     } : null
@@ -15620,7 +15628,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                     gridlockActive: !!this.gridlockSystem.gridlockActive,
                     overtimeActive: !!this.gridlockSystem.overtimeActive,
                     prismRelicVisible: !!this.gridlockSystem.prismRelic,
-                    prismRelicCuePending: !!this.gridlockSystem.prismRelicCueTimer,
+                    prismRelicCuePending: this.gridlockSystem.isPrismMilestoneCountdownActive(),
                     campaignCompletionActive: !!this.runtimeState.campaignCompletionActive,
                     finalGridlockActive: !!this.runtimeState.finalGridlockActive,
                     finalGridlockResultActive: !!this.runtimeState.finalGridlockResultActive,
@@ -15832,11 +15840,11 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                         overtimeActive: !!this.gridlockSystem.overtimeActive,
                         overtimeTimerPending: !!this.gridlockSystem.overtimeEnemyTimer,
                         overtimeEnemiesAdded: Number(this.gridlockSystem.overtimeEnemiesAdded) || 0,
-                        superGridlockBonusesThisSector: Number(this.gridlockSystem.superGridlockBonusesThisSector) || 0
+                        superGridlockPrismsCollectedThisSector: Number(this.gridlockSystem.superGridlockPrismsCollectedThisSector) || 0
                     },
                     prismRelic: {
                         visible: !!this.gridlockSystem.prismRelic,
-                        cuePending: !!this.gridlockSystem.prismRelicCueTimer,
+                        cuePending: this.gridlockSystem.isPrismMilestoneCountdownActive(),
                         tutorialReady: !!this.runtimeState.tutorialRelicReady,
                         tutorialCollected: !!this.tutorialSystem.tutorialRelicCollected
                     },
@@ -15999,6 +16007,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                     Array.isArray(config.gridlock.milestones) && config.gridlock.milestones.length === 7 &&
                     config.gridlock.milestones.every((milestone, index) => milestone.type === (index % 2 === 0 ? 'prism' : 'enemy')));
                 this.assert('Gridlock milestones use one 30-second interval', config.gridlock.milestoneIntervalMs === 30000);
+                this.assert('Studio splash duration is three seconds', config.transitions.splashDurationMs === 3000 && config.transitions.splashFadeMs === 500);
                 this.assert('Gridlock Prism values match the authored progression',
                     GameRules.getGridlockPrismValue('white') === 300 &&
                     GameRules.getGridlockPrismValue('red') === 100 &&
@@ -16228,9 +16237,10 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 gridlock.markRelicSpawned(fakeRelic, firstMilestone, 30000);
                 this.assert('GridlockSystem advances after Prism appearance', gridlock.prismRelic === fakeRelic && gridlock.getCurrentMilestone().id === 'super-gridlock-1');
                 gridlock.resolveVisiblePrism('collected', 'orb-contact', 31000);
-                this.assert('GridlockSystem awards only collected Prism points', gridlock.gridlockPrismPointsThisSector === 300 && gridlock.totalGridlockPrismPointsThisSector === 300 && gridlock.superGridlockBonusPointsThisSector === 0);
+                this.assert('GridlockSystem awards only collected Prism points', gridlock.gridlockPrismPointsThisSector === 300 && gridlock.totalGridlockPrismPointsThisSector === 300 && gridlock.superGridlockPrismPointsThisSector === 0);
                 const overtime = gridlock.registerOvertimeEnemy({ milestoneId: 'super-gridlock-1' });
-                this.assert('Overtime enemy materialization awards no automatic points', overtime.reward === 0 && gridlock.superGridlockBonusPointsThisSector === 0);
+                this.assert('Overtime enemy materialization awards no automatic points', overtime.reward === 0 && gridlock.superGridlockPrismPointsThisSector === 0);
+                this.assert('Retired Gridlock reward hooks are removed', !GridlockSystem.prototype.resetRelicTiming && !Game.prototype.checkPrismRelicSpawnProgress && !Game.prototype.clearPrismRelicCueTimer);
                 gridlock.resetSector(GAME_CONFIG.enemySpawning.gridlockEnemyThreshold);
                 this.assert('GridlockSystem resets sector milestones', !gridlock.gridlockActive && !gridlock.overtimeActive && gridlock.nextMilestoneIndex === 0 && gridlock.totalGridlockPrismPointsThisSector === 0);
 
@@ -16380,6 +16390,8 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                     '--skin-primary-play-width'
                 ].every(name => primaryPlayStyleText.includes(`var(${name}`) && skinLayoutSource.includes(name)));
                 this.assert('Primary Play control has no independent hard-coded center', !primaryPlayStyleText.includes('left: 50%') && !primaryPlayStyleText.includes('top: 77.3%'));
+                const bottomHudModeRule = styleRules.find((rule) => rule.selectorText && rule.selectorText.includes('#skinShell[data-bottom-hud-mode="play"] > #liveRadarGeometry'));
+                this.assert('Bottom HUD Play mode hides the radar through one state selector', !!bottomHudModeRule && bottomHudModeRule.style.opacity === '0');
                 this.assert('Retired radar arrow style owner removed', countSelector('#liveRadarGeometry .radar-reference-arrow') === 0);
                 this.assert('Cabinet bitmap is disabled by the temporary feature flag', GAME_FEATURE_FLAGS.cabinetBackgroundAsset === false && GAME_FEATURE_FLAGS.liveRadarGeometry === true);
                 this.assert('Playfield shell geometry has one CSS owner', countSelector('html body #skinShell > #playfieldShell') === 1, `received ${countSelector('html body #skinShell > #playfieldShell')}`);
@@ -17123,7 +17135,6 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 }
                 if (game.gridlockSystem.prismRelic) game.audio.startPrismRelicHum();
                 game.requestWakeLock();
-                game.checkPrismRelicSpawnProgress();
                 game.checkGridlockProgress();
                 game.frameCoordinator.startGameplayLoop();
             }
@@ -17283,7 +17294,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                         nextBlinkingCrystals: game.telemetrySystem.getTelemetryBlinkingCrystalOptions(),
                         nearestEnemyDistanceFromOrbPx: game.telemetrySystem.getNearestEnemyDistanceFromOrb(),
                         prismRelicVisible: !!game.gridlockSystem.prismRelic,
-                        prismRelicCuePending: !!game.gridlockSystem.prismRelicCueTimer,
+                        prismRelicCuePending: game.gridlockSystem.isPrismMilestoneCountdownActive(),
                         gridlockRelicAttemptNumber: game.gridlockSystem.gridlockRelicAttemptNumber
                     }
                 });
@@ -17333,6 +17344,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 this.attached = false;
                 this.sequence = 0;
                 this.attractOrbHoldPointerId = null;
+                this.splashBlockedPointers = new Set();
 
                 this.onPointerDown = (event) => this.handlePointerDown(event);
                 this.onPointerMove = (event) => this.handlePointerMove(event);
@@ -17359,6 +17371,40 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 this.multitouchBlocked = false;
                 if (options.keepTapHistory !== true) this.lastGameplayTap = null;
                 document.body.classList.remove('gameplay-gesture-active');
+            }
+
+            blockSplashPointer(event) {
+                if (!event) return;
+                this.splashBlockedPointers.add(event.pointerId);
+                this.cancelAttractOrbHold('splash-input');
+                this.pointers.clear();
+                this.primaryPointerId = null;
+                this.multitouchBlocked = false;
+                this.lastGameplayTap = null;
+                this.suppressClicksUntil = Number.POSITIVE_INFINITY;
+                document.body.classList.remove('gameplay-gesture-active');
+                if (event.cancelable) event.preventDefault();
+                if (typeof event.stopImmediatePropagation === 'function') event.stopImmediatePropagation();
+                if (typeof event.stopPropagation === 'function') event.stopPropagation();
+            }
+
+            releaseSplashPointer(event) {
+                if (!event || !this.splashBlockedPointers.has(event.pointerId)) return false;
+                if (event.cancelable) event.preventDefault();
+                if (typeof event.stopImmediatePropagation === 'function') event.stopImmediatePropagation();
+                if (typeof event.stopPropagation === 'function') event.stopPropagation();
+                this.splashBlockedPointers.delete(event.pointerId);
+                if (!this.game.splashIntroActive && this.splashBlockedPointers.size === 0) {
+                    this.suppressClicksUntil = this.now() + 300;
+                }
+                return true;
+            }
+
+            completeSplashInputBarrier() {
+                this.reset('splash-complete');
+                this.suppressClicksUntil = this.splashBlockedPointers.size > 0
+                    ? Number.POSITIVE_INFINITY
+                    : this.now() + 300;
             }
 
             evaluateDoubleTapCandidate(previousTap, x, y, now = this.now()) {
@@ -17470,7 +17516,10 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
 
             handlePointerDown(event) {
                 if (!event || !this.isPrimaryMouseButton(event)) return;
-                if (this.isSplashTarget(event.target)) return;
+                if (this.game.splashIntroActive || this.splashBlockedPointers.size > 0 || this.isSplashTarget(event.target)) {
+                    this.blockSplashPointer(event);
+                    return;
+                }
 
                 if (this.game && typeof this.game.attractModeSystem.cancelAttractEnemyCardPresentation === 'function' &&
                     this.game.attractModeSystem.cancelAttractEnemyCardPresentation('surface-tap')) {
@@ -17530,6 +17579,12 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
             }
 
             handlePointerMove(event) {
+                if (event && this.splashBlockedPointers.has(event.pointerId)) {
+                    if (event.cancelable) event.preventDefault();
+                    if (typeof event.stopImmediatePropagation === 'function') event.stopImmediatePropagation();
+                    if (typeof event.stopPropagation === 'function') event.stopPropagation();
+                    return;
+                }
                 const pointer = event && this.pointers.get(event.pointerId);
                 if (!pointer) return;
 
@@ -17563,6 +17618,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
             }
 
             handlePointerEnd(event, canceled = false) {
+                if (this.releaseSplashPointer(event)) return;
                 const pointer = event && this.pointers.get(event.pointerId);
                 if (!pointer) return;
                 this.updatePointer(pointer, event);
@@ -17649,7 +17705,8 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
             }
 
             handleClickCapture(event) {
-                if (this.now() > this.suppressClicksUntil) return;
+                const splashLocked = this.game.splashIntroActive || this.splashBlockedPointers.size > 0 || this.isSplashTarget(event.target);
+                if (!splashLocked && this.now() > this.suppressClicksUntil) return;
                 event.preventDefault();
                 event.stopImmediatePropagation();
                 event.stopPropagation();
@@ -21834,7 +21891,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 this.applySectorParameters();
                 this.gridlockSystem.resetSector(this.gridlockEnemyThreshold);
                 this.highScoreScreen.update();
-                this.attractModeSystem.returnToAttractMode();
+                if (!this.splashIntroActive) this.attractModeSystem.returnToAttractMode();
                 this.screenManager.refreshOverlay();
             }
 
@@ -21847,40 +21904,40 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
             setupSplashIntro() {
                 if (!this.splashScreen) {
                     this.splashIntroActive = false;
-                    return;
+                    return false;
                 }
 
                 this.splashIntroActive = true;
-                this.scheduler.cancelTask('splash', 'auto-dismiss');
+                this.scheduler.cancelScope('splash');
+                this.splashScreen.classList.remove('hidden');
+                this.splashScreen.style.removeProperty('display');
+                this.splashScreen.style.setProperty('--splash-duration', `${GAME_CONFIG.transitions.splashDurationMs}ms`);
+                if (this.skinShell && 'inert' in this.skinShell) this.skinShell.inert = true;
 
-                // The startup splash remains visible for up to eight seconds. A tap anywhere
-                // on the splash dismisses it immediately; the scheduled fallback remains automatic.
-                this.splashScreen.addEventListener('pointerdown', () => {
+                this.scheduler.scheduleTimeout('splash', 'complete-studio-intro', () => {
                     this.dismissSplashIntro();
-                }, { once: true, passive: true });
-                this.scheduler.scheduleTimeout('splash', 'auto-dismiss', () => {
-                    this.dismissSplashIntro();
-                }, GAME_CONFIG.transitions.splashHoldMs);
+                }, GAME_CONFIG.transitions.splashDurationMs);
+                return true;
             }
 
             dismissSplashIntro() {
-                if (!this.splashIntroActive) return;
-                this.scheduler.cancelTask('splash', 'auto-dismiss');
+                if (!this.splashIntroActive) return false;
+                this.scheduler.cancelTask('splash', 'complete-studio-intro');
+
+                if (this.gestures && typeof this.gestures.completeSplashInputBarrier === 'function') {
+                    this.gestures.completeSplashInputBarrier();
+                }
+                if (this.splashScreen) this.splashScreen.classList.add('hidden');
+                if (this.skinShell && 'inert' in this.skinShell) this.skinShell.inert = false;
                 this.splashIntroActive = false;
 
-
-                if (this.splashScreen) {
-                    this.splashScreen.classList.add('hidden');
-                    this.scheduler.scheduleTimeout('splash', 'dismiss-display', () => {
-                        if (this.splashScreen) this.splashScreen.style.display = 'none';
-                    }, 420);
-                }
-
-                // The four direct menu controls become available as soon as the cabinet reaches Activate mode.
+                // Splash completion is the single boot transition into the title/attract state.
+                this.attractModeSystem.returnToAttractMode();
                 this.screenManager.showMainMenuButtons();
                 this.screenManager.updatePauseGridMenu();
                 this.screenManager.refreshOverlay();
                 this.ui.updateAll();
+                return true;
             }
 
 
@@ -22355,13 +22412,6 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 }
             }
 
-            // Stop any delayed Prism Relic trigger so it cannot fire after pause, restart, or level transition.
-            clearPrismRelicCueTimer() {
-                if (this.gridlockSystem.prismRelicCueTimer) {
-                    this.scheduler.cancelTask(this.gridlockSystem.prismRelicCueTimer);
-                    this.gridlockSystem.prismRelicCueTimer = null;
-                }
-            }
             // The main simulation loop has one scheduler-owned animation frame at a time.
             // A new owner revision immediately cancels any pending frame from the previous live-action session.
 
@@ -22380,7 +22430,6 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 this.scheduler.cancelScope('gameplay');
                 this.gridlockSystem.gridlockCueTimer = null;
                 this.gridlockSystem.overtimeEnemyTimer = null;
-                this.gridlockSystem.prismRelicCueTimer = null;
             }
 
             // Gridlock Relic timing is deterministic so the bonus is easier to understand and tune.
@@ -22457,7 +22506,6 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 this.removePrismRelic();
                 this.clearGridlockCueTimer();
                 this.clearOvertimeEnemyTimer();
-                this.clearPrismRelicCueTimer();
                 this.gridlockSystem.resetSector(this.gridlockEnemyThreshold);
                 this.cosmicZapSystem.resetSector(this.settings.difficultyMode);
                 this.crystalSystem.setBlinkingChoiceCount(this.BASE_BLINKING_CRYSTAL_COUNT);
@@ -22470,7 +22518,6 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 this.sectorElapsedMs = 0;
                 if (this.audio && this.audio.setGridlockBeatIntensity) this.audio.setGridlockBeatIntensity(0);
                 this.applySectorParameters();
-                this.gridlockSystem.resetRelicTiming(this.gridlockEnemyThreshold);
             }
 
             // Phase 4B lifecycle entry: prepare all state needed to enter a sector.
@@ -22609,7 +22656,6 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 }
                 if (this.gridlockSystem.prismRelic) this.audio.startPrismRelicHum();
                 this.requestWakeLock();
-                this.checkPrismRelicSpawnProgress();
                 this.checkGridlockProgress();
                 this.frameCoordinator.startGameplayLoop();
                 this.diagnosticsSystem.validateStateInvariants('beginSector:live-action');
@@ -23423,11 +23469,6 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 return true;
             }
 
-            checkPrismRelicSpawnProgress() {
-                // Prism opportunities are owned exclusively by the Gridlock milestone sequence.
-                return false;
-            }
-
             resolveVisiblePrismRelic(status, reason = null) {
                 const relic = this.gridlockSystem.prismRelic;
                 if (!relic) return null;
@@ -23740,7 +23781,6 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
             }
 
             removePrismRelic() {
-                this.clearPrismRelicCueTimer();
                 const relic = this.gridlockSystem.prismRelic;
                 if (relic) {
                     this.playfieldRenderer.removePrismRelic(relic);
@@ -23919,7 +23959,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
 
                 const unusedCosmicZapBonus = this.cosmicZapSystem.remaining * GAME_CONFIG.scoring.unusedCosmicZapBonus;
                 const gridlockBonusEarned = this.gridlockSystem.gridlockPrismPointsThisSector;
-                const superGridlockBonusEarned = this.gridlockSystem.superGridlockBonusPointsThisSector;
+                const superGridlockBonusEarned = this.gridlockSystem.superGridlockPrismPointsThisSector;
                 const perfectSectorBonus = this.crystalSystem.isPerfectSectorEligible(this.cosmicZapSystem.usesThisSector) ? GAME_CONFIG.scoring.perfectSectorBonus : 0;
                 if (perfectSectorBonus > 0) this.runSession.markPerfectSector(completedSector);
                 const totalBonus = unusedCosmicZapBonus + perfectSectorBonus;
@@ -24099,7 +24139,6 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 this.setGridlockState({ gridlockActive: false });
                 this.resetOvertimeState();
                 this.clearGridlockCueTimer();
-                this.clearPrismRelicCueTimer();
                 this.removePrismRelic();
                 this.enemySpawnSystem.spawnedCount = { small: 0, medium: 0, large: 0 };
                 this.applySectorParameters();
@@ -28955,6 +28994,9 @@ startGridlockBeat(delaySeconds = 0) {
                 startButton.classList.toggle('control-hidden-layout', controlHidden);
                 startButton.classList.toggle('utility-control-layout', useUtilitySlot);
                 startButton.classList.toggle('primary-play-layout', usePrimarySlot);
+                if (this.game.skinShell) {
+                    this.game.skinShell.dataset.bottomHudMode = usePrimarySlot ? 'play' : 'radar';
+                }
 
                 if (inLivePlay) {
                     startButton.textContent = '❚❚';
@@ -29285,6 +29327,8 @@ startGridlockBeat(delaySeconds = 0) {
                 game.runtimeState.patchTerminal({ finalGridlockActive: true });
                 game.ui.updateStartPauseButton();
                 assert('Final Gridlock hides the manual Pause control', game.startButton.classList.contains('control-hidden-layout'));
+                assert('Splash uses automatic three-second managed timing', GAME_CONFIG.transitions.splashDurationMs === 3000 && !Game.prototype.setupSplashIntro.toString().includes('addEventListener'));
+                assert('Splash input barrier owns unreleased intro contacts', game.gestures && game.gestures.splashBlockedPointers instanceof Set && typeof game.gestures.completeSplashInputBarrier === 'function');
                 game.runtimeState.patchTerminal({ finalGridlockActive: previousFinalGridlockState });
                 game.ui.updateStartPauseButton();
                 assert('Telemetry schema v11 is active', game.telemetrySystem.telemetry && game.telemetrySystem.telemetry.schema === 'blockazoids-balance-v11');
