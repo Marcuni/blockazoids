@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Block-A-Zoids p266: repairs startup validation metadata after the arrowless, center-locked live radar update while preserving difficulty-isolated campaign progression and Final Gridlock rules.
+Block-A-Zoids p267: locks the primary Play control, radar indicator, and live concentric geometry to one shared radar center while preserving difficulty-isolated campaign progression and Final Gridlock rules.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="p266">
+<html data-build-version="p267">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -4231,9 +4231,6 @@ Font License Notices
             stroke-width: 1.42;
         }
 
-        #liveRadarGeometry .radar-reference-arrow {
-            stroke-width: 1.58;
-        }
 
         #liveRadarGeometry .radar-reference-node {
             fill: rgba(250, 250, 250, 0.98);
@@ -5645,9 +5642,9 @@ Font License Notices
         }
 
         html body #skinShell > #startButton.primary-play-layout {
-            left: 50% !important;
-            top: 77.30% !important;
-            width: 16.25% !important;
+            left: var(--skin-radar-center-x, 49.718151%) !important;
+            top: var(--skin-radar-center-y, 77.226607%) !important;
+            width: var(--skin-primary-play-width, 16.25%) !important;
             border-radius: 50% !important;
             background: #fff !important;
             box-shadow:
@@ -7215,7 +7212,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
         const BUILD_METADATA = window.BLOCKAZOIDS_BUILD = Object.freeze({
             version: document.documentElement.dataset.buildVersion || 'unknown',
             label: BUILD_VERSION,
-            architecturePhase: 'center-locked-arrowless-live-radar-and-difficulty-isolated-progression',
+            architecturePhase: 'shared-radar-center-primary-control-and-difficulty-isolated-progression',
             sourceBaseline: 'p263',
             behaviorPolicy: 'authoritative-state-reference-matched-live-vector-no-parallel-systems'
         });
@@ -7250,7 +7247,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
         const SOURCE_LAYOUT = window.BLOCKAZOIDS_SOURCE_LAYOUT = Object.freeze({
             developmentModel: 'modular-source',
             releaseModel: 'single-html',
-            buildOutput: 'block-a-zoids-p266.html',
+            buildOutput: 'block-a-zoids-p267.html',
             categories: Object.freeze([
                 'build', 'config', 'content', 'rules', 'state', 'services', 'app', 'gameplay',
                 'presentation', 'platform', 'audio', 'ui', 'development', 'docs'
@@ -7260,7 +7257,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
 
 /* Source: src/js/development/75-developer-documentation.js */
         const DEVELOPER_DOCUMENTATION = window.BLOCKAZOIDS_DEVELOPER_GUIDE = deepFreezeConfiguration({
-            version: 'p266',
+            version: 'p267',
             purpose: 'Make ownership, safe edit locations, state transitions, build steps, and maintenance rules discoverable without reverse-engineering the complete game.',
             architecture: {
                 application: {
@@ -13221,10 +13218,19 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 setPercent('--skin-start-top', profile.startTop);
                 setPercent('--skin-status-top', profile.statusTop);
                 setPercent('--skin-status-width', profile.statusWidth);
-                setPercent('--skin-radar-geometry-left', profile.radarGeometryLeft);
-                setPercent('--skin-radar-geometry-top', profile.radarGeometryTop);
-                setPercent('--skin-radar-geometry-width', profile.radarGeometryWidth);
-                setPercent('--skin-radar-geometry-height', profile.radarGeometryHeight);
+                const radarLeft = Number(profile.radarGeometryLeft);
+                const radarTop = Number(profile.radarGeometryTop);
+                const radarWidth = Number(profile.radarGeometryWidth);
+                const radarHeight = Number(profile.radarGeometryHeight);
+                const radarCenterX = radarLeft + (radarWidth / 2);
+                const radarCenterY = radarTop + (radarHeight / 2);
+                setPercent('--skin-radar-geometry-left', radarLeft);
+                setPercent('--skin-radar-geometry-top', radarTop);
+                setPercent('--skin-radar-geometry-width', radarWidth);
+                setPercent('--skin-radar-geometry-height', radarHeight);
+                setPercent('--skin-radar-center-x', radarCenterX);
+                setPercent('--skin-radar-center-y', radarCenterY);
+                setPercent('--skin-primary-play-width', profile.primaryPlayWidth);
                 setPercent('--skin-sector-x', profile.sectorX);
                 setPercent('--skin-right-slot-x', profile.rightSlotX);
                 setPercent('--skin-lower-controls-top', profile.lowerControlsTop);
@@ -16027,6 +16033,15 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                     '--skin-radar-geometry-width',
                     '--skin-radar-geometry-height'
                 ].every(name => liveRadarStyleText.includes(`var(${name}`) && skinLayoutSource.includes(name)));
+                const primaryPlayRule = styleRules.find((rule) => rule.selectorText === 'html body #skinShell > #startButton.primary-play-layout');
+                const primaryPlayStyleText = primaryPlayRule ? primaryPlayRule.style.cssText : '';
+                this.assert('Primary Play control consumes the shared radar center', [
+                    '--skin-radar-center-x',
+                    '--skin-radar-center-y',
+                    '--skin-primary-play-width'
+                ].every(name => primaryPlayStyleText.includes(`var(${name}`) && skinLayoutSource.includes(name)));
+                this.assert('Primary Play control has no independent hard-coded center', !primaryPlayStyleText.includes('left: 50%') && !primaryPlayStyleText.includes('top: 77.3%'));
+                this.assert('Retired radar arrow style owner removed', countSelector('#liveRadarGeometry .radar-reference-arrow') === 0);
                 this.assert('Cabinet bitmap is disabled by the temporary feature flag', GAME_FEATURE_FLAGS.cabinetBackgroundAsset === false && GAME_FEATURE_FLAGS.liveRadarGeometry === true);
                 this.assert('Playfield shell geometry has one CSS owner', countSelector('html body #skinShell > #playfieldShell') === 1, `received ${countSelector('html body #skinShell > #playfieldShell')}`);
                 this.assert('Playfield container geometry has one CSS owner', countSelector('html body #playfieldShell > #gameContainer') === 1, `received ${countSelector('html body #playfieldShell > #gameContainer')}`);
@@ -21031,6 +21046,9 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                             radarGeometryTop: 63.697858,
                             radarGeometryWidth: 54.114994,
                             radarGeometryHeight: 27.057497,
+                            // The primary Play control shares the radar center calculated from the
+                            // bounds above. Only its diameter is a separate design value.
+                            primaryPlayWidth: 16.25,
                             sectorX: 13.754228,
                             rightSlotX: 85.907553,
                             lowerControlsTop: 89.505073
@@ -28663,6 +28681,19 @@ startGridlockBeat(delaySeconds = 0) {
 
                 const startButton = document.getElementById('startButton');
                 const originalStartClassName = startButton?.className || '';
+                const liveRadarRect = document.getElementById('liveRadarGeometry')?.getBoundingClientRect();
+                const radarCenterOrbRect = document.querySelector('#radarColorIndicator .radar-center-orb')?.getBoundingClientRect();
+                if (startButton) {
+                    startButton.classList.remove('utility-control-layout', 'control-hidden-layout', 'pause-visible');
+                    startButton.classList.add('primary-play-layout');
+                }
+                const primaryControlRect = startButton?.getBoundingClientRect();
+                const centerOf = (rect) => rect ? { x: rect.left + (rect.width / 2), y: rect.top + (rect.height / 2) } : null;
+                const liveRadarCenter = centerOf(liveRadarRect);
+                const primaryControlCenter = centerOf(primaryControlRect);
+                const radarOrbCenter = centerOf(radarCenterOrbRect);
+                assert('Primary Play control is locked to the live radar center', !!liveRadarCenter && !!primaryControlCenter && Math.abs(primaryControlCenter.x - liveRadarCenter.x) < 0.6 && Math.abs(primaryControlCenter.y - liveRadarCenter.y) < 0.6, `radar ${liveRadarCenter?.x},${liveRadarCenter?.y}; play ${primaryControlCenter?.x},${primaryControlCenter?.y}`);
+                assert('Radar color indicator is locked to the live radar center', !!liveRadarCenter && !!radarOrbCenter && Math.abs(radarOrbCenter.x - liveRadarCenter.x) < 0.6 && Math.abs(radarOrbCenter.y - liveRadarCenter.y) < 0.6, `radar ${liveRadarCenter?.x},${liveRadarCenter?.y}; orb ${radarOrbCenter?.x},${radarOrbCenter?.y}`);
                 if (startButton) {
                     startButton.classList.remove('primary-play-layout', 'control-hidden-layout');
                     startButton.classList.add('utility-control-layout', 'pause-visible');
