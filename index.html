@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Block-A-Zoids p271: adds a developer attract-mode swipe-to-double-tap sequence test that exercises the shared Cosmic Zap recognizer after a real swipe lead-in, with current-build-only HUD counts and exported timing evidence.
+Block-A-Zoids p272: expands the shared Cosmic Zap double-tap separation allowance to 64 px and strengthens swipe-to-double-tap diagnostics so fast moving or overlapping contacts are recorded instead of silently becoming a new swipe.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="p271">
+<html data-build-version="p272">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -7291,7 +7291,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
         const SOURCE_LAYOUT = window.BLOCKAZOIDS_SOURCE_LAYOUT = Object.freeze({
             developmentModel: 'modular-source',
             releaseModel: 'single-html',
-            buildOutput: 'block-a-zoids-p271.html',
+            buildOutput: 'block-a-zoids-p272.html',
             categories: Object.freeze([
                 'build', 'config', 'content', 'rules', 'state', 'services', 'app', 'gameplay',
                 'presentation', 'platform', 'audio', 'ui', 'development', 'docs'
@@ -7301,7 +7301,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
 
 /* Source: src/js/development/75-developer-documentation.js */
         const DEVELOPER_DOCUMENTATION = window.BLOCKAZOIDS_DEVELOPER_GUIDE = deepFreezeConfiguration({
-            version: 'p271',
+            version: 'p272',
             purpose: 'Make ownership, safe edit locations, state transitions, build steps, and maintenance rules discoverable without reverse-engineering the complete game.',
             architecture: {
                 application: {
@@ -7721,7 +7721,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 gestureTapMaxMove: 20,
                 gestureTapMaxDurationMs: 280,
                 gestureDoubleTapWindowMs: 500,
-                gestureDoubleTapMaxSeparation: 48,
+                gestureDoubleTapMaxSeparation: 64,
                 gestureDiagnosticSwipeLeadInWindowMs: 1400,
                 gestureDiagnosticMaxRecords: 240,
                 shakeCooldownMs: 1200,
@@ -15211,7 +15211,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
 
 /* Source: src/js/development/88-diagnostics-system.js */
         class DiagnosticsSystem {
-            static ownedFields = Object.freeze(['performanceTelemetrySamples', 'performanceTelemetryLastTimestamp', 'performanceTelemetryLastRender', 'performanceTelemetryRafId', 'gestureDiagnosticStorageKey', 'gestureDiagnosticRecords', 'gestureDiagnosticSequence', 'gestureDiagnosticLastStatus'].map(String));
+            static ownedFields = Object.freeze(['performanceTelemetrySamples', 'performanceTelemetryLastTimestamp', 'performanceTelemetryLastRender', 'performanceTelemetryRafId', 'gestureDiagnosticStorageKey', 'gestureDiagnosticRecords', 'gestureDiagnosticSequence', 'gestureDiagnosticLastStatus', 'gestureDiagnosticRawCountsByBuild'].map(String));
 
             constructor(game) {
                 this.game = game;
@@ -15223,6 +15223,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 this.gestureDiagnosticRecords = [];
                 this.gestureDiagnosticSequence = 0;
                 this.gestureDiagnosticLastStatus = 'SWIPE FIRST';
+                this.gestureDiagnosticRawCountsByBuild = {};
             }
 
             hasImplementation(name) {
@@ -15240,6 +15241,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
             saveGestureDiagnostics(...args) { return DiagnosticsSystem.implementations.saveGestureDiagnostics.apply(this.game, args); }
             isGestureDiagnosticModeActive(...args) { return DiagnosticsSystem.implementations.isGestureDiagnosticModeActive.apply(this.game, args); }
             recordGestureDiagnostic(...args) { return DiagnosticsSystem.implementations.recordGestureDiagnostic.apply(this.game, args); }
+            noteGestureDiagnosticPointerEvent(...args) { return DiagnosticsSystem.implementations.noteGestureDiagnosticPointerEvent.apply(this.game, args); }
             updateGestureDiagnosticsHud(...args) { return DiagnosticsSystem.implementations.updateGestureDiagnosticsHud.apply(this.game, args); }
             buildGestureDiagnosticExport(...args) { return DiagnosticsSystem.implementations.buildGestureDiagnosticExport.apply(this.game, args); }
 
@@ -15254,6 +15256,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                     lastFrameTimestamp: this.performanceTelemetryLastTimestamp || 0,
                     gestureDiagnosticRecords: Array.isArray(this.gestureDiagnosticRecords) ? this.gestureDiagnosticRecords.length : 0,
                     gestureDiagnosticLastStatus: this.gestureDiagnosticLastStatus || 'SWIPE FIRST',
+                    gestureDiagnosticRawCounts: Object.freeze({ ...((this.gestureDiagnosticRawCountsByBuild || {})[BUILD_VERSION] || {}) }),
                     gestureDiagnosticLastRecord: Array.isArray(this.gestureDiagnosticRecords) && this.gestureDiagnosticRecords.length
                         ? Object.freeze({ ...this.gestureDiagnosticRecords[this.gestureDiagnosticRecords.length - 1] })
                         : null
@@ -15264,14 +15267,27 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
         DiagnosticsSystem.implementations = Object.freeze({
             loadGestureDiagnostics: function() {
                 let records = [];
+                let rawCountsByBuild = {};
                 try {
                     const parsed = JSON.parse(storageService.getItem(this.diagnosticsSystem.gestureDiagnosticStorageKey) || '[]');
-                    if (Array.isArray(parsed)) records = parsed.filter(record => record && typeof record === 'object');
+                    if (Array.isArray(parsed)) {
+                        // Backward compatibility for p269-p271 diagnostic arrays.
+                        records = parsed.filter(record => record && typeof record === 'object');
+                    } else if (parsed && typeof parsed === 'object') {
+                        records = Array.isArray(parsed.records)
+                            ? parsed.records.filter(record => record && typeof record === 'object')
+                            : [];
+                        rawCountsByBuild = parsed.rawCountsByBuild && typeof parsed.rawCountsByBuild === 'object'
+                            ? parsed.rawCountsByBuild
+                            : {};
+                    }
                 } catch (_) {
                     records = [];
+                    rawCountsByBuild = {};
                 }
                 const maxRecords = Math.max(20, Number(GAME_CONFIG.input.gestureDiagnosticMaxRecords) || 240);
                 this.diagnosticsSystem.gestureDiagnosticRecords = records.slice(-maxRecords);
+                this.diagnosticsSystem.gestureDiagnosticRawCountsByBuild = { ...rawCountsByBuild };
                 this.diagnosticsSystem.gestureDiagnosticSequence = this.diagnosticsSystem.gestureDiagnosticRecords.reduce(
                     (max, record) => Math.max(max, Number(record.id) || 0), 0
                 );
@@ -15283,12 +15299,49 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 try {
                     storageService.setItem(
                         this.diagnosticsSystem.gestureDiagnosticStorageKey,
-                        JSON.stringify(this.diagnosticsSystem.gestureDiagnosticRecords || [])
+                        JSON.stringify({
+                            schema: 'blockazoids-gesture-diagnostics-storage-v2',
+                            records: this.diagnosticsSystem.gestureDiagnosticRecords || [],
+                            rawCountsByBuild: this.diagnosticsSystem.gestureDiagnosticRawCountsByBuild || {}
+                        })
                     );
                     return true;
                 } catch (_) {
                     return false;
                 }
+            },
+
+            noteGestureDiagnosticPointerEvent: function(eventType, details = {}) {
+                const buildKey = BUILD_VERSION;
+                const byBuild = this.diagnosticsSystem.gestureDiagnosticRawCountsByBuild ||
+                    (this.diagnosticsSystem.gestureDiagnosticRawCountsByBuild = {});
+                const previous = byBuild[buildKey] && typeof byBuild[buildKey] === 'object'
+                    ? byBuild[buildKey]
+                    : {};
+                const counts = {
+                    pointerDown: Number(previous.pointerDown) || 0,
+                    pointerUp: Number(previous.pointerUp) || 0,
+                    pointerCancel: Number(previous.pointerCancel) || 0,
+                    overlap: Number(previous.overlap) || 0,
+                    unmatchedEnd: Number(previous.unmatchedEnd) || 0,
+                    lastEventAt: previous.lastEventAt || null,
+                    lastEventType: previous.lastEventType || null,
+                    lastPointerId: previous.lastPointerId ?? null,
+                    lastPhase: previous.lastPhase || null
+                };
+                if (eventType === 'pointerdown') counts.pointerDown++;
+                else if (eventType === 'pointerup') counts.pointerUp++;
+                else if (eventType === 'pointercancel') counts.pointerCancel++;
+                else if (eventType === 'overlap') counts.overlap++;
+                else if (eventType === 'unmatched-end') counts.unmatchedEnd++;
+                counts.lastEventAt = new Date().toISOString();
+                counts.lastEventType = String(eventType || 'unknown');
+                counts.lastPointerId = details.pointerId ?? null;
+                counts.lastPhase = details.phase || null;
+                counts.unresolvedContacts = Math.max(0, counts.pointerDown - counts.pointerUp - counts.pointerCancel);
+                byBuild[buildKey] = counts;
+                this.diagnosticsSystem.saveGestureDiagnostics();
+                return Object.freeze({ ...counts });
             },
 
             isGestureDiagnosticModeActive: function() {
@@ -15302,12 +15355,14 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
 
             recordGestureDiagnostic: function(record = {}) {
                 const records = this.diagnosticsSystem.gestureDiagnosticRecords;
+                const currentRawCounts = ((this.diagnosticsSystem.gestureDiagnosticRawCountsByBuild || {})[BUILD_VERSION] || {});
                 const normalized = Object.freeze({
                     id: ++this.diagnosticsSystem.gestureDiagnosticSequence,
                     capturedAt: new Date().toISOString(),
                     build: BUILD_VERSION,
                     mode: 'developer-attract-swipe-double-tap',
-                    ...record
+                    ...record,
+                    rawContactSnapshot: Object.freeze({ ...currentRawCounts })
                 });
                 records.push(normalized);
                 const maxRecords = Math.max(20, Number(GAME_CONFIG.input.gestureDiagnosticMaxRecords) || 240);
@@ -15362,7 +15417,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 };
                 const currentBuildRecords = records.filter(record => record && record.build === BUILD_VERSION);
                 return {
-                    schema: 'blockazoids-gesture-diagnostics-v2',
+                    schema: 'blockazoids-gesture-diagnostics-v3',
                     build: BUILD_VERSION,
                     exportedAt: new Date().toISOString(),
                     thresholds: {
@@ -15374,6 +15429,10 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                     },
                     totals: summarize(records),
                     currentBuildTotals: summarize(currentBuildRecords),
+                    rawContacts: {
+                        currentBuild: { ...(((this.diagnosticsSystem.gestureDiagnosticRawCountsByBuild || {})[BUILD_VERSION]) || {}) },
+                        byBuild: JSON.parse(JSON.stringify(this.diagnosticsSystem.gestureDiagnosticRawCountsByBuild || {}))
+                    },
                     records
                 };
             },
@@ -16167,6 +16226,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 this.assert('Retired attract Orb hold helpers removed', !FullSurfaceGestureCoordinator.prototype.isAttractOrbTarget && !FullSurfaceGestureCoordinator.prototype.beginAttractOrbHold);
                 const gestureEndSource = FullSurfaceGestureCoordinator.prototype.handlePointerEnd.toString();
                 this.assert('Cosmic Zap tap movement tolerance is authored once in input configuration', GAME_CONFIG.input.gestureTapMaxMove === 20);
+                this.assert('Cosmic Zap double-tap separation allowance is authored once at 64 px', GAME_CONFIG.input.gestureDoubleTapMaxSeparation === 64);
                 this.assert('Cosmic Zap tap recognition consumes the configured movement tolerance', gestureEndSource.includes('GAME_CONFIG.input.gestureTapMaxMove'));
                 const gestureUpdateSource = FullSurfaceGestureCoordinator.prototype.updatePointer.toString();
                 this.assert('Tap movement classification uses maximum distance from the touch origin', gestureUpdateSource.includes('maxDistanceFromStart') && gestureUpdateSource.includes('> GAME_CONFIG.input.gestureTapMaxMove') && !gestureUpdateSource.includes('pointer.travel > GAME_CONFIG.input.gestureTapMaxMove'));
@@ -16177,6 +16237,12 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 this.assert('Swipe diagnostic lead-in window is authored once', GAME_CONFIG.input.gestureDiagnosticSwipeLeadInWindowMs === 1400);
                 this.assert('Swipe diagnostic reuses the shared tap classifier after movement', FullSurfaceGestureCoordinator.prototype.handleDiagnosticPointerEnd.toString().includes('pointer.movementCommitted') && FullSurfaceGestureCoordinator.prototype.handlePointerEnd.toString().includes('const wasTap'));
                 this.assert('Swipe diagnostic preserves the gameplay double-tap separation rule', FullSurfaceGestureCoordinator.prototype.handleDiagnosticPointerEnd.toString().includes('GAME_CONFIG.input.gestureDoubleTapMaxSeparation'));
+                const diagnosticPointerEndSource = FullSurfaceGestureCoordinator.prototype.handleDiagnosticPointerEnd.toString();
+                this.assert('Fast first-tap movement is recorded before it can re-arm as a swipe', diagnosticPointerEndSource.includes('first-tap-became-swipe') && diagnosticPointerEndSource.includes('Preserve the failure before reusing the movement'));
+                this.assert('Fast second-tap movement is recorded before it can re-arm as a swipe', diagnosticPointerEndSource.includes('second-tap-became-swipe') && diagnosticPointerEndSource.includes('Record that failed attempt first'));
+                this.assert('Overlapping or missing contacts have an explicit diagnostic outcome', FullSurfaceGestureCoordinator.prototype.handlePointerDown.toString().includes('contact-missing-or-overlapped') && FullSurfaceGestureCoordinator.prototype.handlePointerEnd.toString().includes('contact-missing-or-overlapped'));
+                this.assert('DiagnosticsSystem owns raw pointer contact accounting', diagnosticsOwner.hasImplementation('noteGestureDiagnosticPointerEvent') && DiagnosticsSystem.ownedFields.includes('gestureDiagnosticRawCountsByBuild'));
+                this.assert('Gesture diagnostic export includes raw pointer contact accounting', DiagnosticsSystem.implementations.buildGestureDiagnosticExport.toString().includes('rawContacts'));
                 this.assert('Gesture diagnostic HUD counts only the active build', DiagnosticsSystem.implementations.updateGestureDiagnosticsHud.toString().includes('record.build === BUILD_VERSION'));
                 this.assert('Gesture diagnostic export separates active-build totals', DiagnosticsSystem.implementations.buildGestureDiagnosticExport.toString().includes('currentBuildTotals'));
                 this.assert('Gesture diagnostic HUD exists once', document.querySelectorAll('#gestureDiagnosticsHud').length === 1);
@@ -17351,8 +17417,50 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
 
                 if (!wasTap) {
                     if (!canceled && !pointer.multitouchSeen && pointer.movementCommitted) {
-                        // A real swipe lead-in mirrors gameplay: movement clears any pending tap,
-                        // then the next two valid taps are evaluated by the same tap classifier.
+                        const pendingTap = this.lastDiagnosticTap;
+                        const pendingSwipe = this.lastDiagnosticSwipe;
+
+                        if (pendingTap) {
+                            // A fast intended second tap can contain enough movement to become a swipe.
+                            // Record that failed attempt first; only then may the contact arm the next test.
+                            this.cancelDiagnosticSequence('second-tap-became-swipe');
+                            this.recordDiagnosticResult({
+                                mode: 'developer-attract-swipe-double-tap',
+                                sequence: 'swipe-tap-tap',
+                                outcome: 'rejected',
+                                reason: 'second-tap-became-swipe',
+                                leadInSwipe: pendingTap.swipe,
+                                firstTap: pendingTap.tap,
+                                secondTap: summary,
+                                diagnosticPhase: pointer.diagnosticPhaseAtDown,
+                                pair: null
+                            });
+                            this.playDiagnosticCue('rejected');
+                            this.armDiagnosticSwipe(summary, pointer.x, pointer.y, now);
+                            return true;
+                        }
+
+                        if (pendingSwipe) {
+                            // A fast intended first tap can also slide beyond the tap radius.
+                            // Preserve the failure before reusing the movement as a new lead-in swipe.
+                            this.cancelDiagnosticSequence('first-tap-became-swipe');
+                            this.recordDiagnosticResult({
+                                mode: 'developer-attract-swipe-double-tap',
+                                sequence: 'swipe-tap-tap',
+                                outcome: 'rejected',
+                                reason: 'first-tap-became-swipe',
+                                leadInSwipe: pendingSwipe.swipe,
+                                firstTap: summary,
+                                secondTap: null,
+                                diagnosticPhase: pointer.diagnosticPhaseAtDown,
+                                pair: null
+                            });
+                            this.playDiagnosticCue('rejected');
+                            this.armDiagnosticSwipe(summary, pointer.x, pointer.y, now);
+                            return true;
+                        }
+
+                        // No attempt was pending, so this contact is the normal swipe lead-in.
                         this.armDiagnosticSwipe(summary, pointer.x, pointer.y, now);
                         return true;
                     }
@@ -17380,7 +17488,17 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                     const swipeContext = this.lastDiagnosticSwipe;
                     if (!swipeContext || now - swipeContext.time > GAME_CONFIG.input.gestureDiagnosticSwipeLeadInWindowMs) {
                         this.cancelDiagnosticSequence('tap-without-swipe');
-                        this.game.diagnosticsSystem.updateGestureDiagnosticsHud('SWIPE FIRST', 'failure');
+                        this.recordDiagnosticResult({
+                            mode: 'developer-attract-swipe-double-tap',
+                            sequence: 'swipe-tap-tap',
+                            outcome: 'rejected',
+                            reason: 'contact-missing-or-overlapped',
+                            leadInSwipe: swipeContext ? swipeContext.swipe : null,
+                            firstTap: summary,
+                            secondTap: null,
+                            diagnosticPhase: pointer.diagnosticPhaseAtDown,
+                            pair: null
+                        });
                         this.playDiagnosticCue('rejected');
                         return true;
                     }
@@ -17516,6 +17634,16 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 if (!this.game.motionPermissionGranted && this.pointers.size === 0) this.game.enableShakeCosmicZap();
 
                 const pointer = this.createPointerState(event);
+                pointer.diagnosticContact = diagnosticAttractTap;
+                pointer.diagnosticPhaseAtDown = this.lastDiagnosticTap
+                    ? 'awaiting-second-tap'
+                    : (this.lastDiagnosticSwipe ? 'awaiting-first-tap' : 'awaiting-swipe');
+                if (diagnosticAttractTap && this.game && this.game.diagnosticsSystem) {
+                    this.game.diagnosticsSystem.noteGestureDiagnosticPointerEvent('pointerdown', {
+                        pointerId: event.pointerId,
+                        phase: pointer.diagnosticPhaseAtDown
+                    });
+                }
                 this.pointers.set(event.pointerId, pointer);
 
                 if (this.pointers.size === 1) {
@@ -17534,15 +17662,22 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 if (this.isGestureDiagnosticModeActive()) {
                     const pendingTap = this.lastDiagnosticTap;
                     const pendingSwipe = this.lastDiagnosticSwipe;
-                    this.cancelDiagnosticSequence('multitouch');
+                    if (this.game && this.game.diagnosticsSystem) {
+                        this.game.diagnosticsSystem.noteGestureDiagnosticPointerEvent('overlap', {
+                            pointerId: event.pointerId,
+                            phase: pointer.diagnosticPhaseAtDown
+                        });
+                    }
+                    this.cancelDiagnosticSequence('contact-overlap');
                     this.recordDiagnosticResult({
                         mode: 'developer-attract-swipe-double-tap',
                         sequence: 'swipe-tap-tap',
                         outcome: 'rejected',
-                        reason: 'multitouch-detected',
+                        reason: 'contact-missing-or-overlapped',
                         leadInSwipe: pendingTap ? pendingTap.swipe : (pendingSwipe ? pendingSwipe.swipe : null),
                         firstTap: pendingTap ? pendingTap.tap : null,
                         secondTap: null,
+                        diagnosticPhase: pointer.diagnosticPhaseAtDown,
                         pair: null
                     });
                     this.playDiagnosticCue('rejected');
@@ -17609,7 +17744,33 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
 
             handlePointerEnd(event, canceled = false) {
                 const pointer = event && this.pointers.get(event.pointerId);
-                if (!pointer) return;
+                if (!pointer) {
+                    if (this.isGestureDiagnosticModeActive() && event && this.game && this.game.diagnosticsSystem) {
+                        this.game.diagnosticsSystem.noteGestureDiagnosticPointerEvent('unmatched-end', {
+                            pointerId: event.pointerId,
+                            phase: this.lastDiagnosticTap ? 'awaiting-second-tap' : (this.lastDiagnosticSwipe ? 'awaiting-first-tap' : 'awaiting-swipe')
+                        });
+                        this.cancelDiagnosticSequence('unmatched-end');
+                        this.recordDiagnosticResult({
+                            mode: 'developer-attract-swipe-double-tap',
+                            sequence: 'swipe-tap-tap',
+                            outcome: 'rejected',
+                            reason: 'contact-missing-or-overlapped',
+                            leadInSwipe: null,
+                            firstTap: null,
+                            secondTap: null,
+                            pair: null
+                        });
+                        this.playDiagnosticCue('rejected');
+                    }
+                    return;
+                }
+                if (pointer.diagnosticContact && this.game && this.game.diagnosticsSystem) {
+                    this.game.diagnosticsSystem.noteGestureDiagnosticPointerEvent(canceled ? 'pointercancel' : 'pointerup', {
+                        pointerId: event.pointerId,
+                        phase: pointer.diagnosticPhaseAtDown
+                    });
+                }
                 this.updatePointer(pointer, event);
                 pointer.ended = true;
 
