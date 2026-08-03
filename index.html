@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Block-A-Zoids p277: adds a managed three-second studio intro, authoritative bottom-HUD mode projection, full-cast message styling parity, and removes retired Gridlock reward compatibility hooks.
+Block-A-Zoids p279: presents the studio splash immediately at full opacity for three seconds, then cuts directly to the title screen.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="p277">
+<html data-build-version="p279">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -1351,10 +1351,10 @@ Font License Notices
             touch-action: none;
             -webkit-tap-highlight-color: transparent;
             cursor: default;
-            opacity: 0;
+            opacity: 1;
             visibility: visible;
             pointer-events: auto;
-            animation: splashStudioLifecycle var(--splash-duration, 3000ms) linear both;
+            animation: none;
         }
 
         #splashScreen.hidden {
@@ -1365,12 +1365,6 @@ Font License Notices
             animation: none;
         }
 
-        @keyframes splashStudioLifecycle {
-            0% { opacity: 0; }
-            16.6667% { opacity: 1; }
-            83.3333% { opacity: 1; }
-            100% { opacity: 0; }
-        }
 
         #splashScreen::before {
             content: "";
@@ -7227,7 +7221,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
         const BUILD_METADATA = window.BLOCKAZOIDS_BUILD = Object.freeze({
             version: document.documentElement.dataset.buildVersion || 'unknown',
             label: BUILD_VERSION,
-            architecturePhase: 'managed-studio-intro-and-authoritative-bottom-hud-projection',
+            architecturePhase: 'unified-gridlock-announcements-and-prism-expiration-warning',
             sourceBaseline: 'p263',
             behaviorPolicy: 'authoritative-state-reference-matched-live-vector-no-parallel-systems'
         });
@@ -7262,7 +7256,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
         const SOURCE_LAYOUT = window.BLOCKAZOIDS_SOURCE_LAYOUT = Object.freeze({
             developmentModel: 'modular-source',
             releaseModel: 'single-html',
-            buildOutput: 'block-a-zoids-p277.html',
+            buildOutput: 'block-a-zoids-p279.html',
             categories: Object.freeze([
                 'build', 'config', 'content', 'rules', 'state', 'services', 'app', 'gameplay',
                 'presentation', 'platform', 'audio', 'ui', 'development', 'docs'
@@ -7272,7 +7266,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
 
 /* Source: src/js/development/75-developer-documentation.js */
         const DEVELOPER_DOCUMENTATION = window.BLOCKAZOIDS_DEVELOPER_GUIDE = deepFreezeConfiguration({
-            version: 'p277',
+            version: 'p279',
             purpose: 'Make ownership, safe edit locations, state transitions, build steps, and maintenance rules discoverable without reverse-engineering the complete game.',
             architecture: {
                 application: {
@@ -7701,14 +7695,15 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
             gridlock: {
                 activationCueDelayMs: 1000,
                 milestoneIntervalMs: 30000,
+                prismExpirationWarningMs: 5000,
                 overtimeEnemyIntervalMs: 60000,
                 milestones: Object.freeze([
                     Object.freeze({ id: 'white-prism', type: 'prism', color: 'white', points: 300, label: 'PRISM RELIC' }),
-                    Object.freeze({ id: 'super-gridlock-1', type: 'enemy', ordinal: 1, label: 'SUPER GRIDLOCK 1' }),
+                    Object.freeze({ id: 'super-gridlock-1', type: 'enemy', ordinal: 1, label: 'SUPER GRIDLOCK' }),
                     Object.freeze({ id: 'red-prism', type: 'prism', color: 'red', points: 100, label: 'RED PRISM' }),
-                    Object.freeze({ id: 'super-gridlock-2', type: 'enemy', ordinal: 2, label: 'SUPER GRIDLOCK 2' }),
+                    Object.freeze({ id: 'super-gridlock-2', type: 'enemy', ordinal: 2, label: 'SUPER GRIDLOCK' }),
                     Object.freeze({ id: 'green-prism', type: 'prism', color: 'green', points: 150, label: 'GREEN PRISM' }),
-                    Object.freeze({ id: 'super-gridlock-3', type: 'enemy', ordinal: 3, label: 'SUPER GRIDLOCK 3' }),
+                    Object.freeze({ id: 'super-gridlock-3', type: 'enemy', ordinal: 3, label: 'SUPER GRIDLOCK' }),
                     Object.freeze({ id: 'blue-prism', type: 'prism', color: 'blue', points: 250, label: 'BLUE PRISM', final: true })
                 ])
             },
@@ -7726,8 +7721,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 screenFadeMs: 500,
                 campaignCompletionPreludeMs: 300,
                 campaignCompletionPresentationMs: 6200,
-                splashDurationMs: 3000,
-                splashFadeMs: 500
+                splashDurationMs: 3000
             },
             audioTiming: {
                 oneShotCleanupMinimumMs: 1200,
@@ -10100,6 +10094,36 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
             isPrismMilestoneCountdownActive() {
                 const milestone = this.getCurrentMilestone();
                 return !!(this.milestoneCountdownActive && milestone && milestone.type === 'prism');
+            }
+
+            getVisiblePrismExpirationTiming() {
+                if (!this.prismRelic || !this.gridlockActive || !this.overtimeActive) {
+                    return Object.freeze({ active: false, remainingMs: null, warningElapsedMs: 0, warningDurationMs: this.config.gridlock.prismExpirationWarningMs });
+                }
+
+                let durationMs = null;
+                let elapsedMs = null;
+                if (this.milestoneCountdownActive && !this.isSequenceComplete()) {
+                    durationMs = this.config.gridlock.milestoneIntervalMs;
+                    elapsedMs = this.milestoneCountdownElapsedMs;
+                } else if (this.isSequenceComplete() && !this.postSequenceWarningPending) {
+                    durationMs = this.config.gridlock.overtimeEnemyIntervalMs;
+                    elapsedMs = this.postSequenceOvertimeElapsedMs;
+                }
+
+                if (!Number.isFinite(durationMs) || !Number.isFinite(elapsedMs)) {
+                    return Object.freeze({ active: false, remainingMs: null, warningElapsedMs: 0, warningDurationMs: this.config.gridlock.prismExpirationWarningMs });
+                }
+
+                const warningDurationMs = Math.max(0, Number(this.config.gridlock.prismExpirationWarningMs) || 0);
+                const remainingMs = Math.max(0, durationMs - elapsedMs);
+                const active = warningDurationMs > 0 && remainingMs > 0 && remainingMs <= warningDurationMs;
+                return Object.freeze({
+                    active,
+                    remainingMs,
+                    warningElapsedMs: active ? warningDurationMs - remainingMs : 0,
+                    warningDurationMs
+                });
             }
 
             canScheduleGridlock({ liveAction, enemyCount, gridlockEnemyThreshold }) {
@@ -16007,7 +16031,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                     Array.isArray(config.gridlock.milestones) && config.gridlock.milestones.length === 7 &&
                     config.gridlock.milestones.every((milestone, index) => milestone.type === (index % 2 === 0 ? 'prism' : 'enemy')));
                 this.assert('Gridlock milestones use one 30-second interval', config.gridlock.milestoneIntervalMs === 30000);
-                this.assert('Studio splash duration is three seconds', config.transitions.splashDurationMs === 3000 && config.transitions.splashFadeMs === 500);
+                this.assert('Studio splash is a three-second hard-cut intro', config.transitions.splashDurationMs === 3000);
                 this.assert('Gridlock Prism values match the authored progression',
                     GameRules.getGridlockPrismValue('white') === 300 &&
                     GameRules.getGridlockPrismValue('red') === 100 &&
@@ -16236,6 +16260,11 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 const fakeRelic = { id: 'test-relic', milestoneId: 'white-prism', color: 'white', points: 300 };
                 gridlock.markRelicSpawned(fakeRelic, firstMilestone, 30000);
                 this.assert('GridlockSystem advances after Prism appearance', gridlock.prismRelic === fakeRelic && gridlock.getCurrentMilestone().id === 'super-gridlock-1');
+                gridlock.beginMilestoneCountdown();
+                gridlock.milestoneCountdownElapsedMs = GAME_CONFIG.gridlock.milestoneIntervalMs - GAME_CONFIG.gridlock.prismExpirationWarningMs;
+                const prismWarning = gridlock.getVisiblePrismExpirationTiming();
+                this.assert('GridlockSystem owns the final five-second Prism warning', prismWarning.active && prismWarning.remainingMs === GAME_CONFIG.gridlock.prismExpirationWarningMs);
+                this.assert('Gridlock milestone labels use one event language', GAME_CONFIG.gridlock.milestones.filter((milestone) => milestone.type === 'enemy').every((milestone) => milestone.label === 'SUPER GRIDLOCK'));
                 gridlock.resolveVisiblePrism('collected', 'orb-contact', 31000);
                 this.assert('GridlockSystem awards only collected Prism points', gridlock.gridlockPrismPointsThisSector === 300 && gridlock.totalGridlockPrismPointsThisSector === 300 && gridlock.superGridlockPrismPointsThisSector === 0);
                 const overtime = gridlock.registerOvertimeEnemy({ milestoneId: 'super-gridlock-1' });
@@ -19561,6 +19590,13 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
 
             drawPrismRelic(relic, game, timestamp) {
                 if (!relic || relic.isVisible === false) return;
+                const expirationTiming = game && game.gridlockSystem && game.gridlockSystem.getVisiblePrismExpirationTiming
+                    ? game.gridlockSystem.getVisiblePrismExpirationTiming()
+                    : null;
+                if (expirationTiming && expirationTiming.active) {
+                    const blinkOn = Math.floor(expirationTiming.warningElapsedMs / 250) % 2 === 0;
+                    if (!blinkOn) return;
+                }
                 const size = Math.max(1, Number(relic.size) || Number(game?.PRISM_RELIC_SIZE) || 1);
                 const centerX = Number(relic.x) + size / 2;
                 const centerY = Number(relic.y) + size / 2;
@@ -21911,7 +21947,6 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 this.scheduler.cancelScope('splash');
                 this.splashScreen.classList.remove('hidden');
                 this.splashScreen.style.removeProperty('display');
-                this.splashScreen.style.setProperty('--splash-duration', `${GAME_CONFIG.transitions.splashDurationMs}ms`);
                 if (this.skinShell && 'inert' in this.skinShell) this.skinShell.inert = true;
 
                 this.scheduler.scheduleTimeout('splash', 'complete-studio-intro', () => {
@@ -23457,7 +23492,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                     return false;
                 }
                 this.telemetrySystem.noteTelemetryPrismRelicAppeared(relic);
-                if (this.ui && this.ui.flashPrismOpportunity) this.ui.flashPrismOpportunity(milestone.label, milestone.points);
+                if (this.ui && this.ui.flashPrismOpportunity) this.ui.flashPrismOpportunity(milestone.label);
                 this.audio.playPrismRelicAppear();
                 this.audio.startPrismRelicHum();
 
@@ -23640,6 +23675,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 if (this.gridlockSystem.postSequenceOvertimeElapsedMs >= GAME_CONFIG.gridlock.overtimeEnemyIntervalMs) {
                     this.gridlockSystem.postSequenceOvertimeElapsedMs = 0;
                     this.gridlockSystem.postSequenceWarningPending = true;
+                    if (this.gridlockSystem.prismRelic) this.resolveVisiblePrismRelic('expired', 'next-gridlock-event');
                     if (!this.spawnOvertimeEnemy({ postSequence: true })) {
                         this.gridlockSystem.postSequenceWarningPending = false;
                         this.gridlockSystem.postSequenceOvertimeElapsedMs = Math.max(0, GAME_CONFIG.gridlock.overtimeEnemyIntervalMs - 5000);
@@ -23693,6 +23729,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                     phase: 'materialized',
                     overtimeEnemiesAdded: this.gridlockSystem.overtimeEnemiesAdded
                 });
+                if (this.ui && this.ui.flashSuperGridlockAlert) this.ui.flashSuperGridlockAlert();
                 if (this.gridlockSystem.isSequenceComplete()) {
                     this.gridlockSystem.postSequenceOvertimeElapsedMs = 0;
                 } else {
@@ -23816,7 +23853,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 }
 
                 const points = Math.max(0, Number(resolved.points) || 0);
-                if (this.ui && this.ui.flashPrismCollection) this.ui.flashPrismCollection(points);
+                if (this.ui && this.ui.flashPrismCollection) this.ui.flashPrismCollection(resolved.label, points);
                 this.addScore(points);
                 this.audio.playPrismRelicCollect();
                 return true;
@@ -28897,13 +28934,17 @@ startGridlockBeat(delaySeconds = 0) {
                 this.flashGridlockMessage('GRIDLOCK');
             }
 
-            flashPrismOpportunity(label, points) {
+            flashSuperGridlockAlert() {
+                this.flashGridlockMessage('SUPER GRIDLOCK', { superGridlock: true });
+            }
+
+            flashPrismOpportunity(label) {
                 if (!this.scoreElement) return;
                 this.cancelScoreAnnouncement();
                 this.scoreAlertActive = true;
                 this.syncTopHudAnnouncementPresentation();
                 this.scoreElement.classList.remove('scoreHidden', 'attractHighScore', 'highScoreFlash', 'bonusScoreCount', 'gridlockAlert', 'superGridlockAlert', 'gridlockAwardAlert');
-                this.scoreElement.textContent = `${label} +${Math.max(0, Number(points) || 0)}`;
+                this.scoreElement.textContent = label;
                 void this.scoreElement.offsetWidth;
                 this.scoreElement.classList.add('superGridlockAlert');
                 this.scoreAlertTimer = this.game.scheduler.scheduleTimeout('ui-effects', 'prism-opportunity-cue', () => {
@@ -28911,13 +28952,13 @@ startGridlockBeat(delaySeconds = 0) {
                 }, GAME_CONFIG.visualTiming.topHudAnnouncement.textMs);
             }
 
-            flashPrismCollection(points) {
+            flashPrismCollection(label, points) {
                 if (!this.scoreElement) return;
                 this.cancelScoreAnnouncement();
                 this.scoreAlertActive = true;
                 this.syncTopHudAnnouncementPresentation();
                 this.scoreElement.classList.remove('scoreHidden', 'attractHighScore', 'highScoreFlash', 'bonusScoreCount', 'gridlockAlert', 'superGridlockAlert', 'gridlockAwardAlert');
-                this.scoreElement.textContent = `+${Math.max(0, Number(points) || 0)}`;
+                this.scoreElement.textContent = `${label} +${Math.max(0, Number(points) || 0)}`;
                 void this.scoreElement.offsetWidth;
                 this.scoreElement.classList.add('gridlockAwardAlert');
                 this.scoreAlertTimer = this.game.scheduler.scheduleTimeout('ui-effects', 'prism-collection-cue', () => {
@@ -29327,7 +29368,7 @@ startGridlockBeat(delaySeconds = 0) {
                 game.runtimeState.patchTerminal({ finalGridlockActive: true });
                 game.ui.updateStartPauseButton();
                 assert('Final Gridlock hides the manual Pause control', game.startButton.classList.contains('control-hidden-layout'));
-                assert('Splash uses automatic three-second managed timing', GAME_CONFIG.transitions.splashDurationMs === 3000 && !Game.prototype.setupSplashIntro.toString().includes('addEventListener'));
+                assert('Splash uses automatic three-second managed timing with no opacity lifecycle', GAME_CONFIG.transitions.splashDurationMs === 3000 && !Game.prototype.setupSplashIntro.toString().includes('addEventListener') && (() => { const rule = Array.from(document.styleSheets).flatMap((sheet) => Array.from(sheet.cssRules || [])).find((candidate) => candidate.selectorText === '#splashScreen'); return rule?.style.opacity === '1' && rule?.style.animationName === 'none'; })());
                 assert('Splash input barrier owns unreleased intro contacts', game.gestures && game.gestures.splashBlockedPointers instanceof Set && typeof game.gestures.completeSplashInputBarrier === 'function');
                 game.runtimeState.patchTerminal({ finalGridlockActive: previousFinalGridlockState });
                 game.ui.updateStartPauseButton();
