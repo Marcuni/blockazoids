@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Block-A-Zoids p281: establishes one proportional scaling contract for gameplay, cabinet HUD, movement, and input geometry, while showing every Prism collection as points only.
+Block-A-Zoids p283: removes mobile pointer-down/up presentation work, makes motion permission one-shot, and keeps ready audio off the hot touch path.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="p281">
+<html data-build-version="p283">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -997,7 +997,7 @@ Font License Notices
             overflow: visible;
             color: #fff;
             font-family: "Orbitron";
-            font-size: calc(var(--skin-scale, 1) * 62px);
+            font-size: var(--persistent-hud-font-size);
             line-height: 1.1;
             letter-spacing: calc(var(--skin-scale, 1) * 4px);
             pointer-events: none;
@@ -1174,7 +1174,7 @@ Font License Notices
 
         #score.gridlockAlert,
         #score.superGridlockAlert {
-            font-size: calc(var(--skin-scale, 1) * 50px);
+            font-size: var(--persistent-hud-font-size);
             opacity: 1;
         }
 
@@ -1189,7 +1189,7 @@ Font License Notices
 
         #score.gridlockAwardAlert {
             min-width: 5ch;
-            font-size: calc(var(--skin-scale, 1) * 58px);
+            font-size: var(--persistent-hud-font-size);
             font-weight: 900;
             text-shadow: 0 0 calc(var(--default-glow) * 1.8px) #fff,
                          0 0 calc(var(--default-glow) * 3.8px) rgba(255,255,255,0.96),
@@ -3829,8 +3829,12 @@ Font License Notices
             padding-bottom: max(6px, env(safe-area-inset-bottom));
         }
 
-        body.full-surface-gestures-enabled.gameplay-gesture-active {
-            cursor: crosshair;
+        /* Desktop-only cursor feedback. Touch and pen input never mutate global
+           presentation state, keeping iPhone pointer-down/up off the style-recalc path. */
+        @media (hover: hover) and (pointer: fine) {
+            body.full-surface-gestures-enabled.gameplay-gesture-active {
+                cursor: crosshair;
+            }
         }
 
         /* Compact, noninteractive progress and control reference directly below the Grid. */
@@ -3907,9 +3911,19 @@ Font License Notices
             box-shadow: 0 0 calc(var(--default-glow) * 0.24px) rgba(255,255,255,0.50);
         }
 
-        #skinShell.skin-menu-open > #sectorProgressPanel {
+        /* p282: pause is a frozen run state, not a HUD teardown. Pre-run menus may
+           hide sector progress, but an active/paused run keeps its persistent information. */
+        #skinShell.skin-menu-open:not(.persistent-run-hud-visible) > #sectorProgressPanel {
             opacity: 0;
             visibility: hidden;
+        }
+
+        /* Persistent run information never participates in the menu fade. This prevents
+           a pause press from briefly hiding sector progress or leaving it mid-transition. */
+        #skinShell.persistent-run-hud-visible > #sectorProgressPanel {
+            opacity: 1;
+            visibility: visible;
+            transition: none;
         }
 
 
@@ -4160,7 +4174,9 @@ Font License Notices
             --skin-lower-controls-top: 92.224880%;
             /* p254: one shared visual gap from the playfield edge to adjacent HUD content. */
             --playfield-hud-gap: calc(var(--skin-scale, 1) * 38px);
-            /* p281: HUD glow and typography scale from the same cabinet ratio. */
+            /* p282: one authoritative master size drives every live top-HUD word and value. */
+            --persistent-hud-font-master: 62px;
+            --persistent-hud-font-size: calc(var(--skin-scale, 1) * var(--persistent-hud-font-master));
             --persistent-hud-tight-glow: calc(var(--skin-scale, 1) * 3.75px);
             --persistent-hud-soft-glow: rgba(255,255,255,0.42);
             --persistent-hud-muted-glow: rgba(190,190,190,0.34);
@@ -7223,8 +7239,8 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
         const BUILD_METADATA = window.BLOCKAZOIDS_BUILD = Object.freeze({
             version: document.documentElement.dataset.buildVersion || 'unknown',
             label: BUILD_VERSION,
-            architecturePhase: 'uniform-proportional-iphone-scaling-and-points-only-prism-awards',
-            sourceBaseline: 'p280',
+            architecturePhase: 'low-latency-pointer-input-and-one-shot-device-permissions',
+            sourceBaseline: 'p282',
             behaviorPolicy: 'single-design-space-scale-authoritative-state-no-parallel-systems'
         });
 
@@ -7258,7 +7274,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
         const SOURCE_LAYOUT = window.BLOCKAZOIDS_SOURCE_LAYOUT = Object.freeze({
             developmentModel: 'modular-source',
             releaseModel: 'single-html',
-            buildOutput: 'block-a-zoids-p281.html',
+            buildOutput: 'block-a-zoids-p283.html',
             categories: Object.freeze([
                 'build', 'config', 'content', 'rules', 'state', 'services', 'app', 'gameplay',
                 'presentation', 'platform', 'audio', 'ui', 'development', 'docs'
@@ -7268,7 +7284,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
 
 /* Source: src/js/development/75-developer-documentation.js */
         const DEVELOPER_DOCUMENTATION = window.BLOCKAZOIDS_DEVELOPER_GUIDE = deepFreezeConfiguration({
-            version: 'p281',
+            version: 'p283',
             purpose: 'Make ownership, safe edit locations, state transitions, build steps, and maintenance rules discoverable without reverse-engineering the complete game.',
             architecture: {
                 application: {
@@ -16047,6 +16063,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 this.assert('CSS blue palette token projected', rootStyle.getPropertyValue('--game-blue').trim().toUpperCase() === config.palette.blue.toUpperCase());
                 this.assert('Default glow token projected', Number.parseFloat(rootStyle.getPropertyValue('--glow-default')) === config.visual.glow.default);
                 this.assert('Playfield glow token projected', Number.parseFloat(rootStyle.getPropertyValue('--glow-playfield')) === config.visual.glow.playfield);
+                this.assert('Live HUD font master is centralized at 62', Number.parseFloat(rootStyle.getPropertyValue('--persistent-hud-font-master')) === 62);
 
                 this.assert('Difficulty options are unique', new Set(difficultyOptions).size === difficultyOptions.length);
                 this.assert('Normal difficulty exists', !!profiles.Normal);
@@ -16522,6 +16539,8 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 this.assert('Retired score-local announcement state removed', selectors.every((selector) => !selector.includes('#scoreHud.' + 'gridlock-announcement-active')));
                 this.assert('Single-line score announcement renderer is authoritative', typeof UI.prototype.renderScoreAnnouncementTitle === 'function' && !UI.prototype['render' + 'StackedScoreTitle']);
                 this.assert('Sector progress HUD has one CSS owner', countSelector('#skinShell > #sectorProgressPanel') === 1, `received ${countSelector('#skinShell > #sectorProgressPanel')}`);
+                const persistentPauseProgressRule = styleRules.find((rule) => rule.selectorText === '#skinShell.skin-menu-open:not(.persistent-run-hud-visible) > #sectorProgressPanel');
+                this.assert('Pause keeps persistent sector progress through one HUD projection', !!persistentPauseProgressRule && typeof UI.prototype.syncPersistentRunHudPresentation === 'function');
                 this.assert('Retired lower HUD CSS removed', selectors.every((selector) => !selector.includes('#bottomStatusHud') && !selector.includes('.skin-status-') && !selector.includes('#sectorNumberHud')));
                 this.assert('Shared menu-control foundation has one CSS owner', countSelector('.menu-button, .settings-icon-toggle, .settings-stepper, .start-secondary-button, .sector-select-button, .menu-close-button') === 1, `received ${countSelector('.menu-button, .settings-icon-toggle, .settings-stepper, .start-secondary-button, .sector-select-button, .menu-close-button')}`);
                 this.assert('Menu button geometry has one CSS owner', countSelector('.menu-button') === 1, `received ${countSelector('.menu-button')}`);
@@ -17461,6 +17480,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 this.sequence = 0;
                 this.attractOrbHoldPointerId = null;
                 this.splashBlockedPointers = new Set();
+                this.desktopGestureCursorActive = false;
 
                 this.onPointerDown = (event) => this.handlePointerDown(event);
                 this.onPointerMove = (event) => this.handlePointerMove(event);
@@ -17480,13 +17500,21 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 document.addEventListener('click', this.onClickCapture, true);
             }
 
+            setDesktopGestureCursor(active, pointerType = '') {
+                const shouldActivate = !!active && pointerType === 'mouse';
+                if (this.desktopGestureCursorActive === shouldActivate) return false;
+                this.desktopGestureCursorActive = shouldActivate;
+                document.body.classList.toggle('gameplay-gesture-active', shouldActivate);
+                return true;
+            }
+
             reset(reason = 'reset', options = {}) {
                 this.cancelAttractOrbHold(reason);
                 this.pointers.clear();
                 this.primaryPointerId = null;
                 this.multitouchBlocked = false;
                 if (options.keepTapHistory !== true) this.lastGameplayTap = null;
-                document.body.classList.remove('gameplay-gesture-active');
+                this.setDesktopGestureCursor(false);
             }
 
             blockSplashPointer(event) {
@@ -17498,7 +17526,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 this.multitouchBlocked = false;
                 this.lastGameplayTap = null;
                 this.suppressClicksUntil = Number.POSITIVE_INFINITY;
-                document.body.classList.remove('gameplay-gesture-active');
+                this.setDesktopGestureCursor(false);
                 if (event.cancelable) event.preventDefault();
                 if (typeof event.stopImmediatePropagation === 'function') event.stopImmediatePropagation();
                 if (typeof event.stopPropagation === 'function') event.stopPropagation();
@@ -17655,8 +17683,10 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                     return;
                 }
 
-                if (this.game.audio) this.game.audio.resume('primary-pointer');
-                if (!this.game.motionPermissionGranted && this.pointers.size === 0) this.game.enableShakeCosmicZap();
+                if (this.game.audio) this.game.audio.resumeFromPrimaryPointerIfNeeded('primary-pointer');
+                if (this.pointers.size === 0 && this.game.motionPermissionState === 'unrequested') {
+                    void this.game.enableShakeCosmicZap();
+                }
 
                 const pointer = this.createPointerState(event);
                 this.pointers.set(event.pointerId, pointer);
@@ -17665,7 +17695,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                     this.primaryPointerId = event.pointerId;
                     this.resolveGameplayDoubleTapOnPointerDown(pointer);
                     if (this.game.flow.allowsOrbDragInput()) {
-                        document.body.classList.add('gameplay-gesture-active');
+                        this.setDesktopGestureCursor(true, pointer.pointerType);
                     }
                     return;
                 }
@@ -17677,7 +17707,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 this.multitouchBlocked = true;
                 this.pointers.forEach(activePointer => { activePointer.multitouchSeen = true; });
                 this.suppressClicksUntil = this.now() + 600;
-                document.body.classList.remove('gameplay-gesture-active');
+                this.setDesktopGestureCursor(false);
                 if (event.cancelable) event.preventDefault();
             }
 
@@ -17762,7 +17792,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 if (pointer.id !== this.primaryPointerId) return;
 
                 this.primaryPointerId = null;
-                document.body.classList.remove('gameplay-gesture-active');
+                this.setDesktopGestureCursor(false);
                 if (pointer.attractOrbHoldCompleted) {
                     this.suppressClicksUntil = this.now() + 220;
                     return;
@@ -21844,7 +21874,9 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 this.cosmicZapSystem.inputCooldownMs = GAME_CONFIG.input.cosmicZapCooldownMs;
                 this.cosmicZapSystem.protectionUntil = 0;         // CosmicZapSystem owns immediate Orb protection
                 this.cosmicZapSystem.protectionMs = GAME_CONFIG.input.cosmicZapProtectionMs;
-                this.motionPermissionGranted = false;       // Permission survives listener suspension during pause/no-Zap states
+                this.motionPermissionGranted = false;       // Compatibility projection of the explicit permission state
+                this.motionPermissionState = 'unrequested'; // unrequested | pending | granted | denied | unavailable
+                this.motionPermissionRequestPromise = null; // One authoritative in-flight iOS permission request
                 this.motionListenerAttached = false;        // True only while motion input can currently do useful work
                 this.lastShakeCosmicZapTime = 0;           // Prevents one shake from firing multiple Cosmic Zaps
                 this.shakeCosmicZapCooldownMs = GAME_CONFIG.input.shakeCooldownMs;
@@ -24424,24 +24456,66 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 return this.cosmicZapSystem.remaining < before;
             }
 
-            // Enable shake input. iOS requires motion permission from a tap gesture.
+            // Enable shake input. iOS permission is requested at most once and its
+            // lifecycle is explicit so later touches never repeat permission work.
             async enableShakeInput(requestPermission = true) {
-                if (!GAME_FEATURE_FLAGS.motionShake || typeof DeviceMotionEvent === 'undefined') return false;
+                if (!GAME_FEATURE_FLAGS.motionShake || typeof DeviceMotionEvent === 'undefined') {
+                    this.motionPermissionState = 'unavailable';
+                    this.motionPermissionGranted = false;
+                    return false;
+                }
 
-                try {
-                    if (!this.motionPermissionGranted && typeof DeviceMotionEvent.requestPermission === 'function') {
-                        if (!requestPermission) return false;
-                        const permission = await DeviceMotionEvent.requestPermission();
-                        if (permission !== 'granted') return false;
-                    }
-
+                if (this.motionPermissionState === 'granted' || this.motionPermissionGranted) {
+                    this.motionPermissionState = 'granted';
                     this.motionPermissionGranted = true;
                     this.syncMotionListenerState();
                     return true;
+                }
+                if (this.motionPermissionState === 'denied' || this.motionPermissionState === 'unavailable') return false;
+                if (this.motionPermissionState === 'pending') {
+                    return this.motionPermissionRequestPromise || false;
+                }
+
+                const permissionRequired = typeof DeviceMotionEvent.requestPermission === 'function';
+                if (!permissionRequired) {
+                    this.motionPermissionState = 'granted';
+                    this.motionPermissionGranted = true;
+                    this.syncMotionListenerState();
+                    return true;
+                }
+                if (!requestPermission) return false;
+
+                this.motionPermissionState = 'pending';
+                let permissionRequest;
+                try {
+                    // Must be invoked synchronously inside the originating iOS gesture.
+                    permissionRequest = DeviceMotionEvent.requestPermission();
                 } catch (_) {
-                    // If permission is denied or motion is unavailable, shake features simply stay disabled.
+                    this.motionPermissionState = 'denied';
+                    this.motionPermissionGranted = false;
                     return false;
                 }
+
+                const request = Promise.resolve(permissionRequest)
+                    .then((permission) => {
+                        const granted = permission === 'granted';
+                        this.motionPermissionState = granted ? 'granted' : 'denied';
+                        this.motionPermissionGranted = granted;
+                        if (granted) this.syncMotionListenerState();
+                        return granted;
+                    })
+                    .catch(() => {
+                        this.motionPermissionState = 'denied';
+                        this.motionPermissionGranted = false;
+                        return false;
+                    })
+                    .finally(() => {
+                        if (this.motionPermissionRequestPromise === request) {
+                            this.motionPermissionRequestPromise = null;
+                        }
+                    });
+                this.motionPermissionRequestPromise = request;
+                return request;
             }
 
             requireShakeNeutralReset() {
@@ -28780,6 +28854,23 @@ startGridlockBeat(delaySeconds = 0) {
                 this.backgroundMixGain = null;
             }
 
+            // Once Web Audio is healthy, normal pointer-down events take a property-only
+            // fast path: no Promise allocation, audio-session write, or context resume call.
+            resumeFromPrimaryPointerIfNeeded(reason = 'primary-pointer') {
+                if (this.muted || !GAME_FEATURE_FLAGS.audio) return false;
+                const ready = !!(
+                    this.audioGestureSeen &&
+                    this.audioRuntimeState === 'ready' &&
+                    this.ctx &&
+                    this.ctx.state === 'running' &&
+                    !this.audioHealthCheckRequired &&
+                    !this.audioNeedsRebuild
+                );
+                if (ready) return true;
+                void this.resume(reason);
+                return false;
+            }
+
             // Known game input handlers are the audio-unlock boundary. Do not apply an
             // additional navigator.userActivation gate: Safari can clear transient activation
             // before a valid click or pointer handler reaches this method.
@@ -29254,6 +29345,15 @@ startGridlockBeat(delaySeconds = 0) {
                        this.game.runtimeState.isGameOver;
             }
 
+            // One projection owns persistent run-information visibility across play and pause.
+            syncPersistentRunHudPresentation() {
+                const visible = this.shouldShowGameplayHud();
+                if (this.game.skinShell) {
+                    this.game.skinShell.classList.toggle('persistent-run-hud-visible', visible);
+                }
+                return visible;
+            }
+
             // Update Cosmic Zap indicators based on remaining Cosmic Zaps.
             updateCosmicZapIndicators() {
                 const showHud = this.shouldShowGameplayHud();
@@ -29330,6 +29430,7 @@ startGridlockBeat(delaySeconds = 0) {
             // Update all retained visible UI elements.
             updateAll() {
                 this.syncCampaignCompletionPresentation();
+                this.syncPersistentRunHudPresentation();
                 this.updateScore();
                 this.updateHighScore();
                 this.updateHudMenuButton();
@@ -29464,6 +29565,13 @@ startGridlockBeat(delaySeconds = 0) {
                 assert('Final Gridlock hides the manual Pause control', game.startButton.classList.contains('control-hidden-layout'));
                 assert('Splash uses automatic three-second managed timing with no opacity lifecycle', GAME_CONFIG.transitions.splashDurationMs === 3000 && !Game.prototype.setupSplashIntro.toString().includes('addEventListener') && (() => { const rule = Array.from(document.styleSheets).flatMap((sheet) => Array.from(sheet.cssRules || [])).find((candidate) => candidate.selectorText === '#splashScreen'); return rule?.style.opacity === '1' && rule?.style.animationName === 'none'; })());
                 assert('Splash input barrier owns unreleased intro contacts', game.gestures && game.gestures.splashBlockedPointers instanceof Set && typeof game.gestures.completeSplashInputBarrier === 'function');
+                const bodyGestureClassBefore = document.body.classList.contains('gameplay-gesture-active');
+                const touchCursorMutation = game.gestures?.setDesktopGestureCursor(true, 'touch');
+                const touchChangedBodyClass = document.body.classList.contains('gameplay-gesture-active') !== bodyGestureClassBefore;
+                game.gestures?.setDesktopGestureCursor(false);
+                assert('Touch and pen input do not mutate global gesture presentation', touchCursorMutation === false && touchChangedBodyClass === false);
+                assert('Motion permission has one explicit request lifecycle', ['unrequested', 'pending', 'granted', 'denied', 'unavailable'].includes(game.motionPermissionState) && 'motionPermissionRequestPromise' in game);
+                assert('Ready audio has a pointer fast path', typeof game.audio?.resumeFromPrimaryPointerIfNeeded === 'function' && AudioManager.prototype.resumeFromPrimaryPointerIfNeeded.toString().includes("audioRuntimeState === 'ready'"));
                 game.runtimeState.patchTerminal({ finalGridlockActive: previousFinalGridlockState });
                 game.ui.updateStartPauseButton();
                 assert('Telemetry schema v12 is active', game.telemetrySystem.telemetry && game.telemetrySystem.telemetry.schema === 'blockazoids-balance-v12');
@@ -29480,6 +29588,18 @@ startGridlockBeat(delaySeconds = 0) {
                 assert('ZIG movement profile remains unchanged', drifterSource.includes('enemy.speed') && drifterSource.includes('Math.SQRT2'));
                 assert('ECHO movement and rhythm profile is authoritative', GAME_CONFIG.enemyBehaviors.pulse.speedMultiplier === 0.70 && GAME_CONFIG.enemyBehaviors.pulse.activeMs === 1500 && GAME_CONFIG.enemyBehaviors.pulse.deactivationWarningMs === 300 && GAME_CONFIG.enemyBehaviors.pulse.dormantMs === 1500 && GAME_CONFIG.enemyBehaviors.pulse.reactivationWarningMs === 300 && PulseBlockBehavior.prototype.beginDormant.toString().includes('this.tuning.dormantMs'));
                 assert('Top HUD announcement timing is shared', GAME_CONFIG.visualTiming.topHudAnnouncement.textMs === 2000 && GAME_CONFIG.visualTiming.topHudAnnouncement.pointsMs === 1000 && !UI.prototype.flashGridlockMessage.toString().includes('points > 0 ?'));
+                const hudScoreElement = game.ui.scoreElement;
+                const originalHudClassName = hudScoreElement ? hudScoreElement.className : '';
+                const normalHudFontSize = hudScoreElement ? getComputedStyle(hudScoreElement).fontSize : '';
+                if (hudScoreElement) hudScoreElement.classList.add('gridlockAlert');
+                const eventHudFontSize = hudScoreElement ? getComputedStyle(hudScoreElement).fontSize : '';
+                if (hudScoreElement) {
+                    hudScoreElement.classList.remove('gridlockAlert');
+                    hudScoreElement.classList.add('gridlockAwardAlert');
+                }
+                const awardHudFontSize = hudScoreElement ? getComputedStyle(hudScoreElement).fontSize : '';
+                if (hudScoreElement) hudScoreElement.className = originalHudClassName;
+                assert('Score, Gridlock words, Prism words, and collected points share one HUD font size', !!normalHudFontSize && normalHudFontSize === eventHudFontSize && normalHudFontSize === awardHudFontSize, `${normalHudFontSize}/${eventHudFontSize}/${awardHudFontSize}`);
                 assert('No-Zap cue is isolated to empty requests', typeof AudioManager.prototype.playNoZapCue === 'function' && Game.prototype.requestCosmicZap.toString().includes('playNoZapCue') && !Game.prototype.playCosmicZapUseAudio.toString().includes('playNoZapCue'));
                 const sharedRunValues = game.highScoreScreen.getRunValues({ relics: 2, perfectSectors: 3, highestSector: 16, gameTimeMs: 9000 }, { requireStoredRecord: false });
                 assert('Campaign results reuse the record summary projection', sharedRunValues.relics === 2 && sharedRunValues.perfects === 3 && sharedRunValues.sector === 16 && sharedRunValues.time !== '—');
@@ -29776,6 +29896,9 @@ startGridlockBeat(delaySeconds = 0) {
                     assert('Lifecycle pause resumes only through the countdown path', lifecycleResumed && game.flow.is(GAME_FLOW_STATES.PLAYING) && game.runtimeState.active && !game.runtimeState.isPaused);
 
                     const paused = game.pauseGameplay();
+                    const pausedSectorProgress = document.getElementById('sectorProgressPanel');
+                    const pausedSectorProgressStyle = pausedSectorProgress ? getComputedStyle(pausedSectorProgress) : null;
+                    assert('Pause preserves sector-progress circles as persistent run information', paused && game.skinShell?.classList.contains('persistent-run-hud-visible') && pausedSectorProgressStyle?.visibility === 'visible' && Number.parseFloat(pausedSectorProgressStyle?.opacity || '0') > 0.99);
                     const resumed = await game.resumeGameplay();
                     assert('Manual pause and resume return to live gameplay', paused && resumed && game.flow.is(GAME_FLOW_STATES.PLAYING) && game.runtimeState.active && !game.runtimeState.isPaused);
 
