@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Block-A-Zoids p288: restores the pre-upgrade cabinet background and makes Sector Select runs practice-only for ending eligibility.
+Block-A-Zoids p289: adds Campaign and Survival launch modes, single-identity Survival swarms, and the Octagulum sector-name fit correction.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="p288">
+<html data-build-version="p289">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -6024,6 +6024,25 @@ Font License Notices
     margin: 0 auto;
 }
 
+/* Survival reuses the Final Gridlock playfield, but its only live value is time. */
+html body #skinShell.survival-mode-selected > #sectorProgressPanel,
+html body #skinShell.survival-mode-selected > #cosmicZapHud,
+html body #skinShell.survival-mode-selected > #radarColorIndicator {
+    opacity: 0 !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+    transition: none !important;
+}
+
+.survival-result-context {
+    display: block;
+    margin-top: clamp(12px, 3.4vw, 22px);
+    font-size: clamp(15px, 4.3vw, 22px);
+    line-height: 1.35;
+    letter-spacing: 2px;
+    opacity: 0.82;
+}
+
 /* Source: src/styles/36-score-and-sector-screens.css */
 /* p242: High Score, Scoring, and Sector Select each have one layout owner. */
 .high-score-run-line {
@@ -7118,8 +7137,16 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
             <div id="launchSetupPanel" class="menu-panel">
                 <div class="menu-panel-title">LAUNCH</div>
                 <div class="launch-setup-controls">
+                    <div id="gameModeSettingControl" class="settings-stepper launch-setup-stepper" role="group" aria-label="Game Mode">
+                        <div class="settings-stepper-title">Game Mode</div>
+                        <div class="settings-stepper-row">
+                            <button id="gameModeDecreaseButton" class="settings-stepper-arrow" type="button" aria-label="Previous game mode">◀</button>
+                            <div id="settingsGameModeValue" class="settings-stepper-value">Campaign</div>
+                            <button id="gameModeIncreaseButton" class="settings-stepper-arrow" type="button" aria-label="Next game mode">▶</button>
+                        </div>
+                    </div>
                     <div id="sectorSettingControl" class="settings-stepper launch-setup-stepper" role="group" aria-label="Starting Sector">
-                        <div class="settings-stepper-title">Starting Sector</div>
+                        <div id="sectorSettingTitle" class="settings-stepper-title">Starting Sector</div>
                         <div class="settings-stepper-row">
                             <button id="sectorDecreaseButton" class="settings-stepper-arrow" type="button" aria-label="Previous sector">◀</button>
                             <div id="settingsSectorValue" class="settings-stepper-value">1</div>
@@ -7239,7 +7266,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
         const BUILD_METADATA = window.BLOCKAZOIDS_BUILD = Object.freeze({
             version: document.documentElement.dataset.buildVersion || 'unknown',
             label: BUILD_VERSION,
-            architecturePhase: 'authoritative-run-origin-ending-gate',
+            architecturePhase: 'authoritative-campaign-survival-run-modes',
             sourceBaseline: 'p287',
             behaviorPolicy: 'single-design-space-scale-authoritative-state-no-parallel-systems'
         });
@@ -7274,7 +7301,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
         const SOURCE_LAYOUT = window.BLOCKAZOIDS_SOURCE_LAYOUT = Object.freeze({
             developmentModel: 'modular-source',
             releaseModel: 'single-html',
-            buildOutput: 'block-a-zoids-p288.html',
+            buildOutput: 'block-a-zoids-p289.html',
             categories: Object.freeze([
                 'build', 'config', 'content', 'rules', 'state', 'services', 'app', 'gameplay',
                 'presentation', 'platform', 'audio', 'ui', 'development', 'docs'
@@ -7284,7 +7311,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
 
 /* Source: src/js/development/75-developer-documentation.js */
         const DEVELOPER_DOCUMENTATION = window.BLOCKAZOIDS_DEVELOPER_GUIDE = deepFreezeConfiguration({
-            version: 'p288',
+            version: 'p289',
             purpose: 'Make ownership, safe edit locations, state transitions, build steps, and maintenance rules discoverable without reverse-engineering the complete game.',
             architecture: {
                 application: {
@@ -7779,6 +7806,16 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 enemyTrailMinIntervalMs: 38,
                 enemyTrailMinDistancePx: 1.25
             },
+            gameModes: {
+                options: Object.freeze(['campaign', 'survival']),
+                defaultMode: 'campaign',
+                survivalSwarms: Object.freeze([
+                    Object.freeze({ key: 'zig', label: 'Zig', behaviorType: 'drifter' }),
+                    Object.freeze({ key: 'dash', label: 'Dash', behaviorType: 'charger' }),
+                    Object.freeze({ key: 'echo', label: 'Echo', behaviorType: 'pulse' })
+                ]),
+                defaultSurvivalSwarm: 'zig'
+            },
             storage: {
                 highestSector: 'blockazoidsHighestSectorUnlockedV1',
                 highestSectorByDifficulty: Object.freeze({
@@ -7787,6 +7824,8 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                     hard: 'blockazoidsHighestSectorUnlockedHardV1'
                 }),
                 difficulty: 'blockazoidsDifficulty',
+                gameMode: 'blockazoidsGameModeV1',
+                survivalSwarm: 'blockazoidsSurvivalSwarmV1',
                 trackingSpeed: 'blockazoidsTrackingSpeedV1',
                 soundMuted: 'blockazoidsSoundMuted',
                 musicMuted: 'blockazoidsMusicMuted',
@@ -8103,7 +8142,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 },
                 {
                     "id": 12,
-                    "name": "Octangulum",
+                    "name": "Octagulum",
                     "pattern": [
                         "RRGGGGGRR",
                         "RGGBBBGGR",
@@ -8260,6 +8299,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 configurationProjection: Object.freeze({ owner: 'ConfigurationProjection', responsibility: 'Projects configuration into static DOM and resource HUD capacity' }),
                 rules: Object.freeze({ owner: 'GameRules', responsibility: 'Pure calculations with no DOM or mutable game state' }),
                 settings: Object.freeze({ owner: 'SettingsSystem', responsibility: 'Persistent orb settings and normalized setting values' }),
+                gameMode: Object.freeze({ owner: 'GameModeSystem', responsibility: 'Campaign/Survival selection, active-run mode, and Survival swarm identity' }),
                 scoring: Object.freeze({ owner: 'ScoreSystem', responsibility: 'Current score value and score arithmetic' }),
                 runSession: Object.freeze({ owner: 'RunSession', responsibility: 'Current-run timing, progress, pace checkpoints, and relic state' }),
                 records: Object.freeze({ owner: 'HighScoreSystem', responsibility: 'Difficulty-specific records, details, migration, and pace profiles' }),
@@ -8300,6 +8340,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 scoring: 'All score awards and crystal values',
                 enemyBehaviors: 'Behavior-specific timing and movement',
                 campaign: 'Campaign-wide rules not owned by individual sectors',
+                gameModes: 'Campaign and Survival mode selection plus Survival swarm definitions',
                 difficulty: 'Explicit difficulty profiles and resource capacities',
                 tutorial: 'Tutorial thresholds and delays',
                 input: 'Gesture, motion, and Cosmic Zap input tuning',
@@ -8316,7 +8357,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 canonicalCampaign: 'GAME_DATA.sectors',
                 explicitDifficultyResources: 'GAME_CONFIG.difficulty.profiles.*.cosmicZaps',
                 finalArtifact: 'single numbered HTML build',
-                extractedStateOwners: 'SettingsSystem / ScoreSystem / RunSession / HighScoreSystem / CampaignSystem / CosmicZapSystem / CrystalSystem / GridlockSystem / EnemySpawnSystem / CollisionSystem / RuntimeStateSystem / BrowserLifecycleSystem / TutorialSystem / AttractModeSystem / FrameCoordinator / VisualEffectsSystem / MonitorEffectsSystem / DeveloperToolsSystem / TelemetrySystem / DiagnosticsSystem'
+                extractedStateOwners: 'SettingsSystem / GameModeSystem / ScoreSystem / RunSession / HighScoreSystem / CampaignSystem / CosmicZapSystem / CrystalSystem / GridlockSystem / EnemySpawnSystem / CollisionSystem / RuntimeStateSystem / BrowserLifecycleSystem / TutorialSystem / AttractModeSystem / FrameCoordinator / VisualEffectsSystem / MonitorEffectsSystem / DeveloperToolsSystem / TelemetrySystem / DiagnosticsSystem'
             })
         });
 
@@ -8755,6 +8796,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
             normalizeOrigin(origin = 'regular-play') {
                 const normalized = String(origin || 'regular-play').trim().toLowerCase();
                 if (normalized === 'sector-select') return 'sector-select';
+                if (normalized === 'survival') return 'survival';
                 if (normalized === 'developer-test') return 'developer-test';
                 if (normalized === 'regression-test') return 'regression-test';
                 return 'regular-play';
@@ -8889,6 +8931,140 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                     relicsCollected: this.relicsCollected,
                     perfectSectors: this.getPerfectSectorCount(GameRules.getCampaignLength()),
                     recoveredRelicSectors: Object.freeze([...this.getRecoveredRelicSectorNumbers(GameRules.getCampaignLength())])
+                });
+            }
+        }
+
+/* Source: src/js/state/82b-game-mode-system.js */
+        class GameModeSystem {
+            constructor(storage, config) {
+                this.storage = storage;
+                this.config = config;
+                this.options = Object.freeze((config.gameModes?.options || ['campaign', 'survival']).slice());
+                this.swarms = Object.freeze((config.gameModes?.survivalSwarms || []).map((swarm) => Object.freeze({ ...swarm })));
+                this.keys = Object.freeze({
+                    gameMode: config.storage.gameMode,
+                    survivalSwarm: config.storage.survivalSwarm
+                });
+                this.selectedMode = this.loadMode();
+                this.selectedSwarmType = this.loadSwarmType();
+                this.activeMode = this.selectedMode;
+                this.activeSwarmType = this.selectedSwarmType;
+            }
+
+            read(key, fallback = null) {
+                try {
+                    const value = this.storage.getItem(key);
+                    return value === null ? fallback : value;
+                } catch (_) {
+                    return fallback;
+                }
+            }
+
+            write(key, value) {
+                try {
+                    this.storage.setItem(key, value);
+                    return true;
+                } catch (_) {
+                    return false;
+                }
+            }
+
+            normalizeMode(mode) {
+                const normalized = String(mode || '').trim().toLowerCase();
+                return this.options.includes(normalized) ? normalized : (this.config.gameModes?.defaultMode || 'campaign');
+            }
+
+            normalizeSwarmType(swarmType) {
+                const normalized = String(swarmType || '').trim().toLowerCase();
+                return this.swarms.some((swarm) => swarm.key === normalized)
+                    ? normalized
+                    : (this.config.gameModes?.defaultSurvivalSwarm || this.swarms[0]?.key || 'zig');
+            }
+
+            loadMode() {
+                return this.normalizeMode(this.read(this.keys.gameMode, this.config.gameModes?.defaultMode || 'campaign'));
+            }
+
+            loadSwarmType() {
+                return this.normalizeSwarmType(this.read(this.keys.survivalSwarm, this.config.gameModes?.defaultSurvivalSwarm || 'zig'));
+            }
+
+            setSelectedMode(mode, { persist = true } = {}) {
+                this.selectedMode = this.normalizeMode(mode);
+                if (persist) this.write(this.keys.gameMode, this.selectedMode);
+                return this.selectedMode;
+            }
+
+            adjustSelectedMode(direction) {
+                const currentIndex = Math.max(0, this.options.indexOf(this.selectedMode));
+                const step = direction < 0 ? -1 : 1;
+                const nextIndex = (currentIndex + step + this.options.length) % this.options.length;
+                return this.setSelectedMode(this.options[nextIndex]);
+            }
+
+            setSelectedSwarmType(swarmType, { persist = true } = {}) {
+                this.selectedSwarmType = this.normalizeSwarmType(swarmType);
+                if (persist) this.write(this.keys.survivalSwarm, this.selectedSwarmType);
+                return this.selectedSwarmType;
+            }
+
+            adjustSelectedSwarmType(direction) {
+                const currentIndex = Math.max(0, this.swarms.findIndex((swarm) => swarm.key === this.selectedSwarmType));
+                const step = direction < 0 ? -1 : 1;
+                const nextIndex = (currentIndex + step + this.swarms.length) % this.swarms.length;
+                return this.setSelectedSwarmType(this.swarms[nextIndex]?.key);
+            }
+
+            beginRun() {
+                this.activeMode = this.selectedMode;
+                this.activeSwarmType = this.selectedSwarmType;
+                return this.snapshot();
+            }
+
+            isCampaignSelected() {
+                return this.selectedMode === 'campaign';
+            }
+
+            isSurvivalSelected() {
+                return this.selectedMode === 'survival';
+            }
+
+            isSurvivalRun() {
+                return this.activeMode === 'survival';
+            }
+
+            getModeLabel(mode = this.selectedMode) {
+                return this.normalizeMode(mode) === 'survival' ? 'Survival' : 'Campaign';
+            }
+
+            getSwarmDefinition(swarmType = this.selectedSwarmType) {
+                const key = this.normalizeSwarmType(swarmType);
+                return this.swarms.find((swarm) => swarm.key === key) || this.swarms[0] || Object.freeze({ key: 'zig', label: 'Zig', behaviorType: 'drifter' });
+            }
+
+            getSelectedSwarmLabel() {
+                return this.getSwarmDefinition(this.selectedSwarmType).label;
+            }
+
+            getActiveSwarmLabel() {
+                return this.getSwarmDefinition(this.activeSwarmType).label;
+            }
+
+            getActiveBehaviorType() {
+                return this.getSwarmDefinition(this.activeSwarmType).behaviorType;
+            }
+
+            snapshot() {
+                return Object.freeze({
+                    selectedMode: this.selectedMode,
+                    selectedModeLabel: this.getModeLabel(),
+                    selectedSwarmType: this.selectedSwarmType,
+                    selectedSwarmLabel: this.getSelectedSwarmLabel(),
+                    activeMode: this.activeMode,
+                    activeSwarmType: this.activeSwarmType,
+                    activeSwarmLabel: this.getActiveSwarmLabel(),
+                    survivalRun: this.isSurvivalRun()
                 });
             }
         }
@@ -16228,7 +16404,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 this.assert('Storage keys are unique', new Set(storageKeys).size === storageKeys.length);
                 this.assert('Tracking-speed settings are configured', Array.isArray(config.input.trackingSpeedOptions) && config.input.trackingSpeedOptions.length > 0);
                 this.assert('Tracking-speed values are ordered', config.input.trackingSpeedOptions.every((option, index, options) => index === 0 || option.value > options[index - 1].value));
-                ['difficulty', 'trackingSpeed', 'soundMuted', 'musicMuted', 'monitorPreset', 'crtEnabled'].forEach((key) => {
+                ['difficulty', 'gameMode', 'survivalSwarm', 'trackingSpeed', 'soundMuted', 'musicMuted', 'monitorPreset', 'crtEnabled'].forEach((key) => {
                     this.assert(`Persistent setting key exists: ${key}`, typeof config.storage[key] === 'string' && config.storage[key].length > 0);
                 });
 
@@ -16258,6 +16434,14 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 this.assert('SettingsSystem owns music preference', settings.isMusicMuted() === true);
                 settings.saveMonitorPreference('crt', true);
                 this.assert('SettingsSystem owns monitor preference', settings.loadMonitorMode(true) === 'crt');
+
+                const gameMode = new GameModeSystem(testStorage, GAME_CONFIG);
+                gameMode.setSelectedMode('survival');
+                gameMode.setSelectedSwarmType('echo');
+                const activeMode = gameMode.beginRun();
+                this.assert('GameModeSystem owns Campaign and Survival selection', activeMode.activeMode === 'survival' && gameMode.getModeLabel() === 'Survival');
+                this.assert('GameModeSystem maps Zig, Dash, and Echo to one behavior each', GAME_CONFIG.gameModes.survivalSwarms.map((swarm) => swarm.behaviorType).join(',') === 'drifter,charger,pulse');
+                this.assert('GameModeSystem snapshot is read-only', Object.isFrozen(gameMode.snapshot()));
 
                 const runtimeState = new RuntimeStateSystem();
                 this.assert('RuntimeStateSystem starts inactive', runtimeState.active === false && runtimeState.isPaused === false && runtimeState.isGameOver === false);
@@ -16515,6 +16699,9 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 this.assert('Sector restoration rejection has lifecycle recovery', completeSectorSource.includes('sector-restoration-error'));
                 this.assert('Sector-select runs are blocked before campaign completion', completeSectorSource.includes('!this.runSession.isEndingEligible()') && completeSectorSource.includes('completePracticeRunAfterRestore'));
                 this.assert('Final Gridlock has an authoritative run-origin gate', Game.prototype.beginFinalGridlock.toString().includes('this.runSession.isEndingEligible()'));
+                this.assert('Survival uses the Final Gridlock lifecycle without campaign ending eligibility', Game.prototype.beginFinalGridlock.toString().includes('survivalModeLaunch') && Game.prototype.beginNewRun.toString().includes("beginFinalGridlock('survival-mode')"));
+                this.assert('Survival spawn plans use one selected identity', Game.prototype.applySectorParameters.toString().includes('this.gameMode.getActiveBehaviorType()') && Game.prototype.spawnOvertimeEnemy.toString().includes('this.gameMode.getActiveBehaviorType()'));
+                this.assert('Survival telemetry is not started', Game.prototype.beginFinalGridlock.toString().includes('!this.gameMode.isSurvivalRun()'));
                 this.assert('Crystal topology calls retain responsive grid size', topologySource.includes('normalizeGridPoint(currentPos, this.GRID_SIZE)') && topologySource.includes('hasCollectedGridPoint(target, this.GRID_SIZE)'));
             }
 
@@ -16593,7 +16780,9 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 const trackingSpeedStyle = trackingSpeedControl ? getComputedStyle(trackingSpeedControl) : null;
                 this.assert('Tracking Speed uses the shared Settings gap', !!trackingSpeedStyle && parseFloat(trackingSpeedStyle.marginTop) === 0 && parseFloat(trackingSpeedStyle.marginBottom) === 0);
                 this.assert('Launch screen has one CSS owner', countSelector('#launchSetupPanel') === 1, `received ${countSelector('#launchSetupPanel')}`);
+                this.assert('Launch screen includes one Game Mode control', !!document.getElementById('gameModeSettingControl') && !!document.getElementById('settingsGameModeValue'));
                 this.assert('Launch control stack has one CSS owner', countSelector('#launchSetupPanel .launch-setup-controls') === 1, `received ${countSelector('#launchSetupPanel .launch-setup-controls')}`);
+                this.assert('Survival HUD suppression has one CSS owner', countSelector('html body #skinShell.survival-mode-selected > #sectorProgressPanel, html body #skinShell.survival-mode-selected > #cosmicZapHud, html body #skinShell.survival-mode-selected > #radarColorIndicator') === 1);
                 this.assert('Retired pause-screen specificity patches removed', !selectors.includes('html body #gameContainer > #pauseGridMenu .pause-grid-button') && !selectors.includes('#skinShell .pause-grid-button'));
                 this.assert('Retired Launch and Settings specificity patches removed', !selectors.includes('html body #settingsPanel #settingsIconControls') && !selectors.includes('html body #launchSetupPanel .launch-setup-controls'));
                 this.assert('High Score screen has one CSS owner', countSelector('#highScorePanel.menu-panel.open') === 1, `received ${countSelector('#highScorePanel.menu-panel.open')}`);
@@ -17421,9 +17610,10 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 game.screenManager.setOverlayVisible(false);
                 game.audio.stopBackgroundMusic(); // Stop music
 
-                if (game.gridlockSystem.gridlockActive) game.telemetrySystem.noteTelemetryGridlockExit('death');
-                game.forfeitGridlockPrismsAtSectorEnd('death');
-                game.telemetrySystem.finishTelemetrySector('death', {
+                if (!game.gameMode.isSurvivalRun()) {
+                    if (game.gridlockSystem.gridlockActive) game.telemetrySystem.noteTelemetryGridlockExit('death');
+                    game.forfeitGridlockPrismsAtSectorEnd('death');
+                    game.telemetrySystem.finishTelemetrySector('death', {
                     death: {
                         x: Math.round(game.orb.x + game.orb.size / 2),
                         y: Math.round(game.orb.y + game.orb.size / 2),
@@ -17466,9 +17656,12 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                         gridlockRelicAttemptNumber: game.gridlockSystem.gridlockRelicAttemptNumber
                     }
                 });
-                game.telemetrySystem.finishTelemetryRun('death');
+                    game.telemetrySystem.finishTelemetryRun('death');
+                    game.saveRunRecordIfCurrentHighScore();
+                } else {
+                    game.forfeitGridlockPrismsAtSectorEnd('survival-death');
+                }
                 game.resetOvertimeState();
-                game.saveRunRecordIfCurrentHighScore();
 
 
                 game.removePrismRelic();
@@ -21051,6 +21244,22 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                         game.monitorEffectsSystem.resetCrtToProduction();
                     });
                 }
+                if (game.gameModeDecreaseButton) {
+                    game.gameModeDecreaseButton.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        game.playUiClick();
+                        game.adjustGameMode(-1);
+                    });
+                }
+                if (game.gameModeIncreaseButton) {
+                    game.gameModeIncreaseButton.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        game.playUiClick();
+                        game.adjustGameMode(1);
+                    });
+                }
                 if (game.sectorDecreaseButton) {
                     game.sectorDecreaseButton.addEventListener('click', (e) => {
                         e.preventDefault();
@@ -21385,7 +21594,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                     game.optionsButton, game.resumeButton, game.restartButton, game.scoringButton, game.storyButton,
                     game.settingsButton, game.sectorSelectButton, game.soundToggleButton, game.musicToggleButton,
                     game.monitorToggleButton, game.trackingSpeedDecreaseButton, game.trackingSpeedIncreaseButton,
-                    game.difficultyButton, game.sectorDecreaseButton, game.sectorIncreaseButton,
+                    game.difficultyButton, game.gameModeDecreaseButton, game.gameModeIncreaseButton, game.sectorDecreaseButton, game.sectorIncreaseButton,
                     game.difficultyDecreaseButton, game.difficultyIncreaseButton, game.resetHighScoreButton,
                     game.resetTutorialButton, game.telemetryButton, game.exportTelemetryButton,
                     game.clearTelemetryButton, game.copyStateSnapshotButton, game.telemetryBackButton,
@@ -21519,6 +21728,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
             constructor() {
                 this.scheduler = new SchedulingManager();
                 this.settings = new SettingsSystem(storageService, GAME_CONFIG);
+                this.gameMode = new GameModeSystem(storageService, GAME_CONFIG);
                 this.scoreSystem = new ScoreSystem();
                 this.runSession = new RunSession();
                 this.highScoreSystem = new HighScoreSystem(storageService);
@@ -21772,6 +21982,11 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 this.crtResetProductionButton = document.getElementById('crtResetProductionButton');
                 this.crtDeveloperMasterState = document.getElementById('crtDeveloperMasterState');
                 this.monitorEffectsSystem.crtEventTimers = {};
+                this.gameModeDecreaseButton = document.getElementById('gameModeDecreaseButton');
+                this.gameModeIncreaseButton = document.getElementById('gameModeIncreaseButton');
+                this.settingsGameModeValue = document.getElementById('settingsGameModeValue');
+                this.gameModeSettingControl = document.getElementById('gameModeSettingControl');
+                this.sectorSettingTitle = document.getElementById('sectorSettingTitle');
                 this.sectorDecreaseButton = document.getElementById('sectorDecreaseButton');
                 this.sectorIncreaseButton = document.getElementById('sectorIncreaseButton');
                 this.settingsSectorValue = document.getElementById('settingsSectorValue');
@@ -22040,6 +22255,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 this.developerTools.updateInvincibilityToggleLabel();
                 this.monitorEffectsSystem.applyCrtPreference();
                 this.updateTrackingSpeedLabel();
+                this.updateGameModeLabel();
                 this.updateSettingsSectorLabel();
                 this.updateDifficultyLabel();
                 this.highScoreScreen.update();
@@ -22517,6 +22733,8 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                         ENEMY_BEHAVIOR_TYPES.CHARGER,
                         ENEMY_BEHAVIOR_TYPES.PULSE
                     ];
+                } else if (this.runtimeState.finalGridlockActive && this.gameMode.isSurvivalRun()) {
+                    behaviorPlan = Array(this.gridlockEnemyThreshold).fill(this.gameMode.getActiveBehaviorType());
                 } else {
                     behaviorPlan = this.campaign.getEnemyBehaviorPlan(this.campaign.currentSector, this.gridlockEnemyThreshold).slice();
                 }
@@ -22912,12 +23130,38 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 return normalSector;
             }
 
+            adjustGameMode(direction) {
+                if (!this.canChangeSectorSelection()) {
+                    this.updateGameModeLabel();
+                    return;
+                }
+                this.gameMode.adjustSelectedMode(direction);
+                this.updateGameModeLabel();
+                this.updateSettingsSectorLabel();
+                if (this.ui) this.ui.updateAll();
+            }
+
+            updateGameModeLabel() {
+                const canChange = this.canChangeSectorSelection();
+                if (this.settingsGameModeValue) this.settingsGameModeValue.textContent = this.gameMode.getModeLabel();
+                if (this.gameModeSettingControl) this.gameModeSettingControl.classList.toggle('locked', !canChange);
+                [this.gameModeDecreaseButton, this.gameModeIncreaseButton].forEach((button) => {
+                    if (!button) return;
+                    button.disabled = !canChange;
+                    button.setAttribute('aria-disabled', canChange ? 'false' : 'true');
+                });
+                if (this.skinShell) this.skinShell.classList.toggle('survival-mode-selected', this.gameMode.isSurvivalSelected());
+                const progressPanel = document.getElementById('sectorProgressPanel');
+                if (progressPanel) progressPanel.setAttribute('aria-hidden', this.gameMode.isSurvivalSelected() ? 'true' : 'false');
+            }
+
             adjustSelectedStartSector(direction) {
                 if (!this.canChangeSectorSelection()) {
                     this.updateSettingsSectorLabel();
                     return;
                 }
-                this.campaign.adjustSelectedStartSector(direction, { developerMode: this.developerTools.developerModeEnabled });
+                if (this.gameMode.isSurvivalSelected()) this.gameMode.adjustSelectedSwarmType(direction);
+                else this.campaign.adjustSelectedStartSector(direction, { developerMode: this.developerTools.developerModeEnabled });
                 this.updateSettingsSectorLabel();
             }
 
@@ -22925,21 +23169,39 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
 
             updateSettingsSectorLabel() {
                 if (!this.settingsSectorValue) return;
-                const totalSectors = this.CAMPAIGN_SECTOR_COUNT || GameRules.getCampaignLength();
+                const canChange = this.canChangeSectorSelection();
+                const control = document.getElementById('sectorSettingControl');
+                if (this.gameMode.isSurvivalSelected()) {
+                    if (this.sectorSettingTitle) this.sectorSettingTitle.textContent = 'Swarm Type';
+                    if (control) control.setAttribute('aria-label', 'Swarm Type');
+                    this.settingsSectorValue.textContent = this.gameMode.getSelectedSwarmLabel();
+                    const arrowsEnabled = canChange && this.gameMode.swarms.length > 1;
+                    if (control) control.classList.toggle('locked', !canChange);
+                    [this.sectorDecreaseButton, this.sectorIncreaseButton].forEach((button) => {
+                        if (!button) return;
+                        button.disabled = !arrowsEnabled;
+                        button.setAttribute('aria-disabled', arrowsEnabled ? 'false' : 'true');
+                        button.setAttribute('aria-label', button === this.sectorDecreaseButton ? 'Previous swarm type' : 'Next swarm type');
+                    });
+                    this.updateSectorSelectButtonLockState();
+                    return;
+                }
+
+                if (this.sectorSettingTitle) this.sectorSettingTitle.textContent = 'Starting Sector';
+                if (control) control.setAttribute('aria-label', 'Starting Sector');
                 const endOption = this.campaign.getEndOptionValue();
                 const maxOption = this.campaign.getSectorSelectOptionCount({ developerMode: this.developerTools.developerModeEnabled });
                 const sector = Math.max(1, Math.min(maxOption, this.campaign.selectedStartSector || this.campaign.currentSector || 1));
                 this.campaign.selectedStartSector = sector;
                 if (sector <= this.CAMPAIGN_SECTOR_COUNT) this.campaign.rememberNormalStartSector(sector);
                 this.settingsSectorValue.textContent = this.developerTools.developerModeEnabled && sector === endOption ? 'END' : `${sector}`;
-                const canChange = this.canChangeSectorSelection();
                 const arrowsEnabled = canChange && maxOption > 1;
-                const control = document.getElementById('sectorSettingControl');
                 if (control) control.classList.toggle('locked', !canChange);
-                [this.sectorDecreaseButton, this.sectorIncreaseButton].forEach(button => {
+                [this.sectorDecreaseButton, this.sectorIncreaseButton].forEach((button) => {
                     if (!button) return;
                     button.disabled = !arrowsEnabled;
                     button.setAttribute('aria-disabled', arrowsEnabled ? 'false' : 'true');
+                    button.setAttribute('aria-label', button === this.sectorDecreaseButton ? 'Previous sector' : 'Next sector');
                 });
 
                 this.updateSectorSelectButtonLockState();
@@ -23315,8 +23577,10 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
 
             restartRun() {
                 this.resetRestartConfirmationState();
-                this.highScoreSystem.saveCurrentRunPaceProfileIfRecord(this.scoreSystem.value, this.runSession);
-                if (this.telemetrySystem.currentTelemetryRun && !this.telemetrySystem.currentTelemetryRun.endedAt) this.telemetrySystem.finishTelemetryRun('restart');
+                if (!this.gameMode.isSurvivalRun()) {
+                    this.highScoreSystem.saveCurrentRunPaceProfileIfRecord(this.scoreSystem.value, this.runSession);
+                    if (this.telemetrySystem.currentTelemetryRun && !this.telemetrySystem.currentTelemetryRun.endedAt) this.telemetrySystem.finishTelemetryRun('restart');
+                }
                 this.audio.resume();
                 this.audio.stopBackgroundMusic();
                 this.audio.stopPrismRelicHum();
@@ -23502,12 +23766,13 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 this.attractModeSystem.suspendAttractEnemyCards();
                 const selectedOption = Math.max(1, Math.min(this.campaign.getSectorSelectOptionCount({ developerMode: this.developerTools.developerModeEnabled }), this.campaign.selectedStartSector || 1));
                 const endOption = this.campaign.getEndOptionValue();
+                this.gameMode.beginRun();
 
                 this.clearEnemyDeathCause();
                 this.hasStartedRun = true;
                 this.systems.activateRunStartAudio();
 
-                if (this.developerTools.developerModeEnabled && selectedOption === endOption) {
+                if (this.gameMode.isCampaignSelected() && this.developerTools.developerModeEnabled && selectedOption === endOption) {
                     this.developerTools.startFinalGridlockTest();
                     this.diagnosticsSystem.validateStateInvariants('beginNewRun:end-test');
                     return true;
@@ -23515,10 +23780,20 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
 
                 this.prepareFreshRunLifecycle('new-run-reset');
 
-                if (TUTORIAL_ENABLED && (this.tutorialSystem.tutorialRequiredOnFirstRun || !this.tutorialSystem.introCompleted)) {
+                if (this.gameMode.isCampaignSelected() && TUTORIAL_ENABLED && (this.tutorialSystem.tutorialRequiredOnFirstRun || !this.tutorialSystem.introCompleted)) {
                     this.campaign.selectedStartSector = 1;
 
                     this.tutorialSystem.startOneTimeIntro();
+                    return true;
+                }
+
+                if (this.gameMode.isSurvivalSelected()) {
+                    this.resetRunState(1, 'survival');
+                    this.runtimeState.patchTransition({ startInputLocked: true });
+                    this.screenFadeElement.classList.add('visible');
+                    this.updateGameModeLabel();
+                    this.ui.updateAll();
+                    void this.beginFinalGridlock('survival-mode');
                     return true;
                 }
 
@@ -23919,7 +24194,9 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                     const deterministicSize = this.enemySpawnSystem.peekDeterministicSizeRequest(spawnCategory);
                     spawnRequest = {
                         type: deterministicSize.type,
-                        behaviorType: this.gridlockSystem.chooseBehavior(this.campaign.getEnemyBehaviorPlan(this.campaign.currentSector, this.gridlockEnemyThreshold)),
+                        behaviorType: this.gridlockSystem.chooseBehavior(this.runtimeState.finalGridlockActive && this.gameMode.isSurvivalRun()
+                            ? Array(this.gridlockEnemyThreshold).fill(this.gameMode.getActiveBehaviorType())
+                            : this.campaign.getEnemyBehaviorPlan(this.campaign.currentSector, this.gridlockEnemyThreshold)),
                         spawnCategory,
                         queueOrigin: deterministicSize.queueOrigin,
                         queueGenerationId: deterministicSize.queueGenerationId,
@@ -25108,7 +25385,10 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 this.bonusTextElement.classList.add('countdownText', 'final-gridlock-intro-flash');
                 this.bonusTextElement.style.transition = 'opacity 0.12s ease-in-out';
                 this.bonusTextElement.style.opacity = '1';
-                this.bonusTextElement.innerHTML = `<span class="countdown-sector-name">FINAL GRIDLOCK</span><span class="countdown-difficulty">ENDLESS SURVIVAL</span>`;
+                const survivalLaunch = this.gameMode.isSurvivalRun();
+                const finalGridlockTitle = survivalLaunch ? 'SURVIVAL' : 'FINAL GRIDLOCK';
+                const finalGridlockSubtitle = survivalLaunch ? `${this.gameMode.getActiveSwarmLabel().toUpperCase()} SWARM` : 'ENDLESS SURVIVAL';
+                this.bonusTextElement.innerHTML = `<span class="countdown-sector-name">${finalGridlockTitle}</span><span class="countdown-difficulty">${finalGridlockSubtitle}</span>`;
 
                 for (const step of ['3', '2', '1']) {
                     if (!isCurrent()) return cancelCountdown();
@@ -25132,8 +25412,9 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
             // Canonical lifecycle entry from the completed campaign into endless survival.
             async beginFinalGridlock(source = 'unknown') {
                 const developerEndingTest = source === 'developer-end-test';
-                const ready = (this.runSession.isEndingEligible() || developerEndingTest) && !this.runtimeState.campaignCompletionActive && !this.runtimeState.finalGridlockActive &&
-                    !this.runtimeState.finalGridlockResultActive && !this.runtimeState.isGameOver && this.campaign.currentSector >= this.CAMPAIGN_SECTOR_COUNT;
+                const survivalModeLaunch = source === 'survival-mode' && this.gameMode.isSurvivalRun();
+                const ready = (this.runSession.isEndingEligible() || developerEndingTest || survivalModeLaunch) && !this.runtimeState.campaignCompletionActive && !this.runtimeState.finalGridlockActive &&
+                    !this.runtimeState.finalGridlockResultActive && !this.runtimeState.isGameOver && (survivalModeLaunch || this.campaign.currentSector >= this.CAMPAIGN_SECTOR_COUNT);
                 if (!this.diagnosticsSystem.requireLifecycleAction('beginFinalGridlock', ready, 'final-gridlock-not-ready', { source })) return false;
 
                 this.flow.enter(GAME_FLOW_STATES.FINAL_GRIDLOCK, 'start-final-gridlock');
@@ -25156,8 +25437,10 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 this.completeTransitionGroup('final-gridlock-live-action');
                 this.runtimeState.patchTransition({ startInputLocked: false });
                 this.lastFrameTime = performance.now();
-                this.telemetrySystem.ensureTelemetryRun('final-gridlock');
-                this.telemetrySystem.startTelemetrySector('final-gridlock');
+                if (!this.gameMode.isSurvivalRun()) {
+                    this.telemetrySystem.ensureTelemetryRun('final-gridlock');
+                    this.telemetrySystem.startTelemetrySector('final-gridlock');
+                }
                 this.startRunRecordActionClock();
                 this.audio.stopBackgroundMusic();
                 this.audio.startBackgroundMusic(this.campaign.currentSector);
@@ -25182,7 +25465,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 if (this.vectorTrail) this.vectorTrail.clear();
                 this.beginTransitionGroup('game-over', transitionToken);
                 const endedInFinalGridlock = this.systems.prepareRunEnd(deathDetails);
-                this.highScoreSystem.saveCurrentRunPaceProfileIfRecord(this.scoreSystem.value, this.runSession);
+                if (!this.gameMode.isSurvivalRun()) this.highScoreSystem.saveCurrentRunPaceProfileIfRecord(this.scoreSystem.value, this.runSession);
                 this.diagnosticsSystem.validateStateInvariants('endRun');
 
                 if (!await this.wait(GAME_CONFIG.transitions.gameOverRevealMs, transitionToken, 'game-over-reveal')) return;
@@ -25191,6 +25474,32 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 this.audio.resume();
 
                 if (endedInFinalGridlock) {
+                    if (this.gameMode.isSurvivalRun()) {
+                        const totalSeconds = Math.floor(Math.max(0, this.runtimeState.finalGridlockElapsedMs) / 1000);
+                        const minutes = Math.floor(totalSeconds / 60);
+                        const seconds = totalSeconds % 60;
+                        const survivalTime = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+                        this.runtimeState.patchTerminal({ finalGridlockActive: false });
+                        this.runtimeState.patchTerminal({ finalGridlockResultActive: true });
+                        this.gameOverElement.classList.remove('finalGameCompleteText');
+                        this.gameOverElement.classList.add('finalGridlockGameOverText');
+                        this.bonusTextElement.classList.remove('finalGameSummary');
+                        this.bonusTextElement.classList.add('finalGridlockSummary');
+                        this.gameOverElement.textContent = 'SURVIVAL';
+                        this.bonusTextElement.innerHTML = `<span class="campaign-final-score"><span class="campaign-final-score-value">${survivalTime}</span></span><span class="survival-result-context">${this.gameMode.getActiveSwarmLabel().toUpperCase()} · ${String(this.settings.difficultyMode || 'Normal').toUpperCase()}</span>`;
+                        this.gameOverElement.style.opacity = '1';
+                        this.bonusTextElement.style.opacity = '1';
+                        this.screenManager.setOverlayVisible(true);
+                        this.runtimeState.patchTerminal({ restartReady: true });
+                        this.updateGameModeLabel();
+                        this.updateSettingsSectorLabel();
+                        this.updateDifficultyLabel();
+                        this.ui.updateAll();
+                        this.completeTransitionGroup('survival-results-ready');
+                        this.diagnosticsSystem.validateStateInvariants('endRun:survival-results');
+                        return;
+                    }
+
                     const finalRelics = this.runSession.getRecoveredRelicCount(this.CAMPAIGN_SECTOR_COUNT);
                     const finalPerfects = this.runSession.getPerfectSectorCount(this.CAMPAIGN_SECTOR_COUNT);
                     const finalCampaignTimeMs = this.runSession.getElapsedMs();
@@ -29498,6 +29807,7 @@ startGridlockBeat(delaySeconds = 0) {
             updateAll() {
                 this.syncCampaignCompletionPresentation();
                 this.syncPersistentRunHudPresentation();
+                this.game.updateGameModeLabel();
                 this.updateScore();
                 this.updateHighScore();
                 this.updateHudMenuButton();
@@ -30094,6 +30404,7 @@ startGridlockBeat(delaySeconds = 0) {
                 flow: game.flow.snapshot(),
                 scheduler: game.scheduler.snapshot(),
                 settings: game.settings.snapshot(),
+                gameMode: game.gameMode.snapshot(),
                 score: game.scoreSystem.snapshot(),
                 run: game.runSession.snapshot(),
                 records: game.highScoreSystem.snapshot(),
