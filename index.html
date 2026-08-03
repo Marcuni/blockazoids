@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Block-A-Zoids p289: adds Campaign and Survival launch modes, single-identity Survival swarms, and the Octagulum sector-name fit correction.
+Block-A-Zoids p290: normalizes Survival to authoritative Sector 5 conditions with deterministic comparison spawning and separate Survival Lab telemetry.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="p289">
+<html data-build-version="p290">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -7266,7 +7266,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
         const BUILD_METADATA = window.BLOCKAZOIDS_BUILD = Object.freeze({
             version: document.documentElement.dataset.buildVersion || 'unknown',
             label: BUILD_VERSION,
-            architecturePhase: 'authoritative-campaign-survival-run-modes',
+            architecturePhase: 'sector-five-survival-behavior-lab',
             sourceBaseline: 'p287',
             behaviorPolicy: 'single-design-space-scale-authoritative-state-no-parallel-systems'
         });
@@ -7301,7 +7301,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
         const SOURCE_LAYOUT = window.BLOCKAZOIDS_SOURCE_LAYOUT = Object.freeze({
             developmentModel: 'modular-source',
             releaseModel: 'single-html',
-            buildOutput: 'block-a-zoids-p289.html',
+            buildOutput: 'block-a-zoids-p290.html',
             categories: Object.freeze([
                 'build', 'config', 'content', 'rules', 'state', 'services', 'app', 'gameplay',
                 'presentation', 'platform', 'audio', 'ui', 'development', 'docs'
@@ -7311,7 +7311,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
 
 /* Source: src/js/development/75-developer-documentation.js */
         const DEVELOPER_DOCUMENTATION = window.BLOCKAZOIDS_DEVELOPER_GUIDE = deepFreezeConfiguration({
-            version: 'p289',
+            version: 'p290',
             purpose: 'Make ownership, safe edit locations, state transitions, build steps, and maintenance rules discoverable without reverse-engineering the complete game.',
             architecture: {
                 application: {
@@ -7814,7 +7814,20 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                     Object.freeze({ key: 'dash', label: 'Dash', behaviorType: 'charger' }),
                     Object.freeze({ key: 'echo', label: 'Echo', behaviorType: 'pulse' })
                 ]),
-                defaultSurvivalSwarm: 'zig'
+                defaultSurvivalSwarm: 'zig',
+                // Survival is a controlled behavior lab. Every run references the same
+                // authored Sector 5 balance and deterministic peripheral spawn plan.
+                survivalBalanceSector: 5,
+                survivalSpawnCellSequence: Object.freeze([
+                    Object.freeze({ col: 0, row: 0 }),
+                    Object.freeze({ col: 9, row: 9 }),
+                    Object.freeze({ col: 9, row: 0 }),
+                    Object.freeze({ col: 0, row: 9 }),
+                    Object.freeze({ col: 0, row: 1 }),
+                    Object.freeze({ col: 9, row: 8 }),
+                    Object.freeze({ col: 1, row: 9 }),
+                    Object.freeze({ col: 8, row: 0 })
+                ])
             },
             storage: {
                 highestSector: 'blockazoidsHighestSectorUnlockedV1',
@@ -7837,6 +7850,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 introCompletion: 'blockazoidsGridCalibrationCompletedV1',
                 introCompletionBuild: 'blockazoidsGridCalibrationCompletedBuildV1',
                 telemetry: 'blockazoidsBalanceTelemetry',
+                survivalTelemetry: 'blockazoidsSurvivalLabTelemetryV1',
                 enemyEncounters: 'blockazoidsEnemyEncountersV1'
             }
         });
@@ -8340,7 +8354,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 scoring: 'All score awards and crystal values',
                 enemyBehaviors: 'Behavior-specific timing and movement',
                 campaign: 'Campaign-wide rules not owned by individual sectors',
-                gameModes: 'Campaign and Survival mode selection plus Survival swarm definitions',
+                gameModes: 'Campaign and Survival mode selection, Sector 5 lab profile, and Survival swarm definitions',
                 difficulty: 'Explicit difficulty profiles and resource capacities',
                 tutorial: 'Tutorial thresholds and delays',
                 input: 'Gesture, motion, and Cosmic Zap input tuning',
@@ -9055,6 +9069,22 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 return this.getSwarmDefinition(this.activeSwarmType).behaviorType;
             }
 
+            getSurvivalBalanceSector() {
+                const configured = Number(this.config.gameModes?.survivalBalanceSector) || 5;
+                return GameRules.clampCampaignSector(configured);
+            }
+
+            getBalanceSector(campaignSector = 1) {
+                return this.isSurvivalRun()
+                    ? this.getSurvivalBalanceSector()
+                    : GameRules.clampCampaignSector(campaignSector);
+            }
+
+            getSurvivalSpawnCellSequence() {
+                const sequence = this.config.gameModes?.survivalSpawnCellSequence || [];
+                return Object.freeze(sequence.map((cell) => Object.freeze({ col: Number(cell.col), row: Number(cell.row) })));
+            }
+
             snapshot() {
                 return Object.freeze({
                     selectedMode: this.selectedMode,
@@ -9064,7 +9094,8 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                     activeMode: this.activeMode,
                     activeSwarmType: this.activeSwarmType,
                     activeSwarmLabel: this.getActiveSwarmLabel(),
-                    survivalRun: this.isSurvivalRun()
+                    survivalRun: this.isSurvivalRun(),
+                    balanceSector: this.getBalanceSector(1)
                 });
             }
         }
@@ -10659,6 +10690,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 this.currentSpawnBatchId = null;
                 this.currentQueueOrigin = null;
                 this.deterministicSizeStates = Object.create(null);
+                this.survivalSpawnSequenceIndex = 0;
                 return this.snapshot();
             }
 
@@ -10688,7 +10720,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 return pending.length;
             }
 
-            choosePeripheralSpawnLocation(enemySize) {
+            getPeripheralSpawnCells(enemySize) {
                 const game = this.requireGame();
                 const orbCenterX = game.orb.x + game.orb.size / 2;
                 const orbCenterY = game.orb.y + game.orb.size / 2;
@@ -10742,7 +10774,46 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                         if (distanceToOrb >= game.MIN_SPAWN_DISTANCE) strictCells.push(cell);
                     }
                 }
+                return Object.freeze({ strictCells, fallbackCells });
+            }
 
+            resetSurvivalSpawnSequence() {
+                this.survivalSpawnSequenceIndex = 0;
+            }
+
+            chooseSurvivalSpawnLocation(enemySize) {
+                const game = this.requireGame();
+                const { strictCells, fallbackCells } = this.getPeripheralSpawnCells(enemySize);
+                const candidates = strictCells.length ? strictCells : fallbackCells;
+                if (!candidates.length) return null;
+
+                const sequence = game.gameMode.getSurvivalSpawnCellSequence();
+                const sequenceLength = Math.max(1, sequence.length);
+                const plannedIndex = this.survivalSpawnSequenceIndex % sequenceLength;
+                const planned = sequence[plannedIndex] || null;
+                this.survivalSpawnSequenceIndex += 1;
+
+                if (planned) {
+                    const exact = candidates.find((cell) => cell.gridCol === planned.col && cell.gridRow === planned.row);
+                    if (exact) return exact;
+                }
+
+                // Occupancy can make a planned cell temporarily unavailable. The fallback is
+                // deterministic, preserving a comparable sequence without random selection.
+                const ordered = candidates.slice().sort((a, b) =>
+                    (b.distanceToOrb - a.distanceToOrb) ||
+                    (a.gridRow - b.gridRow) ||
+                    (a.gridCol - b.gridCol)
+                );
+                return ordered[plannedIndex % ordered.length];
+            }
+
+            choosePeripheralSpawnLocation(enemySize) {
+                const game = this.requireGame();
+                if (game.gameMode && game.gameMode.isSurvivalRun()) {
+                    return this.chooseSurvivalSpawnLocation(enemySize);
+                }
+                const { strictCells, fallbackCells } = this.getPeripheralSpawnCells(enemySize);
                 if (strictCells.length > 0) {
                     return strictCells[Math.floor(Math.random() * strictCells.length)];
                 }
@@ -11158,6 +11229,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                     currentQueueGeneration: this.currentQueueGeneration,
                     currentSpawnBatchId: this.currentSpawnBatchId,
                     currentQueueOrigin: this.currentQueueOrigin,
+                    survivalSpawnSequenceIndex: this.survivalSpawnSequenceIndex,
                     deterministicSizeStates: Object.freeze(Object.fromEntries(
                         Object.entries(this.deterministicSizeStates).map(([key, state]) => [key, Object.freeze({ ...state })])
                     ))
@@ -13914,7 +13986,10 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
 
 /* Source: src/js/development/85-telemetry-system.js */
         class TelemetrySystem {
-            static ownedFields = Object.freeze(['telemetryEnabled', 'telemetryStorageKey', 'telemetry', 'currentTelemetryRun', 'currentTelemetrySector'].map(String));
+            static ownedFields = Object.freeze([
+                'telemetryEnabled', 'telemetryStorageKey', 'telemetry', 'currentTelemetryRun', 'currentTelemetrySector',
+                'survivalTelemetryStorageKey', 'survivalTelemetry', 'currentSurvivalTelemetryRun'
+            ].map(String));
 
             constructor(game) {
                 this.game = game;
@@ -13923,6 +13998,9 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 this.telemetry = null;
                 this.currentTelemetryRun = null;
                 this.currentTelemetrySector = null;
+                this.survivalTelemetryStorageKey = GAME_CONFIG.storage.survivalTelemetry;
+                this.survivalTelemetry = null;
+                this.currentSurvivalTelemetryRun = null;
             }
 
             hasImplementation(name) {
@@ -13931,6 +14009,11 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
 
             loadTelemetryData(...args) { return TelemetrySystem.implementations.loadTelemetryData.apply(this.game, args); }
             saveTelemetryData(...args) { return TelemetrySystem.implementations.saveTelemetryData.apply(this.game, args); }
+            loadSurvivalTelemetryData(...args) { return TelemetrySystem.implementations.loadSurvivalTelemetryData.apply(this.game, args); }
+            saveSurvivalTelemetryData(...args) { return TelemetrySystem.implementations.saveSurvivalTelemetryData.apply(this.game, args); }
+            captureSurvivalTuningSnapshot(...args) { return TelemetrySystem.implementations.captureSurvivalTuningSnapshot.apply(this.game, args); }
+            beginSurvivalTelemetryRun(...args) { return TelemetrySystem.implementations.beginSurvivalTelemetryRun.apply(this.game, args); }
+            finishSurvivalTelemetryRun(...args) { return TelemetrySystem.implementations.finishSurvivalTelemetryRun.apply(this.game, args); }
             getCurrentSpeedMultiplier(...args) { return TelemetrySystem.implementations.getCurrentSpeedMultiplier.apply(this.game, args); }
             getEffectiveEnemySpeedsSnapshot(...args) { return TelemetrySystem.implementations.getEffectiveEnemySpeedsSnapshot.apply(this.game, args); }
             getRemainingCrystalsByColor(...args) { return TelemetrySystem.implementations.getRemainingCrystalsByColor.apply(this.game, args); }
@@ -13980,7 +14063,10 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                     storedRuns: this.telemetry && Array.isArray(this.telemetry.runs) ? this.telemetry.runs.length : 0,
                     activeRun: !!(this.currentTelemetryRun && !this.currentTelemetryRun.endedAt),
                     activeSector: !!(this.currentTelemetrySector && !this.currentTelemetrySector.endedAt),
-                    schema: this.telemetry && this.telemetry.schema ? this.telemetry.schema : null
+                    schema: this.telemetry && this.telemetry.schema ? this.telemetry.schema : null,
+                    survivalStoredRuns: this.survivalTelemetry && Array.isArray(this.survivalTelemetry.runs) ? this.survivalTelemetry.runs.length : 0,
+                    activeSurvivalRun: !!(this.currentSurvivalTelemetryRun && !this.currentSurvivalTelemetryRun.endedAt),
+                    survivalSchema: this.survivalTelemetry && this.survivalTelemetry.schema ? this.survivalTelemetry.schema : null
                 });
             }
         }
@@ -14050,6 +14136,154 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 return emptyTelemetry;
                         },
 
+            loadSurvivalTelemetryData: function() {
+                const empty = {
+                    schema: 'blockazoids-survival-lab-v1',
+                    schemaVersion: 1,
+                    runs: [],
+                    lastSavedAt: null
+                };
+                try {
+                    const saved = JSON.parse(storageService.getItem(this.telemetrySystem.survivalTelemetryStorageKey) || 'null');
+                    if (!saved) return empty;
+                    const runs = Array.isArray(saved.runs) ? saved.runs.slice() : [];
+                    const activeRun = saved.activeRun && !saved.activeRun.endedAt ? saved.activeRun : null;
+                    if (activeRun && !runs.some((run) => run && run.id === activeRun.id)) {
+                        runs.push({
+                            ...activeRun,
+                            endedAt: saved.savedAt || new Date().toISOString(),
+                            endReason: 'interrupted',
+                            recoveredAfterReload: true
+                        });
+                    }
+                    return {
+                        schema: 'blockazoids-survival-lab-v1',
+                        schemaVersion: 1,
+                        runs,
+                        lastSavedAt: saved.savedAt || null
+                    };
+                } catch (_) {
+                    return empty;
+                }
+                        },
+
+            saveSurvivalTelemetryData: function() {
+                if (!this.telemetrySystem.survivalTelemetry) return false;
+                const savedAt = new Date().toISOString();
+                const payload = {
+                    schema: 'blockazoids-survival-lab-v1',
+                    schemaVersion: 1,
+                    savedAt,
+                    runs: Array.isArray(this.telemetrySystem.survivalTelemetry.runs)
+                        ? this.telemetrySystem.survivalTelemetry.runs.slice(-100)
+                        : [],
+                    activeRun: this.telemetrySystem.currentSurvivalTelemetryRun && !this.telemetrySystem.currentSurvivalTelemetryRun.endedAt
+                        ? this.telemetrySystem.currentSurvivalTelemetryRun
+                        : null
+                };
+                try {
+                    storageService.setItem(this.telemetrySystem.survivalTelemetryStorageKey, JSON.stringify(payload));
+                    this.telemetrySystem.survivalTelemetry.lastSavedAt = savedAt;
+                    return true;
+                } catch (_) {
+                    return false;
+                }
+                        },
+
+            captureSurvivalTuningSnapshot: function() {
+                const balanceSector = this.gameMode.getSurvivalBalanceSector();
+                const difficulty = this.settings.difficultyMode;
+                const difficultyProfile = GameRules.getDifficultyProfile(difficulty);
+                const speedMultiplier = GameRules.getEnemySpeedMultiplier(balanceSector, difficulty);
+                const sizeSequence = this.campaign.getEnemySizePlan(balanceSector, GAME_CONFIG.enemySpawning.gridlockEnemyThreshold).slice();
+                const behaviorType = this.gameMode.getActiveBehaviorType();
+                const behaviorTuning = GAME_CONFIG.enemyBehaviors[behaviorType] || null;
+                return {
+                    balanceSector,
+                    difficulty,
+                    difficultyModifiers: { ...difficultyProfile },
+                    behaviorIdentity: this.gameMode.getActiveSwarmLabel().toUpperCase(),
+                    behaviorType,
+                    behaviorTuning: behaviorTuning ? { ...behaviorTuning } : null,
+                    spawnIntervalMs: Math.round(GameRules.getSpawnDelay(balanceSector, difficulty) * 1000),
+                    warningDurationMs: GAME_CONFIG.enemySpawning.warningDurationMs,
+                    initialEnemyCount: GAME_CONFIG.enemySpawning.gridlockEnemyThreshold,
+                    deterministicSizeSequence: sizeSequence,
+                    deterministicSpawnCellSequence: this.gameMode.getSurvivalSpawnCellSequence().map((cell) => ({ ...cell })),
+                    overtimeIntervalMs: GAME_CONFIG.gridlock.overtimeEnemyIntervalMs,
+                    speedMultiplier: Number(speedMultiplier.toFixed(4)),
+                    baseSpeeds: { ...GAME_CONFIG.enemyMovement.baseSpeeds },
+                    effectiveSpeeds: Object.fromEntries(Object.entries(this.BASE_SPEEDS).map(([size, speed]) => [
+                        size,
+                        Number((speed * speedMultiplier).toFixed(4))
+                    ])),
+                    orb: {
+                        sizePx: Number((this.ORB_SIZE || 0).toFixed(4)),
+                        startX: Number((this.orb.x || 0).toFixed(4)),
+                        startY: Number((this.orb.y || 0).toFixed(4)),
+                        trackingSpeed: this.settings.trackingSpeed
+                    },
+                    playfield: {
+                        sizePx: Number((this.PLAYFIELD_SIZE || 0).toFixed(4)),
+                        gridSizePx: Number((this.GRID_SIZE || 0).toFixed(4)),
+                        minSpawnDistancePx: Number((this.MIN_SPAWN_DISTANCE || 0).toFixed(4)),
+                        gridCellsPerSide: this.configuredGridCells || GAME_CONFIG.playfield.gridCellsPerSide
+                    }
+                };
+                        },
+
+            beginSurvivalTelemetryRun: function(source = 'survival-mode') {
+                if (!this.telemetrySystem.telemetryEnabled || !this.gameMode.isSurvivalRun()) return null;
+                if (this.telemetrySystem.currentSurvivalTelemetryRun && !this.telemetrySystem.currentSurvivalTelemetryRun.endedAt) {
+                    this.telemetrySystem.finishSurvivalTelemetryRun('interrupted');
+                }
+                const now = new Date().toISOString();
+                const tuning = this.telemetrySystem.captureSurvivalTuningSnapshot();
+                this.telemetrySystem.currentSurvivalTelemetryRun = {
+                    id: `survival-${Date.now()}-${Math.floor(Math.random() * 100000)}`,
+                    schema: 'blockazoids-survival-lab-v1',
+                    build: BUILD_VERSION,
+                    source,
+                    startedAt: now,
+                    startPerformanceMs: performance.now(),
+                    identity: this.gameMode.getActiveSwarmLabel().toUpperCase(),
+                    behaviorType: this.gameMode.getActiveBehaviorType(),
+                    difficulty: this.settings.difficultyMode,
+                    survivalTimeMs: 0,
+                    killer: null,
+                    enemyCountAtDeath: null,
+                    activeTuning: tuning,
+                    endedAt: null,
+                    endReason: null
+                };
+                this.telemetrySystem.saveSurvivalTelemetryData();
+                return this.telemetrySystem.currentSurvivalTelemetryRun;
+                        },
+
+            finishSurvivalTelemetryRun: function(reason = 'ended', deathDetails = {}) {
+                const run = this.telemetrySystem.currentSurvivalTelemetryRun;
+                if (!run || run.endedAt) return null;
+                const deathCause = deathDetails.deathCause || this.lastDeathCause || null;
+                run.endedAt = new Date().toISOString();
+                run.endReason = reason;
+                run.survivalTimeMs = Math.max(0, Math.round(this.runtimeState.finalGridlockElapsedMs || 0));
+                run.enemyCountAtDeath = this.enemies.length;
+                run.killer = deathCause ? {
+                    identity: deathCause.displayName || null,
+                    identityKey: deathCause.identityKey || null,
+                    behaviorType: deathCause.behaviorType || null,
+                    size: deathCause.enemySize || deathDetails.deathEnemySize || null,
+                    state: deathCause.behaviorState || null,
+                    category: deathCause.telemetryCategory || null,
+                    effectiveVelocity: Number.isFinite(deathCause.effectiveVelocity) ? deathCause.effectiveVelocity : null
+                } : null;
+                if (!this.telemetrySystem.survivalTelemetry) this.telemetrySystem.survivalTelemetry = this.telemetrySystem.loadSurvivalTelemetryData();
+                this.telemetrySystem.survivalTelemetry.runs.push(run);
+                this.telemetrySystem.currentSurvivalTelemetryRun = null;
+                this.telemetrySystem.saveSurvivalTelemetryData();
+                return run;
+                        },
+
             saveTelemetryData: function() {
                 if (!this.telemetrySystem.telemetry || !Array.isArray(this.telemetrySystem.telemetry.runs)) return;
                 const maxRuns = 20;
@@ -14089,7 +14323,8 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                         },
 
             getCurrentSpeedMultiplier: function() {
-                return GameRules.getEnemySpeedMultiplier(this.campaign.currentSector, this.settings.difficultyMode);
+                const balanceSector = this.gameMode.getBalanceSector(this.campaign.currentSector);
+                return GameRules.getEnemySpeedMultiplier(balanceSector, this.settings.difficultyMode);
                         },
 
             getEffectiveEnemySpeedsSnapshot: function() {
@@ -14441,6 +14676,8 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                     category = 'regression-test';
                 } else if (raw.includes('behavior-test') || raw.includes('developer') || raw.includes('test')) {
                     category = 'developer-test';
+                } else if (raw.includes('survival')) {
+                    category = 'survival-lab';
                 } else if (raw.includes('final-gridlock')) {
                     category = 'final-gridlock';
                 }
@@ -16441,6 +16678,8 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 const activeMode = gameMode.beginRun();
                 this.assert('GameModeSystem owns Campaign and Survival selection', activeMode.activeMode === 'survival' && gameMode.getModeLabel() === 'Survival');
                 this.assert('GameModeSystem maps Zig, Dash, and Echo to one behavior each', GAME_CONFIG.gameModes.survivalSwarms.map((swarm) => swarm.behaviorType).join(',') === 'drifter,charger,pulse');
+                gameMode.beginRun();
+                this.assert('GameModeSystem fixes active Survival balance to Sector 5', gameMode.getBalanceSector(15) === 5 && gameMode.getSurvivalSpawnCellSequence().length === 8);
                 this.assert('GameModeSystem snapshot is read-only', Object.isFrozen(gameMode.snapshot()));
 
                 const runtimeState = new RuntimeStateSystem();
@@ -16701,7 +16940,10 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 this.assert('Final Gridlock has an authoritative run-origin gate', Game.prototype.beginFinalGridlock.toString().includes('this.runSession.isEndingEligible()'));
                 this.assert('Survival uses the Final Gridlock lifecycle without campaign ending eligibility', Game.prototype.beginFinalGridlock.toString().includes('survivalModeLaunch') && Game.prototype.beginNewRun.toString().includes("beginFinalGridlock('survival-mode')"));
                 this.assert('Survival spawn plans use one selected identity', Game.prototype.applySectorParameters.toString().includes('this.gameMode.getActiveBehaviorType()') && Game.prototype.spawnOvertimeEnemy.toString().includes('this.gameMode.getActiveBehaviorType()'));
-                this.assert('Survival telemetry is not started', Game.prototype.beginFinalGridlock.toString().includes('!this.gameMode.isSurvivalRun()'));
+                this.assert('Survival balance resolves through authoritative Sector 5 rules', GAME_CONFIG.gameModes.survivalBalanceSector === 5 && Game.prototype.applySectorParameters.toString().includes('getBalanceSector') && TelemetrySystem.implementations.getCurrentSpeedMultiplier.toString().includes('getBalanceSector'));
+                this.assert('Survival spawn positions use one deterministic sequence', Array.isArray(GAME_CONFIG.gameModes.survivalSpawnCellSequence) && GAME_CONFIG.gameModes.survivalSpawnCellSequence.length === GAME_CONFIG.enemySpawning.gridlockEnemyThreshold && EnemySpawnSystem.prototype.chooseSurvivalSpawnLocation.toString().includes('survivalSpawnSequenceIndex'));
+                this.assert('Survival telemetry is stored separately from Campaign telemetry', GAME_CONFIG.storage.survivalTelemetry !== GAME_CONFIG.storage.telemetry && TelemetrySystem.implementations.beginSurvivalTelemetryRun.toString().includes('currentSurvivalTelemetryRun') && TelemetrySystem.implementations.finishSurvivalTelemetryRun.toString().includes('survivalTelemetry.runs'));
+                this.assert('Survival lifecycle starts its dedicated telemetry path', Game.prototype.beginFinalGridlock.toString().includes("beginSurvivalTelemetryRun('survival-mode')"));
                 this.assert('Crystal topology calls retain responsive grid size', topologySource.includes('normalizeGridPoint(currentPos, this.GRID_SIZE)') && topologySource.includes('hasCollectedGridPoint(target, this.GRID_SIZE)'));
             }
 
@@ -17561,6 +17803,8 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 game.survivalScoreAccumulator = 0;
                 game.enemySpawnSystem.enemySpawnElapsedMs = 0;
                 game.enemySpawnSystem.spawnedCount = { small: 0, medium: 0, large: 0 };
+                game.enemySpawnSystem.spawnWarningDurationMs = GAME_CONFIG.enemySpawning.warningDurationMs;
+                if (game.gameMode.isSurvivalRun()) game.enemySpawnSystem.resetSurvivalSpawnSequence();
                 game.setGridlockState({ gridlockActive: false });
                 game.resetOvertimeState();
                 game.applySectorParameters({ queueOrigin: 'final-gridlock', spawnCategory: 'final-gridlock' });
@@ -17659,6 +17903,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                     game.telemetrySystem.finishTelemetryRun('death');
                     game.saveRunRecordIfCurrentHighScore();
                 } else {
+                    game.telemetrySystem.finishSurvivalTelemetryRun('death', deathDetails);
                     game.forfeitGridlockPrismsAtSectorEnd('survival-death');
                 }
                 game.resetOvertimeState();
@@ -22176,6 +22421,9 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 this.telemetrySystem.telemetry = this.telemetrySystem.loadTelemetryData();
                 this.telemetrySystem.currentTelemetryRun = null;
                 this.telemetrySystem.currentTelemetrySector = null;
+                this.telemetrySystem.survivalTelemetryStorageKey = GAME_CONFIG.storage.survivalTelemetry;
+                this.telemetrySystem.survivalTelemetry = this.telemetrySystem.loadSurvivalTelemetryData();
+                this.telemetrySystem.currentSurvivalTelemetryRun = null;
                 if (this.telemetrySystem.telemetry && this.telemetrySystem.telemetry.recoveredActiveRuns) {
                     this.telemetrySystem.saveTelemetryData();
                 }
@@ -22707,7 +22955,8 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
             // Resolve the authored sector queue. Behavior order and visual-size order are fixed;
             // only spawn location and runtime movement direction remain random.
             applySectorParameters({ queueOrigin = 'initial', spawnCategory = 'normal' } = {}) {
-                this.spawnDelay = GameRules.getSpawnDelay(this.campaign.currentSector, this.settings.difficultyMode);
+                const balanceSector = this.gameMode.getBalanceSector(this.campaign.currentSector);
+                this.spawnDelay = GameRules.getSpawnDelay(balanceSector, this.settings.difficultyMode);
                 this.gridlockEnemyThreshold = GAME_CONFIG.enemySpawning.gridlockEnemyThreshold;
 
                 let behaviorPlan;
@@ -22739,7 +22988,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                     behaviorPlan = this.campaign.getEnemyBehaviorPlan(this.campaign.currentSector, this.gridlockEnemyThreshold).slice();
                 }
 
-                const sizePlan = this.campaign.getEnemySizePlan(this.campaign.currentSector, this.gridlockEnemyThreshold).slice();
+                const sizePlan = this.campaign.getEnemySizePlan(balanceSector, this.gridlockEnemyThreshold).slice();
                 this.enemySpawnSystem.createSectorQueue({
                     behaviorPlan,
                     sizePlan,
@@ -25195,7 +25444,8 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 else if (enemy.behaviorType === ENEMY_BEHAVIOR_TYPES.CHARGER) telemetryCategory = behaviorState === 'charge' ? 'charger-charge' : 'charger-cruise';
                 else if (enemy.behaviorType === ENEMY_BEHAVIOR_TYPES.PULSE) telemetryCategory = reactivationAgeMs !== null && reactivationAgeMs <= 450 ? 'pulse-reactivation-overlap' : 'pulse-active';
 
-                const sectorBoost = Math.max(0, this.campaign.currentSector - 1) * GAME_CONFIG.enemyMovement.sectorSpeedBoost;
+                const balanceSector = this.gameMode.getBalanceSector(this.campaign.currentSector);
+                const sectorBoost = Math.max(0, balanceSector - 1) * GAME_CONFIG.enemyMovement.sectorSpeedBoost;
 
                 const zapBoost = 0;
                 const difficultyMultiplier = this.getDifficultyConfig().speedMultiplier;
@@ -25437,7 +25687,9 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 this.completeTransitionGroup('final-gridlock-live-action');
                 this.runtimeState.patchTransition({ startInputLocked: false });
                 this.lastFrameTime = performance.now();
-                if (!this.gameMode.isSurvivalRun()) {
+                if (this.gameMode.isSurvivalRun()) {
+                    this.telemetrySystem.beginSurvivalTelemetryRun('survival-mode');
+                } else {
                     this.telemetrySystem.ensureTelemetryRun('final-gridlock');
                     this.telemetrySystem.startTelemetrySector('final-gridlock');
                 }
