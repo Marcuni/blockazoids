@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Block-A-Zoids p284: adds a subtle profile-aware cabinet surface, recessed lower control panel, and proportional sector-to-control separator.
+Block-A-Zoids p285: reduces the shared proportional trackball recess so it remains centered and contained above the lower cabinet boundary.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="p284">
+<html data-build-version="p285">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -4186,7 +4186,7 @@ Font License Notices
            Runtime layout changes only the custom properties consumed here. */
         html body #skinShell {
             --default-glow: var(--scaled-hud-glow, var(--glow-default));
-            /* p284 cabinet-surface tokens. Display profiles may tune intensity, while
+            /* p285 cabinet-surface tokens. Display profiles may tune intensity, while
                geometry remains owned by the responsive skin layout profile. */
             --cabinet-center-lift-alpha: 0.024;
             --cabinet-control-lift-alpha: 0.034;
@@ -7332,8 +7332,8 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
         const BUILD_METADATA = window.BLOCKAZOIDS_BUILD = Object.freeze({
             version: document.documentElement.dataset.buildVersion || 'unknown',
             label: BUILD_VERSION,
-            architecturePhase: 'low-latency-pointer-input-and-one-shot-device-permissions',
-            sourceBaseline: 'p282',
+            architecturePhase: 'proportional-cabinet-recess-alignment',
+            sourceBaseline: 'p284',
             behaviorPolicy: 'single-design-space-scale-authoritative-state-no-parallel-systems'
         });
 
@@ -7367,7 +7367,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
         const SOURCE_LAYOUT = window.BLOCKAZOIDS_SOURCE_LAYOUT = Object.freeze({
             developmentModel: 'modular-source',
             releaseModel: 'single-html',
-            buildOutput: 'block-a-zoids-p284.html',
+            buildOutput: 'block-a-zoids-p285.html',
             categories: Object.freeze([
                 'build', 'config', 'content', 'rules', 'state', 'services', 'app', 'gameplay',
                 'presentation', 'platform', 'audio', 'ui', 'development', 'docs'
@@ -7377,7 +7377,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
 
 /* Source: src/js/development/75-developer-documentation.js */
         const DEVELOPER_DOCUMENTATION = window.BLOCKAZOIDS_DEVELOPER_GUIDE = deepFreezeConfiguration({
-            version: 'p284',
+            version: 'p285',
             purpose: 'Make ownership, safe edit locations, state transitions, build steps, and maintenance rules discoverable without reverse-engineering the complete game.',
             architecture: {
                 application: {
@@ -21792,10 +21792,10 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                             radarGeometryTop: 63.697858,
                             radarGeometryWidth: 54.114994,
                             radarGeometryHeight: 27.057497,
-                            // p284 cabinet-surface proportions. These values tune the shared
+                            // p285 cabinet-surface proportions. These values tune the shared
                             // lower-panel treatment without introducing device-specific geometry.
                             cabinetSurface: Object.freeze({
-                                trackballRecessScale: 0.94,
+                                trackballRecessScale: 0.88,
                                 separatorOffsetPercent: 1.40
                             }),
                             // The primary Play control shares the radar center calculated from the
@@ -30066,9 +30066,19 @@ startGridlockBeat(delaySeconds = 0) {
                     const cabinetProfile = game.skinShell?.dataset.monitorProfile;
                     const cabinetRecessStyle = getComputedStyle(game.skinShell, '::after');
                     const radarRect = document.getElementById('liveRadarGeometry')?.getBoundingClientRect();
+                    const skinRect = game.skinShell?.getBoundingClientRect();
+                    const skinProfile = game.developerTools.getCurrentSkinLayoutProfile();
+                    const recessScale = Number(skinProfile?.cabinetSurface?.trackballRecessScale || 0);
                     const recessWidth = Number.parseFloat(cabinetRecessStyle?.width || '0');
+                    const recessCenterX = Number.parseFloat(cabinetRecessStyle?.left || '0');
+                    const recessCenterY = Number.parseFloat(cabinetRecessStyle?.top || '0');
+                    const radarCenterX = radarRect ? (radarRect.left - skinRect.left) + (radarRect.width / 2) : 0;
+                    const radarCenterY = radarRect ? (radarRect.top - skinRect.top) + (radarRect.height / 2) : 0;
+                    const recessBottom = recessCenterY + (recessWidth / 2);
+                    const lowerControlBoundary = skinRect ? skinRect.height * (Number(skinProfile?.lowerControlsTop || 100) / 100) : 0;
                     assert('Cabinet surface receives the active monitor profile', cabinetProfile === 'vector');
-                    assert('Trackball recess remains centered and proportional to the live radar', !!radarRect && recessWidth > 0 && Math.abs(recessWidth - (radarRect.width * 0.94)) < 1.25, `${recessWidth}/${radarRect?.width || 0}`);
+                    assert('Trackball recess remains centered and proportional to the live radar', !!radarRect && !!skinRect && recessWidth > 0 && recessScale > 0 && Math.abs(recessWidth - (radarRect.width * recessScale)) < 1.25 && Math.abs(recessCenterX - radarCenterX) < 1.25 && Math.abs(recessCenterY - radarCenterY) < 1.25, `${recessWidth}/${radarRect?.width || 0}/${recessCenterX},${recessCenterY}/${radarCenterX},${radarCenterY}`);
+                    assert('Trackball recess remains contained above the lower cabinet boundary', lowerControlBoundary > 0 && recessBottom < lowerControlBoundary, `${recessBottom}/${lowerControlBoundary}`);
                 } finally {
                     game.wait = originalWait;
                     game.nextTransitionFrame = originalNextTransitionFrame;
