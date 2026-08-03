@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Block-A-Zoids p290: normalizes Survival to authoritative Sector 5 conditions with deterministic comparison spawning and separate Survival Lab telemetry.
+Block-A-Zoids p291: adds a dedicated Survival Lab telemetry export without mixing Survival records into Campaign balance exports.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="p290">
+<html data-build-version="p291">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -740,6 +740,7 @@ Font License Notices
         #optionsButton:focus,
         #telemetryButton:focus,
         #exportTelemetryButton:focus,
+        #exportSurvivalTelemetryButton:focus,
         #clearTelemetryButton:focus,
         #telemetryBackButton:focus,
         .settings-stepper-arrow:focus {
@@ -755,6 +756,7 @@ Font License Notices
         #optionsButton:focus-visible,
         #telemetryButton:focus-visible,
         #exportTelemetryButton:focus-visible,
+        #exportSurvivalTelemetryButton:focus-visible,
         #clearTelemetryButton:focus-visible,
         #telemetryBackButton:focus-visible,
         .settings-stepper-arrow:focus-visible {
@@ -3415,6 +3417,7 @@ Font License Notices
         #telemetryPanel > .menu-panel-title,
         #telemetryPanel > .crt-dev-heading,
         #telemetryPanel > #exportTelemetryButton,
+        #telemetryPanel > #exportSurvivalTelemetryButton,
         #telemetryPanel > #clearTelemetryButton,
         #telemetryPanel > #copyStateSnapshotButton,
         #telemetryPanel > #telemetryStatus {
@@ -3439,6 +3442,7 @@ Font License Notices
         }
 
         #telemetryPanel #exportTelemetryButton,
+        #telemetryPanel #exportSurvivalTelemetryButton,
         #telemetryPanel #clearTelemetryButton,
         #telemetryPanel #copyStateSnapshotButton {
             margin-top: 2px;
@@ -7128,6 +7132,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                     <div class="crt-dev-heading developer-subheading">TELEMETRY</div>
                     <div id="telemetrySummary" class="telemetry-summary">Developer Mode required.</div>
                     <button id="exportTelemetryButton" class="menu-button settings-toggle">Export Balance Data</button>
+                    <button id="exportSurvivalTelemetryButton" class="menu-button settings-toggle">Export Survival Data</button>
                     <button id="clearTelemetryButton" class="menu-button settings-toggle">Clear Balance Data</button>
                     <button id="copyStateSnapshotButton" class="menu-button settings-toggle" type="button">Copy State Snapshot</button>
                     <div id="telemetryStatus" class="telemetry-status"></div>
@@ -7301,7 +7306,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
         const SOURCE_LAYOUT = window.BLOCKAZOIDS_SOURCE_LAYOUT = Object.freeze({
             developmentModel: 'modular-source',
             releaseModel: 'single-html',
-            buildOutput: 'block-a-zoids-p290.html',
+            buildOutput: 'block-a-zoids-p291.html',
             categories: Object.freeze([
                 'build', 'config', 'content', 'rules', 'state', 'services', 'app', 'gameplay',
                 'presentation', 'platform', 'audio', 'ui', 'development', 'docs'
@@ -7311,7 +7316,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
 
 /* Source: src/js/development/75-developer-documentation.js */
         const DEVELOPER_DOCUMENTATION = window.BLOCKAZOIDS_DEVELOPER_GUIDE = deepFreezeConfiguration({
-            version: 'p290',
+            version: 'p291',
             purpose: 'Make ownership, safe edit locations, state transitions, build steps, and maintenance rules discoverable without reverse-engineering the complete game.',
             architecture: {
                 application: {
@@ -14055,6 +14060,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
             updateTelemetrySummary(...args) { return TelemetrySystem.implementations.updateTelemetrySummary.apply(this.game, args); }
             setTelemetryStatus(...args) { return TelemetrySystem.implementations.setTelemetryStatus.apply(this.game, args); }
             exportTelemetryData(...args) { return TelemetrySystem.implementations.exportTelemetryData.apply(this.game, args); }
+            exportSurvivalTelemetryData(...args) { return TelemetrySystem.implementations.exportSurvivalTelemetryData.apply(this.game, args); }
             clearTelemetryData(...args) { return TelemetrySystem.implementations.clearTelemetryData.apply(this.game, args); }
 
             snapshot() {
@@ -16008,6 +16014,54 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 this.telemetrySystem.setTelemetryStatus('Balance data and sector pressure exported.');
                         },
 
+            exportSurvivalTelemetryData: function() {
+                if (!this.developerTools.developerModeEnabled) {
+                    this.telemetrySystem.setTelemetryStatus('Developer Mode required.');
+                    return;
+                }
+                if (!this.telemetrySystem.survivalTelemetry) {
+                    this.telemetrySystem.survivalTelemetry = this.telemetrySystem.loadSurvivalTelemetryData();
+                }
+                const storedRuns = Array.isArray(this.telemetrySystem.survivalTelemetry.runs)
+                    ? this.telemetrySystem.survivalTelemetry.runs.slice()
+                    : [];
+                const liveRun = this.telemetrySystem.currentSurvivalTelemetryRun && !this.telemetrySystem.currentSurvivalTelemetryRun.endedAt
+                    ? {
+                        ...this.telemetrySystem.currentSurvivalTelemetryRun,
+                        survivalTimeMs: Math.max(0, Math.round(this.runtimeState.finalGridlockElapsedMs || 0)),
+                        currentEnemyCount: this.enemies.length,
+                        capturedAt: new Date().toISOString(),
+                        exportState: 'active-run-snapshot'
+                    }
+                    : null;
+                const exportData = {
+                    schema: 'blockazoids-survival-export-v1',
+                    telemetrySchema: 'blockazoids-survival-lab-v1',
+                    telemetrySchemaVersion: 1,
+                    exportedAt: new Date().toISOString(),
+                    build: BUILD_VERSION,
+                    buildVersion: document.documentElement.dataset.buildVersion || BUILD_VERSION,
+                    storageKey: this.telemetrySystem.survivalTelemetryStorageKey,
+                    lastLocalSaveAt: this.telemetrySystem.survivalTelemetry.lastSavedAt || null,
+                    savedRunCount: storedRuns.length,
+                    savedRuns: storedRuns,
+                    activeRun: liveRun,
+                    separationPolicy: 'Survival Lab telemetry only. Campaign balance telemetry is intentionally excluded.'
+                };
+                const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const safeStamp = new Date().toISOString().replace(/[:.]/g, '-');
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `blockazoids-survival-${BUILD_VERSION.replace(/\s+/g, '-').toLowerCase()}-${safeStamp}.json`;
+                document.body.appendChild(link);
+                link.click();
+                link.remove();
+                this.scheduler.scheduleTimeout('ui-effects', 'survival-telemetry-export-url-cleanup', () => URL.revokeObjectURL(url), 1000);
+                const activeSuffix = liveRun ? ' plus the active-run snapshot' : '';
+                this.telemetrySystem.setTelemetryStatus(`Survival data exported: ${storedRuns.length} completed run${storedRuns.length === 1 ? '' : 's'}${activeSuffix}.`);
+                        },
+
             clearTelemetryData: function() {
                 if (!this.developerTools.developerModeEnabled) {
                     this.telemetrySystem.setTelemetryStatus('Developer Mode required.');
@@ -16943,6 +16997,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 this.assert('Survival balance resolves through authoritative Sector 5 rules', GAME_CONFIG.gameModes.survivalBalanceSector === 5 && Game.prototype.applySectorParameters.toString().includes('getBalanceSector') && TelemetrySystem.implementations.getCurrentSpeedMultiplier.toString().includes('getBalanceSector'));
                 this.assert('Survival spawn positions use one deterministic sequence', Array.isArray(GAME_CONFIG.gameModes.survivalSpawnCellSequence) && GAME_CONFIG.gameModes.survivalSpawnCellSequence.length === GAME_CONFIG.enemySpawning.gridlockEnemyThreshold && EnemySpawnSystem.prototype.chooseSurvivalSpawnLocation.toString().includes('survivalSpawnSequenceIndex'));
                 this.assert('Survival telemetry is stored separately from Campaign telemetry', GAME_CONFIG.storage.survivalTelemetry !== GAME_CONFIG.storage.telemetry && TelemetrySystem.implementations.beginSurvivalTelemetryRun.toString().includes('currentSurvivalTelemetryRun') && TelemetrySystem.implementations.finishSurvivalTelemetryRun.toString().includes('survivalTelemetry.runs'));
+                this.assert('Survival telemetry has a dedicated export command and control', telemetryOwner.hasImplementation('exportSurvivalTelemetryData') && !!document.getElementById('exportSurvivalTelemetryButton') && TelemetrySystem.implementations.exportSurvivalTelemetryData.toString().includes('blockazoids-survival-export-v1') && !TelemetrySystem.implementations.exportSurvivalTelemetryData.toString().includes('savedRuns: this.telemetrySystem.telemetry.runs'));
                 this.assert('Survival lifecycle starts its dedicated telemetry path', Game.prototype.beginFinalGridlock.toString().includes("beginSurvivalTelemetryRun('survival-mode')"));
                 this.assert('Crystal topology calls retain responsive grid size', topologySource.includes('normalizeGridPoint(currentPos, this.GRID_SIZE)') && topologySource.includes('hasCollectedGridPoint(target, this.GRID_SIZE)'));
             }
@@ -21568,6 +21623,14 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                         game.telemetrySystem.exportTelemetryData();
                     });
                 }
+                if (game.exportSurvivalTelemetryButton) {
+                    game.exportSurvivalTelemetryButton.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        game.playUiClick();
+                        game.telemetrySystem.exportSurvivalTelemetryData();
+                    });
+                }
                 if (game.clearTelemetryButton) {
                     game.clearTelemetryButton.addEventListener('click', (e) => {
                         e.preventDefault();
@@ -21842,7 +21905,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                     game.difficultyButton, game.gameModeDecreaseButton, game.gameModeIncreaseButton, game.sectorDecreaseButton, game.sectorIncreaseButton,
                     game.difficultyDecreaseButton, game.difficultyIncreaseButton, game.resetHighScoreButton,
                     game.resetTutorialButton, game.telemetryButton, game.exportTelemetryButton,
-                    game.clearTelemetryButton, game.copyStateSnapshotButton, game.telemetryBackButton,
+                    game.exportSurvivalTelemetryButton, game.clearTelemetryButton, game.copyStateSnapshotButton, game.telemetryBackButton,
                     game.pauseLaunchSetupButton, game.devSectorSelectHudButton, game.howToButton,
                     game.settingsHudButton, game.pauseMenuCloseButton
                 ].forEach((button) => {
@@ -22247,6 +22310,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 this.telemetryPanel = document.getElementById('telemetryPanel');
                 this.telemetrySummary = document.getElementById('telemetrySummary');
                 this.exportTelemetryButton = document.getElementById('exportTelemetryButton');
+                this.exportSurvivalTelemetryButton = document.getElementById('exportSurvivalTelemetryButton');
                 this.clearTelemetryButton = document.getElementById('clearTelemetryButton');
                 this.copyStateSnapshotButton = document.getElementById('copyStateSnapshotButton');
                 this.telemetryStatus = document.getElementById('telemetryStatus');
