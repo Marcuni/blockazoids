@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Block-A-Zoids p300: imports and persists the established 88-second ZIG baseline once, while keeping every Survival identity median isolated from tuning changes to the other identities.
+Block-A-Zoids p301: safely imports the established 88-second ZIG baseline only after the developer Survival tuning panel opens, while keeping identity median resets isolated.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="p300">
+<html data-build-version="p301">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -7404,7 +7404,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
         const BUILD_METADATA = window.BLOCKAZOIDS_BUILD = Object.freeze({
             version: document.documentElement.dataset.buildVersion || 'unknown',
             label: BUILD_VERSION,
-            architecturePhase: 'developer-survival-persistent-zig-baseline-isolated-resets',
+            architecturePhase: 'developer-survival-safe-zig-baseline-import-isolated-resets',
             sourceBaseline: 'p287',
             behaviorPolicy: 'single-design-space-scale-authoritative-state-no-parallel-systems'
         });
@@ -9412,6 +9412,10 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 panel.classList.toggle('visible', visible);
                 panel.setAttribute('aria-hidden', visible ? 'false' : 'true');
                 if (!visible) return;
+                if (this.game.telemetrySystem) {
+                    this.game.telemetrySystem.ensureStoredZigBaseline();
+                    this.game.telemetrySystem.updateSurvivalBenchmarkUI();
+                }
                 const identity = this.getIdentityKey();
                 const context = this.game.survivalTuningContext;
                 const campaignContext = identity === 'all';
@@ -14345,6 +14349,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
             resetSurvivalBenchmarkForParameter(...args) { return TelemetrySystem.implementations.resetSurvivalBenchmarkForParameter.apply(this.game, args); }
             getSurvivalBenchmarkSummary(...args) { return TelemetrySystem.implementations.getSurvivalBenchmarkSummary.apply(this.game, args); }
             updateSurvivalBenchmarkUI(...args) { return TelemetrySystem.implementations.updateSurvivalBenchmarkUI.apply(this.game, args); }
+            ensureStoredZigBaseline(...args) { return TelemetrySystem.implementations.ensureStoredZigBaseline.apply(this.game, args); }
             noteCampaignTuningChange(...args) { return TelemetrySystem.implementations.noteCampaignTuningChange.apply(this.game, args); }
             noteSurvivalBehaviorTime(...args) { return TelemetrySystem.implementations.noteSurvivalBehaviorTime.apply(this.game, args); }
             noteSurvivalDashEvent(...args) { return TelemetrySystem.implementations.noteSurvivalDashEvent.apply(this.game, args); }
@@ -14483,21 +14488,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 };
                 try {
                     const saved = JSON.parse(storageService.getItem(this.telemetrySystem.survivalTelemetryStorageKey) || 'null');
-                    if (!saved) {
-                        const benchmarkBaseline = {
-                            zigMedianMs: 88000,
-                            source: 'one-time-import-p300',
-                            importedAt: new Date().toISOString()
-                        };
-                        const seeded = { ...empty, benchmarkBaseline };
-                        try {
-                            storageService.setItem(this.telemetrySystem.survivalTelemetryStorageKey, JSON.stringify({
-                                ...seeded,
-                                savedAt: new Date().toISOString()
-                            }));
-                        } catch (_) {}
-                        return seeded;
-                    }
+                    if (!saved) return empty;
                     const runs = Array.isArray(saved.runs) ? saved.runs.slice() : [];
                     const activeRun = saved.activeRun && !saved.activeRun.endedAt ? saved.activeRun : null;
                     if (activeRun && !runs.some((run) => run && run.id === activeRun.id)) {
@@ -14508,15 +14499,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                             recoveredAfterReload: true
                         });
                     }
-                    const savedBaseline = saved.benchmarkBaseline && Number.isFinite(saved.benchmarkBaseline.zigMedianMs)
-                        ? { ...saved.benchmarkBaseline }
-                        : null;
-                    const benchmarkBaseline = savedBaseline || {
-                        zigMedianMs: 88000,
-                        source: 'one-time-import-p300',
-                        importedAt: new Date().toISOString()
-                    };
-                    const loaded = {
+                    return {
                         schema: 'blockazoids-survival-lab-v3',
                         schemaVersion: 3,
                         runs,
@@ -14525,22 +14508,11 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                             dash: Array.isArray(saved.benchmark && saved.benchmark.dash) ? saved.benchmark.dash.filter(Number.isFinite).slice(-100) : [],
                             echo: Array.isArray(saved.benchmark && saved.benchmark.echo) ? saved.benchmark.echo.filter(Number.isFinite).slice(-100) : []
                         },
-                        benchmarkBaseline,
+                        benchmarkBaseline: saved.benchmarkBaseline && Number.isFinite(saved.benchmarkBaseline.zigMedianMs)
+                            ? { ...saved.benchmarkBaseline }
+                            : null,
                         lastSavedAt: saved.savedAt || null
                     };
-                    if (!savedBaseline) {
-                        try {
-                            storageService.setItem(this.telemetrySystem.survivalTelemetryStorageKey, JSON.stringify({
-                                ...saved,
-                                schema: loaded.schema,
-                                schemaVersion: loaded.schemaVersion,
-                                savedAt: new Date().toISOString(),
-                                benchmark: loaded.benchmark,
-                                benchmarkBaseline
-                            }));
-                        } catch (_) {}
-                    }
-                    return loaded;
                 } catch (_) {
                     return empty;
                 }
@@ -14693,16 +14665,11 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 const benchmark = this.telemetrySystem.survivalTelemetry.benchmark || (this.telemetrySystem.survivalTelemetry.benchmark = { zig: [], dash: [], echo: [] });
                 const name = String(parameter || '');
                 const group = String(tuningGroup || '').toLowerCase();
-                const selectedIdentity = this.gameMode && typeof this.gameMode.getActiveSwarmLabel === 'function'
-                    ? String(this.gameMode.getActiveSwarmLabel() || '').toLowerCase()
-                    : '';
                 const identities = group === 'dash' ? ['dash']
                     : group === 'echo' ? ['echo']
-                    : group === 'shared' || name === 'sharedSpeedMultiplier'
-                        ? (['zig', 'dash', 'echo'].includes(selectedIdentity) ? [selectedIdentity] : ['zig'])
+                    : group === 'shared' || name === 'sharedSpeedMultiplier' ? ['zig', 'dash', 'echo']
                     : name.startsWith('dash') ? ['dash']
                     : name.startsWith('echo') ? ['echo']
-                    : name.startsWith('zig') ? ['zig']
                     : [];
                 identities.forEach((identity) => { benchmark[identity] = []; });
                 if (identities.length) {
@@ -14710,6 +14677,21 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                     this.telemetrySystem.updateSurvivalBenchmarkUI();
                 }
                 return identities;
+                        },
+
+            ensureStoredZigBaseline: function() {
+                if (!this.telemetrySystem) return null;
+                if (!this.telemetrySystem.survivalTelemetry) this.telemetrySystem.survivalTelemetry = this.telemetrySystem.loadSurvivalTelemetryData();
+                const existing = this.telemetrySystem.survivalTelemetry.benchmarkBaseline;
+                if (existing && Number.isFinite(existing.zigMedianMs)) return existing;
+                const baseline = {
+                    zigMedianMs: 88000,
+                    source: 'one-time-import-p301',
+                    importedAt: new Date().toISOString()
+                };
+                this.telemetrySystem.survivalTelemetry.benchmarkBaseline = baseline;
+                this.telemetrySystem.saveSurvivalTelemetryData();
+                return baseline;
                         },
 
             getSurvivalBenchmarkSummary: function() {
@@ -14722,11 +14704,11 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                     return { identity, runs: values.length, medianMs };
                 };
                 const zig = summarize('zig');
-                const importedBaseline = this.telemetrySystem.survivalTelemetry.benchmarkBaseline;
-                if (importedBaseline && Number.isFinite(importedBaseline.zigMedianMs)) {
-                    zig.medianMs = importedBaseline.zigMedianMs;
+                const storedBaseline = this.telemetrySystem.survivalTelemetry.benchmarkBaseline;
+                if (storedBaseline && Number.isFinite(storedBaseline.zigMedianMs)) {
+                    zig.medianMs = storedBaseline.zigMedianMs;
                     zig.isStoredBaseline = true;
-                    zig.baselineSource = importedBaseline.source || 'stored';
+                    zig.baselineSource = storedBaseline.source || 'stored';
                 }
                 const dash = summarize('dash');
                 const echo = summarize('echo');
