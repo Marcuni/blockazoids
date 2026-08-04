@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Block-A-Zoids p291: adds a dedicated Survival Lab telemetry export without mixing Survival records into Campaign balance exports.
+Block-A-Zoids p292: makes ZIG the shared movement foundation for DASH and ECHO, retunes their single identity modifiers, and expands isolated Survival behavior telemetry.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="p291">
+<html data-build-version="p292">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -7271,7 +7271,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
         const BUILD_METADATA = window.BLOCKAZOIDS_BUILD = Object.freeze({
             version: document.documentElement.dataset.buildVersion || 'unknown',
             label: BUILD_VERSION,
-            architecturePhase: 'sector-five-survival-behavior-lab',
+            architecturePhase: 'zig-authoritative-behavior-modifiers',
             sourceBaseline: 'p287',
             behaviorPolicy: 'single-design-space-scale-authoritative-state-no-parallel-systems'
         });
@@ -7306,7 +7306,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
         const SOURCE_LAYOUT = window.BLOCKAZOIDS_SOURCE_LAYOUT = Object.freeze({
             developmentModel: 'modular-source',
             releaseModel: 'single-html',
-            buildOutput: 'block-a-zoids-p291.html',
+            buildOutput: 'block-a-zoids-p292.html',
             categories: Object.freeze([
                 'build', 'config', 'content', 'rules', 'state', 'services', 'app', 'gameplay',
                 'presentation', 'platform', 'audio', 'ui', 'development', 'docs'
@@ -7316,7 +7316,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
 
 /* Source: src/js/development/75-developer-documentation.js */
         const DEVELOPER_DOCUMENTATION = window.BLOCKAZOIDS_DEVELOPER_GUIDE = deepFreezeConfiguration({
-            version: 'p291',
+            version: 'p292',
             purpose: 'Make ownership, safe edit locations, state transitions, build steps, and maintenance rules discoverable without reverse-engineering the complete game.',
             architecture: {
                 application: {
@@ -7386,7 +7386,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                     primarySource: 'src/js/gameplay/220-enemy-definitions-and-behaviors.js',
                     supportingSources: ['src/js/config/30-game-config.js', 'src/js/gameplay/87-enemy-spawn-system.js', 'src/js/gameplay/230-enemy.js'],
                     owners: ['EnemyBehaviorRegistry', 'EnemySpawnSystem', 'Enemy'],
-                    note: 'Size-tier base speeds and DASH parity values live only in GAME_CONFIG; behavior definitions, deterministic queue policy, telemetry projection, and entity state remain separate.'
+                    note: 'Size-tier base speeds live in GAME_CONFIG; DASH and ECHO expose only their minimal modifier values while ZIG owns shared movement, collision normalization, scaling, and deterministic Survival direction state.'
                 },
                 gridlockAndPrismRelic: {
                     primarySource: 'src/js/state/87-gridlock-system.js',
@@ -7668,22 +7668,14 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
             },
             enemyBehaviors: {
                 charger: {
-                    cruiseSpeedMultiplier: 0.62,
-                    cruiseMinMs: 1300,
-                    cruiseMaxMs: 2200,
-                    warningMs: 650,
-                    chargeSpeedMultiplier: 2.55,
-                    chargeMaxMs: 700,
-                    recoverySpeedMultiplier: 0.34,
-                    recoveryMs: 800
+                    chargeCadenceMs: 2700,
+                    warningMs: 350,
+                    chargeSpeedMultiplier: 2.3,
+                    chargeDurationMs: 600
                 },
                 pulse: {
-                    speedMultiplier: 0.70,
-                    activeMs: 1500,
-                    deactivationWarningMs: 300,
-                    dormantMs: 1500,
-                    reactivationWarningMs: 300,
-                    overlapRecheckMs: 100,
+                    activeMs: 2000,
+                    phasedMs: 900,
                     positionFlashIntervalMs: 350,
                     dormantVisual: {
                         positionFlashDutyCycle: 0.14,
@@ -11060,7 +11052,8 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                     game,
                     request.type,
                     { x: location.x, y: location.y },
-                    request.behaviorType
+                    request.behaviorType,
+                    request
                 );
                 enemy.telemetryId = request.telemetryId;
                 enemy.telemetryQueuePosition = request.queuePosition;
@@ -11267,6 +11260,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                         const enemyA = game.enemies[firstIndex];
                         for (let secondIndex = firstIndex + 1; secondIndex < game.enemies.length; secondIndex++) {
                             const enemyB = game.enemies[secondIndex];
+                            if (enemyA.ignoresEnemyCollisions() || enemyB.ignoresEnemyCollisions()) continue;
                             if (!enemyA.collidesWith(enemyB)) continue;
                             collisionOccurred = true;
                             enemyA.resolveCollisionWith(enemyB);
@@ -12560,7 +12554,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                         }
                         this.attractModeSystem.positionAttractCardElement(this.enemyIdentityCardZig, fullZigState.x, fullZigState.y, 1);
 
-                        // DASH cruises, locks onto the Orb, charges past it, then visibly loses energy in recovery.
+                        // DASH uses ZIG cruise, pauses, charges toward the Orb, then immediately resumes ZIG cruise.
                         const dashPhase = elapsed % 3.60;
                         let dashX = width * 0.14;
                         let dashY = height * 0.34;
@@ -12577,7 +12571,6 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                             dashY = height * 0.38;
                             dashTransform = `scale(${1 + Math.sin(p * Math.PI * 6) * 0.055})`;
                             dashFilter = `brightness(${1.05 + p * 0.55})`;
-                            this.attractModeSystem.updateAttractLockLine(dashX, dashY, orbX, orbY, Math.min(1, p * 1.9));
                         } else if (dashPhase < 2.12) {
                             const p = Math.min(1, (dashPhase - 1.56) / 0.56);
                             const eased = p * p;
@@ -12586,25 +12579,18 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                             dashTransform = 'scale(1.12)';
                             dashFilter = 'brightness(1.48)';
                             this.attractModeSystem.updateAttractLockLine(dashX, dashY, orbX, orbY, 0);
-                        } else if (dashPhase < 2.92) {
-                            const p = (dashPhase - 2.12) / 0.80;
-                            dashX = width * (0.78 + 0.055 * p);
-                            dashY = height * (0.60 + 0.025 * p);
-                            dashOpacity = 0.58 + p * 0.16;
-                            dashTransform = `scale(${0.90 + p * 0.04})`;
-                            dashFilter = `brightness(${0.62 + p * 0.14})`;
                         } else {
-                            const p = (dashPhase - 2.92) / 0.68;
-                            dashX = width * (0.835 - 0.035 * p);
-                            dashY = height * (0.625 - 0.035 * p);
-                            dashOpacity = 0.74 + p * 0.20;
-                            dashTransform = `scale(${0.94 + p * 0.04})`;
-                            dashFilter = `brightness(${0.78 + p * 0.20})`;
+                            const p = (dashPhase - 2.12) / 1.48;
+                            dashX = width * (0.78 - 0.20 * p);
+                            dashY = height * (0.60 - 0.08 * p);
+                            dashOpacity = 1;
+                            dashTransform = 'scale(1)';
+                            dashFilter = 'brightness(1)';
                         }
                         this.attractModeSystem.positionAttractCardElement(this.enemyIdentityCardDash, dashX, dashY, dashOpacity, dashTransform);
                         if (this.enemyIdentityCardDash) this.enemyIdentityCardDash.style.filter = dashFilter;
 
-                        // ECHO continues moving through every phase: active, fading, dormant flashes, and reactivation.
+                        // ECHO keeps ZIG movement while alternating between active and phased presentation.
                         const echoPhase = elapsed % 3.60;
                         const echoProgress = echoPhase / 3.60;
                         const echoX = width * (0.84 - 0.66 * echoProgress);
@@ -14019,6 +14005,9 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
             captureSurvivalTuningSnapshot(...args) { return TelemetrySystem.implementations.captureSurvivalTuningSnapshot.apply(this.game, args); }
             beginSurvivalTelemetryRun(...args) { return TelemetrySystem.implementations.beginSurvivalTelemetryRun.apply(this.game, args); }
             finishSurvivalTelemetryRun(...args) { return TelemetrySystem.implementations.finishSurvivalTelemetryRun.apply(this.game, args); }
+            noteSurvivalBehaviorTime(...args) { return TelemetrySystem.implementations.noteSurvivalBehaviorTime.apply(this.game, args); }
+            noteSurvivalDashEvent(...args) { return TelemetrySystem.implementations.noteSurvivalDashEvent.apply(this.game, args); }
+            noteSurvivalEchoEvent(...args) { return TelemetrySystem.implementations.noteSurvivalEchoEvent.apply(this.game, args); }
             getCurrentSpeedMultiplier(...args) { return TelemetrySystem.implementations.getCurrentSpeedMultiplier.apply(this.game, args); }
             getEffectiveEnemySpeedsSnapshot(...args) { return TelemetrySystem.implementations.getEffectiveEnemySpeedsSnapshot.apply(this.game, args); }
             getRemainingCrystalsByColor(...args) { return TelemetrySystem.implementations.getRemainingCrystalsByColor.apply(this.game, args); }
@@ -14144,8 +14133,8 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
 
             loadSurvivalTelemetryData: function() {
                 const empty = {
-                    schema: 'blockazoids-survival-lab-v1',
-                    schemaVersion: 1,
+                    schema: 'blockazoids-survival-lab-v2',
+                    schemaVersion: 2,
                     runs: [],
                     lastSavedAt: null
                 };
@@ -14163,8 +14152,8 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                         });
                     }
                     return {
-                        schema: 'blockazoids-survival-lab-v1',
-                        schemaVersion: 1,
+                        schema: 'blockazoids-survival-lab-v2',
+                        schemaVersion: 2,
                         runs,
                         lastSavedAt: saved.savedAt || null
                     };
@@ -14177,8 +14166,8 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 if (!this.telemetrySystem.survivalTelemetry) return false;
                 const savedAt = new Date().toISOString();
                 const payload = {
-                    schema: 'blockazoids-survival-lab-v1',
-                    schemaVersion: 1,
+                    schema: 'blockazoids-survival-lab-v2',
+                    schemaVersion: 2,
                     savedAt,
                     runs: Array.isArray(this.telemetrySystem.survivalTelemetry.runs)
                         ? this.telemetrySystem.survivalTelemetry.runs.slice(-100)
@@ -14247,7 +14236,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 const tuning = this.telemetrySystem.captureSurvivalTuningSnapshot();
                 this.telemetrySystem.currentSurvivalTelemetryRun = {
                     id: `survival-${Date.now()}-${Math.floor(Math.random() * 100000)}`,
-                    schema: 'blockazoids-survival-lab-v1',
+                    schema: 'blockazoids-survival-lab-v2',
                     build: BUILD_VERSION,
                     source,
                     startedAt: now,
@@ -14259,6 +14248,24 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                     killer: null,
                     enemyCountAtDeath: null,
                     activeTuning: tuning,
+                    behaviorMetrics: {
+                        dash: {
+                            chargeAttempts: 0,
+                            chargeCompletions: 0,
+                            chargeTerminations: [],
+                            blockCollisionsDuringCharge: 0,
+                            actualChargeDurationsMs: [],
+                            actualChargeDistancesPx: [],
+                            timeMs: { cruise: 0, warning: 0, charge: 0 }
+                        },
+                        echo: {
+                            timeMs: { active: 0, phased: 0 },
+                            reactivationCount: 0,
+                            overlapDelayCount: 0,
+                            overlapDelayTotalMs: 0,
+                            reactivationDistancesFromOrbPx: []
+                        }
+                    },
                     endedAt: null,
                     endReason: null
                 };
@@ -14266,10 +14273,74 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 return this.telemetrySystem.currentSurvivalTelemetryRun;
                         },
 
+            noteSurvivalBehaviorTime: function(identity, state, deltaMs) {
+                const run = this.telemetrySystem.currentSurvivalTelemetryRun;
+                if (!run || run.endedAt || !run.behaviorMetrics) return false;
+                const safeDelta = Math.max(0, Number(deltaMs) || 0);
+                if (identity === 'dash' && run.behaviorMetrics.dash.timeMs && Object.prototype.hasOwnProperty.call(run.behaviorMetrics.dash.timeMs, state)) {
+                    run.behaviorMetrics.dash.timeMs[state] += safeDelta;
+                    return true;
+                }
+                if (identity === 'echo' && run.behaviorMetrics.echo.timeMs && Object.prototype.hasOwnProperty.call(run.behaviorMetrics.echo.timeMs, state)) {
+                    run.behaviorMetrics.echo.timeMs[state] += safeDelta;
+                    return true;
+                }
+                return false;
+                        },
+
+            noteSurvivalDashEvent: function(event, payload = {}) {
+                const run = this.telemetrySystem.currentSurvivalTelemetryRun;
+                if (!run || run.endedAt || !run.behaviorMetrics || !run.behaviorMetrics.dash) return false;
+                const dash = run.behaviorMetrics.dash;
+                if (event === 'attempt') dash.chargeAttempts += 1;
+                else if (event === 'completion') {
+                    dash.chargeCompletions += 1;
+                    dash.actualChargeDurationsMs.push(Math.max(0, Number(payload.actualDurationMs) || 0));
+                    dash.actualChargeDistancesPx.push(Math.max(0, Number(payload.actualDistancePx) || 0));
+                } else if (event === 'termination') {
+                    dash.chargeTerminations.push({
+                        reason: payload.reason || 'unknown',
+                        phase: payload.phase || 'charge',
+                        actualDurationMs: Math.max(0, Number(payload.actualDurationMs) || 0),
+                        actualDistancePx: Math.max(0, Number(payload.actualDistancePx) || 0),
+                        enemySize: payload.enemy && payload.enemy.type ? payload.enemy.type : null,
+                        recordedAtMs: Math.max(0, Math.round(this.runtimeState.finalGridlockElapsedMs || 0))
+                    });
+                } else if (event === 'block-collision') dash.blockCollisionsDuringCharge += 1;
+                return true;
+                        },
+
+            noteSurvivalEchoEvent: function(event, payload = {}) {
+                const run = this.telemetrySystem.currentSurvivalTelemetryRun;
+                if (!run || run.endedAt || !run.behaviorMetrics || !run.behaviorMetrics.echo) return false;
+                const echo = run.behaviorMetrics.echo;
+                if (event === 'reactivation') {
+                    echo.reactivationCount += 1;
+                    echo.reactivationDistancesFromOrbPx.push(Math.max(0, Number(payload.distanceFromOrb) || 0));
+                } else if (event === 'overlap-delay') {
+                    echo.overlapDelayCount += 1;
+                    echo.overlapDelayTotalMs += Math.max(0, Number(payload.delayMs) || 0);
+                }
+                return true;
+                        },
+
             finishSurvivalTelemetryRun: function(reason = 'ended', deathDetails = {}) {
                 const run = this.telemetrySystem.currentSurvivalTelemetryRun;
                 if (!run || run.endedAt) return null;
                 const deathCause = deathDetails.deathCause || this.lastDeathCause || null;
+                this.enemies.forEach((enemy) => {
+                    if (enemy && enemy.behavior && typeof enemy.behavior.flushTelemetry === 'function') {
+                        enemy.behavior.flushTelemetry(reason === 'death' ? 'player-death' : reason);
+                    }
+                });
+                const average = (values) => values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
+                if (run.behaviorMetrics && run.behaviorMetrics.dash) {
+                    run.behaviorMetrics.dash.averageChargeDurationMs = Number(average(run.behaviorMetrics.dash.actualChargeDurationsMs).toFixed(2));
+                    run.behaviorMetrics.dash.averageChargeDistancePx = Number(average(run.behaviorMetrics.dash.actualChargeDistancesPx).toFixed(2));
+                }
+                if (run.behaviorMetrics && run.behaviorMetrics.echo) {
+                    run.behaviorMetrics.echo.averageReactivationDistanceFromOrbPx = Number(average(run.behaviorMetrics.echo.reactivationDistancesFromOrbPx).toFixed(2));
+                }
                 run.endedAt = new Date().toISOString();
                 run.endReason = reason;
                 run.survivalTimeMs = Math.max(0, Math.round(this.runtimeState.finalGridlockElapsedMs || 0));
@@ -14736,7 +14807,6 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 }, { small: 0, medium: 0, large: 0 });
                 const pulse = GAME_CONFIG.enemyBehaviors.pulse;
                 const charger = GAME_CONFIG.enemyBehaviors.charger;
-                const effectiveEchoDormantWindowMs = pulse.dormantMs;
                 const layoutProfile = this.developerTools.getCurrentSkinLayoutProfile
                     ? this.developerTools.getCurrentSkinLayoutProfile()
                     : null;
@@ -14829,15 +14899,12 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                     },
                     movementPolicy: 'size-controls-intensity-behavior-controls-style',
                     dashParityConfiguration: {
-                        profile: 'controlled-first-pass',
-                        cruiseSpeedMultiplier: charger.cruiseSpeedMultiplier,
+                        profile: 'zig-foundation-charge-modifier',
+                        chargeCadenceMs: charger.chargeCadenceMs,
+                        cadenceVariationPercent: 15,
+                        warningMs: charger.warningMs,
                         chargeSpeedMultiplier: charger.chargeSpeedMultiplier,
-                        recoverySpeedMultiplier: charger.recoverySpeedMultiplier,
-                        cruiseMinMs: charger.cruiseMinMs,
-                        cruiseMaxMs: charger.cruiseMaxMs,
-                        telegraphMs: charger.warningMs,
-                        chargeMaxMs: charger.chargeMaxMs,
-                        recoveryMs: charger.recoveryMs
+                        chargeDurationMs: charger.chargeDurationMs
                     },
                     effectiveMovementSpeeds: {
                         sizeIndependent: false,
@@ -14848,25 +14915,18 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                             resultantMagnitude: mapSpeeds((speed) => speed * Math.SQRT2)
                         },
                         dash: {
-                            cruise: mapSpeeds((speed) => speed * charger.cruiseSpeedMultiplier),
+                            cruise: { ...sizeSpeeds },
                             charge: mapSpeeds((speed) => speed * charger.chargeSpeedMultiplier),
-                            recovery: mapSpeeds((speed) => speed * charger.recoverySpeedMultiplier),
-                            cruiseMinMs: charger.cruiseMinMs,
-                            cruiseMaxMs: charger.cruiseMaxMs,
-                            telegraphMs: charger.warningMs,
-                            chargeMaxMs: charger.chargeMaxMs,
-                            recoveryMs: charger.recoveryMs
+                            chargeCadenceMs: charger.chargeCadenceMs,
+                            cadenceVariationPercent: 15,
+                            warningMs: charger.warningMs,
+                            chargeDurationMs: charger.chargeDurationMs
                         },
                         echo: {
-                            movement: mapSpeeds((speed) => speed * pulse.speedMultiplier),
+                            movement: { ...sizeSpeeds },
                             activeMs: pulse.activeMs,
-                            deactivationWarningMs: pulse.deactivationWarningMs,
-                            positionFlashIntervalMs: pulse.positionFlashIntervalMs,
-                            dormantPositionPings: 3,
-                            effectiveDormantWindowMs: effectiveEchoDormantWindowMs,
-                            configuredDormantMs: pulse.dormantMs,
-                            reactivationWarningMs: pulse.reactivationWarningMs,
-                            overlapRecheckMs: pulse.overlapRecheckMs
+                            phasedMs: pulse.phasedMs,
+                            positionFlashIntervalMs: pulse.positionFlashIntervalMs
                         }
                     },
                     minimumSpawnDistancePx: this.MIN_SPAWN_DISTANCE
@@ -16035,9 +16095,9 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                     }
                     : null;
                 const exportData = {
-                    schema: 'blockazoids-survival-export-v1',
-                    telemetrySchema: 'blockazoids-survival-lab-v1',
-                    telemetrySchemaVersion: 1,
+                    schema: 'blockazoids-survival-export-v2',
+                    telemetrySchema: 'blockazoids-survival-lab-v2',
+                    telemetrySchemaVersion: 2,
                     exportedAt: new Date().toISOString(),
                     build: BUILD_VERSION,
                     buildVersion: document.documentElement.dataset.buildVersion || BUILD_VERSION,
@@ -16640,7 +16700,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 this.assert('Top HUD points timing is configured once', config.visualTiming.topHudAnnouncement.pointsMs === 1000);
                 this.assert('No-Zap rejection cue cooldown is configured once', config.audioTiming.noZapCueRepeatCooldownMs === 500);
                 this.assert('No-Zap WAV asset is embedded in the audio registry', /^data:audio\/wav;base64,/.test(AUDIO_ASSETS.noZapDoubleDownBlipWav));
-                this.assert('ECHO invisible phase is configured at 1.5 seconds', config.enemyBehaviors.pulse.dormantMs === 1500);
+                this.assert('ECHO phased duration is configured at 0.9 seconds', config.enemyBehaviors.pulse.phasedMs === 900);
                 this.assert('ECHO dormant visibility is near-invisible by configuration', config.enemyBehaviors.pulse.dormantVisual.bodyAlpha <= 0.005 && config.enemyBehaviors.pulse.dormantVisual.borderAlpha <= 0.02 && config.enemyBehaviors.pulse.dormantVisual.traceOpacity <= 0.10);
 
                 const sectors = data.sectors;
@@ -16665,7 +16725,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 this.assert('Medium movement tier is faster than large', Number(authoredBaseSpeeds.medium) > Number(authoredBaseSpeeds.large));
                 this.assert('Authored size tiers preserve the approved 3 / 2 / 1.5 baseline', authoredBaseSpeeds.small === 3 && authoredBaseSpeeds.medium === 2 && authoredBaseSpeeds.large === 1.5);
                 const dash = config.enemyBehaviors.charger;
-                this.assert('DASH parity tuning is centralized in gameplay configuration', dash.cruiseSpeedMultiplier === 0.62 && dash.chargeSpeedMultiplier === 2.55 && dash.recoverySpeedMultiplier === 0.34 && dash.cruiseMinMs === 1300 && dash.cruiseMaxMs === 2200 && dash.warningMs === 650 && dash.chargeMaxMs === 700 && dash.recoveryMs === 800);
+                this.assert('DASH modifier tuning is centralized and limited', Object.keys(dash).sort().join(',') === 'chargeCadenceMs,chargeDurationMs,chargeSpeedMultiplier,warningMs' && dash.chargeCadenceMs === 2700 && dash.warningMs === 350 && dash.chargeSpeedMultiplier === 2.3 && dash.chargeDurationMs === 600);
                 this.assert('Default sector size sequence is deterministic', JSON.stringify(defaultSizeSequence) === JSON.stringify(expectedDefaultSizeSequence));
                 const defaultSizeCounts = countSizes(defaultSizeSequence);
                 this.assert('Default sector size sequence preserves 1 small, 6 medium, and 1 large', defaultSizeCounts.small === 1 && defaultSizeCounts.medium === 6 && defaultSizeCounts.large === 1);
@@ -16997,7 +17057,8 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 this.assert('Survival balance resolves through authoritative Sector 5 rules', GAME_CONFIG.gameModes.survivalBalanceSector === 5 && Game.prototype.applySectorParameters.toString().includes('getBalanceSector') && TelemetrySystem.implementations.getCurrentSpeedMultiplier.toString().includes('getBalanceSector'));
                 this.assert('Survival spawn positions use one deterministic sequence', Array.isArray(GAME_CONFIG.gameModes.survivalSpawnCellSequence) && GAME_CONFIG.gameModes.survivalSpawnCellSequence.length === GAME_CONFIG.enemySpawning.gridlockEnemyThreshold && EnemySpawnSystem.prototype.chooseSurvivalSpawnLocation.toString().includes('survivalSpawnSequenceIndex'));
                 this.assert('Survival telemetry is stored separately from Campaign telemetry', GAME_CONFIG.storage.survivalTelemetry !== GAME_CONFIG.storage.telemetry && TelemetrySystem.implementations.beginSurvivalTelemetryRun.toString().includes('currentSurvivalTelemetryRun') && TelemetrySystem.implementations.finishSurvivalTelemetryRun.toString().includes('survivalTelemetry.runs'));
-                this.assert('Survival telemetry has a dedicated export command and control', telemetryOwner.hasImplementation('exportSurvivalTelemetryData') && !!document.getElementById('exportSurvivalTelemetryButton') && TelemetrySystem.implementations.exportSurvivalTelemetryData.toString().includes('blockazoids-survival-export-v1') && !TelemetrySystem.implementations.exportSurvivalTelemetryData.toString().includes('savedRuns: this.telemetrySystem.telemetry.runs'));
+                this.assert('Survival telemetry captures DASH and ECHO behavior states', telemetryOwner.hasImplementation('noteSurvivalBehaviorTime') && telemetryOwner.hasImplementation('noteSurvivalDashEvent') && telemetryOwner.hasImplementation('noteSurvivalEchoEvent'));
+                this.assert('Survival telemetry has a dedicated export command and control', telemetryOwner.hasImplementation('exportSurvivalTelemetryData') && !!document.getElementById('exportSurvivalTelemetryButton') && TelemetrySystem.implementations.exportSurvivalTelemetryData.toString().includes('blockazoids-survival-export-v2') && !TelemetrySystem.implementations.exportSurvivalTelemetryData.toString().includes('savedRuns: this.telemetrySystem.telemetry.runs'));
                 this.assert('Survival lifecycle starts its dedicated telemetry path', Game.prototype.beginFinalGridlock.toString().includes("beginSurvivalTelemetryRun('survival-mode')"));
                 this.assert('Crystal topology calls retain responsive grid size', topologySource.includes('normalizeGridPoint(currentPos, this.GRID_SIZE)') && topologySource.includes('hasCollectedGridPoint(target, this.GRID_SIZE)'));
             }
@@ -19298,11 +19359,9 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                     if (enemy.isRestoring && timestamp - (enemy.restoringStartedAt || 0) < 680) return true;
                     if (enemy.isDissolving && timestamp - (enemy.dissolvingStartedAt || 0) < 180) return true;
                     if (enemy.borderFlashActive && timestamp - (enemy.borderFlashStartedAt || 0) < 320) return true;
-                    if (enemy.behaviorType === ENEMY_BEHAVIOR_TYPES.CHARGER && enemy.visualState === 'telegraph') return true;
                     if (enemy.behaviorType === ENEMY_BEHAVIOR_TYPES.PULSE && (
-                        enemy.visualState === 'deactivation-warning' ||
-                        enemy.visualState === 'dormant' ||
-                        enemy.visualState === 'reactivation-warning'
+                        enemy.visualState === 'phased' ||
+                        timestamp - (enemy.phaseTransitionPulseStartedAt || 0) < 200
                     )) return true;
                     return false;
                 });
@@ -19906,61 +19965,13 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
             getChargerPresentation(enemy, timestamp) {
                 const presentation = this.getDrifterPresentation(enemy, timestamp);
                 const state = enemy && enemy.visualState ? enemy.visualState : 'cruise';
-                let brightness = 1;
-                let stateWhiteMix = 0;
-                let stateGlowBlur = BLOCKAZOID_STANDARD_VISUALS.normalGlowBlur;
-                let targetLineOpacity = 0;
-                let targetLineBrightness = 1;
-
-                if (state === 'telegraph') {
-                    const stateAge = Math.max(0, timestamp - (enemy.visualStateChangedAt || timestamp));
-                    const brightStep = Math.floor(stateAge / 90) % 2 === 1;
-                    brightness = brightStep ? 1.65 : 0.82;
-                    stateWhiteMix = brightStep ? 0.36 : 0.04;
-                    stateGlowBlur = brightStep ? 26 : 14;
-                    targetLineOpacity = 0.86;
-                    targetLineBrightness = 1;
-                } else if (state === 'charge') {
-                    brightness = 1.35;
-                    stateWhiteMix = 0.16;
-                    stateGlowBlur = 28;
-                } else if (state === 'recovery') {
-                    brightness = 0.72;
-                    stateWhiteMix = 0;
-                    stateGlowBlur = 12;
+                if (state === 'charge') {
+                    presentation.whiteMix = Math.max(presentation.whiteMix, 0.16);
+                    presentation.glowBlur = Math.max(presentation.glowBlur, 28);
+                    presentation.brightness = 1.35;
                 }
-
-                presentation.whiteMix = Math.max(presentation.whiteMix, stateWhiteMix);
-                presentation.glowBlur = Math.max(presentation.glowBlur, stateGlowBlur);
-                presentation.brightness = brightness;
                 presentation.state = state;
-                presentation.targetLineOpacity = targetLineOpacity;
-                presentation.targetLineBrightness = targetLineBrightness;
                 return presentation;
-            }
-
-            drawChargerTargetLine(enemy, game, presentation) {
-                if (!enemy || presentation.state !== 'telegraph' || presentation.targetLineOpacity <= 0) return;
-                const size = Math.max(1, Number(enemy.size) || Number(game.ORB_SIZE) || 20);
-                const centerX = (Number(enemy.x) || 0) + size / 2;
-                const centerY = (Number(enemy.y) || 0) + size / 2;
-                const length = Math.max(size * 0.85, Number(game.GRID_SIZE) * 0.72);
-                const angle = Number(enemy.aimAngleRad) || 0;
-                const context = this.context;
-
-                context.save();
-                context.translate(centerX, centerY);
-                context.rotate(angle);
-                context.globalAlpha = presentation.opacity * presentation.targetLineOpacity;
-                context.strokeStyle = '#fff';
-                context.lineWidth = 1;
-                context.shadowColor = GAME_CONFIG.palette.green;
-                context.shadowBlur = this.scaleRegularGlow(11) * presentation.targetLineBrightness;
-                context.beginPath();
-                context.moveTo(0, 0);
-                context.lineTo(length, 0);
-                context.stroke();
-                context.restore();
             }
 
             drawCharger(enemy, game, timestamp) {
@@ -19974,19 +19985,12 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 const baseColor = enemy.baseColor || GAME_CONFIG.palette.green;
                 const context = this.context;
                 const container = game && game.container;
-                const crtActive = !!(
-                    container && container.classList.contains('crt-enabled') &&
-                    !container.classList.contains('monitor-ui-suspended')
-                );
-                const objectRgbEnabled = !!(
-                    crtActive && container.classList.contains('crt-fx-object-rgb')
-                );
+                const crtActive = !!(container && container.classList.contains('crt-enabled') && !container.classList.contains('monitor-ui-suspended'));
+                const objectRgbEnabled = !!(crtActive && container.classList.contains('crt-fx-object-rgb'));
                 const monitorPresentation = this.resolveBlockazoidMonitorPresentation(game, presentation);
                 const effectiveWhiteMix = monitorPresentation.whiteMix;
                 const bloomBlur = monitorPresentation.glowBlur;
                 const fillColor = this.mixCanvasColor(baseColor, effectiveWhiteMix, presentation.brightness);
-
-                this.drawChargerTargetLine(enemy, game, presentation);
 
                 context.save();
                 context.translate(centerX, centerY);
@@ -20023,20 +20027,13 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 const common = this.getDrifterPresentation(enemy, timestamp);
                 const state = enemy && enemy.visualState ? enemy.visualState : 'active';
                 let brightness = 1.08;
-                let stateWhiteMix = 0;
                 let stateGlowBlur = BLOCKAZOID_STANDARD_VISUALS.pulseActiveGlowBlur;
                 let bodyAlpha = 1;
                 let borderAlpha = 1;
                 let traceOpacity = 0;
                 let traceLength = 0;
 
-                if (state === 'deactivation-warning') {
-                    const stateAge = Math.max(0, timestamp - (enemy.visualStateChangedAt || timestamp));
-                    const brightStep = Math.floor(stateAge / 75) % 2 === 1;
-                    brightness = brightStep ? 1.72 : 0.82;
-                    stateWhiteMix = brightStep ? 0.68 : 0;
-                    stateGlowBlur = brightStep ? 40 : 14;
-                } else if (state === 'dormant') {
+                if (state === 'phased') {
                     const period = Math.max(1, Number(enemy.pulseGhostFlashPeriodMs) || 350);
                     const stateAge = Math.max(0, timestamp - (enemy.visualStateChangedAt || timestamp));
                     const phase = (stateAge % period) / period;
@@ -20048,18 +20045,12 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                     stateGlowBlur = positionFlash ? dormantVisual.flashGlowBlur : dormantVisual.glowBlur;
                     traceOpacity = dormantVisual.traceOpacity;
                     traceLength = Math.max(7, Math.min(15, (Number(enemy.game?.ORB_SIZE) || Number(enemy.size) || 20) * 0.70));
-                } else if (state === 'reactivation-warning') {
-                    const stateAge = Math.max(0, timestamp - (enemy.visualStateChangedAt || timestamp));
-                    const brightStep = Math.floor(stateAge / 70) % 2 === 1;
-                    brightness = brightStep ? 1.90 : 1.08;
-                    stateWhiteMix = brightStep ? 1 : 0.08;
-                    stateGlowBlur = brightStep ? 44 : 18;
-                    bodyAlpha = brightStep ? 1 : 0.82;
-                    borderAlpha = 1;
                 }
 
-                // Cosmic Zap deliberately reveals the target during its overload dissolve, even if
-                // ECHO was in the nearly invisible dormant phase when the Zap was triggered.
+                const transitionAge = Math.max(0, timestamp - (Number(enemy && enemy.phaseTransitionPulseStartedAt) || 0));
+                const transitionProgress = transitionAge <= 180 ? transitionAge / 180 : 1;
+                const transitionBorderPulse = transitionProgress < 1 ? Math.sin(Math.PI * transitionProgress) : 0;
+
                 if (enemy && enemy.isDissolving) {
                     bodyAlpha = 1;
                     borderAlpha = 1;
@@ -20070,18 +20061,19 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                     ...common,
                     state,
                     brightness,
-                    whiteMix: Math.max(common.whiteMix, stateWhiteMix),
+                    whiteMix: common.whiteMix,
                     glowBlur: Math.max(common.glowBlur, stateGlowBlur),
                     bodyAlpha,
                     borderAlpha,
                     traceOpacity,
                     traceLength,
+                    transitionBorderPulse,
                     dangerous: !!(enemy && typeof enemy.isDangerousToOrb === 'function' && enemy.isDangerousToOrb())
                 };
             }
 
             drawPulseDirectionalTrace(enemy, presentation) {
-                if (!enemy || presentation.state !== 'dormant' || presentation.traceOpacity <= 0) return;
+                if (!enemy || presentation.state !== 'phased' || presentation.traceOpacity <= 0) return;
                 const size = Math.max(1, Number(enemy.size) || 1);
                 const centerX = (Number(enemy.x) || 0) + size / 2;
                 const centerY = (Number(enemy.y) || 0) + size / 2;
@@ -20118,13 +20110,8 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 const baseColor = enemy.baseColor || GAME_CONFIG.palette.blue;
                 const context = this.context;
                 const container = game && game.container;
-                const crtActive = !!(
-                    container && container.classList.contains('crt-enabled') &&
-                    !container.classList.contains('monitor-ui-suspended')
-                );
-                const objectRgbEnabled = !!(
-                    crtActive && container.classList.contains('crt-fx-object-rgb')
-                );
+                const crtActive = !!(container && container.classList.contains('crt-enabled') && !container.classList.contains('monitor-ui-suspended'));
+                const objectRgbEnabled = !!(crtActive && container.classList.contains('crt-fx-object-rgb'));
                 const monitorPresentation = this.resolveBlockazoidMonitorPresentation(game, presentation);
                 const effectiveWhiteMix = monitorPresentation.whiteMix;
                 const bloomBlur = monitorPresentation.glowBlur;
@@ -20164,6 +20151,17 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 context.shadowBlur = this.scalePlayfieldGlow(bloomBlur);
                 context.strokeRect(-size / 2 + 0.5, -size / 2 + 0.5, Math.max(0, size - 1), Math.max(0, size - 1));
                 context.restore();
+
+                if (presentation.transitionBorderPulse > 0) {
+                    context.save();
+                    context.globalAlpha *= 0.58 * presentation.transitionBorderPulse;
+                    context.strokeStyle = 'rgba(150,205,255,1)';
+                    context.lineWidth = 1;
+                    context.shadowColor = 'rgba(70,150,255,0.72)';
+                    context.shadowBlur = this.scalePlayfieldGlow(6);
+                    context.strokeRect(-size / 2 - 1.5, -size / 2 - 1.5, size + 3, size + 3);
+                    context.restore();
+                }
 
                 context.restore();
             }
@@ -25486,11 +25484,8 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 if (enemy.behaviorType === ENEMY_BEHAVIOR_TYPES.CHARGER) {
                     const state = enemy.behavior && enemy.behavior.state ? enemy.behavior.state : 'cruise';
                     if (state === 'charge') return GAME_CONFIG.enemyBehaviors.charger.chargeSpeedMultiplier;
-                    if (state === 'recovery') return GAME_CONFIG.enemyBehaviors.charger.recoverySpeedMultiplier;
-                    if (state === 'telegraph') return 0;
-                    return GAME_CONFIG.enemyBehaviors.charger.cruiseSpeedMultiplier;
+                    if (state === 'warning') return 0;
                 }
-                if (enemy.behaviorType === ENEMY_BEHAVIOR_TYPES.PULSE) return GAME_CONFIG.enemyBehaviors.pulse.speedMultiplier;
                 return 1;
             }
 
@@ -26455,7 +26450,9 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
             onElementReady() {}
             onBoundaryCollision() {}
             onEnemyCollision() {}
-            dispose() {}
+            ignoresEnemyCollisions() { return false; }
+            flushTelemetry() {}
+            dispose(reason = 'enemy-removed') { this.flushTelemetry(reason); }
             playSound(eventId, options = {}) {
                 const enemy = this.enemy;
                 if (!enemy || !enemy.game || enemy.game.tutorialActive) return false;
@@ -26471,43 +26468,85 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
             }
         }
 
-        class DrifterBehavior extends EnemyBehavior {
+        // ZIG is the single movement foundation. DASH and ECHO inherit this exact velocity,
+        // movement, wall-bounce, collision normalization, sector scaling, and difficulty scaling.
+        class ZigMovementFoundation extends EnemyBehavior {
+            getInitialDirection() {
+                const enemy = this.enemy;
+                const isSurvival = !!(enemy.game && enemy.game.gameMode && enemy.game.gameMode.isSurvivalRun());
+                const queuePosition = Number(enemy.spawnContext && enemy.spawnContext.queuePosition);
+                if (isSurvival && Number.isFinite(queuePosition)) {
+                    const deterministicDirections = [
+                        { x: 1, y: 1 }, { x: -1, y: 1 }, { x: 1, y: -1 }, { x: -1, y: -1 },
+                        { x: -1, y: 1 }, { x: 1, y: 1 }, { x: -1, y: -1 }, { x: 1, y: -1 }
+                    ];
+                    return deterministicDirections[Math.abs(Math.trunc(queuePosition) - 1) % deterministicDirections.length];
+                }
+                return {
+                    x: Math.random() > 0.5 ? 1 : -1,
+                    y: Math.random() > 0.5 ? 1 : -1
+                };
+            }
+
+            initializeZigMovement() {
+                const enemy = this.enemy;
+                const direction = this.getInitialDirection();
+                enemy.dx = direction.x * enemy.speed;
+                enemy.dy = direction.y * enemy.speed;
+            }
+
+            normalizeToZigSpeed(fallbackDirection = null) {
+                const enemy = this.enemy;
+                enemy.normalizeVelocityMagnitude(
+                    enemy.speed * Math.SQRT2,
+                    fallbackDirection || { x: enemy.dx, y: enemy.dy }
+                );
+            }
+
+            updateZigMovement(deltaTime) {
+                const enemy = this.enemy;
+                const frameScale = deltaTime / 16.67;
+                enemy.x += enemy.dx * frameScale;
+                enemy.y += enemy.dy * frameScale;
+            }
+
+            onBoundaryCollision() {
+                this.normalizeToZigSpeed();
+            }
+
+            onEnemyCollision({ normal = null } = {}) {
+                this.normalizeToZigSpeed(normal || { x: this.enemy.dx, y: this.enemy.dy });
+            }
+        }
+
+        class DrifterBehavior extends ZigMovementFoundation {
             get type() {
                 return ENEMY_BEHAVIOR_TYPES.DRIFTER;
             }
 
             initialize() {
-                const enemy = this.enemy;
-                enemy.dx = (Math.random() > 0.5 ? 1 : -1) * enemy.speed;
-                enemy.dy = (Math.random() > 0.5 ? 1 : -1) * enemy.speed;
+                this.initializeZigMovement();
             }
 
             getVisualColor() {
                 return GAME_CONFIG.palette.red;
             }
 
-            onEnemyCollision({ normal = null } = {}) {
-                // Drifters may be redirected by an impact, but always retain their own normal speed.
-                const enemy = this.enemy;
-                const normalDirection = normal || { x: enemy.dx, y: enemy.dy };
-                enemy.normalizeVelocityMagnitude(enemy.speed * Math.SQRT2, normalDirection);
-            }
-
             update(deltaTime) {
-                const enemy = this.enemy;
-                const frameScale = deltaTime / 16.67;
-                enemy.x += enemy.dx * frameScale;
-                enemy.y += enemy.dy * frameScale;
+                this.updateZigMovement(deltaTime);
             }
         }
 
-        class ChargerBehavior extends EnemyBehavior {
+        class ChargerBehavior extends ZigMovementFoundation {
             constructor(enemy) {
                 super(enemy);
                 this.tuning = GAME_CONFIG.enemyBehaviors.charger;
                 this.state = 'cruise';
                 this.stateEndsAt = 0;
-                this.chargeDirection = { x: 1, y: 0 };
+                this.chargeCycle = 0;
+                this.chargeStartedAt = 0;
+                this.chargeDistancePx = 0;
+                this.telemetryFlushed = false;
             }
 
             get type() {
@@ -26518,146 +26557,164 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 return GAME_CONFIG.palette.green;
             }
 
-            randomCruiseDuration() {
-                return this.tuning.cruiseMinMs + Math.random() * (this.tuning.cruiseMaxMs - this.tuning.cruiseMinMs);
+            getCadenceVariation() {
+                const enemy = this.enemy;
+                const isSurvival = !!(enemy.game && enemy.game.gameMode && enemy.game.gameMode.isSurvivalRun());
+                if (isSurvival) {
+                    const queuePosition = Math.max(1, Math.trunc(Number(enemy.spawnContext && enemy.spawnContext.queuePosition) || 1));
+                    const sequence = [-0.15, -0.08, 0, 0.08, 0.15, 0.04, -0.04];
+                    const index = ((queuePosition + this.chargeCycle - 2) % sequence.length + sequence.length) % sequence.length;
+                    return sequence[index];
+                }
+                return (Math.random() * 0.30) - 0.15;
             }
 
-            setMovementDirection(x, y, speedMultiplier = 1) {
-                const enemy = this.enemy;
-                const magnitude = Math.hypot(x, y) || 1;
-                const speed = enemy.speed * speedMultiplier;
-                enemy.dx = x / magnitude * speed;
-                enemy.dy = y / magnitude * speed;
+            nextCruiseDuration() {
+                return this.tuning.chargeCadenceMs * (1 + this.getCadenceVariation());
             }
 
             setVisualState(nextState, timestamp = performance.now()) {
-                if (this.enemy.visualState !== nextState) {
-                    this.enemy.visualStateChangedAt = timestamp;
-                }
+                if (this.enemy.visualState !== nextState) this.enemy.visualStateChangedAt = timestamp;
                 this.enemy.visualState = nextState;
                 this.enemy.game.playfieldRenderer.renderEnemyVisualState(this.enemy);
             }
 
             initialize() {
-                const angle = Math.random() * Math.PI * 2;
-                this.setMovementDirection(Math.cos(angle), Math.sin(angle), this.tuning.cruiseSpeedMultiplier);
+                this.initializeZigMovement();
                 this.state = 'cruise';
                 const now = performance.now();
-                this.stateEndsAt = now + this.randomCruiseDuration();
+                this.stateEndsAt = now + this.nextCruiseDuration();
             }
 
             onElementReady() {
                 this.setVisualState(this.state);
             }
 
-            beginTelegraph(now) {
-                const enemy = this.enemy;
-                const orb = enemy.game.orb;
-                const enemyCenterX = enemy.x + enemy.size / 2;
-                const enemyCenterY = enemy.y + enemy.size / 2;
-                const orbCenterX = orb.x + orb.size / 2;
-                const orbCenterY = orb.y + orb.size / 2;
-                const targetX = orbCenterX - enemyCenterX;
-                const targetY = orbCenterY - enemyCenterY;
-                const magnitude = Math.hypot(targetX, targetY) || 1;
-                this.chargeDirection = { x: targetX / magnitude, y: targetY / magnitude };
-                enemy.dx = 0;
-                enemy.dy = 0;
-                enemy.aimAngleRad = Math.atan2(targetY, targetX);
-                enemy.game.playfieldRenderer.renderEnemyDirectionalVisuals(enemy);
-                this.state = 'telegraph';
+            beginWarning(now) {
+                this.state = 'warning';
                 this.stateEndsAt = now + this.tuning.warningMs;
+                this.enemy.dx = 0;
+                this.enemy.dy = 0;
                 this.setVisualState(this.state, now);
+                this.enemy.game.telemetrySystem.noteSurvivalDashEvent('attempt', { enemy: this.enemy });
                 this.playSound('dash-lock', { durationMs: this.tuning.warningMs, priority: 6, priorityHoldMs: this.tuning.warningMs });
             }
 
             beginCharge(now) {
+                const enemy = this.enemy;
+                const orb = enemy.game.orb;
+                const targetX = (orb.x + orb.size / 2) - (enemy.x + enemy.size / 2);
+                const targetY = (orb.y + orb.size / 2) - (enemy.y + enemy.size / 2);
+                const magnitude = Math.hypot(targetX, targetY) || 1;
                 this.state = 'charge';
-                this.stateEndsAt = now + this.tuning.chargeMaxMs;
-                this.setMovementDirection(this.chargeDirection.x, this.chargeDirection.y, this.tuning.chargeSpeedMultiplier);
+                this.stateEndsAt = now + this.tuning.chargeDurationMs;
+                this.chargeStartedAt = now;
+                this.chargeDistancePx = 0;
+                enemy.dx = targetX / magnitude * enemy.speed * this.tuning.chargeSpeedMultiplier;
+                enemy.dy = targetY / magnitude * enemy.speed * this.tuning.chargeSpeedMultiplier;
                 this.setVisualState(this.state, now);
                 this.playSound('dash-charge', {
-                    durationMs: this.tuning.chargeMaxMs,
-                    directionPan: Math.max(-0.22, Math.min(0.22, this.chargeDirection.x * 0.22)),
+                    durationMs: this.tuning.chargeDurationMs,
+                    directionPan: Math.max(-0.22, Math.min(0.22, (targetX / magnitude) * 0.22)),
                     priority: 6,
                     priorityHoldMs: 280
                 });
             }
 
-            beginRecovery(now) {
-                const enemy = this.enemy;
-                const directionX = Math.abs(enemy.dx) > 0.001 || Math.abs(enemy.dy) > 0.001 ? enemy.dx : -this.chargeDirection.x;
-                const directionY = Math.abs(enemy.dx) > 0.001 || Math.abs(enemy.dy) > 0.001 ? enemy.dy : -this.chargeDirection.y;
-                this.state = 'recovery';
-                this.stateEndsAt = now + this.tuning.recoveryMs;
-                this.setMovementDirection(directionX, directionY, this.tuning.recoverySpeedMultiplier);
-                this.setVisualState(this.state, now);
+            finishCharge(now, reason = 'completed-duration', completed = true) {
+                const actualDurationMs = Math.max(0, now - this.chargeStartedAt);
+                this.enemy.game.telemetrySystem.noteSurvivalDashEvent(completed ? 'completion' : 'termination', {
+                    enemy: this.enemy,
+                    reason,
+                    actualDurationMs,
+                    actualDistancePx: this.chargeDistancePx,
+                    phase: 'charge'
+                });
+                this.beginCruise(now);
             }
 
             beginCruise(now) {
                 const enemy = this.enemy;
-                const directionX = Math.abs(enemy.dx) > 0.001 || Math.abs(enemy.dy) > 0.001 ? enemy.dx : (Math.random() > 0.5 ? 1 : -1);
-                const directionY = Math.abs(enemy.dx) > 0.001 || Math.abs(enemy.dy) > 0.001 ? enemy.dy : (Math.random() > 0.5 ? 1 : -1);
                 this.state = 'cruise';
-                this.stateEndsAt = now + this.randomCruiseDuration();
-                this.setMovementDirection(directionX, directionY, this.tuning.cruiseSpeedMultiplier);
+                this.chargeCycle += 1;
+                this.stateEndsAt = now + this.nextCruiseDuration();
+                this.normalizeToZigSpeed({ x: enemy.dx || 1, y: enemy.dy || 1 });
                 this.setVisualState(this.state, now);
             }
 
             onBoundaryCollision() {
-                if (this.state === 'charge') this.beginRecovery(performance.now());
+                if (this.state === 'charge') {
+                    this.enemy.normalizeVelocityMagnitude(this.enemy.speed * this.tuning.chargeSpeedMultiplier, { x: this.enemy.dx, y: this.enemy.dy });
+                    return;
+                }
+                if (this.state === 'warning') return;
+                super.onBoundaryCollision();
             }
 
-            onEnemyCollision({ normal = null, now = performance.now() } = {}) {
-                const enemy = this.enemy;
+            onEnemyCollision({ normal = null } = {}) {
+                if (this.state === 'warning') {
+                    this.enemy.dx = 0;
+                    this.enemy.dy = 0;
+                    return;
+                }
                 if (this.state === 'charge') {
-                    // Charge velocity is temporary and never transfers to another Block-A-Zoid.
-                    // Contact ends the dash and immediately returns the Charger to its recovery envelope.
-                    this.beginRecovery(now);
+                    this.enemy.normalizeVelocityMagnitude(
+                        this.enemy.speed * this.tuning.chargeSpeedMultiplier,
+                        normal || { x: this.enemy.dx, y: this.enemy.dy }
+                    );
+                    this.enemy.game.telemetrySystem.noteSurvivalDashEvent('block-collision', { enemy: this.enemy });
                     return;
                 }
+                super.onEnemyCollision({ normal });
+            }
 
-                if (this.state === 'telegraph') {
-                    enemy.dx = 0;
-                    enemy.dy = 0;
-                    return;
+            flushTelemetry(reason = 'enemy-removed') {
+                if (this.telemetryFlushed) return;
+                this.telemetryFlushed = true;
+                if (this.state === 'charge') {
+                    this.enemy.game.telemetrySystem.noteSurvivalDashEvent('termination', {
+                        enemy: this.enemy,
+                        reason,
+                        actualDurationMs: Math.max(0, performance.now() - this.chargeStartedAt),
+                        actualDistancePx: this.chargeDistancePx,
+                        phase: 'charge'
+                    });
+                } else if (this.state === 'warning') {
+                    this.enemy.game.telemetrySystem.noteSurvivalDashEvent('termination', {
+                        enemy: this.enemy,
+                        reason,
+                        actualDurationMs: 0,
+                        actualDistancePx: 0,
+                        phase: 'warning'
+                    });
                 }
-
-                const speedMultiplier = this.state === 'recovery'
-                    ? this.tuning.recoverySpeedMultiplier
-                    : this.tuning.cruiseSpeedMultiplier;
-                enemy.normalizeVelocityMagnitude(
-                    enemy.speed * speedMultiplier,
-                    normal || this.chargeDirection
-                );
             }
 
             update(deltaTime, timestamp = performance.now()) {
+                this.enemy.game.telemetrySystem.noteSurvivalBehaviorTime('dash', this.state, deltaTime);
                 if (timestamp >= this.stateEndsAt) {
-                    if (this.state === 'cruise') this.beginTelegraph(timestamp);
-                    else if (this.state === 'telegraph') this.beginCharge(timestamp);
-                    else if (this.state === 'charge') this.beginRecovery(timestamp);
-                    else this.beginCruise(timestamp);
+                    if (this.state === 'cruise') this.beginWarning(timestamp);
+                    else if (this.state === 'warning') this.beginCharge(timestamp);
+                    else if (this.state === 'charge') this.finishCharge(timestamp, 'completed-duration', true);
                 }
 
-                if (this.state === 'telegraph') return;
-                const enemy = this.enemy;
-                const frameScale = deltaTime / 16.67;
-                enemy.x += enemy.dx * frameScale;
-                enemy.y += enemy.dy * frameScale;
+                if (this.state === 'warning') return;
+                const beforeX = this.enemy.x;
+                const beforeY = this.enemy.y;
+                this.updateZigMovement(deltaTime);
+                if (this.state === 'charge') {
+                    this.chargeDistancePx += Math.hypot(this.enemy.x - beforeX, this.enemy.y - beforeY);
+                }
             }
         }
 
-        class PulseBlockBehavior extends EnemyBehavior {
+        class PulseBlockBehavior extends ZigMovementFoundation {
             constructor(enemy) {
                 super(enemy);
                 this.tuning = GAME_CONFIG.enemyBehaviors.pulse;
                 this.state = 'active';
                 this.stateEndsAt = 0;
-                this.lastReactivatedAt = 0;
-                this.dormantBeganAt = 0;
-                this.dormantPingCount = 0;
-                this.nextDormantPingAt = 0;
+                this.phaseTransitionPulseStartedAt = 0;
             }
 
             get type() {
@@ -26668,25 +26725,15 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 return GAME_CONFIG.palette.blue;
             }
 
-            setMovementDirection(x, y) {
-                const enemy = this.enemy;
-                const magnitude = Math.hypot(x, y) || 1;
-                const speed = enemy.speed * this.tuning.speedMultiplier;
-                enemy.dx = x / magnitude * speed;
-                enemy.dy = y / magnitude * speed;
-            }
-
-            setVisualState(nextState, timestamp = performance.now()) {
-                if (this.enemy.visualState !== nextState) {
-                    this.enemy.visualStateChangedAt = timestamp;
-                }
+            setVisualState(nextState, timestamp = performance.now(), pulseTransition = false) {
+                if (this.enemy.visualState !== nextState) this.enemy.visualStateChangedAt = timestamp;
                 this.enemy.visualState = nextState;
+                if (pulseTransition) this.enemy.phaseTransitionPulseStartedAt = timestamp;
                 this.enemy.game.playfieldRenderer.renderEnemyVisualState(this.enemy);
             }
 
             initialize() {
-                const angle = Math.random() * Math.PI * 2;
-                this.setMovementDirection(Math.cos(angle), Math.sin(angle));
+                this.initializeZigMovement();
                 this.state = 'active';
                 const now = performance.now();
                 this.stateEndsAt = now + this.tuning.activeMs;
@@ -26694,37 +26741,28 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
 
             onElementReady() {
                 this.enemy.pulseGhostFlashPeriodMs = this.tuning.positionFlashIntervalMs;
+                this.enemy.phaseTransitionPulseStartedAt = 0;
                 this.setVisualState(this.state);
             }
 
-            beginDeactivationWarning(now) {
-                this.state = 'deactivation-warning';
-                this.stateEndsAt = now + this.tuning.deactivationWarningMs;
-                this.setVisualState(this.state, now);
+            beginPhased(now) {
+                this.state = 'phased';
+                this.stateEndsAt = now + this.tuning.phasedMs;
+                this.setVisualState(this.state, now, true);
                 this.playSound('echo-phase-out', { cooldownMs: 260 });
             }
 
-            beginDormant(now) {
-                this.state = 'dormant';
-                this.dormantBeganAt = now;
-                this.dormantPingCount = 0;
-                this.nextDormantPingAt = now;
-                this.stateEndsAt = now + this.tuning.dormantMs;
-                this.setVisualState(this.state, now);
-            }
-
-            beginReactivationWarning(now) {
-                this.state = 'reactivation-warning';
-                this.stateEndsAt = now + this.tuning.reactivationWarningMs;
-                this.setVisualState(this.state, now);
-                // Intentionally silent. The missing fourth ping is the learned danger beat.
-            }
-
             beginActive(now) {
-                this.lastReactivatedAt = now;
                 this.state = 'active';
                 this.stateEndsAt = now + this.tuning.activeMs;
-                this.setVisualState(this.state, now);
+                this.setVisualState(this.state, now, true);
+                const enemy = this.enemy;
+                const orb = enemy.game.orb;
+                const distanceFromOrb = Math.hypot(
+                    (enemy.x + enemy.size / 2) - (orb.x + orb.size / 2),
+                    (enemy.y + enemy.size / 2) - (orb.y + orb.size / 2)
+                );
+                enemy.game.telemetrySystem.noteSurvivalEchoEvent('reactivation', { enemy, distanceFromOrb });
             }
 
             overlapsOrb() {
@@ -26737,28 +26775,31 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
             }
 
             isDangerousToOrb() {
-                return this.state === 'active' || this.state === 'deactivation-warning';
+                return this.state === 'active';
+            }
+
+            ignoresEnemyCollisions() {
+                return this.state === 'phased';
             }
 
             onEnemyCollision({ normal = null } = {}) {
-                const enemy = this.enemy;
-                enemy.normalizeVelocityMagnitude(
-                    enemy.speed * this.tuning.speedMultiplier,
-                    normal || { x: enemy.dx, y: enemy.dy }
-                );
+                if (this.state === 'phased') return;
+                super.onEnemyCollision({ normal });
             }
 
             update(deltaTime, timestamp = performance.now()) {
+                this.enemy.game.telemetrySystem.noteSurvivalBehaviorTime('echo', this.state, deltaTime);
                 if (timestamp >= this.stateEndsAt) {
                     if (this.state === 'active') {
-                        this.beginDeactivationWarning(timestamp);
-                    } else if (this.state === 'deactivation-warning') {
-                        this.beginDormant(timestamp);
-                    } else if (this.state === 'dormant') {
-                        this.beginReactivationWarning(timestamp);
+                        this.beginPhased(timestamp);
                     } else if (this.overlapsOrb()) {
-                        // A dormant Pulse Block never becomes dangerous around an already-overlapping Orb.
-                        this.stateEndsAt = timestamp + this.tuning.overlapRecheckMs;
+                        // Safety-only overlap recheck; this is not an exposed balance timer.
+                        const safetyDelayMs = 100;
+                        this.stateEndsAt = timestamp + safetyDelayMs;
+                        this.enemy.game.telemetrySystem.noteSurvivalEchoEvent('overlap-delay', {
+                            enemy: this.enemy,
+                            delayMs: safetyDelayMs
+                        });
                     } else {
                         this.beginActive(timestamp);
                     }
@@ -26767,18 +26808,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 const enemy = this.enemy;
                 enemy.motionAngleDeg = Math.atan2(enemy.dy, enemy.dx) * 180 / Math.PI;
                 enemy.game.playfieldRenderer.renderEnemyDirectionalVisuals(enemy);
-                const frameScale = deltaTime / 16.67;
-                enemy.x += enemy.dx * frameScale;
-                enemy.y += enemy.dy * frameScale;
-
-                if (this.state === 'dormant' && this.dormantPingCount < 3 && timestamp >= this.nextDormantPingAt) {
-                    this.playSound('echo-dormant-ping', {
-                        cooldownMs: Math.max(220, this.tuning.positionFlashIntervalMs - 40),
-                        key: `echo-dormant-ping-${this.dormantPingCount}`
-                    });
-                    this.dormantPingCount++;
-                    this.nextDormantPingAt = this.dormantBeganAt + this.dormantPingCount * this.tuning.positionFlashIntervalMs;
-                }
+                this.updateZigMovement(deltaTime);
             }
         }
 
@@ -26837,7 +26867,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
 
 /* Source: src/js/gameplay/230-enemy.js */
         class Enemy {
-            constructor(game, type, spawnLocation = null, behaviorType = ENEMY_BEHAVIOR_TYPES.DRIFTER) {
+            constructor(game, type, spawnLocation = null, behaviorType = ENEMY_BEHAVIOR_TYPES.DRIFTER, spawnContext = null) {
                 this.game = game; // Reference to game instance
                 this.visualEffectKey = game.visualEffectsSystem.nextVisualEffectTaskName('enemy');
                 this.type = type;
@@ -26868,6 +26898,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 
                 this.dx = 0;
                 this.dy = 0;
+                this.spawnContext = spawnContext && typeof spawnContext === 'object' ? { ...spawnContext } : null;
                 this.enemyCollisionTimes = new WeakMap();
                 const behaviorResolution = EnemyBehaviorRegistry.create(behaviorType, this);
                 this.behavior = behaviorResolution.behavior;
@@ -26922,6 +26953,10 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
             isDangerousToOrb() {
                 if (!this.behavior || typeof this.behavior.isDangerousToOrb !== 'function') return true;
                 return this.behavior.isDangerousToOrb() !== false;
+            }
+
+            ignoresEnemyCollisions() {
+                return !!(this.behavior && typeof this.behavior.ignoresEnemyCollisions === 'function' && this.behavior.ignoresEnemyCollisions());
             }
 
             applyVisualColor(fallbackColor) {
@@ -30282,11 +30317,13 @@ startGridlockBeat(delaySeconds = 0) {
                 assert('Small Block-A-Zoids remain faster than medium', game.getEnemySpeed('small') > game.getEnemySpeed('medium'));
                 assert('Medium Block-A-Zoids remain faster than large', game.getEnemySpeed('medium') > game.getEnemySpeed('large'));
                 const dashParity = GAME_CONFIG.enemyBehaviors.charger;
-                assert('DASH uses the controlled parity profile', dashParity.cruiseSpeedMultiplier === 0.62 && dashParity.chargeSpeedMultiplier === 2.55 && dashParity.recoverySpeedMultiplier === 0.34 && dashParity.cruiseMinMs === 1300 && dashParity.cruiseMaxMs === 2200 && dashParity.warningMs === 650 && dashParity.chargeMaxMs === 700 && dashParity.recoveryMs === 800);
-                assert('DASH charge profile applies proportionally to all sizes', ['small', 'medium', 'large'].every((size) => Math.abs((game.getEnemySpeed(size) * dashParity.chargeSpeedMultiplier) - (game.getEnemySpeed(size) * 2.55)) < 0.000001));
-                const drifterSource = DrifterBehavior.toString();
-                assert('ZIG movement profile remains unchanged', drifterSource.includes('enemy.speed') && drifterSource.includes('Math.SQRT2'));
-                assert('ECHO movement and rhythm profile is authoritative', GAME_CONFIG.enemyBehaviors.pulse.speedMultiplier === 0.70 && GAME_CONFIG.enemyBehaviors.pulse.activeMs === 1500 && GAME_CONFIG.enemyBehaviors.pulse.deactivationWarningMs === 300 && GAME_CONFIG.enemyBehaviors.pulse.dormantMs === 1500 && GAME_CONFIG.enemyBehaviors.pulse.reactivationWarningMs === 300 && PulseBlockBehavior.prototype.beginDormant.toString().includes('this.tuning.dormantMs'));
+                assert('DASH uses only the four authored modifier values', Object.keys(dashParity).sort().join(',') === 'chargeCadenceMs,chargeDurationMs,chargeSpeedMultiplier,warningMs' && dashParity.chargeCadenceMs === 2700 && dashParity.warningMs === 350 && dashParity.chargeSpeedMultiplier === 2.3 && dashParity.chargeDurationMs === 600);
+                assert('DASH charge profile applies proportionally to all sizes', ['small', 'medium', 'large'].every((size) => Math.abs((game.getEnemySpeed(size) * dashParity.chargeSpeedMultiplier) - (game.getEnemySpeed(size) * 2.3)) < 0.000001));
+                const zigFoundationSource = ZigMovementFoundation.toString();
+                assert('ZIG movement profile remains unchanged and authoritative', zigFoundationSource.includes('direction.x * enemy.speed') && zigFoundationSource.includes('enemy.speed * Math.SQRT2'));
+                assert('DASH and ECHO inherit the ZIG movement foundation', ChargerBehavior.prototype instanceof ZigMovementFoundation && PulseBlockBehavior.prototype instanceof ZigMovementFoundation);
+                assert('DASH has no directional-line telegraph or recovery state', !CanvasPlayfieldRenderer.prototype.drawCharger.toString().includes('drawChargerTargetLine') && !ChargerBehavior.toString().includes('recovery'));
+                assert('ECHO exposes only active and phased gameplay durations', GAME_CONFIG.enemyBehaviors.pulse.activeMs === 2000 && GAME_CONFIG.enemyBehaviors.pulse.phasedMs === 900 && !Object.prototype.hasOwnProperty.call(GAME_CONFIG.enemyBehaviors.pulse, 'speedMultiplier') && PulseBlockBehavior.prototype.beginPhased.toString().includes('this.tuning.phasedMs'));
                 assert('Top HUD announcement timing is shared', GAME_CONFIG.visualTiming.topHudAnnouncement.textMs === 2000 && GAME_CONFIG.visualTiming.topHudAnnouncement.pointsMs === 1000 && !UI.prototype.flashGridlockMessage.toString().includes('points > 0 ?'));
                 const hudScoreElement = game.ui.scoreElement;
                 const originalHudClassName = hudScoreElement ? hudScoreElement.className : '';
@@ -30454,8 +30491,8 @@ startGridlockBeat(delaySeconds = 0) {
                     const sizeBase = sector?.difficultySnapshot?.effectiveMovementSpeeds?.sizeBase || {};
                     assert('Difficulty snapshot proves distinct size movement tiers', sizeBase.small > sizeBase.medium && sizeBase.medium > sizeBase.large && sector?.difficultySnapshot?.effectiveMovementSpeeds?.sizeIndependent === false);
                     const dashSnapshot = sector?.difficultySnapshot?.dashParityConfiguration || {};
-                    assert('Difficulty snapshot records the DASH parity configuration', dashSnapshot.chargeSpeedMultiplier === 2.55 && dashSnapshot.telegraphMs === 650 && dashSnapshot.chargeMaxMs === 700 && dashSnapshot.recoveryMs === 800);
-                    assert('Difficulty snapshot retains ZIG and ECHO size-tier movement', sector?.difficultySnapshot?.effectiveMovementSpeeds?.zig?.perAxis?.small > sector?.difficultySnapshot?.effectiveMovementSpeeds?.zig?.perAxis?.medium && sector?.difficultySnapshot?.effectiveMovementSpeeds?.echo?.movement?.medium > sector?.difficultySnapshot?.effectiveMovementSpeeds?.echo?.movement?.large);
+                    assert('Difficulty snapshot records the DASH modifier configuration', dashSnapshot.chargeCadenceMs === 2700 && dashSnapshot.warningMs === 350 && dashSnapshot.chargeSpeedMultiplier === 2.3 && dashSnapshot.chargeDurationMs === 600);
+                    assert('Difficulty snapshot proves ZIG, DASH cruise, and ECHO share size-tier movement', sector?.difficultySnapshot?.effectiveMovementSpeeds?.zig?.perAxis?.small > sector?.difficultySnapshot?.effectiveMovementSpeeds?.zig?.perAxis?.medium && sector?.difficultySnapshot?.effectiveMovementSpeeds?.dash?.cruise?.medium === sector?.difficultySnapshot?.effectiveMovementSpeeds?.zig?.perAxis?.medium && sector?.difficultySnapshot?.effectiveMovementSpeeds?.echo?.movement?.medium === sector?.difficultySnapshot?.effectiveMovementSpeeds?.zig?.perAxis?.medium);
                     assert('Difficulty snapshot records the uniform proportional geometry policy', sector?.difficultySnapshot?.playfieldGeometry?.presentationPolicy === 'uniform-proportional-design-space' && sector?.difficultySnapshot?.playfieldGeometry?.profileMasterPlayfieldSize === 875 && sector?.difficultySnapshot?.playfieldGeometry?.renderedWidthPx === Number(game.PLAYFIELD_SIZE.toFixed(4)) && sector?.difficultySnapshot?.playfieldGeometry?.renderedGameplaySizesPx?.orb === game.ORB_SIZE);
 
                     game.applySectorParameters({ queueOrigin: 'cosmic-zap-replacement', spawnCategory: 'normal' });
