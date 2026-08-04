@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Block-A-Zoids p292: makes ZIG the shared movement foundation for DASH and ECHO, retunes their single identity modifiers, and expands isolated Survival behavior telemetry.
+Block-A-Zoids p293: adds developer-only live Survival behavior tuning, preserves Campaign defaults, and records every tuning change in isolated Survival telemetry.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="p292">
+<html data-build-version="p293">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -5756,6 +5756,53 @@ Font License Notices
 
         /* Launch uses the same gap token, giving Starting Sector and Difficulty clear separation. */
 
+/* p293 developer-only Survival tuning panel. It reuses existing Settings stepper language and remains hidden outside Survival. */
+#survivalBehaviorTuningPanel {
+    display: none;
+    width: min(270px, 92%);
+    margin: clamp(12px, 3vw, 18px) auto 0;
+    padding-top: clamp(10px, 2.6vw, 15px);
+    border-top: 1px solid rgba(255,255,255,0.34);
+}
+#survivalBehaviorTuningPanel.visible {
+    display: block;
+}
+.survival-tuning-heading {
+    margin-bottom: 5px;
+    font-family: "Orbitron";
+    font-size: clamp(15px, 4.1vw, 19px);
+    letter-spacing: 1.5px;
+    text-align: center;
+}
+.survival-tuning-context {
+    margin-bottom: clamp(8px, 2.2vw, 12px);
+    font-family: "Orbitron";
+    font-size: clamp(11px, 3.1vw, 14px);
+    line-height: 1.35;
+    text-align: center;
+    opacity: 0.72;
+}
+.survival-tuning-group {
+    display: none;
+}
+.survival-tuning-group.visible {
+    display: block;
+}
+.survival-tuning-group .settings-stepper {
+    width: 100%;
+    margin-top: 8px;
+}
+.survival-tuning-group .settings-stepper-title {
+    font-size: clamp(12px, 3.5vw, 15px);
+}
+.survival-tuning-group .settings-stepper-value {
+    font-size: clamp(12px, 3.5vw, 16px);
+}
+#resetSurvivalTuningButton {
+    width: 100%;
+    margin-top: 10px;
+}
+
 /* Source: src/styles/35-launch-settings-pause.css */
 /* p241: Launch, Settings, and the corner pause menu each have one CSS owner. */
 #pauseWindow {
@@ -7130,6 +7177,43 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 <div id="telemetryPanel" class="developer-settings-section" aria-hidden="true">
                     <div class="crt-dev-heading">DEVELOPER</div>
                     <div class="crt-dev-heading developer-subheading">TELEMETRY</div>
+                    <div id="survivalBehaviorTuningPanel" aria-hidden="true">
+                        <div class="survival-tuning-heading">SURVIVAL TUNING</div>
+                        <div id="survivalTuningContext" class="survival-tuning-context">Select Survival to tune behavior.</div>
+                        <div id="survivalTuningSharedGroup" class="survival-tuning-group">
+                            <div class="settings-stepper" role="group" aria-label="Shared Zig movement speed">
+                                <div class="settings-stepper-title">Shared ZIG Speed</div>
+                                <div class="settings-stepper-row">
+                                    <button class="settings-stepper-arrow" type="button" data-survival-tuning="sharedSpeedMultiplier" data-direction="-1" aria-label="Decrease shared Zig speed">◀</button>
+                                    <div class="settings-stepper-value" data-survival-tuning-value="sharedSpeedMultiplier">1.00×</div>
+                                    <button class="settings-stepper-arrow" type="button" data-survival-tuning="sharedSpeedMultiplier" data-direction="1" aria-label="Increase shared Zig speed">▶</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="survivalTuningDashGroup" class="survival-tuning-group">
+                            <div class="settings-stepper" role="group" aria-label="Dash charge cadence">
+                                <div class="settings-stepper-title">Charge Cadence</div><div class="settings-stepper-row"><button class="settings-stepper-arrow" type="button" data-survival-tuning="dashChargeCadenceMs" data-direction="-1">◀</button><div class="settings-stepper-value" data-survival-tuning-value="dashChargeCadenceMs">2.70 s</div><button class="settings-stepper-arrow" type="button" data-survival-tuning="dashChargeCadenceMs" data-direction="1">▶</button></div>
+                            </div>
+                            <div class="settings-stepper" role="group" aria-label="Dash warning duration">
+                                <div class="settings-stepper-title">Warning Pause</div><div class="settings-stepper-row"><button class="settings-stepper-arrow" type="button" data-survival-tuning="dashWarningMs" data-direction="-1">◀</button><div class="settings-stepper-value" data-survival-tuning-value="dashWarningMs">350 ms</div><button class="settings-stepper-arrow" type="button" data-survival-tuning="dashWarningMs" data-direction="1">▶</button></div>
+                            </div>
+                            <div class="settings-stepper" role="group" aria-label="Dash charge speed multiplier">
+                                <div class="settings-stepper-title">Charge Speed</div><div class="settings-stepper-row"><button class="settings-stepper-arrow" type="button" data-survival-tuning="dashChargeSpeedMultiplier" data-direction="-1">◀</button><div class="settings-stepper-value" data-survival-tuning-value="dashChargeSpeedMultiplier">2.30×</div><button class="settings-stepper-arrow" type="button" data-survival-tuning="dashChargeSpeedMultiplier" data-direction="1">▶</button></div>
+                            </div>
+                            <div class="settings-stepper" role="group" aria-label="Dash charge duration">
+                                <div class="settings-stepper-title">Charge Duration</div><div class="settings-stepper-row"><button class="settings-stepper-arrow" type="button" data-survival-tuning="dashChargeDurationMs" data-direction="-1">◀</button><div class="settings-stepper-value" data-survival-tuning-value="dashChargeDurationMs">600 ms</div><button class="settings-stepper-arrow" type="button" data-survival-tuning="dashChargeDurationMs" data-direction="1">▶</button></div>
+                            </div>
+                        </div>
+                        <div id="survivalTuningEchoGroup" class="survival-tuning-group">
+                            <div class="settings-stepper" role="group" aria-label="Echo active duration">
+                                <div class="settings-stepper-title">Active Duration</div><div class="settings-stepper-row"><button class="settings-stepper-arrow" type="button" data-survival-tuning="echoActiveMs" data-direction="-1">◀</button><div class="settings-stepper-value" data-survival-tuning-value="echoActiveMs">2.00 s</div><button class="settings-stepper-arrow" type="button" data-survival-tuning="echoActiveMs" data-direction="1">▶</button></div>
+                            </div>
+                            <div class="settings-stepper" role="group" aria-label="Echo phased duration">
+                                <div class="settings-stepper-title">Phased Duration</div><div class="settings-stepper-row"><button class="settings-stepper-arrow" type="button" data-survival-tuning="echoPhasedMs" data-direction="-1">◀</button><div class="settings-stepper-value" data-survival-tuning-value="echoPhasedMs">0.90 s</div><button class="settings-stepper-arrow" type="button" data-survival-tuning="echoPhasedMs" data-direction="1">▶</button></div>
+                            </div>
+                        </div>
+                        <button id="resetSurvivalTuningButton" class="menu-button settings-toggle" type="button">Reset Survival Defaults</button>
+                    </div>
                     <div id="telemetrySummary" class="telemetry-summary">Developer Mode required.</div>
                     <button id="exportTelemetryButton" class="menu-button settings-toggle">Export Balance Data</button>
                     <button id="exportSurvivalTelemetryButton" class="menu-button settings-toggle">Export Survival Data</button>
@@ -7271,7 +7355,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
         const BUILD_METADATA = window.BLOCKAZOIDS_BUILD = Object.freeze({
             version: document.documentElement.dataset.buildVersion || 'unknown',
             label: BUILD_VERSION,
-            architecturePhase: 'zig-authoritative-behavior-modifiers',
+            architecturePhase: 'developer-survival-live-tuning',
             sourceBaseline: 'p287',
             behaviorPolicy: 'single-design-space-scale-authoritative-state-no-parallel-systems'
         });
@@ -7306,7 +7390,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
         const SOURCE_LAYOUT = window.BLOCKAZOIDS_SOURCE_LAYOUT = Object.freeze({
             developmentModel: 'modular-source',
             releaseModel: 'single-html',
-            buildOutput: 'block-a-zoids-p292.html',
+            buildOutput: 'block-a-zoids-p293.html',
             categories: Object.freeze([
                 'build', 'config', 'content', 'rules', 'state', 'services', 'app', 'gameplay',
                 'presentation', 'platform', 'audio', 'ui', 'development', 'docs'
@@ -7316,7 +7400,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
 
 /* Source: src/js/development/75-developer-documentation.js */
         const DEVELOPER_DOCUMENTATION = window.BLOCKAZOIDS_DEVELOPER_GUIDE = deepFreezeConfiguration({
-            version: 'p292',
+            version: 'p293',
             purpose: 'Make ownership, safe edit locations, state transitions, build steps, and maintenance rules discoverable without reverse-engineering the complete game.',
             architecture: {
                 application: {
@@ -7848,6 +7932,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 introCompletionBuild: 'blockazoidsGridCalibrationCompletedBuildV1',
                 telemetry: 'blockazoidsBalanceTelemetry',
                 survivalTelemetry: 'blockazoidsSurvivalLabTelemetryV1',
+                survivalBehaviorTuning: 'blockazoidsSurvivalBehaviorTuningV1',
                 enemyEncounters: 'blockazoidsEnemyEncountersV1'
             }
         });
@@ -9093,6 +9178,178 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                     activeSwarmLabel: this.getActiveSwarmLabel(),
                     survivalRun: this.isSurvivalRun(),
                     balanceSector: this.getBalanceSector(1)
+                });
+            }
+        }
+
+/* Source: src/js/development/82c-survival-behavior-tuning-system.js */
+        class SurvivalBehaviorTuningSystem {
+            static ownedFields = Object.freeze(['values', 'storageKey', 'definitions'].map(String));
+
+            constructor(game, storage, config) {
+                this.game = game;
+                this.storage = storage;
+                this.config = config;
+                this.storageKey = config.storage.survivalBehaviorTuning;
+                const dash = config.enemyBehaviors.charger;
+                const echo = config.enemyBehaviors.pulse;
+                this.defaults = Object.freeze({
+                    shared: Object.freeze({ speedMultiplier: 1 }),
+                    dash: Object.freeze({ chargeCadenceMs: dash.chargeCadenceMs, warningMs: dash.warningMs, chargeSpeedMultiplier: dash.chargeSpeedMultiplier, chargeDurationMs: dash.chargeDurationMs }),
+                    echo: Object.freeze({ activeMs: echo.activeMs, phasedMs: echo.phasedMs })
+                });
+                this.definitions = Object.freeze({
+                    sharedSpeedMultiplier: Object.freeze({ path: ['shared', 'speedMultiplier'], min: 0.5, max: 2, step: 0.05, format: value => `${value.toFixed(2)}×` }),
+                    dashChargeCadenceMs: Object.freeze({ path: ['dash', 'chargeCadenceMs'], min: 1000, max: 6000, step: 100, format: value => `${(value / 1000).toFixed(2)} s` }),
+                    dashWarningMs: Object.freeze({ path: ['dash', 'warningMs'], min: 100, max: 1000, step: 50, format: value => `${Math.round(value)} ms` }),
+                    dashChargeSpeedMultiplier: Object.freeze({ path: ['dash', 'chargeSpeedMultiplier'], min: 1.1, max: 4, step: 0.1, format: value => `${value.toFixed(2)}×` }),
+                    dashChargeDurationMs: Object.freeze({ path: ['dash', 'chargeDurationMs'], min: 200, max: 1500, step: 50, format: value => `${Math.round(value)} ms` }),
+                    echoActiveMs: Object.freeze({ path: ['echo', 'activeMs'], min: 500, max: 5000, step: 100, format: value => `${(value / 1000).toFixed(2)} s` }),
+                    echoPhasedMs: Object.freeze({ path: ['echo', 'phasedMs'], min: 200, max: 3000, step: 100, format: value => `${(value / 1000).toFixed(2)} s` })
+                });
+                this.values = this.load();
+            }
+
+            cloneDefaults() {
+                return {
+                    shared: { ...this.defaults.shared },
+                    dash: { ...this.defaults.dash },
+                    echo: { ...this.defaults.echo }
+                };
+            }
+
+            sanitize(raw) {
+                const result = this.cloneDefaults();
+                if (!raw || typeof raw !== 'object') return result;
+                Object.entries(this.definitions).forEach(([name, definition]) => {
+                    const [group, key] = definition.path;
+                    const candidate = Number(raw[group] && raw[group][key]);
+                    if (!Number.isFinite(candidate)) return;
+                    result[group][key] = Math.max(definition.min, Math.min(definition.max, candidate));
+                });
+                return result;
+            }
+
+            load() {
+                try { return this.sanitize(JSON.parse(this.storage.getItem(this.storageKey) || 'null')); }
+                catch (_) { return this.cloneDefaults(); }
+            }
+
+            save() {
+                try { this.storage.setItem(this.storageKey, JSON.stringify(this.values)); return true; }
+                catch (_) { return false; }
+            }
+
+            isDeveloperSurvivalContext() {
+                if (!this.game.developerTools || !this.game.developerTools.developerModeEnabled) return false;
+                return !!(this.game.gameMode && (this.game.gameMode.isSurvivalRun() || this.game.gameMode.isSurvivalSelected()));
+            }
+
+            isRuntimeOverrideActive() {
+                return !!(this.game.developerTools && this.game.developerTools.developerModeEnabled && this.game.gameMode && this.game.gameMode.isSurvivalRun());
+            }
+
+            getSharedSpeedMultiplier() {
+                return this.isRuntimeOverrideActive() ? this.values.shared.speedMultiplier : 1;
+            }
+
+            getDashTuning() {
+                return this.isRuntimeOverrideActive() ? this.values.dash : this.config.enemyBehaviors.charger;
+            }
+
+            getEchoTuning() {
+                return this.isRuntimeOverrideActive() ? this.values.echo : this.config.enemyBehaviors.pulse;
+            }
+
+            getIdentityKey() {
+                if (!this.game.gameMode) return 'zig';
+                return this.game.gameMode.isSurvivalRun() ? this.game.gameMode.activeSwarmType : this.game.gameMode.selectedSwarmType;
+            }
+
+            captureSnapshot() {
+                return {
+                    developerOverrideActive: this.isRuntimeOverrideActive(),
+                    identity: this.getIdentityKey(),
+                    shared: { ...this.values.shared },
+                    dash: { ...this.values.dash },
+                    echo: { ...this.values.echo }
+                };
+            }
+
+            getValue(name) {
+                const definition = this.definitions[name];
+                if (!definition) return null;
+                const [group, key] = definition.path;
+                return this.values[group][key];
+            }
+
+            setValue(name, rawValue, { record = true } = {}) {
+                const definition = this.definitions[name];
+                if (!definition || !this.isDeveloperSurvivalContext()) return false;
+                const [group, key] = definition.path;
+                const previousValue = this.values[group][key];
+                const numeric = Number(rawValue);
+                if (!Number.isFinite(numeric)) return false;
+                const precision = definition.step < 1 ? 4 : 0;
+                const nextValue = Number(Math.max(definition.min, Math.min(definition.max, numeric)).toFixed(precision));
+                if (nextValue === previousValue) return false;
+                this.values[group][key] = nextValue;
+                this.save();
+                if (name === 'sharedSpeedMultiplier') this.applySharedSpeedImmediately();
+                if (record && this.game.telemetrySystem) this.game.telemetrySystem.noteSurvivalTuningChange(name, previousValue, nextValue);
+                this.refreshUI();
+                return true;
+            }
+
+            adjust(name, direction) {
+                const definition = this.definitions[name];
+                if (!definition) return false;
+                return this.setValue(name, this.getValue(name) + (direction < 0 ? -definition.step : definition.step));
+            }
+
+            resetDefaults() {
+                if (!this.isDeveloperSurvivalContext()) return false;
+                const before = this.captureSnapshot();
+                this.values = this.cloneDefaults();
+                this.save();
+                this.applySharedSpeedImmediately();
+                Object.keys(this.definitions).forEach((name) => {
+                    const definition = this.definitions[name];
+                    const [group, key] = definition.path;
+                    const previousValue = before[group][key];
+                    const nextValue = this.values[group][key];
+                    if (previousValue !== nextValue && this.game.telemetrySystem) this.game.telemetrySystem.noteSurvivalTuningChange(name, previousValue, nextValue);
+                });
+                this.refreshUI();
+                return true;
+            }
+
+            applySharedSpeedImmediately() {
+                if (!this.isRuntimeOverrideActive() || !Array.isArray(this.game.enemies)) return;
+                this.game.enemies.forEach((enemy) => {
+                    if (enemy && enemy.behavior && typeof enemy.behavior.applyLiveSharedSpeedChange === 'function') enemy.behavior.applyLiveSharedSpeedChange();
+                });
+            }
+
+            refreshUI() {
+                const panel = this.game.survivalBehaviorTuningPanel;
+                if (!panel) return;
+                const visible = !!(this.game.developerTools && this.game.developerTools.developerSettingsVisible && this.isDeveloperSurvivalContext());
+                panel.classList.toggle('visible', visible);
+                panel.setAttribute('aria-hidden', visible ? 'false' : 'true');
+                if (!visible) return;
+                const identity = this.getIdentityKey();
+                const context = this.game.survivalTuningContext;
+                if (context) context.textContent = `${String(identity).toUpperCase()} · SECTOR 5 FOUNDATION · SURVIVAL ONLY`;
+                const groupMap = { zig: this.game.survivalTuningSharedGroup, dash: this.game.survivalTuningDashGroup, echo: this.game.survivalTuningEchoGroup };
+                if (this.game.survivalTuningSharedGroup) this.game.survivalTuningSharedGroup.classList.add('visible');
+                [this.game.survivalTuningDashGroup, this.game.survivalTuningEchoGroup].forEach(group => { if (group) group.classList.remove('visible'); });
+                if (identity === 'dash' && groupMap.dash) groupMap.dash.classList.add('visible');
+                if (identity === 'echo' && groupMap.echo) groupMap.echo.classList.add('visible');
+                this.game.survivalTuningValueElements.forEach((element) => {
+                    const name = element.dataset.survivalTuningValue;
+                    const definition = this.definitions[name];
+                    if (definition) element.textContent = definition.format(this.getValue(name));
                 });
             }
         }
@@ -13686,6 +13943,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                     this.developerTools.updateInvincibilityToggleLabel();
                     this.developerTools.updateSkinFrameLabel();
                     this.developerTools.updateSkinFrameTuningLabels();
+                    if (this.behaviorTuningSystem) this.behaviorTuningSystem.refreshUI();
                     this.telemetrySystem.setTelemetryStatus('Local balance data only.');
                 }
                         },
@@ -14005,6 +14263,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
             captureSurvivalTuningSnapshot(...args) { return TelemetrySystem.implementations.captureSurvivalTuningSnapshot.apply(this.game, args); }
             beginSurvivalTelemetryRun(...args) { return TelemetrySystem.implementations.beginSurvivalTelemetryRun.apply(this.game, args); }
             finishSurvivalTelemetryRun(...args) { return TelemetrySystem.implementations.finishSurvivalTelemetryRun.apply(this.game, args); }
+            noteSurvivalTuningChange(...args) { return TelemetrySystem.implementations.noteSurvivalTuningChange.apply(this.game, args); }
             noteSurvivalBehaviorTime(...args) { return TelemetrySystem.implementations.noteSurvivalBehaviorTime.apply(this.game, args); }
             noteSurvivalDashEvent(...args) { return TelemetrySystem.implementations.noteSurvivalDashEvent.apply(this.game, args); }
             noteSurvivalEchoEvent(...args) { return TelemetrySystem.implementations.noteSurvivalEchoEvent.apply(this.game, args); }
@@ -14133,8 +14392,8 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
 
             loadSurvivalTelemetryData: function() {
                 const empty = {
-                    schema: 'blockazoids-survival-lab-v2',
-                    schemaVersion: 2,
+                    schema: 'blockazoids-survival-lab-v3',
+                    schemaVersion: 3,
                     runs: [],
                     lastSavedAt: null
                 };
@@ -14152,8 +14411,8 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                         });
                     }
                     return {
-                        schema: 'blockazoids-survival-lab-v2',
-                        schemaVersion: 2,
+                        schema: 'blockazoids-survival-lab-v3',
+                        schemaVersion: 3,
                         runs,
                         lastSavedAt: saved.savedAt || null
                     };
@@ -14166,8 +14425,8 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 if (!this.telemetrySystem.survivalTelemetry) return false;
                 const savedAt = new Date().toISOString();
                 const payload = {
-                    schema: 'blockazoids-survival-lab-v2',
-                    schemaVersion: 2,
+                    schema: 'blockazoids-survival-lab-v3',
+                    schemaVersion: 3,
                     savedAt,
                     runs: Array.isArray(this.telemetrySystem.survivalTelemetry.runs)
                         ? this.telemetrySystem.survivalTelemetry.runs.slice(-100)
@@ -14192,7 +14451,11 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 const speedMultiplier = GameRules.getEnemySpeedMultiplier(balanceSector, difficulty);
                 const sizeSequence = this.campaign.getEnemySizePlan(balanceSector, GAME_CONFIG.enemySpawning.gridlockEnemyThreshold).slice();
                 const behaviorType = this.gameMode.getActiveBehaviorType();
-                const behaviorTuning = GAME_CONFIG.enemyBehaviors[behaviorType] || null;
+                const developerTuning = this.behaviorTuningSystem.captureSnapshot();
+                const sharedSpeedMultiplier = this.behaviorTuningSystem.getSharedSpeedMultiplier();
+                const behaviorTuning = behaviorType === ENEMY_BEHAVIOR_TYPES.CHARGER
+                    ? { ...this.behaviorTuningSystem.getDashTuning() }
+                    : (behaviorType === ENEMY_BEHAVIOR_TYPES.PULSE ? { ...this.behaviorTuningSystem.getEchoTuning() } : null);
                 return {
                     balanceSector,
                     difficulty,
@@ -14200,6 +14463,8 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                     behaviorIdentity: this.gameMode.getActiveSwarmLabel().toUpperCase(),
                     behaviorType,
                     behaviorTuning: behaviorTuning ? { ...behaviorTuning } : null,
+                    developerTuning,
+                    sharedSpeedMultiplier,
                     spawnIntervalMs: Math.round(GameRules.getSpawnDelay(balanceSector, difficulty) * 1000),
                     warningDurationMs: GAME_CONFIG.enemySpawning.warningDurationMs,
                     initialEnemyCount: GAME_CONFIG.enemySpawning.gridlockEnemyThreshold,
@@ -14210,7 +14475,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                     baseSpeeds: { ...GAME_CONFIG.enemyMovement.baseSpeeds },
                     effectiveSpeeds: Object.fromEntries(Object.entries(this.BASE_SPEEDS).map(([size, speed]) => [
                         size,
-                        Number((speed * speedMultiplier).toFixed(4))
+                        Number((speed * speedMultiplier * sharedSpeedMultiplier).toFixed(4))
                     ])),
                     orb: {
                         sizePx: Number((this.ORB_SIZE || 0).toFixed(4)),
@@ -14236,7 +14501,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 const tuning = this.telemetrySystem.captureSurvivalTuningSnapshot();
                 this.telemetrySystem.currentSurvivalTelemetryRun = {
                     id: `survival-${Date.now()}-${Math.floor(Math.random() * 100000)}`,
-                    schema: 'blockazoids-survival-lab-v2',
+                    schema: 'blockazoids-survival-lab-v3',
                     build: BUILD_VERSION,
                     source,
                     startedAt: now,
@@ -14248,6 +14513,9 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                     killer: null,
                     enemyCountAtDeath: null,
                     activeTuning: tuning,
+                    startingTuning: tuning,
+                    parameterChanges: [],
+                    endingTuning: null,
                     behaviorMetrics: {
                         dash: {
                             chargeAttempts: 0,
@@ -14271,6 +14539,20 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 };
                 this.telemetrySystem.saveSurvivalTelemetryData();
                 return this.telemetrySystem.currentSurvivalTelemetryRun;
+                        },
+
+            noteSurvivalTuningChange: function(parameter, previousValue, nextValue) {
+                const run = this.telemetrySystem.currentSurvivalTelemetryRun;
+                if (!run || run.endedAt || !Array.isArray(run.parameterChanges)) return false;
+                run.parameterChanges.push({
+                    survivalTimeMs: Math.max(0, Math.round(this.runtimeState.finalGridlockElapsedMs || 0)),
+                    parameter: String(parameter || ''),
+                    previousValue,
+                    nextValue
+                });
+                run.activeTuning = this.telemetrySystem.captureSurvivalTuningSnapshot();
+                this.telemetrySystem.saveSurvivalTelemetryData();
+                return true;
                         },
 
             noteSurvivalBehaviorTime: function(identity, state, deltaMs) {
@@ -14341,6 +14623,8 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 if (run.behaviorMetrics && run.behaviorMetrics.echo) {
                     run.behaviorMetrics.echo.averageReactivationDistanceFromOrbPx = Number(average(run.behaviorMetrics.echo.reactivationDistancesFromOrbPx).toFixed(2));
                 }
+                run.endingTuning = this.telemetrySystem.captureSurvivalTuningSnapshot();
+                run.activeTuning = run.endingTuning;
                 run.endedAt = new Date().toISOString();
                 run.endReason = reason;
                 run.survivalTimeMs = Math.max(0, Math.round(this.runtimeState.finalGridlockElapsedMs || 0));
@@ -16095,8 +16379,8 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                     }
                     : null;
                 const exportData = {
-                    schema: 'blockazoids-survival-export-v2',
-                    telemetrySchema: 'blockazoids-survival-lab-v2',
+                    schema: 'blockazoids-survival-export-v3',
+                    telemetrySchema: 'blockazoids-survival-lab-v3',
                     telemetrySchemaVersion: 2,
                     exportedAt: new Date().toISOString(),
                     build: BUILD_VERSION,
@@ -17058,8 +17342,12 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 this.assert('Survival spawn positions use one deterministic sequence', Array.isArray(GAME_CONFIG.gameModes.survivalSpawnCellSequence) && GAME_CONFIG.gameModes.survivalSpawnCellSequence.length === GAME_CONFIG.enemySpawning.gridlockEnemyThreshold && EnemySpawnSystem.prototype.chooseSurvivalSpawnLocation.toString().includes('survivalSpawnSequenceIndex'));
                 this.assert('Survival telemetry is stored separately from Campaign telemetry', GAME_CONFIG.storage.survivalTelemetry !== GAME_CONFIG.storage.telemetry && TelemetrySystem.implementations.beginSurvivalTelemetryRun.toString().includes('currentSurvivalTelemetryRun') && TelemetrySystem.implementations.finishSurvivalTelemetryRun.toString().includes('survivalTelemetry.runs'));
                 this.assert('Survival telemetry captures DASH and ECHO behavior states', telemetryOwner.hasImplementation('noteSurvivalBehaviorTime') && telemetryOwner.hasImplementation('noteSurvivalDashEvent') && telemetryOwner.hasImplementation('noteSurvivalEchoEvent'));
-                this.assert('Survival telemetry has a dedicated export command and control', telemetryOwner.hasImplementation('exportSurvivalTelemetryData') && !!document.getElementById('exportSurvivalTelemetryButton') && TelemetrySystem.implementations.exportSurvivalTelemetryData.toString().includes('blockazoids-survival-export-v2') && !TelemetrySystem.implementations.exportSurvivalTelemetryData.toString().includes('savedRuns: this.telemetrySystem.telemetry.runs'));
+                this.assert('Survival telemetry has a dedicated export command and control', telemetryOwner.hasImplementation('exportSurvivalTelemetryData') && !!document.getElementById('exportSurvivalTelemetryButton') && TelemetrySystem.implementations.exportSurvivalTelemetryData.toString().includes('blockazoids-survival-export-v3') && !TelemetrySystem.implementations.exportSurvivalTelemetryData.toString().includes('savedRuns: this.telemetrySystem.telemetry.runs'));
                 this.assert('Survival lifecycle starts its dedicated telemetry path', Game.prototype.beginFinalGridlock.toString().includes("beginSurvivalTelemetryRun('survival-mode')"));
+                this.assert('Developer Survival tuning has one authoritative owner', SurvivalBehaviorTuningSystem.ownedFields.length === 3 && !!document.getElementById('survivalBehaviorTuningPanel') && GAME_CONFIG.storage.survivalBehaviorTuning !== GAME_CONFIG.storage.survivalTelemetry);
+                this.assert('Survival pause remains available and freezes behavior clocks', UI.prototype.updateStartPauseButton.toString().includes('survivalPauseAvailable') && Game.prototype.pauseGameplay.toString().includes('isSurvivalRun') && Game.prototype.resumeLiveAction.toString().includes('shiftPausedTime'));
+                this.assert('Survival tuning changes are isolated and recorded', TelemetrySystem.implementations.noteSurvivalTuningChange.toString().includes('parameterChanges') && TelemetrySystem.implementations.finishSurvivalTelemetryRun.toString().includes('endingTuning'));
+                this.assert('Campaign behavior defaults bypass Survival overrides', SurvivalBehaviorTuningSystem.prototype.isRuntimeOverrideActive.toString().includes('isSurvivalRun') && SurvivalBehaviorTuningSystem.prototype.getDashTuning.toString().includes('this.config.enemyBehaviors.charger'));
                 this.assert('Crystal topology calls retain responsive grid size', topologySource.includes('normalizeGridPoint(currentPos, this.GRID_SIZE)') && topologySource.includes('hasCollectedGridPoint(target, this.GRID_SIZE)'));
             }
 
@@ -21498,6 +21786,26 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                         game.adjustTrackingSpeed(1);
                     });
                 }
+                if (game.survivalTuningButtons && game.survivalTuningButtons.length) {
+                    game.survivalTuningButtons.forEach((button) => {
+                        button.addEventListener('click', (e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            if (!game.developerTools.developerModeEnabled) return;
+                            game.playUiClick();
+                            game.behaviorTuningSystem.adjust(button.dataset.survivalTuning, Number(button.dataset.direction) || 1);
+                        });
+                    });
+                }
+                if (game.resetSurvivalTuningButton) {
+                    game.resetSurvivalTuningButton.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (!game.developerTools.developerModeEnabled) return;
+                        game.playUiClick();
+                        game.behaviorTuningSystem.resetDefaults();
+                    });
+                }
                 if (game.crtEffectLevelButtons && game.crtEffectLevelButtons.length) {
                     game.crtEffectLevelButtons.forEach(button => {
                         button.addEventListener('click', (e) => {
@@ -22035,6 +22343,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 this.scheduler = new SchedulingManager();
                 this.settings = new SettingsSystem(storageService, GAME_CONFIG);
                 this.gameMode = new GameModeSystem(storageService, GAME_CONFIG);
+                this.behaviorTuningSystem = new SurvivalBehaviorTuningSystem(this, storageService, GAME_CONFIG);
                 this.scoreSystem = new ScoreSystem();
                 this.runSession = new RunSession();
                 this.highScoreSystem = new HighScoreSystem(storageService);
@@ -22306,6 +22615,14 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 this.developerModeLabel = document.getElementById('developerModeLabel');
                 this.telemetryButton = document.getElementById('telemetryButton');
                 this.telemetryPanel = document.getElementById('telemetryPanel');
+                this.survivalBehaviorTuningPanel = document.getElementById('survivalBehaviorTuningPanel');
+                this.survivalTuningContext = document.getElementById('survivalTuningContext');
+                this.survivalTuningSharedGroup = document.getElementById('survivalTuningSharedGroup');
+                this.survivalTuningDashGroup = document.getElementById('survivalTuningDashGroup');
+                this.survivalTuningEchoGroup = document.getElementById('survivalTuningEchoGroup');
+                this.survivalTuningButtons = Array.from(document.querySelectorAll('[data-survival-tuning]'));
+                this.survivalTuningValueElements = Array.from(document.querySelectorAll('[data-survival-tuning-value]'));
+                this.resetSurvivalTuningButton = document.getElementById('resetSurvivalTuningButton');
                 this.telemetrySummary = document.getElementById('telemetrySummary');
                 this.exportTelemetryButton = document.getElementById('exportTelemetryButton');
                 this.exportSurvivalTelemetryButton = document.getElementById('exportSurvivalTelemetryButton');
@@ -22457,6 +22774,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 this.crystalSystem.nextCrystalOrder = 1;            // Current blinking crystal order marker
                 this.crystalSystem.activeBlinkingCrystals = [];     // Current selectable blinking crystals; kept stable between pickups
                 this.survivalScoreAccumulator = 0;   // Tracks active gameplay seconds for +1 point per second
+                this.survivalBehaviorPauseStartedAt = 0; // Freezes DASH/ECHO state clocks across Survival pause and resume countdown.
                 this.sectorElapsedMs = 0;            // Total active time in the current sector
                 // GridlockSystem owns the complete per-sector milestone sequence and all reward state.
                 this.gridlockSystem.resetState();
@@ -23909,7 +24227,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 const pauseOptions = options && typeof options === 'object' ? options : {};
                 const reason = String(pauseOptions.reason || 'manual-pause');
                 const telemetryReason = String(pauseOptions.telemetryReason || reason);
-                const allowFinalGridlock = pauseOptions.allowFinalGridlock === true;
+                const allowFinalGridlock = pauseOptions.allowFinalGridlock === true || (this.gameMode && this.gameMode.isSurvivalRun());
                 const showOverlay = pauseOptions.showOverlay !== false;
                 const pauseAllowed = this.flow.allowsPause() && !this.runtimeState.sectorTransitionActive &&
                     !this.runtimeState.finalGridlockResultActive &&
@@ -23923,6 +24241,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 )) return false;
 
                 this.cancelTransitionGroup(`pause-gameplay:${reason}`);
+                if (this.gameMode.isSurvivalRun() && !this.survivalBehaviorPauseStartedAt) this.survivalBehaviorPauseStartedAt = performance.now();
                 this.telemetrySystem.beginTelemetryPause(telemetryReason);
                 this.beginRunRecordPause();
                 this.runtimeState.patchGameplay({ active: false, isPaused: true, resumeCountdownActive: false });
@@ -23977,6 +24296,13 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
             resumeLiveAction() {
                 if (!this.flow.is(GAME_FLOW_STATES.RESUME_COUNTDOWN)) return;
 
+                if (this.gameMode.isSurvivalRun() && this.survivalBehaviorPauseStartedAt) {
+                    const pausedDurationMs = Math.max(0, performance.now() - this.survivalBehaviorPauseStartedAt);
+                    this.enemies.forEach((enemy) => {
+                        if (enemy && enemy.behavior && typeof enemy.behavior.shiftPausedTime === 'function') enemy.behavior.shiftPausedTime(pausedDurationMs);
+                    });
+                    this.survivalBehaviorPauseStartedAt = 0;
+                }
                 this.telemetrySystem.endTelemetryPause('manual-resume');
                 this.endRunRecordPause();
                 this.runtimeState.patchGameplay({ isPaused: false });
@@ -24078,6 +24404,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 const selectedOption = Math.max(1, Math.min(this.campaign.getSectorSelectOptionCount({ developerMode: this.developerTools.developerModeEnabled }), this.campaign.selectedStartSector || 1));
                 const endOption = this.campaign.getEndOptionValue();
                 this.gameMode.beginRun();
+                this.survivalBehaviorPauseStartedAt = 0;
 
                 this.clearEnemyDeathCause();
                 this.hasStartedRun = true;
@@ -26488,19 +26815,34 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 };
             }
 
+            getSharedSpeedMultiplier() {
+                return this.enemy.game.behaviorTuningSystem ? this.enemy.game.behaviorTuningSystem.getSharedSpeedMultiplier() : 1;
+            }
+
             initializeZigMovement() {
                 const enemy = this.enemy;
                 const direction = this.getInitialDirection();
-                enemy.dx = direction.x * enemy.speed;
-                enemy.dy = direction.y * enemy.speed;
+                const componentSpeed = enemy.speed * this.getSharedSpeedMultiplier();
+                enemy.dx = direction.x * componentSpeed;
+                enemy.dy = direction.y * componentSpeed;
             }
 
             normalizeToZigSpeed(fallbackDirection = null) {
                 const enemy = this.enemy;
                 enemy.normalizeVelocityMagnitude(
-                    enemy.speed * Math.SQRT2,
+                    enemy.speed * this.getSharedSpeedMultiplier() * Math.SQRT2,
                     fallbackDirection || { x: enemy.dx, y: enemy.dy }
                 );
+            }
+
+            shiftPausedTime(deltaMs) {
+                const shift = Math.max(0, Number(deltaMs) || 0);
+                if (Number.isFinite(this.stateEndsAt) && this.stateEndsAt > 0) this.stateEndsAt += shift;
+                if (Number.isFinite(this.chargeStartedAt) && this.chargeStartedAt > 0) this.chargeStartedAt += shift;
+            }
+
+            applyLiveSharedSpeedChange() {
+                this.normalizeToZigSpeed();
             }
 
             updateZigMovement(deltaTime) {
@@ -26540,7 +26882,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
         class ChargerBehavior extends ZigMovementFoundation {
             constructor(enemy) {
                 super(enemy);
-                this.tuning = GAME_CONFIG.enemyBehaviors.charger;
+                this.tuning = enemy.game.behaviorTuningSystem.getDashTuning();
                 this.state = 'cruise';
                 this.stateEndsAt = 0;
                 this.chargeCycle = 0;
@@ -26610,8 +26952,9 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 this.stateEndsAt = now + this.tuning.chargeDurationMs;
                 this.chargeStartedAt = now;
                 this.chargeDistancePx = 0;
-                enemy.dx = targetX / magnitude * enemy.speed * this.tuning.chargeSpeedMultiplier;
-                enemy.dy = targetY / magnitude * enemy.speed * this.tuning.chargeSpeedMultiplier;
+                const chargeSpeed = enemy.speed * this.getSharedSpeedMultiplier() * this.tuning.chargeSpeedMultiplier;
+                enemy.dx = targetX / magnitude * chargeSpeed;
+                enemy.dy = targetY / magnitude * chargeSpeed;
                 this.setVisualState(this.state, now);
                 this.playSound('dash-charge', {
                     durationMs: this.tuning.chargeDurationMs,
@@ -26644,7 +26987,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
 
             onBoundaryCollision() {
                 if (this.state === 'charge') {
-                    this.enemy.normalizeVelocityMagnitude(this.enemy.speed * this.tuning.chargeSpeedMultiplier, { x: this.enemy.dx, y: this.enemy.dy });
+                    this.enemy.normalizeVelocityMagnitude(this.enemy.speed * this.getSharedSpeedMultiplier() * this.tuning.chargeSpeedMultiplier, { x: this.enemy.dx, y: this.enemy.dy });
                     return;
                 }
                 if (this.state === 'warning') return;
@@ -26659,13 +27002,26 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 }
                 if (this.state === 'charge') {
                     this.enemy.normalizeVelocityMagnitude(
-                        this.enemy.speed * this.tuning.chargeSpeedMultiplier,
+                        this.enemy.speed * this.getSharedSpeedMultiplier() * this.tuning.chargeSpeedMultiplier,
                         normal || { x: this.enemy.dx, y: this.enemy.dy }
                     );
                     this.enemy.game.telemetrySystem.noteSurvivalDashEvent('block-collision', { enemy: this.enemy });
                     return;
                 }
                 super.onEnemyCollision({ normal });
+            }
+
+            applyLiveSharedSpeedChange() {
+                if (this.state === 'warning') {
+                    this.enemy.dx = 0;
+                    this.enemy.dy = 0;
+                    return;
+                }
+                if (this.state === 'charge') {
+                    this.enemy.normalizeVelocityMagnitude(this.enemy.speed * this.getSharedSpeedMultiplier() * this.tuning.chargeSpeedMultiplier);
+                    return;
+                }
+                super.applyLiveSharedSpeedChange();
             }
 
             flushTelemetry(reason = 'enemy-removed') {
@@ -26711,7 +27067,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
         class PulseBlockBehavior extends ZigMovementFoundation {
             constructor(enemy) {
                 super(enemy);
-                this.tuning = GAME_CONFIG.enemyBehaviors.pulse;
+                this.tuning = enemy.game.behaviorTuningSystem.getEchoTuning();
                 this.state = 'active';
                 this.stateEndsAt = 0;
                 this.phaseTransitionPulseStartedAt = 0;
@@ -29935,7 +30291,8 @@ startGridlockBeat(delaySeconds = 0) {
                     this.game.runtimeState.sectorTransitionActive
                 );
                 const primaryActionReady = !blockedTransition && (ordinaryStartReady || finalRestartReady);
-                const controlHidden = this.scoreAlertActive || this.game.runtimeState.finalGridlockActive || (!inLivePlay && !canResume && !primaryActionReady);
+                const survivalPauseAvailable = this.game.gameMode && this.game.gameMode.isSurvivalRun();
+                const controlHidden = this.scoreAlertActive || (this.game.runtimeState.finalGridlockActive && !survivalPauseAvailable) || (!inLivePlay && !canResume && !primaryActionReady);
                 const useUtilitySlot = !controlHidden && (inLivePlay || canResume);
                 const usePrimarySlot = !controlHidden && !useUtilitySlot;
                 const controlLabel = this.game.runtimeState.finalGridlockResultActive
@@ -30165,6 +30522,7 @@ startGridlockBeat(delaySeconds = 0) {
                 this.syncTopHudAnnouncementPresentation();
                 this.updateSectorProgressIndicators();
                 this.updateRadarColorIndicator();
+                if (this.game.behaviorTuningSystem) this.game.behaviorTuningSystem.refreshUI();
             }
         }
 
@@ -30320,7 +30678,7 @@ startGridlockBeat(delaySeconds = 0) {
                 assert('DASH uses only the four authored modifier values', Object.keys(dashParity).sort().join(',') === 'chargeCadenceMs,chargeDurationMs,chargeSpeedMultiplier,warningMs' && dashParity.chargeCadenceMs === 2700 && dashParity.warningMs === 350 && dashParity.chargeSpeedMultiplier === 2.3 && dashParity.chargeDurationMs === 600);
                 assert('DASH charge profile applies proportionally to all sizes', ['small', 'medium', 'large'].every((size) => Math.abs((game.getEnemySpeed(size) * dashParity.chargeSpeedMultiplier) - (game.getEnemySpeed(size) * 2.3)) < 0.000001));
                 const zigFoundationSource = ZigMovementFoundation.toString();
-                assert('ZIG movement profile remains unchanged and authoritative', zigFoundationSource.includes('direction.x * enemy.speed') && zigFoundationSource.includes('enemy.speed * Math.SQRT2'));
+                assert('ZIG movement profile remains authoritative with one Survival-only developer scale', zigFoundationSource.includes('componentSpeed = enemy.speed * this.getSharedSpeedMultiplier()') && zigFoundationSource.includes('enemy.speed * this.getSharedSpeedMultiplier() * Math.SQRT2'));
                 assert('DASH and ECHO inherit the ZIG movement foundation', ChargerBehavior.prototype instanceof ZigMovementFoundation && PulseBlockBehavior.prototype instanceof ZigMovementFoundation);
                 assert('DASH has no directional-line telegraph or recovery state', !CanvasPlayfieldRenderer.prototype.drawCharger.toString().includes('drawChargerTargetLine') && !ChargerBehavior.toString().includes('recovery'));
                 assert('ECHO exposes only active and phased gameplay durations', GAME_CONFIG.enemyBehaviors.pulse.activeMs === 2000 && GAME_CONFIG.enemyBehaviors.pulse.phasedMs === 900 && !Object.prototype.hasOwnProperty.call(GAME_CONFIG.enemyBehaviors.pulse, 'speedMultiplier') && PulseBlockBehavior.prototype.beginPhased.toString().includes('this.tuning.phasedMs'));
