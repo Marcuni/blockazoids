@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Block-A-Zoids p293: adds developer-only live Survival behavior tuning, preserves Campaign defaults, and records every tuning change in isolated Survival telemetry.
+Block-A-Zoids p295: adds persistent ZIG baseline median survival telemetry and automatically reset DASH/ECHO tuning medians for objective behavior parity testing.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="p293">
+<html data-build-version="p295">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -5756,7 +5756,7 @@ Font License Notices
 
         /* Launch uses the same gap token, giving Starting Sector and Difficulty clear separation. */
 
-/* p293 developer-only Survival tuning panel. It reuses existing Settings stepper language and remains hidden outside Survival. */
+/* p294 developer-only behavior tuning panel. It reuses existing Settings stepper language; Survival shows the selected identity, while Campaign exposes all identity modifiers through the same authoritative override layer. */
 #survivalBehaviorTuningPanel {
     display: none;
     width: min(270px, 92%);
@@ -5801,6 +5801,48 @@ Font License Notices
 #resetSurvivalTuningButton {
     width: 100%;
     margin-top: 10px;
+}
+.survival-benchmark {
+    margin-top: 12px;
+    padding: 9px 8px;
+    border: 1px solid rgba(255,255,255,0.52);
+    font-family: "Orbitron";
+    font-size: clamp(10px, 3vw, 13px);
+    line-height: 1.5;
+    letter-spacing: 0.4px;
+}
+.survival-benchmark-heading {
+    margin-bottom: 5px;
+    text-align: center;
+    font-size: clamp(12px, 3.5vw, 15px);
+    letter-spacing: 1px;
+}
+.survival-benchmark-row {
+    display: grid;
+    grid-template-columns: 4.5ch 1fr auto;
+    gap: 7px;
+    align-items: baseline;
+    font-variant-numeric: tabular-nums;
+}
+.survival-benchmark-row + .survival-benchmark-row {
+    margin-top: 2px;
+}
+.survival-benchmark-identity {
+    font-weight: 800;
+}
+.survival-benchmark-value {
+    white-space: nowrap;
+}
+.survival-benchmark-delta {
+    min-width: 5.5ch;
+    text-align: right;
+    opacity: 0.78;
+}
+.survival-benchmark-note {
+    margin-top: 6px;
+    text-align: center;
+    opacity: 0.58;
+    line-height: 1.3;
 }
 
 /* Source: src/styles/35-launch-settings-pause.css */
@@ -7179,7 +7221,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                     <div class="crt-dev-heading developer-subheading">TELEMETRY</div>
                     <div id="survivalBehaviorTuningPanel" aria-hidden="true">
                         <div class="survival-tuning-heading">SURVIVAL TUNING</div>
-                        <div id="survivalTuningContext" class="survival-tuning-context">Select Survival to tune behavior.</div>
+                        <div id="survivalTuningContext" class="survival-tuning-context">Developer behavior tuning.</div>
                         <div id="survivalTuningSharedGroup" class="survival-tuning-group">
                             <div class="settings-stepper" role="group" aria-label="Shared Zig movement speed">
                                 <div class="settings-stepper-title">Shared ZIG Speed</div>
@@ -7211,6 +7253,13 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                             <div class="settings-stepper" role="group" aria-label="Echo phased duration">
                                 <div class="settings-stepper-title">Phased Duration</div><div class="settings-stepper-row"><button class="settings-stepper-arrow" type="button" data-survival-tuning="echoPhasedMs" data-direction="-1">◀</button><div class="settings-stepper-value" data-survival-tuning-value="echoPhasedMs">0.90 s</div><button class="settings-stepper-arrow" type="button" data-survival-tuning="echoPhasedMs" data-direction="1">▶</button></div>
                             </div>
+                        </div>
+                        <div id="survivalBenchmark" class="survival-benchmark" aria-live="polite">
+                            <div class="survival-benchmark-heading">MEDIAN SURVIVAL</div>
+                            <div class="survival-benchmark-row"><span class="survival-benchmark-identity">ZIG</span><span id="survivalMedianZig" class="survival-benchmark-value">— · 0 runs</span><span class="survival-benchmark-delta">BASE</span></div>
+                            <div class="survival-benchmark-row"><span class="survival-benchmark-identity">DASH</span><span id="survivalMedianDash" class="survival-benchmark-value">— · 0 runs</span><span id="survivalDeltaDash" class="survival-benchmark-delta">—</span></div>
+                            <div class="survival-benchmark-row"><span class="survival-benchmark-identity">ECHO</span><span id="survivalMedianEcho" class="survival-benchmark-value">— · 0 runs</span><span id="survivalDeltaEcho" class="survival-benchmark-delta">—</span></div>
+                            <div class="survival-benchmark-note">DASH/ECHO samples reset when their tuning changes.</div>
                         </div>
                         <button id="resetSurvivalTuningButton" class="menu-button settings-toggle" type="button">Reset Survival Defaults</button>
                     </div>
@@ -7355,7 +7404,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
         const BUILD_METADATA = window.BLOCKAZOIDS_BUILD = Object.freeze({
             version: document.documentElement.dataset.buildVersion || 'unknown',
             label: BUILD_VERSION,
-            architecturePhase: 'developer-survival-live-tuning',
+            architecturePhase: 'developer-survival-median-benchmarking',
             sourceBaseline: 'p287',
             behaviorPolicy: 'single-design-space-scale-authoritative-state-no-parallel-systems'
         });
@@ -7390,7 +7439,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
         const SOURCE_LAYOUT = window.BLOCKAZOIDS_SOURCE_LAYOUT = Object.freeze({
             developmentModel: 'modular-source',
             releaseModel: 'single-html',
-            buildOutput: 'block-a-zoids-p293.html',
+            buildOutput: 'block-a-zoids-p294.html',
             categories: Object.freeze([
                 'build', 'config', 'content', 'rules', 'state', 'services', 'app', 'gameplay',
                 'presentation', 'platform', 'audio', 'ui', 'development', 'docs'
@@ -7400,7 +7449,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
 
 /* Source: src/js/development/75-developer-documentation.js */
         const DEVELOPER_DOCUMENTATION = window.BLOCKAZOIDS_DEVELOPER_GUIDE = deepFreezeConfiguration({
-            version: 'p293',
+            version: 'p294',
             purpose: 'Make ownership, safe edit locations, state transitions, build steps, and maintenance rules discoverable without reverse-engineering the complete game.',
             architecture: {
                 application: {
@@ -9240,13 +9289,12 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 catch (_) { return false; }
             }
 
-            isDeveloperSurvivalContext() {
-                if (!this.game.developerTools || !this.game.developerTools.developerModeEnabled) return false;
-                return !!(this.game.gameMode && (this.game.gameMode.isSurvivalRun() || this.game.gameMode.isSurvivalSelected()));
+            isDeveloperTuningContext() {
+                return !!(this.game.developerTools && this.game.developerTools.developerModeEnabled);
             }
 
             isRuntimeOverrideActive() {
-                return !!(this.game.developerTools && this.game.developerTools.developerModeEnabled && this.game.gameMode && this.game.gameMode.isSurvivalRun());
+                return this.isDeveloperTuningContext();
             }
 
             getSharedSpeedMultiplier() {
@@ -9262,8 +9310,10 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
             }
 
             getIdentityKey() {
-                if (!this.game.gameMode) return 'zig';
-                return this.game.gameMode.isSurvivalRun() ? this.game.gameMode.activeSwarmType : this.game.gameMode.selectedSwarmType;
+                if (!this.game.gameMode) return 'all';
+                if (this.game.gameMode.isSurvivalRun()) return this.game.gameMode.activeSwarmType;
+                if (this.game.gameMode.isSurvivalSelected()) return this.game.gameMode.selectedSwarmType;
+                return 'all';
             }
 
             captureSnapshot() {
@@ -9285,7 +9335,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
 
             setValue(name, rawValue, { record = true } = {}) {
                 const definition = this.definitions[name];
-                if (!definition || !this.isDeveloperSurvivalContext()) return false;
+                if (!definition || !this.isDeveloperTuningContext()) return false;
                 const [group, key] = definition.path;
                 const previousValue = this.values[group][key];
                 const numeric = Number(rawValue);
@@ -9295,8 +9345,12 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 if (nextValue === previousValue) return false;
                 this.values[group][key] = nextValue;
                 this.save();
-                if (name === 'sharedSpeedMultiplier') this.applySharedSpeedImmediately();
-                if (record && this.game.telemetrySystem) this.game.telemetrySystem.noteSurvivalTuningChange(name, previousValue, nextValue);
+                if (this.game.telemetrySystem) this.game.telemetrySystem.resetSurvivalBenchmarkForParameter(name);
+                this.applyLiveTuningToEnemies();
+                if (record && this.game.telemetrySystem) {
+                    if (this.game.gameMode && this.game.gameMode.isSurvivalRun()) this.game.telemetrySystem.noteSurvivalTuningChange(name, previousValue, nextValue);
+                    else this.game.telemetrySystem.noteCampaignTuningChange(name, previousValue, nextValue);
+                }
                 this.refreshUI();
                 return true;
             }
@@ -9308,49 +9362,69 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
             }
 
             resetDefaults() {
-                if (!this.isDeveloperSurvivalContext()) return false;
+                if (!this.isDeveloperTuningContext()) return false;
                 const before = this.captureSnapshot();
                 this.values = this.cloneDefaults();
                 this.save();
-                this.applySharedSpeedImmediately();
+                const changedParameters = Object.keys(this.definitions).filter((name) => {
+                    const definition = this.definitions[name];
+                    const [group, key] = definition.path;
+                    return before[group][key] !== this.values[group][key];
+                });
+                if (this.game.telemetrySystem) changedParameters.forEach((name) => this.game.telemetrySystem.resetSurvivalBenchmarkForParameter(name));
+                this.applyLiveTuningToEnemies();
                 Object.keys(this.definitions).forEach((name) => {
                     const definition = this.definitions[name];
                     const [group, key] = definition.path;
                     const previousValue = before[group][key];
                     const nextValue = this.values[group][key];
-                    if (previousValue !== nextValue && this.game.telemetrySystem) this.game.telemetrySystem.noteSurvivalTuningChange(name, previousValue, nextValue);
+                    if (previousValue !== nextValue && this.game.telemetrySystem) {
+                        if (this.game.gameMode && this.game.gameMode.isSurvivalRun()) this.game.telemetrySystem.noteSurvivalTuningChange(name, previousValue, nextValue);
+                        else this.game.telemetrySystem.noteCampaignTuningChange(name, previousValue, nextValue);
+                    }
                 });
                 this.refreshUI();
                 return true;
             }
 
-            applySharedSpeedImmediately() {
-                if (!this.isRuntimeOverrideActive() || !Array.isArray(this.game.enemies)) return;
+            applyLiveTuningToEnemies() {
+                if (!Array.isArray(this.game.enemies)) return;
                 this.game.enemies.forEach((enemy) => {
-                    if (enemy && enemy.behavior && typeof enemy.behavior.applyLiveSharedSpeedChange === 'function') enemy.behavior.applyLiveSharedSpeedChange();
+                    if (!enemy || !enemy.behavior) return;
+                    if (enemy.behavior.type === ENEMY_BEHAVIOR_TYPES.CHARGER) enemy.behavior.tuning = this.getDashTuning();
+                    if (enemy.behavior.type === ENEMY_BEHAVIOR_TYPES.PULSE) enemy.behavior.tuning = this.getEchoTuning();
+                    if (typeof enemy.behavior.applyLiveSharedSpeedChange === 'function') enemy.behavior.applyLiveSharedSpeedChange();
                 });
+            }
+
+            applySharedSpeedImmediately() {
+                this.applyLiveTuningToEnemies();
             }
 
             refreshUI() {
                 const panel = this.game.survivalBehaviorTuningPanel;
                 if (!panel) return;
-                const visible = !!(this.game.developerTools && this.game.developerTools.developerSettingsVisible && this.isDeveloperSurvivalContext());
+                const visible = !!(this.game.developerTools && this.game.developerTools.developerSettingsVisible && this.isDeveloperTuningContext());
                 panel.classList.toggle('visible', visible);
                 panel.setAttribute('aria-hidden', visible ? 'false' : 'true');
                 if (!visible) return;
                 const identity = this.getIdentityKey();
                 const context = this.game.survivalTuningContext;
-                if (context) context.textContent = `${String(identity).toUpperCase()} · SECTOR 5 FOUNDATION · SURVIVAL ONLY`;
+                const campaignContext = identity === 'all';
+                if (context) context.textContent = campaignContext
+                    ? 'CAMPAIGN · DEV OVERRIDES · ALL IDENTITIES'
+                    : `${String(identity).toUpperCase()} · SECTOR 5 FOUNDATION · SURVIVAL`;
                 const groupMap = { zig: this.game.survivalTuningSharedGroup, dash: this.game.survivalTuningDashGroup, echo: this.game.survivalTuningEchoGroup };
                 if (this.game.survivalTuningSharedGroup) this.game.survivalTuningSharedGroup.classList.add('visible');
                 [this.game.survivalTuningDashGroup, this.game.survivalTuningEchoGroup].forEach(group => { if (group) group.classList.remove('visible'); });
-                if (identity === 'dash' && groupMap.dash) groupMap.dash.classList.add('visible');
-                if (identity === 'echo' && groupMap.echo) groupMap.echo.classList.add('visible');
+                if ((campaignContext || identity === 'dash') && groupMap.dash) groupMap.dash.classList.add('visible');
+                if ((campaignContext || identity === 'echo') && groupMap.echo) groupMap.echo.classList.add('visible');
                 this.game.survivalTuningValueElements.forEach((element) => {
                     const name = element.dataset.survivalTuningValue;
                     const definition = this.definitions[name];
                     if (definition) element.textContent = definition.format(this.getValue(name));
                 });
+                if (this.game.telemetrySystem) this.game.telemetrySystem.updateSurvivalBenchmarkUI();
             }
         }
 
@@ -13920,6 +13994,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 this.telemetrySystem.telemetryEnabled = true;
                 this.diagnosticsSystem.startPerformanceTelemetry();
                 this.developerTools.updateSectorSelectUnlockState();
+                if (this.behaviorTuningSystem) this.behaviorTuningSystem.applyLiveTuningToEnemies();
                 this.telemetrySystem.setTelemetryStatus('Developer Mode: On. Telemetry recording enabled.');
                 if (this.marqueePreviewLabel) {
                     this.marqueePreviewLabel.textContent = 'DEVELOPER MODE';
@@ -14264,6 +14339,10 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
             beginSurvivalTelemetryRun(...args) { return TelemetrySystem.implementations.beginSurvivalTelemetryRun.apply(this.game, args); }
             finishSurvivalTelemetryRun(...args) { return TelemetrySystem.implementations.finishSurvivalTelemetryRun.apply(this.game, args); }
             noteSurvivalTuningChange(...args) { return TelemetrySystem.implementations.noteSurvivalTuningChange.apply(this.game, args); }
+            resetSurvivalBenchmarkForParameter(...args) { return TelemetrySystem.implementations.resetSurvivalBenchmarkForParameter.apply(this.game, args); }
+            getSurvivalBenchmarkSummary(...args) { return TelemetrySystem.implementations.getSurvivalBenchmarkSummary.apply(this.game, args); }
+            updateSurvivalBenchmarkUI(...args) { return TelemetrySystem.implementations.updateSurvivalBenchmarkUI.apply(this.game, args); }
+            noteCampaignTuningChange(...args) { return TelemetrySystem.implementations.noteCampaignTuningChange.apply(this.game, args); }
             noteSurvivalBehaviorTime(...args) { return TelemetrySystem.implementations.noteSurvivalBehaviorTime.apply(this.game, args); }
             noteSurvivalDashEvent(...args) { return TelemetrySystem.implementations.noteSurvivalDashEvent.apply(this.game, args); }
             noteSurvivalEchoEvent(...args) { return TelemetrySystem.implementations.noteSurvivalEchoEvent.apply(this.game, args); }
@@ -14395,6 +14474,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                     schema: 'blockazoids-survival-lab-v3',
                     schemaVersion: 3,
                     runs: [],
+                    benchmark: { zig: [], dash: [], echo: [] },
                     lastSavedAt: null
                 };
                 try {
@@ -14414,6 +14494,11 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                         schema: 'blockazoids-survival-lab-v3',
                         schemaVersion: 3,
                         runs,
+                        benchmark: {
+                            zig: Array.isArray(saved.benchmark && saved.benchmark.zig) ? saved.benchmark.zig.filter(Number.isFinite).slice(-100) : [],
+                            dash: Array.isArray(saved.benchmark && saved.benchmark.dash) ? saved.benchmark.dash.filter(Number.isFinite).slice(-100) : [],
+                            echo: Array.isArray(saved.benchmark && saved.benchmark.echo) ? saved.benchmark.echo.filter(Number.isFinite).slice(-100) : []
+                        },
                         lastSavedAt: saved.savedAt || null
                     };
                 } catch (_) {
@@ -14431,6 +14516,11 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                     runs: Array.isArray(this.telemetrySystem.survivalTelemetry.runs)
                         ? this.telemetrySystem.survivalTelemetry.runs.slice(-100)
                         : [],
+                    benchmark: {
+                        zig: Array.isArray(this.telemetrySystem.survivalTelemetry.benchmark && this.telemetrySystem.survivalTelemetry.benchmark.zig) ? this.telemetrySystem.survivalTelemetry.benchmark.zig.slice(-100) : [],
+                        dash: Array.isArray(this.telemetrySystem.survivalTelemetry.benchmark && this.telemetrySystem.survivalTelemetry.benchmark.dash) ? this.telemetrySystem.survivalTelemetry.benchmark.dash.slice(-100) : [],
+                        echo: Array.isArray(this.telemetrySystem.survivalTelemetry.benchmark && this.telemetrySystem.survivalTelemetry.benchmark.echo) ? this.telemetrySystem.survivalTelemetry.benchmark.echo.slice(-100) : []
+                    },
                     activeRun: this.telemetrySystem.currentSurvivalTelemetryRun && !this.telemetrySystem.currentSurvivalTelemetryRun.endedAt
                         ? this.telemetrySystem.currentSurvivalTelemetryRun
                         : null
@@ -14555,6 +14645,73 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 return true;
                         },
 
+            resetSurvivalBenchmarkForParameter: function(parameter) {
+                if (!this.telemetrySystem.survivalTelemetry) this.telemetrySystem.survivalTelemetry = this.telemetrySystem.loadSurvivalTelemetryData();
+                const benchmark = this.telemetrySystem.survivalTelemetry.benchmark || (this.telemetrySystem.survivalTelemetry.benchmark = { zig: [], dash: [], echo: [] });
+                const name = String(parameter || '');
+                const identities = name === 'sharedSpeedMultiplier' ? ['zig', 'dash', 'echo'] : (name.startsWith('dash') ? ['dash'] : (name.startsWith('echo') ? ['echo'] : []));
+                identities.forEach((identity) => { benchmark[identity] = []; });
+                if (identities.length) {
+                    this.telemetrySystem.saveSurvivalTelemetryData();
+                    this.telemetrySystem.updateSurvivalBenchmarkUI();
+                }
+                return identities;
+                        },
+
+            getSurvivalBenchmarkSummary: function() {
+                if (!this.telemetrySystem.survivalTelemetry) this.telemetrySystem.survivalTelemetry = this.telemetrySystem.loadSurvivalTelemetryData();
+                const benchmark = this.telemetrySystem.survivalTelemetry.benchmark || { zig: [], dash: [], echo: [] };
+                const summarize = (identity) => {
+                    const values = Array.isArray(benchmark[identity]) ? benchmark[identity].filter(Number.isFinite).sort((a, b) => a - b) : [];
+                    const middle = Math.floor(values.length / 2);
+                    const medianMs = values.length ? (values.length % 2 ? values[middle] : (values[middle - 1] + values[middle]) / 2) : null;
+                    return { identity, runs: values.length, medianMs };
+                };
+                const zig = summarize('zig');
+                const dash = summarize('dash');
+                const echo = summarize('echo');
+                [dash, echo].forEach((entry) => { entry.deltaFromZigMs = Number.isFinite(entry.medianMs) && Number.isFinite(zig.medianMs) ? entry.medianMs - zig.medianMs : null; });
+                return { zig, dash, echo };
+                        },
+
+            updateSurvivalBenchmarkUI: function() {
+                const summary = this.telemetrySystem.getSurvivalBenchmarkSummary();
+                const formatMedian = (entry) => Number.isFinite(entry.medianMs) ? `${(entry.medianMs / 1000).toFixed(1)}s · ${entry.runs} ${entry.runs === 1 ? 'run' : 'runs'}` : `— · ${entry.runs} runs`;
+                const formatDelta = (entry) => Number.isFinite(entry.deltaFromZigMs) ? `${entry.deltaFromZigMs >= 0 ? '+' : ''}${(entry.deltaFromZigMs / 1000).toFixed(1)}s` : '—';
+                if (this.survivalMedianZig) this.survivalMedianZig.textContent = formatMedian(summary.zig);
+                if (this.survivalMedianDash) this.survivalMedianDash.textContent = formatMedian(summary.dash);
+                if (this.survivalMedianEcho) this.survivalMedianEcho.textContent = formatMedian(summary.echo);
+                if (this.survivalDeltaDash) this.survivalDeltaDash.textContent = formatDelta(summary.dash);
+                if (this.survivalDeltaEcho) this.survivalDeltaEcho.textContent = formatDelta(summary.echo);
+                return summary;
+                        },
+
+            noteCampaignTuningChange: function(parameter, previousValue, nextValue) {
+                if (!this.telemetrySystem.telemetryEnabled || (this.gameMode && this.gameMode.isSurvivalRun())) return false;
+                const change = {
+                    runTimeMs: this.telemetrySystem.telemetryRunElapsedMs(),
+                    sectorTimeMs: this.telemetrySystem.telemetrySectorElapsedMs(),
+                    sector: this.campaign.currentSector,
+                    parameter: String(parameter || ''),
+                    previousValue,
+                    nextValue,
+                    activeTuning: this.behaviorTuningSystem.captureSnapshot()
+                };
+                const run = this.telemetrySystem.currentTelemetryRun;
+                if (run && !run.endedAt) {
+                    if (!Array.isArray(run.developerParameterChanges)) run.developerParameterChanges = [];
+                    run.developerParameterChanges.push({ ...change });
+                }
+                const sector = this.telemetrySystem.currentTelemetrySector;
+                if (sector && !sector.endedAt) {
+                    if (!Array.isArray(sector.developerParameterChanges)) sector.developerParameterChanges = [];
+                    sector.developerParameterChanges.push({ ...change });
+                    sector.parameters = this.telemetrySystem.captureTelemetryParameters();
+                }
+                this.telemetrySystem.saveTelemetryData();
+                return !!(run || sector);
+                        },
+
             noteSurvivalBehaviorTime: function(identity, state, deltaMs) {
                 const run = this.telemetrySystem.currentSurvivalTelemetryRun;
                 if (!run || run.endedAt || !run.behaviorMetrics) return false;
@@ -14640,8 +14797,14 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 } : null;
                 if (!this.telemetrySystem.survivalTelemetry) this.telemetrySystem.survivalTelemetry = this.telemetrySystem.loadSurvivalTelemetryData();
                 this.telemetrySystem.survivalTelemetry.runs.push(run);
+                const identityKey = String(run.identity || '').toLowerCase();
+                const benchmark = this.telemetrySystem.survivalTelemetry.benchmark || (this.telemetrySystem.survivalTelemetry.benchmark = { zig: [], dash: [], echo: [] });
+                const isBenchmarkRun = reason === 'death' && ['zig', 'dash', 'echo'].includes(identityKey) && (!Array.isArray(run.parameterChanges) || run.parameterChanges.length === 0);
+                if (isBenchmarkRun) benchmark[identityKey].push(run.survivalTimeMs);
+                run.includedInMedianBenchmark = isBenchmarkRun;
                 this.telemetrySystem.currentSurvivalTelemetryRun = null;
                 this.telemetrySystem.saveSurvivalTelemetryData();
+                this.telemetrySystem.updateSurvivalBenchmarkUI();
                 return run;
                         },
 
@@ -14713,6 +14876,8 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 return {
                     build: BUILD_VERSION,
                     difficulty: this.settings.difficultyMode,
+                    developerBehaviorTuningActive: this.behaviorTuningSystem.isRuntimeOverrideActive(),
+                    developerBehaviorTuning: this.behaviorTuningSystem.captureSnapshot(),
                     playfieldSize: this.PLAYFIELD_SIZE,
                     gridSize: this.GRID_SIZE,
                     playfieldGeometry: {
@@ -14796,6 +14961,8 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                         playfieldSize: this.PLAYFIELD_SIZE
                     },
                     startingHighScore: this.highScoreSystem.highScore,
+                    developerBehaviorTuningAtStart: this.behaviorTuningSystem.captureSnapshot(),
+                    developerParameterChanges: [],
                     sectors: [],
                     endedAt: null,
                     endReason: null,
@@ -14849,6 +15016,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                     startingCrystals: this.crystalSystem.crystals.length,
                     parameters: this.telemetrySystem.captureTelemetryParameters(),
                     startParameters: this.telemetrySystem.captureTelemetryParameters(),
+                    developerParameterChanges: [],
                     result: null,
                     endedAt: null,
                     durationMs: 0,
@@ -17344,10 +17512,13 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 this.assert('Survival telemetry captures DASH and ECHO behavior states', telemetryOwner.hasImplementation('noteSurvivalBehaviorTime') && telemetryOwner.hasImplementation('noteSurvivalDashEvent') && telemetryOwner.hasImplementation('noteSurvivalEchoEvent'));
                 this.assert('Survival telemetry has a dedicated export command and control', telemetryOwner.hasImplementation('exportSurvivalTelemetryData') && !!document.getElementById('exportSurvivalTelemetryButton') && TelemetrySystem.implementations.exportSurvivalTelemetryData.toString().includes('blockazoids-survival-export-v3') && !TelemetrySystem.implementations.exportSurvivalTelemetryData.toString().includes('savedRuns: this.telemetrySystem.telemetry.runs'));
                 this.assert('Survival lifecycle starts its dedicated telemetry path', Game.prototype.beginFinalGridlock.toString().includes("beginSurvivalTelemetryRun('survival-mode')"));
-                this.assert('Developer Survival tuning has one authoritative owner', SurvivalBehaviorTuningSystem.ownedFields.length === 3 && !!document.getElementById('survivalBehaviorTuningPanel') && GAME_CONFIG.storage.survivalBehaviorTuning !== GAME_CONFIG.storage.survivalTelemetry);
+                this.assert('Developer behavior tuning has one authoritative owner', SurvivalBehaviorTuningSystem.ownedFields.length === 3 && !!document.getElementById('survivalBehaviorTuningPanel') && GAME_CONFIG.storage.survivalBehaviorTuning !== GAME_CONFIG.storage.survivalTelemetry);
                 this.assert('Survival pause remains available and freezes behavior clocks', UI.prototype.updateStartPauseButton.toString().includes('survivalPauseAvailable') && Game.prototype.pauseGameplay.toString().includes('isSurvivalRun') && Game.prototype.resumeLiveAction.toString().includes('shiftPausedTime'));
-                this.assert('Survival tuning changes are isolated and recorded', TelemetrySystem.implementations.noteSurvivalTuningChange.toString().includes('parameterChanges') && TelemetrySystem.implementations.finishSurvivalTelemetryRun.toString().includes('endingTuning'));
-                this.assert('Campaign behavior defaults bypass Survival overrides', SurvivalBehaviorTuningSystem.prototype.isRuntimeOverrideActive.toString().includes('isSurvivalRun') && SurvivalBehaviorTuningSystem.prototype.getDashTuning.toString().includes('this.config.enemyBehaviors.charger'));
+                this.assert('Survival tuning changes remain isolated and recorded', TelemetrySystem.implementations.noteSurvivalTuningChange.toString().includes('parameterChanges') && TelemetrySystem.implementations.finishSurvivalTelemetryRun.toString().includes('endingTuning'));
+                this.assert('Developer behavior tuning feeds Campaign and Survival through one override layer', SurvivalBehaviorTuningSystem.prototype.isRuntimeOverrideActive.toString().includes('isDeveloperTuningContext') && SurvivalBehaviorTuningSystem.prototype.getDashTuning.toString().includes('this.values.dash') && TelemetrySystem.implementations.captureTelemetryParameters.toString().includes('developerBehaviorTuning'));
+                this.assert('Campaign telemetry records developer tuning changes', telemetryOwner.hasImplementation('noteCampaignTuningChange') && TelemetrySystem.implementations.noteCampaignTuningChange.toString().includes('developerParameterChanges'));
+                this.assert('Survival median benchmark is telemetry-owned', telemetryOwner.hasImplementation('getSurvivalBenchmarkSummary') && !!document.getElementById('survivalBenchmark') && TelemetrySystem.implementations.finishSurvivalTelemetryRun.toString().includes('includedInMedianBenchmark'));
+                this.assert('Behavior tuning resets only affected median samples', TelemetrySystem.implementations.resetSurvivalBenchmarkForParameter.toString().includes("name.startsWith('dash')") && TelemetrySystem.implementations.resetSurvivalBenchmarkForParameter.toString().includes("name.startsWith('echo')"));
                 this.assert('Crystal topology calls retain responsive grid size', topologySource.includes('normalizeGridPoint(currentPos, this.GRID_SIZE)') && topologySource.includes('hasCollectedGridPoint(target, this.GRID_SIZE)'));
             }
 
@@ -22623,6 +22794,12 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 this.survivalTuningButtons = Array.from(document.querySelectorAll('[data-survival-tuning]'));
                 this.survivalTuningValueElements = Array.from(document.querySelectorAll('[data-survival-tuning-value]'));
                 this.resetSurvivalTuningButton = document.getElementById('resetSurvivalTuningButton');
+                this.survivalBenchmark = document.getElementById('survivalBenchmark');
+                this.survivalMedianZig = document.getElementById('survivalMedianZig');
+                this.survivalMedianDash = document.getElementById('survivalMedianDash');
+                this.survivalMedianEcho = document.getElementById('survivalMedianEcho');
+                this.survivalDeltaDash = document.getElementById('survivalDeltaDash');
+                this.survivalDeltaEcho = document.getElementById('survivalDeltaEcho');
                 this.telemetrySummary = document.getElementById('telemetrySummary');
                 this.exportTelemetryButton = document.getElementById('exportTelemetryButton');
                 this.exportSurvivalTelemetryButton = document.getElementById('exportSurvivalTelemetryButton');
@@ -30678,7 +30855,7 @@ startGridlockBeat(delaySeconds = 0) {
                 assert('DASH uses only the four authored modifier values', Object.keys(dashParity).sort().join(',') === 'chargeCadenceMs,chargeDurationMs,chargeSpeedMultiplier,warningMs' && dashParity.chargeCadenceMs === 2700 && dashParity.warningMs === 350 && dashParity.chargeSpeedMultiplier === 2.3 && dashParity.chargeDurationMs === 600);
                 assert('DASH charge profile applies proportionally to all sizes', ['small', 'medium', 'large'].every((size) => Math.abs((game.getEnemySpeed(size) * dashParity.chargeSpeedMultiplier) - (game.getEnemySpeed(size) * 2.3)) < 0.000001));
                 const zigFoundationSource = ZigMovementFoundation.toString();
-                assert('ZIG movement profile remains authoritative with one Survival-only developer scale', zigFoundationSource.includes('componentSpeed = enemy.speed * this.getSharedSpeedMultiplier()') && zigFoundationSource.includes('enemy.speed * this.getSharedSpeedMultiplier() * Math.SQRT2'));
+                assert('ZIG movement profile remains authoritative with one developer tuning scale', zigFoundationSource.includes('componentSpeed = enemy.speed * this.getSharedSpeedMultiplier()') && zigFoundationSource.includes('enemy.speed * this.getSharedSpeedMultiplier() * Math.SQRT2'));
                 assert('DASH and ECHO inherit the ZIG movement foundation', ChargerBehavior.prototype instanceof ZigMovementFoundation && PulseBlockBehavior.prototype instanceof ZigMovementFoundation);
                 assert('DASH has no directional-line telegraph or recovery state', !CanvasPlayfieldRenderer.prototype.drawCharger.toString().includes('drawChargerTargetLine') && !ChargerBehavior.toString().includes('recovery'));
                 assert('ECHO exposes only active and phased gameplay durations', GAME_CONFIG.enemyBehaviors.pulse.activeMs === 2000 && GAME_CONFIG.enemyBehaviors.pulse.phasedMs === 900 && !Object.prototype.hasOwnProperty.call(GAME_CONFIG.enemyBehaviors.pulse, 'speedMultiplier') && PulseBlockBehavior.prototype.beginPhased.toString().includes('this.tuning.phasedMs'));
