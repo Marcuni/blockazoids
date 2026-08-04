@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Block-A-Zoids p303: recovery build restored from the last known stable pre-median build.  extends the existing developer behavior-tuning override layer to Campaign while Developer Mode is active and records Campaign tuning snapshots and changes.
+Block-A-Zoids p304: restores the developer Survival median display without startup hooks or storage writes.  extends the existing developer behavior-tuning override layer to Campaign while Developer Mode is active and records Campaign tuning snapshots and changes.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="p303">
+<html data-build-version="p304">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -952,6 +952,22 @@ Font License Notices
         .developer-mode-label.visible {
             display: none;
         }
+
+        .survival-benchmark {
+            margin: 10px 0 12px;
+            padding: 8px;
+            border: 1px solid rgba(255,255,255,0.72);
+            font-family: "Orbitron";
+            font-size: clamp(10px, 3vw, 13px);
+            line-height: 1.35;
+        }
+        .survival-benchmark-heading { text-align:center; letter-spacing:1px; margin-bottom:6px; }
+        .survival-benchmark-row { display:grid; grid-template-columns:48px 1fr 58px; gap:6px; align-items:center; }
+        .survival-benchmark-row + .survival-benchmark-row { margin-top:4px; }
+        .survival-benchmark-identity { font-weight:700; }
+        .survival-benchmark-value { text-align:left; font-variant-numeric:tabular-nums; }
+        .survival-benchmark-delta { text-align:right; color:rgba(255,255,255,0.72); }
+        .survival-benchmark-note { margin-top:7px; text-align:center; color:rgba(255,255,255,0.58); font-size:0.88em; }
 
         .telemetry-summary {
             margin: 8px 0 12px;
@@ -7212,6 +7228,13 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                                 <div class="settings-stepper-title">Phased Duration</div><div class="settings-stepper-row"><button class="settings-stepper-arrow" type="button" data-survival-tuning="echoPhasedMs" data-direction="-1">◀</button><div class="settings-stepper-value" data-survival-tuning-value="echoPhasedMs">0.90 s</div><button class="settings-stepper-arrow" type="button" data-survival-tuning="echoPhasedMs" data-direction="1">▶</button></div>
                             </div>
                         </div>
+                        <div id="survivalBenchmark" class="survival-benchmark" aria-live="polite">
+                            <div class="survival-benchmark-heading">MEDIAN SURVIVAL</div>
+                            <div class="survival-benchmark-row"><span class="survival-benchmark-identity">ZIG</span><span id="survivalMedianZig" class="survival-benchmark-value">88.0s · BASE</span><span class="survival-benchmark-delta">BASE</span></div>
+                            <div class="survival-benchmark-row"><span class="survival-benchmark-identity">DASH</span><span id="survivalMedianDash" class="survival-benchmark-value">— · 0 runs</span><span id="survivalDeltaDash" class="survival-benchmark-delta">—</span></div>
+                            <div class="survival-benchmark-row"><span class="survival-benchmark-identity">ECHO</span><span id="survivalMedianEcho" class="survival-benchmark-value">— · 0 runs</span><span id="survivalDeltaEcho" class="survival-benchmark-delta">—</span></div>
+                            <div class="survival-benchmark-note">ZIG baseline is fixed at 88.0 seconds for this recovery build.</div>
+                        </div>
                         <button id="resetSurvivalTuningButton" class="menu-button settings-toggle" type="button">Reset Survival Defaults</button>
                     </div>
                     <div id="telemetrySummary" class="telemetry-summary">Developer Mode required.</div>
@@ -7400,7 +7423,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
 
 /* Source: src/js/development/75-developer-documentation.js */
         const DEVELOPER_DOCUMENTATION = window.BLOCKAZOIDS_DEVELOPER_GUIDE = deepFreezeConfiguration({
-            version: 'p303',
+            version: 'p304',
             purpose: 'Make ownership, safe edit locations, state transitions, build steps, and maintenance rules discoverable without reverse-engineering the complete game.',
             architecture: {
                 application: {
@@ -14687,7 +14710,35 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 this.telemetrySystem.survivalTelemetry.runs.push(run);
                 this.telemetrySystem.currentSurvivalTelemetryRun = null;
                 this.telemetrySystem.saveSurvivalTelemetryData();
+                this.updateSurvivalBenchmarkUI();
                 return run;
+                        },
+
+            updateSurvivalBenchmarkUI: function() {
+                if (!this.survivalMedianZig || !this.survivalMedianDash || !this.survivalMedianEcho) return false;
+                const runs = this.telemetrySystem && this.telemetrySystem.survivalTelemetry && Array.isArray(this.telemetrySystem.survivalTelemetry.runs)
+                    ? this.telemetrySystem.survivalTelemetry.runs
+                    : [];
+                const medianFor = (identity) => {
+                    const values = runs
+                        .filter((run) => run && run.endReason === 'death' && String(run.identity || '').toUpperCase() === identity && Number.isFinite(run.survivalTimeMs) && (!Array.isArray(run.parameterChanges) || run.parameterChanges.length === 0))
+                        .map((run) => run.survivalTimeMs)
+                        .sort((a,b) => a-b);
+                    if (!values.length) return { runs: 0, medianMs: null };
+                    const middle = Math.floor(values.length / 2);
+                    return { runs: values.length, medianMs: values.length % 2 ? values[middle] : (values[middle-1] + values[middle]) / 2 };
+                };
+                const zigMedianMs = 88000;
+                const dash = medianFor('DASH');
+                const echo = medianFor('ECHO');
+                const format = (entry) => Number.isFinite(entry.medianMs) ? `${(entry.medianMs/1000).toFixed(1)}s · ${entry.runs} ${entry.runs === 1 ? 'run' : 'runs'}` : '— · 0 runs';
+                const delta = (entry) => Number.isFinite(entry.medianMs) ? `${entry.medianMs >= zigMedianMs ? '+' : ''}${((entry.medianMs-zigMedianMs)/1000).toFixed(1)}s` : '—';
+                this.survivalMedianZig.textContent = '88.0s · BASE';
+                this.survivalMedianDash.textContent = format(dash);
+                this.survivalMedianEcho.textContent = format(echo);
+                if (this.survivalDeltaDash) this.survivalDeltaDash.textContent = delta(dash);
+                if (this.survivalDeltaEcho) this.survivalDeltaEcho.textContent = delta(echo);
+                return true;
                         },
 
             saveTelemetryData: function() {
@@ -21970,6 +22021,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                         if (game.screenManager.shouldIgnoreFreshInput()) return;
                         game.playUiClick();
                         game.screenManager.showPanel('telemetry');
+                        game.updateSurvivalBenchmarkUI();
                     });
                 }
                 if (game.exportTelemetryButton) {
@@ -22673,6 +22725,12 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 this.survivalTuningEchoGroup = document.getElementById('survivalTuningEchoGroup');
                 this.survivalTuningButtons = Array.from(document.querySelectorAll('[data-survival-tuning]'));
                 this.survivalTuningValueElements = Array.from(document.querySelectorAll('[data-survival-tuning-value]'));
+                this.survivalBenchmark = document.getElementById('survivalBenchmark');
+                this.survivalMedianZig = document.getElementById('survivalMedianZig');
+                this.survivalMedianDash = document.getElementById('survivalMedianDash');
+                this.survivalMedianEcho = document.getElementById('survivalMedianEcho');
+                this.survivalDeltaDash = document.getElementById('survivalDeltaDash');
+                this.survivalDeltaEcho = document.getElementById('survivalDeltaEcho');
                 this.resetSurvivalTuningButton = document.getElementById('resetSurvivalTuningButton');
                 this.telemetrySummary = document.getElementById('telemetrySummary');
                 this.exportTelemetryButton = document.getElementById('exportTelemetryButton');
