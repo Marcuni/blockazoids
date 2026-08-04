@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Block-A-Zoids p302: restores the working p299 startup path, uses a non-boot 88-second ZIG benchmark fallback, and isolates Survival median resets to the currently tuned block.
+Block-A-Zoids p298: removes all constructor-time survival median UI work and refreshes benchmarks only from safe developer and run-completion events.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="p302">
+<html data-build-version="p298">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -7404,7 +7404,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
         const BUILD_METADATA = window.BLOCKAZOIDS_BUILD = Object.freeze({
             version: document.documentElement.dataset.buildVersion || 'unknown',
             label: BUILD_VERSION,
-            architecturePhase: 'developer-survival-median-identity-isolated-resets',
+            architecturePhase: 'developer-survival-median-benchmarking-startup-safe',
             sourceBaseline: 'p287',
             behaviorPolicy: 'single-design-space-scale-authoritative-state-no-parallel-systems'
         });
@@ -9345,7 +9345,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 if (nextValue === previousValue) return false;
                 this.values[group][key] = nextValue;
                 this.save();
-                if (this.game.telemetrySystem) this.game.telemetrySystem.resetSurvivalBenchmarkForParameter(name, group);
+                if (this.game.telemetrySystem) this.game.telemetrySystem.resetSurvivalBenchmarkForParameter(name);
                 this.applyLiveTuningToEnemies();
                 if (record && this.game.telemetrySystem) {
                     if (this.game.gameMode && this.game.gameMode.isSurvivalRun()) this.game.telemetrySystem.noteSurvivalTuningChange(name, previousValue, nextValue);
@@ -9371,11 +9371,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                     const [group, key] = definition.path;
                     return before[group][key] !== this.values[group][key];
                 });
-                if (this.game.telemetrySystem) changedParameters.forEach((name) => {
-                    const definition = this.definitions[name];
-                    const group = definition && Array.isArray(definition.path) ? definition.path[0] : null;
-                    this.game.telemetrySystem.resetSurvivalBenchmarkForParameter(name, group);
-                });
+                if (this.game.telemetrySystem) changedParameters.forEach((name) => this.game.telemetrySystem.resetSurvivalBenchmarkForParameter(name));
                 this.applyLiveTuningToEnemies();
                 Object.keys(this.definitions).forEach((name) => {
                     const definition = this.definitions[name];
@@ -14648,21 +14644,11 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 return true;
                         },
 
-            resetSurvivalBenchmarkForParameter: function(parameter, tuningGroup = null) {
+            resetSurvivalBenchmarkForParameter: function(parameter) {
                 if (!this.telemetrySystem.survivalTelemetry) this.telemetrySystem.survivalTelemetry = this.telemetrySystem.loadSurvivalTelemetryData();
                 const benchmark = this.telemetrySystem.survivalTelemetry.benchmark || (this.telemetrySystem.survivalTelemetry.benchmark = { zig: [], dash: [], echo: [] });
                 const name = String(parameter || '');
-                const group = String(tuningGroup || '').toLowerCase();
-                const activeIdentity = this.behaviorTuningSystem && typeof this.behaviorTuningSystem.getIdentityKey === 'function'
-                    ? String(this.behaviorTuningSystem.getIdentityKey() || '').toLowerCase()
-                    : '';
-                const identities = group === 'dash' ? ['dash']
-                    : group === 'echo' ? ['echo']
-                    : group === 'shared' || name === 'sharedSpeedMultiplier'
-                        ? (['zig', 'dash', 'echo'].includes(activeIdentity) ? [activeIdentity] : [])
-                    : name.startsWith('dash') ? ['dash']
-                    : name.startsWith('echo') ? ['echo']
-                    : [];
+                const identities = name === 'sharedSpeedMultiplier' ? ['zig', 'dash', 'echo'] : (name.startsWith('dash') ? ['dash'] : (name.startsWith('echo') ? ['echo'] : []));
                 identities.forEach((identity) => { benchmark[identity] = []; });
                 if (identities.length) {
                     this.telemetrySystem.saveSurvivalTelemetryData();
@@ -14683,10 +14669,6 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 const zig = summarize('zig');
                 const dash = summarize('dash');
                 const echo = summarize('echo');
-                if (!Number.isFinite(zig.medianMs)) {
-                    zig.medianMs = 88000;
-                    zig.isFallbackBaseline = true;
-                }
                 [dash, echo].forEach((entry) => { entry.deltaFromZigMs = Number.isFinite(entry.medianMs) && Number.isFinite(zig.medianMs) ? entry.medianMs - zig.medianMs : null; });
                 return { zig, dash, echo };
                         },
@@ -14695,9 +14677,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 if (!this.telemetrySystem || !this.telemetrySystem.survivalTelemetry) return null;
                 const summary = this.telemetrySystem.getSurvivalBenchmarkSummary();
                 if (!summary) return null;
-                const formatMedian = (entry) => Number.isFinite(entry.medianMs)
-                    ? (entry.isFallbackBaseline ? `${(entry.medianMs / 1000).toFixed(1)}s · STORED BASE` : `${(entry.medianMs / 1000).toFixed(1)}s · ${entry.runs} ${entry.runs === 1 ? 'run' : 'runs'}`)
-                    : `— · ${entry.runs} runs`;
+                const formatMedian = (entry) => Number.isFinite(entry.medianMs) ? `${(entry.medianMs / 1000).toFixed(1)}s · ${entry.runs} ${entry.runs === 1 ? 'run' : 'runs'}` : `— · ${entry.runs} runs`;
                 const formatDelta = (entry) => Number.isFinite(entry.deltaFromZigMs) ? `${entry.deltaFromZigMs >= 0 ? '+' : ''}${(entry.deltaFromZigMs / 1000).toFixed(1)}s` : '—';
                 if (this.survivalMedianZig) this.survivalMedianZig.textContent = formatMedian(summary.zig);
                 if (this.survivalMedianDash) this.survivalMedianDash.textContent = formatMedian(summary.dash);
@@ -17539,7 +17519,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 this.assert('Developer behavior tuning feeds Campaign and Survival through one override layer', SurvivalBehaviorTuningSystem.prototype.isRuntimeOverrideActive.toString().includes('isDeveloperTuningContext') && SurvivalBehaviorTuningSystem.prototype.getDashTuning.toString().includes('this.values.dash') && TelemetrySystem.implementations.captureTelemetryParameters.toString().includes('developerBehaviorTuning'));
                 this.assert('Campaign telemetry records developer tuning changes', telemetryOwner.hasImplementation('noteCampaignTuningChange') && TelemetrySystem.implementations.noteCampaignTuningChange.toString().includes('developerParameterChanges'));
                 this.assert('Survival median benchmark is telemetry-owned', telemetryOwner.hasImplementation('getSurvivalBenchmarkSummary') && !!document.getElementById('survivalBenchmark') && TelemetrySystem.implementations.finishSurvivalTelemetryRun.toString().includes('includedInMedianBenchmark'));
-                this.assert('Behavior tuning resets only the currently affected median samples', TelemetrySystem.implementations.resetSurvivalBenchmarkForParameter.toString().includes("group === 'dash'") && TelemetrySystem.implementations.resetSurvivalBenchmarkForParameter.toString().includes("group === 'echo'") && TelemetrySystem.implementations.resetSurvivalBenchmarkForParameter.toString().includes('activeIdentity') && BehaviorTuningSystem.prototype.setValue.toString().includes('resetSurvivalBenchmarkForParameter(name, group)'));
+                this.assert('Behavior tuning resets only affected median samples', TelemetrySystem.implementations.resetSurvivalBenchmarkForParameter.toString().includes("name.startsWith('dash')") && TelemetrySystem.implementations.resetSurvivalBenchmarkForParameter.toString().includes("name.startsWith('echo')"));
                 this.assert('Crystal topology calls retain responsive grid size', topologySource.includes('normalizeGridPoint(currentPos, this.GRID_SIZE)') && topologySource.includes('hasCollectedGridPoint(target, this.GRID_SIZE)'));
             }
 
