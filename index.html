@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Block-A-Zoids p298: removes all constructor-time survival median UI work and refreshes benchmarks only from safe developer and run-completion events.
+Block-A-Zoids p303: recovery build restored from the last known stable pre-median build.  extends the existing developer behavior-tuning override layer to Campaign while Developer Mode is active and records Campaign tuning snapshots and changes.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="p298">
+<html data-build-version="p303">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -5802,48 +5802,6 @@ Font License Notices
     width: 100%;
     margin-top: 10px;
 }
-.survival-benchmark {
-    margin-top: 12px;
-    padding: 9px 8px;
-    border: 1px solid rgba(255,255,255,0.52);
-    font-family: "Orbitron";
-    font-size: clamp(10px, 3vw, 13px);
-    line-height: 1.5;
-    letter-spacing: 0.4px;
-}
-.survival-benchmark-heading {
-    margin-bottom: 5px;
-    text-align: center;
-    font-size: clamp(12px, 3.5vw, 15px);
-    letter-spacing: 1px;
-}
-.survival-benchmark-row {
-    display: grid;
-    grid-template-columns: 4.5ch 1fr auto;
-    gap: 7px;
-    align-items: baseline;
-    font-variant-numeric: tabular-nums;
-}
-.survival-benchmark-row + .survival-benchmark-row {
-    margin-top: 2px;
-}
-.survival-benchmark-identity {
-    font-weight: 800;
-}
-.survival-benchmark-value {
-    white-space: nowrap;
-}
-.survival-benchmark-delta {
-    min-width: 5.5ch;
-    text-align: right;
-    opacity: 0.78;
-}
-.survival-benchmark-note {
-    margin-top: 6px;
-    text-align: center;
-    opacity: 0.58;
-    line-height: 1.3;
-}
 
 /* Source: src/styles/35-launch-settings-pause.css */
 /* p241: Launch, Settings, and the corner pause menu each have one CSS owner. */
@@ -7254,13 +7212,6 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                                 <div class="settings-stepper-title">Phased Duration</div><div class="settings-stepper-row"><button class="settings-stepper-arrow" type="button" data-survival-tuning="echoPhasedMs" data-direction="-1">◀</button><div class="settings-stepper-value" data-survival-tuning-value="echoPhasedMs">0.90 s</div><button class="settings-stepper-arrow" type="button" data-survival-tuning="echoPhasedMs" data-direction="1">▶</button></div>
                             </div>
                         </div>
-                        <div id="survivalBenchmark" class="survival-benchmark" aria-live="polite">
-                            <div class="survival-benchmark-heading">MEDIAN SURVIVAL</div>
-                            <div class="survival-benchmark-row"><span class="survival-benchmark-identity">ZIG</span><span id="survivalMedianZig" class="survival-benchmark-value">— · 0 runs</span><span class="survival-benchmark-delta">BASE</span></div>
-                            <div class="survival-benchmark-row"><span class="survival-benchmark-identity">DASH</span><span id="survivalMedianDash" class="survival-benchmark-value">— · 0 runs</span><span id="survivalDeltaDash" class="survival-benchmark-delta">—</span></div>
-                            <div class="survival-benchmark-row"><span class="survival-benchmark-identity">ECHO</span><span id="survivalMedianEcho" class="survival-benchmark-value">— · 0 runs</span><span id="survivalDeltaEcho" class="survival-benchmark-delta">—</span></div>
-                            <div class="survival-benchmark-note">DASH/ECHO samples reset when their tuning changes.</div>
-                        </div>
                         <button id="resetSurvivalTuningButton" class="menu-button settings-toggle" type="button">Reset Survival Defaults</button>
                     </div>
                     <div id="telemetrySummary" class="telemetry-summary">Developer Mode required.</div>
@@ -7404,7 +7355,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
         const BUILD_METADATA = window.BLOCKAZOIDS_BUILD = Object.freeze({
             version: document.documentElement.dataset.buildVersion || 'unknown',
             label: BUILD_VERSION,
-            architecturePhase: 'developer-survival-median-benchmarking-startup-safe',
+            architecturePhase: 'developer-campaign-and-survival-live-tuning',
             sourceBaseline: 'p287',
             behaviorPolicy: 'single-design-space-scale-authoritative-state-no-parallel-systems'
         });
@@ -7449,7 +7400,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
 
 /* Source: src/js/development/75-developer-documentation.js */
         const DEVELOPER_DOCUMENTATION = window.BLOCKAZOIDS_DEVELOPER_GUIDE = deepFreezeConfiguration({
-            version: 'p298',
+            version: 'p303',
             purpose: 'Make ownership, safe edit locations, state transitions, build steps, and maintenance rules discoverable without reverse-engineering the complete game.',
             architecture: {
                 application: {
@@ -9345,7 +9296,6 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 if (nextValue === previousValue) return false;
                 this.values[group][key] = nextValue;
                 this.save();
-                if (this.game.telemetrySystem) this.game.telemetrySystem.resetSurvivalBenchmarkForParameter(name);
                 this.applyLiveTuningToEnemies();
                 if (record && this.game.telemetrySystem) {
                     if (this.game.gameMode && this.game.gameMode.isSurvivalRun()) this.game.telemetrySystem.noteSurvivalTuningChange(name, previousValue, nextValue);
@@ -9366,12 +9316,6 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 const before = this.captureSnapshot();
                 this.values = this.cloneDefaults();
                 this.save();
-                const changedParameters = Object.keys(this.definitions).filter((name) => {
-                    const definition = this.definitions[name];
-                    const [group, key] = definition.path;
-                    return before[group][key] !== this.values[group][key];
-                });
-                if (this.game.telemetrySystem) changedParameters.forEach((name) => this.game.telemetrySystem.resetSurvivalBenchmarkForParameter(name));
                 this.applyLiveTuningToEnemies();
                 Object.keys(this.definitions).forEach((name) => {
                     const definition = this.definitions[name];
@@ -14338,9 +14282,6 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
             beginSurvivalTelemetryRun(...args) { return TelemetrySystem.implementations.beginSurvivalTelemetryRun.apply(this.game, args); }
             finishSurvivalTelemetryRun(...args) { return TelemetrySystem.implementations.finishSurvivalTelemetryRun.apply(this.game, args); }
             noteSurvivalTuningChange(...args) { return TelemetrySystem.implementations.noteSurvivalTuningChange.apply(this.game, args); }
-            resetSurvivalBenchmarkForParameter(...args) { return TelemetrySystem.implementations.resetSurvivalBenchmarkForParameter.apply(this.game, args); }
-            getSurvivalBenchmarkSummary(...args) { return TelemetrySystem.implementations.getSurvivalBenchmarkSummary.apply(this.game, args); }
-            updateSurvivalBenchmarkUI(...args) { return TelemetrySystem.implementations.updateSurvivalBenchmarkUI.apply(this.game, args); }
             noteCampaignTuningChange(...args) { return TelemetrySystem.implementations.noteCampaignTuningChange.apply(this.game, args); }
             noteSurvivalBehaviorTime(...args) { return TelemetrySystem.implementations.noteSurvivalBehaviorTime.apply(this.game, args); }
             noteSurvivalDashEvent(...args) { return TelemetrySystem.implementations.noteSurvivalDashEvent.apply(this.game, args); }
@@ -14473,7 +14414,6 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                     schema: 'blockazoids-survival-lab-v3',
                     schemaVersion: 3,
                     runs: [],
-                    benchmark: { zig: [], dash: [], echo: [] },
                     lastSavedAt: null
                 };
                 try {
@@ -14493,11 +14433,6 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                         schema: 'blockazoids-survival-lab-v3',
                         schemaVersion: 3,
                         runs,
-                        benchmark: {
-                            zig: Array.isArray(saved.benchmark && saved.benchmark.zig) ? saved.benchmark.zig.filter(Number.isFinite).slice(-100) : [],
-                            dash: Array.isArray(saved.benchmark && saved.benchmark.dash) ? saved.benchmark.dash.filter(Number.isFinite).slice(-100) : [],
-                            echo: Array.isArray(saved.benchmark && saved.benchmark.echo) ? saved.benchmark.echo.filter(Number.isFinite).slice(-100) : []
-                        },
                         lastSavedAt: saved.savedAt || null
                     };
                 } catch (_) {
@@ -14515,11 +14450,6 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                     runs: Array.isArray(this.telemetrySystem.survivalTelemetry.runs)
                         ? this.telemetrySystem.survivalTelemetry.runs.slice(-100)
                         : [],
-                    benchmark: {
-                        zig: Array.isArray(this.telemetrySystem.survivalTelemetry.benchmark && this.telemetrySystem.survivalTelemetry.benchmark.zig) ? this.telemetrySystem.survivalTelemetry.benchmark.zig.slice(-100) : [],
-                        dash: Array.isArray(this.telemetrySystem.survivalTelemetry.benchmark && this.telemetrySystem.survivalTelemetry.benchmark.dash) ? this.telemetrySystem.survivalTelemetry.benchmark.dash.slice(-100) : [],
-                        echo: Array.isArray(this.telemetrySystem.survivalTelemetry.benchmark && this.telemetrySystem.survivalTelemetry.benchmark.echo) ? this.telemetrySystem.survivalTelemetry.benchmark.echo.slice(-100) : []
-                    },
                     activeRun: this.telemetrySystem.currentSurvivalTelemetryRun && !this.telemetrySystem.currentSurvivalTelemetryRun.endedAt
                         ? this.telemetrySystem.currentSurvivalTelemetryRun
                         : null
@@ -14644,49 +14574,6 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 return true;
                         },
 
-            resetSurvivalBenchmarkForParameter: function(parameter) {
-                if (!this.telemetrySystem.survivalTelemetry) this.telemetrySystem.survivalTelemetry = this.telemetrySystem.loadSurvivalTelemetryData();
-                const benchmark = this.telemetrySystem.survivalTelemetry.benchmark || (this.telemetrySystem.survivalTelemetry.benchmark = { zig: [], dash: [], echo: [] });
-                const name = String(parameter || '');
-                const identities = name === 'sharedSpeedMultiplier' ? ['zig', 'dash', 'echo'] : (name.startsWith('dash') ? ['dash'] : (name.startsWith('echo') ? ['echo'] : []));
-                identities.forEach((identity) => { benchmark[identity] = []; });
-                if (identities.length) {
-                    this.telemetrySystem.saveSurvivalTelemetryData();
-                    this.telemetrySystem.updateSurvivalBenchmarkUI();
-                }
-                return identities;
-                        },
-
-            getSurvivalBenchmarkSummary: function() {
-                if (!this.telemetrySystem.survivalTelemetry) this.telemetrySystem.survivalTelemetry = this.telemetrySystem.loadSurvivalTelemetryData();
-                const benchmark = this.telemetrySystem.survivalTelemetry.benchmark || { zig: [], dash: [], echo: [] };
-                const summarize = (identity) => {
-                    const values = Array.isArray(benchmark[identity]) ? benchmark[identity].filter(Number.isFinite).sort((a, b) => a - b) : [];
-                    const middle = Math.floor(values.length / 2);
-                    const medianMs = values.length ? (values.length % 2 ? values[middle] : (values[middle - 1] + values[middle]) / 2) : null;
-                    return { identity, runs: values.length, medianMs };
-                };
-                const zig = summarize('zig');
-                const dash = summarize('dash');
-                const echo = summarize('echo');
-                [dash, echo].forEach((entry) => { entry.deltaFromZigMs = Number.isFinite(entry.medianMs) && Number.isFinite(zig.medianMs) ? entry.medianMs - zig.medianMs : null; });
-                return { zig, dash, echo };
-                        },
-
-            updateSurvivalBenchmarkUI: function() {
-                if (!this.telemetrySystem || !this.telemetrySystem.survivalTelemetry) return null;
-                const summary = this.telemetrySystem.getSurvivalBenchmarkSummary();
-                if (!summary) return null;
-                const formatMedian = (entry) => Number.isFinite(entry.medianMs) ? `${(entry.medianMs / 1000).toFixed(1)}s · ${entry.runs} ${entry.runs === 1 ? 'run' : 'runs'}` : `— · ${entry.runs} runs`;
-                const formatDelta = (entry) => Number.isFinite(entry.deltaFromZigMs) ? `${entry.deltaFromZigMs >= 0 ? '+' : ''}${(entry.deltaFromZigMs / 1000).toFixed(1)}s` : '—';
-                if (this.survivalMedianZig) this.survivalMedianZig.textContent = formatMedian(summary.zig);
-                if (this.survivalMedianDash) this.survivalMedianDash.textContent = formatMedian(summary.dash);
-                if (this.survivalMedianEcho) this.survivalMedianEcho.textContent = formatMedian(summary.echo);
-                if (this.survivalDeltaDash) this.survivalDeltaDash.textContent = formatDelta(summary.dash);
-                if (this.survivalDeltaEcho) this.survivalDeltaEcho.textContent = formatDelta(summary.echo);
-                return summary;
-                        },
-
             noteCampaignTuningChange: function(parameter, previousValue, nextValue) {
                 if (!this.telemetrySystem.telemetryEnabled || (this.gameMode && this.gameMode.isSurvivalRun())) return false;
                 const change = {
@@ -14798,14 +14685,8 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 } : null;
                 if (!this.telemetrySystem.survivalTelemetry) this.telemetrySystem.survivalTelemetry = this.telemetrySystem.loadSurvivalTelemetryData();
                 this.telemetrySystem.survivalTelemetry.runs.push(run);
-                const identityKey = String(run.identity || '').toLowerCase();
-                const benchmark = this.telemetrySystem.survivalTelemetry.benchmark || (this.telemetrySystem.survivalTelemetry.benchmark = { zig: [], dash: [], echo: [] });
-                const isBenchmarkRun = reason === 'death' && ['zig', 'dash', 'echo'].includes(identityKey) && (!Array.isArray(run.parameterChanges) || run.parameterChanges.length === 0);
-                if (isBenchmarkRun) benchmark[identityKey].push(run.survivalTimeMs);
-                run.includedInMedianBenchmark = isBenchmarkRun;
                 this.telemetrySystem.currentSurvivalTelemetryRun = null;
                 this.telemetrySystem.saveSurvivalTelemetryData();
-                this.telemetrySystem.updateSurvivalBenchmarkUI();
                 return run;
                         },
 
@@ -17518,8 +17399,6 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 this.assert('Survival tuning changes remain isolated and recorded', TelemetrySystem.implementations.noteSurvivalTuningChange.toString().includes('parameterChanges') && TelemetrySystem.implementations.finishSurvivalTelemetryRun.toString().includes('endingTuning'));
                 this.assert('Developer behavior tuning feeds Campaign and Survival through one override layer', SurvivalBehaviorTuningSystem.prototype.isRuntimeOverrideActive.toString().includes('isDeveloperTuningContext') && SurvivalBehaviorTuningSystem.prototype.getDashTuning.toString().includes('this.values.dash') && TelemetrySystem.implementations.captureTelemetryParameters.toString().includes('developerBehaviorTuning'));
                 this.assert('Campaign telemetry records developer tuning changes', telemetryOwner.hasImplementation('noteCampaignTuningChange') && TelemetrySystem.implementations.noteCampaignTuningChange.toString().includes('developerParameterChanges'));
-                this.assert('Survival median benchmark is telemetry-owned', telemetryOwner.hasImplementation('getSurvivalBenchmarkSummary') && !!document.getElementById('survivalBenchmark') && TelemetrySystem.implementations.finishSurvivalTelemetryRun.toString().includes('includedInMedianBenchmark'));
-                this.assert('Behavior tuning resets only affected median samples', TelemetrySystem.implementations.resetSurvivalBenchmarkForParameter.toString().includes("name.startsWith('dash')") && TelemetrySystem.implementations.resetSurvivalBenchmarkForParameter.toString().includes("name.startsWith('echo')"));
                 this.assert('Crystal topology calls retain responsive grid size', topologySource.includes('normalizeGridPoint(currentPos, this.GRID_SIZE)') && topologySource.includes('hasCollectedGridPoint(target, this.GRID_SIZE)'));
             }
 
@@ -22795,12 +22674,6 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 this.survivalTuningButtons = Array.from(document.querySelectorAll('[data-survival-tuning]'));
                 this.survivalTuningValueElements = Array.from(document.querySelectorAll('[data-survival-tuning-value]'));
                 this.resetSurvivalTuningButton = document.getElementById('resetSurvivalTuningButton');
-                this.survivalBenchmark = document.getElementById('survivalBenchmark');
-                this.survivalMedianZig = document.getElementById('survivalMedianZig');
-                this.survivalMedianDash = document.getElementById('survivalMedianDash');
-                this.survivalMedianEcho = document.getElementById('survivalMedianEcho');
-                this.survivalDeltaDash = document.getElementById('survivalDeltaDash');
-                this.survivalDeltaEcho = document.getElementById('survivalDeltaEcho');
                 this.telemetrySummary = document.getElementById('telemetrySummary');
                 this.exportTelemetryButton = document.getElementById('exportTelemetryButton');
                 this.exportSurvivalTelemetryButton = document.getElementById('exportSurvivalTelemetryButton');
@@ -22990,8 +22863,6 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 // Audio and UI managers
                 this.audio = new AudioManager(this.scheduler, this.settings); // Audio manager instance with Phase 3H timer ownership
                 this.ui = new UI(this);               // UI manager instance
-                // Survival benchmark UI is refreshed only when its developer panel opens,
-                // after a completed Survival run, or after an affected tuning reset.
                 this.systems = new GameSystemCoordinator(this); // Build 341 cross-system lifecycle coordinator
 
                 // Event handlers for orb input
