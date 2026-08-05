@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 Block-A-Zoids
-Block-A-Zoids p305: preserves the p298 startup and gameplay architecture, seeds the remembered 88-second ZIG baseline through the existing Survival telemetry store, and isolates benchmark resets to the currently tuned behavior.
+Block-A-Zoids p306: extends the authoritative Survival Swarm Type plan with deterministic mixed-behavior combinations and separate telemetry benchmarks while preserving gameplay lifecycle ownership.
 Copyright © 2026 Marcus Couto. All rights reserved.
 
 This source code, artwork, game design, and related assets are not licensed for reuse, redistribution, modification, or commercial use without written permission.
@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="p305">
+<html data-build-version="p306">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -7259,6 +7259,10 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                             <div class="survival-benchmark-row"><span class="survival-benchmark-identity">ZIG</span><span id="survivalMedianZig" class="survival-benchmark-value">— · 0 runs</span><span class="survival-benchmark-delta">BASE</span></div>
                             <div class="survival-benchmark-row"><span class="survival-benchmark-identity">DASH</span><span id="survivalMedianDash" class="survival-benchmark-value">— · 0 runs</span><span id="survivalDeltaDash" class="survival-benchmark-delta">—</span></div>
                             <div class="survival-benchmark-row"><span class="survival-benchmark-identity">ECHO</span><span id="survivalMedianEcho" class="survival-benchmark-value">— · 0 runs</span><span id="survivalDeltaEcho" class="survival-benchmark-delta">—</span></div>
+                            <div class="survival-benchmark-row"><span class="survival-benchmark-identity">ZIG+DASH</span><span id="survivalMedianZigDash" class="survival-benchmark-value">— · 0 runs</span><span id="survivalDeltaZigDash" class="survival-benchmark-delta">—</span></div>
+                            <div class="survival-benchmark-row"><span class="survival-benchmark-identity">ZIG+ECHO</span><span id="survivalMedianZigEcho" class="survival-benchmark-value">— · 0 runs</span><span id="survivalDeltaZigEcho" class="survival-benchmark-delta">—</span></div>
+                            <div class="survival-benchmark-row"><span class="survival-benchmark-identity">DASH+ECHO</span><span id="survivalMedianDashEcho" class="survival-benchmark-value">— · 0 runs</span><span id="survivalDeltaDashEcho" class="survival-benchmark-delta">—</span></div>
+                            <div class="survival-benchmark-row"><span class="survival-benchmark-identity">ALL THREE</span><span id="survivalMedianAllThree" class="survival-benchmark-value">— · 0 runs</span><span id="survivalDeltaAllThree" class="survival-benchmark-delta">—</span></div>
                             <div class="survival-benchmark-note">DASH/ECHO samples reset when their tuning changes.</div>
                         </div>
                         <button id="resetSurvivalTuningButton" class="menu-button settings-toggle" type="button">Reset Survival Defaults</button>
@@ -7940,9 +7944,13 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 options: Object.freeze(['campaign', 'survival']),
                 defaultMode: 'campaign',
                 survivalSwarms: Object.freeze([
-                    Object.freeze({ key: 'zig', label: 'Zig', behaviorType: 'drifter' }),
-                    Object.freeze({ key: 'dash', label: 'Dash', behaviorType: 'charger' }),
-                    Object.freeze({ key: 'echo', label: 'Echo', behaviorType: 'pulse' })
+                    Object.freeze({ key: 'zig', label: 'Zig', behaviorType: 'drifter', behaviorPlan: Object.freeze(['drifter']) }),
+                    Object.freeze({ key: 'dash', label: 'Dash', behaviorType: 'charger', behaviorPlan: Object.freeze(['charger']) }),
+                    Object.freeze({ key: 'echo', label: 'Echo', behaviorType: 'pulse', behaviorPlan: Object.freeze(['pulse']) }),
+                    Object.freeze({ key: 'zig_dash', label: 'Zig + Dash', behaviorType: 'mixed', behaviorPlan: Object.freeze(['drifter', 'charger']) }),
+                    Object.freeze({ key: 'zig_echo', label: 'Zig + Echo', behaviorType: 'mixed', behaviorPlan: Object.freeze(['drifter', 'pulse']) }),
+                    Object.freeze({ key: 'dash_echo', label: 'Dash + Echo', behaviorType: 'mixed', behaviorPlan: Object.freeze(['charger', 'pulse']) }),
+                    Object.freeze({ key: 'all_three', label: 'All Three', behaviorType: 'mixed', behaviorPlan: Object.freeze(['drifter', 'charger', 'pulse', 'drifter', 'charger', 'pulse', 'drifter', 'charger']) })
                 ]),
                 defaultSurvivalSwarm: 'zig',
                 // Survival is a controlled behavior lab. Every run references the same
@@ -9198,6 +9206,15 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
 
             getActiveBehaviorType() {
                 return this.getSwarmDefinition(this.activeSwarmType).behaviorType;
+            }
+
+            getActiveBehaviorPlan(count = 8) {
+                const definition = this.getSwarmDefinition(this.activeSwarmType);
+                const source = Array.isArray(definition.behaviorPlan) && definition.behaviorPlan.length
+                    ? definition.behaviorPlan
+                    : [definition.behaviorType || 'drifter'];
+                const total = Math.max(1, Math.floor(Number(count) || 8));
+                return Object.freeze(Array.from({ length: total }, (_, index) => source[index % source.length]));
             }
 
             getSurvivalBalanceSector() {
@@ -14473,7 +14490,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                     schema: 'blockazoids-survival-lab-v3',
                     schemaVersion: 3,
                     runs: [],
-                    benchmark: { zig: [], dash: [], echo: [] },
+                    benchmark: { zig: [], dash: [], echo: [], zig_dash: [], zig_echo: [], dash_echo: [], all_three: [] },
                     lastSavedAt: null
                 };
                 try {
@@ -14496,7 +14513,11 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                         benchmark: {
                             zig: Array.isArray(saved.benchmark && saved.benchmark.zig) ? saved.benchmark.zig.filter(Number.isFinite).slice(-100) : [],
                             dash: Array.isArray(saved.benchmark && saved.benchmark.dash) ? saved.benchmark.dash.filter(Number.isFinite).slice(-100) : [],
-                            echo: Array.isArray(saved.benchmark && saved.benchmark.echo) ? saved.benchmark.echo.filter(Number.isFinite).slice(-100) : []
+                            echo: Array.isArray(saved.benchmark && saved.benchmark.echo) ? saved.benchmark.echo.filter(Number.isFinite).slice(-100) : [],
+                            zig_dash: Array.isArray(saved.benchmark && saved.benchmark.zig_dash) ? saved.benchmark.zig_dash.filter(Number.isFinite).slice(-100) : [],
+                            zig_echo: Array.isArray(saved.benchmark && saved.benchmark.zig_echo) ? saved.benchmark.zig_echo.filter(Number.isFinite).slice(-100) : [],
+                            dash_echo: Array.isArray(saved.benchmark && saved.benchmark.dash_echo) ? saved.benchmark.dash_echo.filter(Number.isFinite).slice(-100) : [],
+                            all_three: Array.isArray(saved.benchmark && saved.benchmark.all_three) ? saved.benchmark.all_three.filter(Number.isFinite).slice(-100) : []
                         },
                         lastSavedAt: saved.savedAt || null
                     };
@@ -14518,7 +14539,11 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                     benchmark: {
                         zig: Array.isArray(this.telemetrySystem.survivalTelemetry.benchmark && this.telemetrySystem.survivalTelemetry.benchmark.zig) ? this.telemetrySystem.survivalTelemetry.benchmark.zig.slice(-100) : [],
                         dash: Array.isArray(this.telemetrySystem.survivalTelemetry.benchmark && this.telemetrySystem.survivalTelemetry.benchmark.dash) ? this.telemetrySystem.survivalTelemetry.benchmark.dash.slice(-100) : [],
-                        echo: Array.isArray(this.telemetrySystem.survivalTelemetry.benchmark && this.telemetrySystem.survivalTelemetry.benchmark.echo) ? this.telemetrySystem.survivalTelemetry.benchmark.echo.slice(-100) : []
+                        echo: Array.isArray(this.telemetrySystem.survivalTelemetry.benchmark && this.telemetrySystem.survivalTelemetry.benchmark.echo) ? this.telemetrySystem.survivalTelemetry.benchmark.echo.slice(-100) : [],
+                        zig_dash: Array.isArray(this.telemetrySystem.survivalTelemetry.benchmark && this.telemetrySystem.survivalTelemetry.benchmark.zig_dash) ? this.telemetrySystem.survivalTelemetry.benchmark.zig_dash.slice(-100) : [],
+                        zig_echo: Array.isArray(this.telemetrySystem.survivalTelemetry.benchmark && this.telemetrySystem.survivalTelemetry.benchmark.zig_echo) ? this.telemetrySystem.survivalTelemetry.benchmark.zig_echo.slice(-100) : [],
+                        dash_echo: Array.isArray(this.telemetrySystem.survivalTelemetry.benchmark && this.telemetrySystem.survivalTelemetry.benchmark.dash_echo) ? this.telemetrySystem.survivalTelemetry.benchmark.dash_echo.slice(-100) : [],
+                        all_three: Array.isArray(this.telemetrySystem.survivalTelemetry.benchmark && this.telemetrySystem.survivalTelemetry.benchmark.all_three) ? this.telemetrySystem.survivalTelemetry.benchmark.all_three.slice(-100) : []
                     },
                     activeRun: this.telemetrySystem.currentSurvivalTelemetryRun && !this.telemetrySystem.currentSurvivalTelemetryRun.endedAt
                         ? this.telemetrySystem.currentSurvivalTelemetryRun
@@ -14646,14 +14671,17 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
 
             resetSurvivalBenchmarkForParameter: function(parameter) {
                 if (!this.telemetrySystem.survivalTelemetry) this.telemetrySystem.survivalTelemetry = this.telemetrySystem.loadSurvivalTelemetryData();
-                const benchmark = this.telemetrySystem.survivalTelemetry.benchmark || (this.telemetrySystem.survivalTelemetry.benchmark = { zig: [], dash: [], echo: [] });
+                const benchmark = this.telemetrySystem.survivalTelemetry.benchmark || (this.telemetrySystem.survivalTelemetry.benchmark = { zig: [], dash: [], echo: [], zig_dash: [], zig_echo: [], dash_echo: [], all_three: [] });
                 const name = String(parameter || '');
                 const selectedIdentity = this.behaviorTuningSystem && typeof this.behaviorTuningSystem.getIdentityKey === 'function'
                     ? String(this.behaviorTuningSystem.getIdentityKey() || '').toLowerCase()
                     : '';
                 const identities = name === 'sharedSpeedMultiplier'
-                    ? (['zig', 'dash', 'echo'].includes(selectedIdentity) ? [selectedIdentity] : [])
-                    : (name.startsWith('dash') ? ['dash'] : (name.startsWith('echo') ? ['echo'] : []));
+                    ? (selectedIdentity === 'zig' ? ['zig', 'zig_dash', 'zig_echo', 'all_three']
+                        : (selectedIdentity === 'dash' ? ['dash', 'zig_dash', 'dash_echo', 'all_three']
+                            : (selectedIdentity === 'echo' ? ['echo', 'zig_echo', 'dash_echo', 'all_three'] : [])))
+                    : (name.startsWith('dash') ? ['dash', 'zig_dash', 'dash_echo', 'all_three']
+                        : (name.startsWith('echo') ? ['echo', 'zig_echo', 'dash_echo', 'all_three'] : []));
                 identities.forEach((identity) => { benchmark[identity] = []; });
                 if (identities.length) {
                     this.telemetrySystem.saveSurvivalTelemetryData();
@@ -14664,14 +14692,7 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
 
             getSurvivalBenchmarkSummary: function() {
                 if (!this.telemetrySystem.survivalTelemetry) this.telemetrySystem.survivalTelemetry = this.telemetrySystem.loadSurvivalTelemetryData();
-                const benchmark = this.telemetrySystem.survivalTelemetry.benchmark || (this.telemetrySystem.survivalTelemetry.benchmark = { zig: [], dash: [], echo: [] });
-                // One-time p305 migration: preserve the remembered ZIG benchmark in the existing
-                // Survival telemetry store. This runs only when the benchmark summary is requested,
-                // never during boot, and can be removed in the next build after the value is stored.
-                if (!Array.isArray(benchmark.zig) || benchmark.zig.length === 0) {
-                    benchmark.zig = [88000];
-                    this.telemetrySystem.saveSurvivalTelemetryData();
-                }
+                const benchmark = this.telemetrySystem.survivalTelemetry.benchmark || (this.telemetrySystem.survivalTelemetry.benchmark = { zig: [], dash: [], echo: [], zig_dash: [], zig_echo: [], dash_echo: [], all_three: [] });
                 const summarize = (identity) => {
                     const values = Array.isArray(benchmark[identity]) ? benchmark[identity].filter(Number.isFinite).sort((a, b) => a - b) : [];
                     const middle = Math.floor(values.length / 2);
@@ -14681,8 +14702,12 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 const zig = summarize('zig');
                 const dash = summarize('dash');
                 const echo = summarize('echo');
-                [dash, echo].forEach((entry) => { entry.deltaFromZigMs = Number.isFinite(entry.medianMs) && Number.isFinite(zig.medianMs) ? entry.medianMs - zig.medianMs : null; });
-                return { zig, dash, echo };
+                const zigDash = summarize('zig_dash');
+                const zigEcho = summarize('zig_echo');
+                const dashEcho = summarize('dash_echo');
+                const allThree = summarize('all_three');
+                [dash, echo, zigDash, zigEcho, dashEcho, allThree].forEach((entry) => { entry.deltaFromZigMs = Number.isFinite(entry.medianMs) && Number.isFinite(zig.medianMs) ? entry.medianMs - zig.medianMs : null; });
+                return { zig, dash, echo, zigDash, zigEcho, dashEcho, allThree };
                         },
 
             updateSurvivalBenchmarkUI: function() {
@@ -14698,6 +14723,18 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 if (this.survivalMedianEcho) this.survivalMedianEcho.textContent = formatMedian(summary.echo);
                 if (this.survivalDeltaDash) this.survivalDeltaDash.textContent = formatDelta(summary.dash);
                 if (this.survivalDeltaEcho) this.survivalDeltaEcho.textContent = formatDelta(summary.echo);
+                const combinationRows = [
+                    ['survivalMedianZigDash', 'survivalDeltaZigDash', summary.zigDash],
+                    ['survivalMedianZigEcho', 'survivalDeltaZigEcho', summary.zigEcho],
+                    ['survivalMedianDashEcho', 'survivalDeltaDashEcho', summary.dashEcho],
+                    ['survivalMedianAllThree', 'survivalDeltaAllThree', summary.allThree]
+                ];
+                combinationRows.forEach(([medianId, deltaId, entry]) => {
+                    const medianNode = document.getElementById(medianId);
+                    const deltaNode = document.getElementById(deltaId);
+                    if (medianNode) medianNode.textContent = formatMedian(entry);
+                    if (deltaNode) deltaNode.textContent = formatDelta(entry);
+                });
                 return summary;
                         },
 
@@ -14813,8 +14850,8 @@ const DESIGN_TOKENS = window.BLOCKAZOIDS_DESIGN_TOKENS = deepFreezeConfiguration
                 if (!this.telemetrySystem.survivalTelemetry) this.telemetrySystem.survivalTelemetry = this.telemetrySystem.loadSurvivalTelemetryData();
                 this.telemetrySystem.survivalTelemetry.runs.push(run);
                 const identityKey = String(run.identity || '').toLowerCase();
-                const benchmark = this.telemetrySystem.survivalTelemetry.benchmark || (this.telemetrySystem.survivalTelemetry.benchmark = { zig: [], dash: [], echo: [] });
-                const isBenchmarkRun = reason === 'death' && ['zig', 'dash', 'echo'].includes(identityKey) && (!Array.isArray(run.parameterChanges) || run.parameterChanges.length === 0);
+                const benchmark = this.telemetrySystem.survivalTelemetry.benchmark || (this.telemetrySystem.survivalTelemetry.benchmark = { zig: [], dash: [], echo: [], zig_dash: [], zig_echo: [], dash_echo: [], all_three: [] });
+                const isBenchmarkRun = reason === 'death' && ['zig', 'dash', 'echo', 'zig_dash', 'zig_echo', 'dash_echo', 'all_three'].includes(identityKey) && (!Array.isArray(run.parameterChanges) || run.parameterChanges.length === 0);
                 if (isBenchmarkRun) benchmark[identityKey].push(run.survivalTimeMs);
                 run.includedInMedianBenchmark = isBenchmarkRun;
                 this.telemetrySystem.currentSurvivalTelemetryRun = null;
@@ -17258,7 +17295,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 gameMode.setSelectedSwarmType('echo');
                 const activeMode = gameMode.beginRun();
                 this.assert('GameModeSystem owns Campaign and Survival selection', activeMode.activeMode === 'survival' && gameMode.getModeLabel() === 'Survival');
-                this.assert('GameModeSystem maps Zig, Dash, and Echo to one behavior each', GAME_CONFIG.gameModes.survivalSwarms.map((swarm) => swarm.behaviorType).join(',') === 'drifter,charger,pulse');
+                this.assert('GameModeSystem maps Zig, Dash, and Echo to one behavior each', GAME_CONFIG.gameModes.survivalSwarms.length === 7 && GAME_CONFIG.gameModes.survivalSwarms.slice(0, 3).map((swarm) => swarm.behaviorType).join(',') === 'drifter,charger,pulse');
                 gameMode.beginRun();
                 this.assert('GameModeSystem fixes active Survival balance to Sector 5', gameMode.getBalanceSector(15) === 5 && gameMode.getSurvivalSpawnCellSequence().length === 8);
                 this.assert('GameModeSystem snapshot is read-only', Object.isFrozen(gameMode.snapshot()));
@@ -17520,7 +17557,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 this.assert('Sector-select runs are blocked before campaign completion', completeSectorSource.includes('!this.runSession.isEndingEligible()') && completeSectorSource.includes('completePracticeRunAfterRestore'));
                 this.assert('Final Gridlock has an authoritative run-origin gate', Game.prototype.beginFinalGridlock.toString().includes('this.runSession.isEndingEligible()'));
                 this.assert('Survival uses the Final Gridlock lifecycle without campaign ending eligibility', Game.prototype.beginFinalGridlock.toString().includes('survivalModeLaunch') && Game.prototype.beginNewRun.toString().includes("beginFinalGridlock('survival-mode')"));
-                this.assert('Survival spawn plans use one selected identity', Game.prototype.applySectorParameters.toString().includes('this.gameMode.getActiveBehaviorType()') && Game.prototype.spawnOvertimeEnemy.toString().includes('this.gameMode.getActiveBehaviorType()'));
+                this.assert('Survival spawn plans use the selected authored swarm plan', Game.prototype.applySectorParameters.toString().includes('this.gameMode.getActiveBehaviorPlan') && Game.prototype.spawnOvertimeEnemy.toString().includes('this.gameMode.getActiveBehaviorPlan'));
                 this.assert('Survival balance resolves through authoritative Sector 5 rules', GAME_CONFIG.gameModes.survivalBalanceSector === 5 && Game.prototype.applySectorParameters.toString().includes('getBalanceSector') && TelemetrySystem.implementations.getCurrentSpeedMultiplier.toString().includes('getBalanceSector'));
                 this.assert('Survival spawn positions use one deterministic sequence', Array.isArray(GAME_CONFIG.gameModes.survivalSpawnCellSequence) && GAME_CONFIG.gameModes.survivalSpawnCellSequence.length === GAME_CONFIG.enemySpawning.gridlockEnemyThreshold && EnemySpawnSystem.prototype.chooseSurvivalSpawnLocation.toString().includes('survivalSpawnSequenceIndex'));
                 this.assert('Survival telemetry is stored separately from Campaign telemetry', GAME_CONFIG.storage.survivalTelemetry !== GAME_CONFIG.storage.telemetry && TelemetrySystem.implementations.beginSurvivalTelemetryRun.toString().includes('currentSurvivalTelemetryRun') && TelemetrySystem.implementations.finishSurvivalTelemetryRun.toString().includes('survivalTelemetry.runs'));
@@ -23557,7 +23594,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                         ENEMY_BEHAVIOR_TYPES.PULSE
                     ];
                 } else if (this.runtimeState.finalGridlockActive && this.gameMode.isSurvivalRun()) {
-                    behaviorPlan = Array(this.gridlockEnemyThreshold).fill(this.gameMode.getActiveBehaviorType());
+                    behaviorPlan = this.gameMode.getActiveBehaviorPlan(this.gridlockEnemyThreshold).slice();
                 } else {
                     behaviorPlan = this.campaign.getEnemyBehaviorPlan(this.campaign.currentSector, this.gridlockEnemyThreshold).slice();
                 }
@@ -25027,7 +25064,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                     spawnRequest = {
                         type: deterministicSize.type,
                         behaviorType: this.gridlockSystem.chooseBehavior(this.runtimeState.finalGridlockActive && this.gameMode.isSurvivalRun()
-                            ? Array(this.gridlockEnemyThreshold).fill(this.gameMode.getActiveBehaviorType())
+                            ? this.gameMode.getActiveBehaviorPlan(this.gridlockEnemyThreshold).slice()
                             : this.campaign.getEnemyBehaviorPlan(this.campaign.currentSector, this.gridlockEnemyThreshold)),
                         spawnCategory,
                         queueOrigin: deterministicSize.queueOrigin,
