@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="p317">
+<html data-build-version="p319">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -7677,7 +7677,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
         const BUILD_METADATA = window.BLOCKAZOIDS_BUILD = Object.freeze({
             version: BUILD_ID,
             label: BUILD_VERSION,
-            architecturePhase: 'developer-survival-median-benchmarking-mixed-swarm-types',
+            architecturePhase: 'developer-survival-mixed-swarm-tuning-and-cap',
             sourceBaseline: 'p287',
             behaviorPolicy: 'single-design-space-scale-authoritative-state-no-parallel-systems'
         });
@@ -9593,11 +9593,15 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
             }
 
             getDashTuning() {
-                return this.isRuntimeOverrideActive() ? this.values.dash : this.config.enemyBehaviors.charger;
+                return this.isRuntimeOverrideActive()
+                    ? { ...this.config.enemyBehaviors.charger, ...this.values.dash }
+                    : this.config.enemyBehaviors.charger;
             }
 
             getEchoTuning() {
-                return this.isRuntimeOverrideActive() ? this.values.echo : this.config.enemyBehaviors.pulse;
+                return this.isRuntimeOverrideActive()
+                    ? { ...this.config.enemyBehaviors.pulse, ...this.values.echo }
+                    : this.config.enemyBehaviors.pulse;
             }
 
             getIdentityKey() {
@@ -9657,12 +9661,8 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 const before = this.captureSnapshot();
                 this.values = this.cloneDefaults();
                 this.save();
-                const changedParameters = Object.keys(this.definitions).filter((name) => {
-                    const definition = this.definitions[name];
-                    const [group, key] = definition.path;
-                    return before[group][key] !== this.values[group][key];
-                });
-                if (this.game.telemetrySystem) changedParameters.forEach((name) => this.game.telemetrySystem.resetSurvivalBenchmarkForParameter(name));
+                // Restoring defaults changes tuning only. Existing Survival benchmark
+                // samples remain intact; only direct parameter adjustments invalidate samples.
                 this.applyLiveTuningToEnemies();
                 Object.keys(this.definitions).forEach((name) => {
                     const definition = this.definitions[name];
@@ -9683,7 +9683,10 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 this.game.enemies.forEach((enemy) => {
                     if (!enemy || !enemy.behavior) return;
                     if (enemy.behavior.type === ENEMY_BEHAVIOR_TYPES.CHARGER) enemy.behavior.tuning = this.getDashTuning();
-                    if (enemy.behavior.type === ENEMY_BEHAVIOR_TYPES.PULSE) enemy.behavior.tuning = this.getEchoTuning();
+                    if (enemy.behavior.type === ENEMY_BEHAVIOR_TYPES.PULSE) {
+                        enemy.behavior.tuning = this.getEchoTuning();
+                        enemy.pulseGhostFlashPeriodMs = enemy.behavior.tuning.positionFlashIntervalMs;
+                    }
                     if (typeof enemy.behavior.applyLiveSharedSpeedChange === 'function') enemy.behavior.applyLiveSharedSpeedChange();
                 });
             }
@@ -9702,14 +9705,22 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 const identity = this.getIdentityKey();
                 const context = this.game.survivalTuningContext;
                 const campaignContext = identity === 'all';
+                const gameMode = this.game.gameMode;
+                const behaviorPlan = campaignContext || !gameMode
+                    ? [ENEMY_BEHAVIOR_TYPES.DRIFTER, ENEMY_BEHAVIOR_TYPES.CHARGER, ENEMY_BEHAVIOR_TYPES.PULSE]
+                    : (gameMode.isSurvivalRun() ? gameMode.getActiveBehaviorPlan() : gameMode.getSelectedBehaviorPlan());
+                const includesDash = campaignContext || behaviorPlan.includes(ENEMY_BEHAVIOR_TYPES.CHARGER);
+                const includesEcho = campaignContext || behaviorPlan.includes(ENEMY_BEHAVIOR_TYPES.PULSE);
+                const swarmLabel = gameMode
+                    ? (gameMode.isSurvivalRun() ? gameMode.getActiveSwarmLabel() : gameMode.getSelectedSwarmLabel())
+                    : identity;
                 if (context) context.textContent = campaignContext
                     ? 'CAMPAIGN · DEV OVERRIDES · ALL IDENTITIES'
-                    : `${String(identity).toUpperCase()} · SECTOR 5 FOUNDATION · SURVIVAL`;
-                const groupMap = { zig: this.game.survivalTuningSharedGroup, dash: this.game.survivalTuningDashGroup, echo: this.game.survivalTuningEchoGroup };
+                    : `${String(swarmLabel).toUpperCase()} · SECTOR 5 FOUNDATION · SURVIVAL`;
                 if (this.game.survivalTuningSharedGroup) this.game.survivalTuningSharedGroup.classList.add('visible');
                 [this.game.survivalTuningDashGroup, this.game.survivalTuningEchoGroup].forEach(group => { if (group) group.classList.remove('visible'); });
-                if ((campaignContext || identity === 'dash') && groupMap.dash) groupMap.dash.classList.add('visible');
-                if ((campaignContext || identity === 'echo') && groupMap.echo) groupMap.echo.classList.add('visible');
+                if (includesDash && this.game.survivalTuningDashGroup) this.game.survivalTuningDashGroup.classList.add('visible');
+                if (includesEcho && this.game.survivalTuningEchoGroup) this.game.survivalTuningEchoGroup.classList.add('visible');
                 this.game.survivalTuningValueElements.forEach((element) => {
                     const name = element.dataset.survivalTuningValue;
                     const definition = this.definitions[name];
@@ -17831,9 +17842,13 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 this.assert('Survival pause remains available and freezes behavior clocks', UI.prototype.updateStartPauseButton.toString().includes('survivalPauseAvailable') && Game.prototype.pauseGameplay.toString().includes('isSurvivalRun') && Game.prototype.resumeLiveAction.toString().includes('shiftPausedTime'));
                 this.assert('Survival tuning changes remain isolated and recorded', TelemetrySystem.implementations.noteSurvivalTuningChange.toString().includes('parameterChanges') && TelemetrySystem.implementations.finishSurvivalTelemetryRun.toString().includes('endingTuning'));
                 this.assert('Developer behavior tuning feeds Campaign and Survival through one override layer', SurvivalBehaviorTuningSystem.prototype.isRuntimeOverrideActive.toString().includes('isDeveloperTuningContext') && SurvivalBehaviorTuningSystem.prototype.getDashTuning.toString().includes('this.values.dash') && TelemetrySystem.implementations.captureTelemetryParameters.toString().includes('developerBehaviorTuning'));
+                this.assert('Developer behavior tuning preserves complete behavior defaults', SurvivalBehaviorTuningSystem.prototype.getEchoTuning.toString().includes('this.config.enemyBehaviors.pulse') && SurvivalBehaviorTuningSystem.prototype.getEchoTuning.toString().includes('...this.values.echo'));
+                this.assert('Mixed Survival swarms expose every included behavior tuning group', SurvivalBehaviorTuningSystem.prototype.refreshUI.toString().includes('getActiveBehaviorPlan') && SurvivalBehaviorTuningSystem.prototype.refreshUI.toString().includes('includesDash') && SurvivalBehaviorTuningSystem.prototype.refreshUI.toString().includes('includesEcho'));
+                this.assert('Survival overtime cannot exceed the eight-enemy active-or-materializing cap', Game.prototype.spawnOvertimeEnemy.toString().includes('this.enemies.length + pendingSpawnCount >= this.gridlockEnemyThreshold'));
                 this.assert('Campaign telemetry records developer tuning changes', telemetryOwner.hasImplementation('noteCampaignTuningChange') && TelemetrySystem.implementations.noteCampaignTuningChange.toString().includes('developerParameterChanges'));
                 this.assert('Survival median benchmark is telemetry-owned', telemetryOwner.hasImplementation('getSurvivalBenchmarkSummary') && !!document.getElementById('survivalBenchmark') && TelemetrySystem.implementations.finishSurvivalTelemetryRun.toString().includes('includedInMedianBenchmark'));
-                this.assert('Behavior tuning resets only affected median samples', TelemetrySystem.implementations.resetSurvivalBenchmarkForParameter.toString().includes("name.startsWith('dash')") && TelemetrySystem.implementations.resetSurvivalBenchmarkForParameter.toString().includes("name.startsWith('echo')"));
+                this.assert('Direct behavior tuning resets only affected median samples', TelemetrySystem.implementations.resetSurvivalBenchmarkForParameter.toString().includes("name.startsWith('dash')") && TelemetrySystem.implementations.resetSurvivalBenchmarkForParameter.toString().includes("name.startsWith('echo')"));
+                this.assert('Reset Survival Defaults preserves all benchmark samples', !SurvivalBehaviorTuningSystem.prototype.resetDefaults.toString().includes('resetSurvivalBenchmarkForParameter'));
                 this.assert('Crystal topology calls retain responsive grid size', topologySource.includes('normalizeGridPoint(currentPos, this.GRID_SIZE)') && topologySource.includes('hasCollectedGridPoint(target, this.GRID_SIZE)'));
             }
 
@@ -25315,6 +25330,12 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
 
             spawnOvertimeEnemy(options = {}) {
                 if (!this.gridlockSystem.overtimeActive || !this.flow.isLiveAction()) return false;
+                if (this.gameMode.isSurvivalRun()) {
+                    const pendingSpawnCount = Array.isArray(this.enemySpawnSystem.pendingSpawnWarnings)
+                        ? this.enemySpawnSystem.pendingSpawnWarnings.length
+                        : 0;
+                    if (this.enemies.length + pendingSpawnCount >= this.gridlockEnemyThreshold) return false;
+                }
                 const milestoneId = options.milestoneId || null;
                 const finalGridlock = options.finalGridlock === true || this.runtimeState.finalGridlockActive;
                 const postSequence = options.postSequence === true;
