@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="p315">
+<html data-build-version="p317">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -7677,7 +7677,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
         const BUILD_METADATA = window.BLOCKAZOIDS_BUILD = Object.freeze({
             version: BUILD_ID,
             label: BUILD_VERSION,
-            architecturePhase: 'developer-survival-median-benchmarking-visible-startup-failure-reporting',
+            architecturePhase: 'developer-survival-median-benchmarking-mixed-swarm-types',
             sourceBaseline: 'p287',
             behaviorPolicy: 'single-design-space-scale-authoritative-state-no-parallel-systems'
         });
@@ -8213,9 +8213,13 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 options: Object.freeze(['campaign', 'survival']),
                 defaultMode: 'campaign',
                 survivalSwarms: Object.freeze([
-                    Object.freeze({ key: 'zig', label: 'Zig', behaviorType: 'drifter' }),
-                    Object.freeze({ key: 'dash', label: 'Dash', behaviorType: 'charger' }),
-                    Object.freeze({ key: 'echo', label: 'Echo', behaviorType: 'pulse' })
+                    Object.freeze({ key: 'zig', label: 'Zig', behaviorType: 'drifter', behaviorPlan: Object.freeze(['drifter','drifter','drifter','drifter','drifter','drifter','drifter','drifter']) }),
+                    Object.freeze({ key: 'dash', label: 'Dash', behaviorType: 'charger', behaviorPlan: Object.freeze(['charger','charger','charger','charger','charger','charger','charger','charger']) }),
+                    Object.freeze({ key: 'echo', label: 'Echo', behaviorType: 'pulse', behaviorPlan: Object.freeze(['pulse','pulse','pulse','pulse','pulse','pulse','pulse','pulse']) }),
+                    Object.freeze({ key: 'zig-dash', label: 'Zig + Dash', behaviorType: 'drifter', behaviorPlan: Object.freeze(['drifter','charger','drifter','charger','drifter','charger','drifter','charger']) }),
+                    Object.freeze({ key: 'zig-echo', label: 'Zig + Echo', behaviorType: 'drifter', behaviorPlan: Object.freeze(['drifter','pulse','drifter','pulse','drifter','pulse','drifter','pulse']) }),
+                    Object.freeze({ key: 'dash-echo', label: 'Dash + Echo', behaviorType: 'charger', behaviorPlan: Object.freeze(['charger','pulse','charger','pulse','charger','pulse','charger','pulse']) }),
+                    Object.freeze({ key: 'all-three', label: 'All Three', behaviorType: 'drifter', behaviorPlan: Object.freeze(['drifter','charger','pulse','drifter','charger','pulse','drifter','charger']) })
                 ]),
                 defaultSurvivalSwarm: 'zig',
                 // Survival is a controlled behavior lab. Every run references the same
@@ -9469,8 +9473,22 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 return this.getSwarmDefinition(this.activeSwarmType).label;
             }
 
+            getSelectedBehaviorPlan() {
+                const definition = this.getSwarmDefinition(this.selectedSwarmType);
+                return Array.isArray(definition.behaviorPlan) && definition.behaviorPlan.length
+                    ? definition.behaviorPlan.slice()
+                    : Array(8).fill(definition.behaviorType || ENEMY_BEHAVIOR_TYPES.DRIFTER);
+            }
+
+            getActiveBehaviorPlan() {
+                const definition = this.getSwarmDefinition(this.activeSwarmType);
+                return Array.isArray(definition.behaviorPlan) && definition.behaviorPlan.length
+                    ? definition.behaviorPlan.slice()
+                    : Array(8).fill(definition.behaviorType || ENEMY_BEHAVIOR_TYPES.DRIFTER);
+            }
+
             getActiveBehaviorType() {
-                return this.getSwarmDefinition(this.activeSwarmType).behaviorType;
+                return this.getActiveBehaviorPlan()[0] || this.getSwarmDefinition(this.activeSwarmType).behaviorType;
             }
 
             getSurvivalBalanceSector() {
@@ -14762,15 +14780,30 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                             recoveredAfterReload: true
                         });
                     }
+                    const savedZigBenchmark = Array.isArray(saved.benchmark && saved.benchmark.zig)
+                        ? saved.benchmark.zig.filter(Number.isFinite).slice(-100)
+                        : [];
+                    const recordedZigBenchmark = runs.filter((run) => (
+                        run &&
+                        String(run.identity || '').toLowerCase() === 'zig' &&
+                        run.endReason === 'death' &&
+                        (!Array.isArray(run.parameterChanges) || run.parameterChanges.length === 0) &&
+                        run.includedInMedianBenchmark !== false &&
+                        Number.isFinite(run.survivalTimeMs)
+                    )).map((run) => run.survivalTimeMs).slice(-100);
+                    const zigBenchmark = saved.artificialZigSeedRemovedV1 === true
+                        ? savedZigBenchmark
+                        : recordedZigBenchmark;
                     return {
                         schema: 'blockazoids-survival-lab-v3',
                         schemaVersion: 3,
                         runs,
                         benchmark: {
-                            zig: Array.isArray(saved.benchmark && saved.benchmark.zig) ? saved.benchmark.zig.filter(Number.isFinite).slice(-100) : [],
+                            zig: zigBenchmark,
                             dash: Array.isArray(saved.benchmark && saved.benchmark.dash) ? saved.benchmark.dash.filter(Number.isFinite).slice(-100) : [],
                             echo: Array.isArray(saved.benchmark && saved.benchmark.echo) ? saved.benchmark.echo.filter(Number.isFinite).slice(-100) : []
                         },
+                        artificialZigSeedRemovedV1: true,
                         lastSavedAt: saved.savedAt || null
                     };
                 } catch (_) {
@@ -14785,6 +14818,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                     schema: 'blockazoids-survival-lab-v3',
                     schemaVersion: 3,
                     savedAt,
+                    artificialZigSeedRemovedV1: true,
                     runs: Array.isArray(this.telemetrySystem.survivalTelemetry.runs)
                         ? this.telemetrySystem.survivalTelemetry.runs.slice(-100)
                         : [],
@@ -14938,13 +14972,6 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
             getSurvivalBenchmarkSummary: function() {
                 if (!this.telemetrySystem.survivalTelemetry) this.telemetrySystem.survivalTelemetry = this.telemetrySystem.loadSurvivalTelemetryData();
                 const benchmark = this.telemetrySystem.survivalTelemetry.benchmark || (this.telemetrySystem.survivalTelemetry.benchmark = { zig: [], dash: [], echo: [] });
-                // One-time p305 migration: preserve the remembered ZIG benchmark in the existing
-                // Survival telemetry store. This runs only when the benchmark summary is requested,
-                // never during boot, and can be removed in the next build after the value is stored.
-                if (!Array.isArray(benchmark.zig) || benchmark.zig.length === 0) {
-                    benchmark.zig = [88000];
-                    this.telemetrySystem.saveSurvivalTelemetryData();
-                }
                 const summarize = (identity) => {
                     const values = Array.isArray(benchmark[identity]) ? benchmark[identity].filter(Number.isFinite).sort((a, b) => a - b) : [];
                     const middle = Math.floor(values.length / 2);
@@ -17531,7 +17558,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 gameMode.setSelectedSwarmType('echo');
                 const activeMode = gameMode.beginRun();
                 this.assert('GameModeSystem owns Campaign and Survival selection', activeMode.activeMode === 'survival' && gameMode.getModeLabel() === 'Survival');
-                this.assert('GameModeSystem maps Zig, Dash, and Echo to one behavior each', GAME_CONFIG.gameModes.survivalSwarms.map((swarm) => swarm.behaviorType).join(',') === 'drifter,charger,pulse');
+                this.assert('GameModeSystem exposes single and mixed Survival swarms', GAME_CONFIG.gameModes.survivalSwarms.length === 7 && GAME_CONFIG.gameModes.survivalSwarms.slice(0, 3).map((swarm) => swarm.behaviorType).join(',') === 'drifter,charger,pulse');
                 gameMode.beginRun();
                 this.assert('GameModeSystem fixes active Survival balance to Sector 5', gameMode.getBalanceSector(15) === 5 && gameMode.getSurvivalSpawnCellSequence().length === 8);
                 this.assert('GameModeSystem snapshot is read-only', Object.isFrozen(gameMode.snapshot()));
@@ -17793,7 +17820,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 this.assert('Sector-select runs are blocked before campaign completion', completeSectorSource.includes('!this.runSession.isEndingEligible()') && completeSectorSource.includes('completePracticeRunAfterRestore'));
                 this.assert('Final Gridlock has an authoritative run-origin gate', Game.prototype.beginFinalGridlock.toString().includes('this.runSession.isEndingEligible()'));
                 this.assert('Survival uses the Final Gridlock lifecycle without campaign ending eligibility', Game.prototype.beginFinalGridlock.toString().includes('survivalModeLaunch') && Game.prototype.beginNewRun.toString().includes("beginFinalGridlock('survival-mode')"));
-                this.assert('Survival spawn plans use one selected identity', Game.prototype.applySectorParameters.toString().includes('this.gameMode.getActiveBehaviorType()') && Game.prototype.spawnOvertimeEnemy.toString().includes('this.gameMode.getActiveBehaviorType()'));
+                this.assert('Survival spawn plans use the selected swarm behavior plan', Game.prototype.applySectorParameters.toString().includes('this.gameMode.getActiveBehaviorPlan()') && Game.prototype.spawnOvertimeEnemy.toString().includes('this.gameMode.getActiveBehaviorPlan()'));
                 this.assert('Survival balance resolves through authoritative Sector 5 rules', GAME_CONFIG.gameModes.survivalBalanceSector === 5 && Game.prototype.applySectorParameters.toString().includes('getBalanceSector') && TelemetrySystem.implementations.getCurrentSpeedMultiplier.toString().includes('getBalanceSector'));
                 this.assert('Survival spawn positions use one deterministic sequence', Array.isArray(GAME_CONFIG.gameModes.survivalSpawnCellSequence) && GAME_CONFIG.gameModes.survivalSpawnCellSequence.length === GAME_CONFIG.enemySpawning.gridlockEnemyThreshold && EnemySpawnSystem.prototype.chooseSurvivalSpawnLocation.toString().includes('survivalSpawnSequenceIndex'));
                 this.assert('Survival telemetry is stored separately from Campaign telemetry', GAME_CONFIG.storage.survivalTelemetry !== GAME_CONFIG.storage.telemetry && TelemetrySystem.implementations.beginSurvivalTelemetryRun.toString().includes('currentSurvivalTelemetryRun') && TelemetrySystem.implementations.finishSurvivalTelemetryRun.toString().includes('survivalTelemetry.runs'));
@@ -23839,7 +23866,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                         ENEMY_BEHAVIOR_TYPES.PULSE
                     ];
                 } else if (this.runtimeState.finalGridlockActive && this.gameMode.isSurvivalRun()) {
-                    behaviorPlan = Array(this.gridlockEnemyThreshold).fill(this.gameMode.getActiveBehaviorType());
+                    behaviorPlan = this.gameMode.getActiveBehaviorPlan().slice(0, this.gridlockEnemyThreshold);
                 } else {
                     behaviorPlan = this.campaign.getEnemyBehaviorPlan(this.campaign.currentSector, this.gridlockEnemyThreshold).slice();
                 }
@@ -25309,7 +25336,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                     spawnRequest = {
                         type: deterministicSize.type,
                         behaviorType: this.gridlockSystem.chooseBehavior(this.runtimeState.finalGridlockActive && this.gameMode.isSurvivalRun()
-                            ? Array(this.gridlockEnemyThreshold).fill(this.gameMode.getActiveBehaviorType())
+                            ? this.gameMode.getActiveBehaviorPlan().slice(0, this.gridlockEnemyThreshold)
                             : this.campaign.getEnemyBehaviorPlan(this.campaign.currentSector, this.gridlockEnemyThreshold)),
                         spawnCategory,
                         queueOrigin: deterministicSize.queueOrigin,
