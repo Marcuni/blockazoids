@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="p320">
+<html data-build-version="p321">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -7677,7 +7677,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
         const BUILD_METADATA = window.BLOCKAZOIDS_BUILD = Object.freeze({
             version: BUILD_ID,
             label: BUILD_VERSION,
-            architecturePhase: 'developer-survival-mixed-swarm-tuning-and-cap',
+            architecturePhase: 'completed-tap-pair-cosmic-zap-input',
             sourceBaseline: 'p287',
             behaviorPolicy: 'single-design-space-scale-authoritative-state-no-parallel-systems'
         });
@@ -17811,10 +17811,12 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 this.assert('Tap completion ignores accumulated Safari travel noise', gestureEndSource.includes("(pointer.maxDistanceFromStart || 0) <= this.getSpatialThreshold('tapMaxMove')") && !gestureEndSource.includes("pointer.travel <= this.getSpatialThreshold('tapMaxMove')"));
                 const doubleTapEvaluatorSource = FullSurfaceGestureCoordinator.prototype.evaluateDoubleTapCandidate.toString();
                 const gesturePointerDownSource = FullSurfaceGestureCoordinator.prototype.handlePointerDown.toString();
-                const gameplayDownResolutionSource = FullSurfaceGestureCoordinator.prototype.resolveGameplayDoubleTapOnPointerDown.toString();
-                this.assert('Production double-tap evaluator owns timing and responsive separation', doubleTapEvaluatorSource.includes('gestureDoubleTapWindowMs') && doubleTapEvaluatorSource.includes("getSpatialThreshold('doubleTapMaxSeparation')") && FullSurfaceGestureCoordinator.prototype.handleOneFingerTap.toString().includes('evaluateDoubleTapCandidate') && gameplayDownResolutionSource.includes('evaluateDoubleTapCandidate'));
-                this.assert('Cosmic Zap resolves on the second pointer-down', gesturePointerDownSource.includes('resolveGameplayDoubleTapOnPointerDown') && gameplayDownResolutionSource.includes("requestCosmicZap('double-tap')") && gameplayDownResolutionSource.includes('cosmicZapResolvedOnDown = true'));
-                this.assert('Second-contact movement cannot retroactively cancel a resolved Zap', gestureEndSource.includes('pointer.cosmicZapResolvedOnDown') && !gestureEndSource.includes('movementCommitted && pointer.cosmicZapResolvedOnDown'));
+                const gestureTapSource = FullSurfaceGestureCoordinator.prototype.handleOneFingerTap.toString();
+                const gestureMoveSource = FullSurfaceGestureCoordinator.prototype.handlePointerMove.toString();
+                this.assert('Production double-tap evaluator owns timing and responsive separation', doubleTapEvaluatorSource.includes('gestureDoubleTapWindowMs') && doubleTapEvaluatorSource.includes("getSpatialThreshold('doubleTapMaxSeparation')") && gestureTapSource.includes('evaluateDoubleTapCandidate'));
+                this.assert('Cosmic Zap resolves only after the second completed tap', typeof FullSurfaceGestureCoordinator.prototype.resolveGameplayDoubleTapOnPointerDown === 'undefined' && !gesturePointerDownSource.includes("requestCosmicZap('double-tap')") && gestureEndSource.includes('if (wasTap) this.handleOneFingerTap(pointer)') && gestureTapSource.includes("requestCosmicZap('double-tap')"));
+                this.assert('Consumed double-tap pairs cannot overlap', gestureTapSource.includes('this.lastGameplayTap = null') && gestureTapSource.indexOf('this.lastGameplayTap = null') < gestureTapSource.indexOf("requestCosmicZap('double-tap')"));
+                this.assert('Second-contact swipe cancels pending Zap history only after tap tolerance is exceeded', gestureMoveSource.includes('if (pointer.movementCommitted) this.lastGameplayTap = null') && !gestureMoveSource.includes('this.resolveGameplayDoubleTapOnPointerDown'));
                 this.assert('Multitouch clears pending Zap history and blocks the chord', gesturePointerDownSource.includes('this.lastGameplayTap = null') && gesturePointerDownSource.includes('this.multitouchBlocked = true'));
                 this.assert('Temporary gesture test surfaces are removed', document.querySelectorAll('[id*="Diagnostics"]').length === 0 && !Object.keys(GAME_CONFIG.input).some(key => /diagnostic/i.test(key)) && !Object.keys(DiagnosticsSystem.implementations).some(key => /gesture/i.test(key)));
                 this.assert('Unused renderer no-op methods removed', !PlayfieldRendererState.prototype.renderOrb && !PlayfieldRendererState.prototype.renderEnemyPosition && !PlayfieldRendererState.prototype.renderEnemySize && !PlayfieldRendererState.prototype.renderCrystalPosition);
@@ -18971,26 +18973,6 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 });
             }
 
-            resolveGameplayDoubleTapOnPointerDown(pointer) {
-                const game = this.game;
-                if (!game || typeof game.canRequestCosmicZap !== 'function' || !game.canRequestCosmicZap()) return false;
-                const previousTap = this.lastGameplayTap;
-                if (!previousTap) return false;
-
-                const now = this.now();
-                const assessment = this.evaluateDoubleTapCandidate(previousTap, pointer.startX, pointer.startY, now);
-                if (!assessment.recognized) return false;
-
-                // The second touch-down completes the command. Its subsequent movement remains
-                // available to the Orb instead of retroactively invalidating the Cosmic Zap.
-                this.lastGameplayTap = null;
-                pointer.cosmicZapResolvedOnDown = true;
-                pointer.cosmicZapResolution = assessment;
-                this.suppressClicksUntil = now + 180;
-                game.requestCosmicZap('double-tap');
-                return true;
-            }
-
             now() {
                 return performance.now();
             }
@@ -19049,9 +19031,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                     coalescedSamples: 0,
                     movementCommitted: false,
                     ended: false,
-                    multitouchSeen: false,
-                    cosmicZapResolvedOnDown: false,
-                    cosmicZapResolution: null
+                    multitouchSeen: false
                 };
             }
 
@@ -19083,7 +19063,6 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
 
                 if (this.pointers.size === 1) {
                     this.primaryPointerId = event.pointerId;
-                    this.resolveGameplayDoubleTapOnPointerDown(pointer);
                     if (this.game.flow.allowsOrbDragInput()) {
                         this.setDesktopGestureCursor(true, pointer.pointerType);
                     }
@@ -19152,7 +19131,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                     if (!this.game.flow.allowsOrbDragInput()) continue;
 
                     if (event.cancelable) event.preventDefault();
-                    this.lastGameplayTap = null;
+                    if (pointer.movementCommitted) this.lastGameplayTap = null;
                     if (pointer.movementCommitted && this.isInteractiveTarget(pointer.target)) {
                         this.suppressClicksUntil = this.now() + 120;
                     }
@@ -19196,10 +19175,6 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                     this.suppressClicksUntil = this.now() + 120;
                 }
 
-                if (pointer.cosmicZapResolvedOnDown) {
-                    this.suppressClicksUntil = this.now() + 180;
-                    return;
-                }
                 if (wasTap) this.handleOneFingerTap(pointer);
             }
 
@@ -19215,8 +19190,8 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                     const previous = this.lastGameplayTap;
                     const assessment = this.evaluateDoubleTapCandidate(previous, pointer.x, pointer.y, now);
 
-                    // Pointer-up remains a compatibility fallback. The normal production path resolves
-                    // the command earlier on the second touch-down.
+                    // A Cosmic Zap is recognized only after the second contact has completed as a valid tap.
+                    // Consuming the pair clears tap history, so a second Zap requires two new completed taps.
                     if (assessment.recognized) {
                         this.lastGameplayTap = null;
                         this.suppressClicksUntil = now + 180;
