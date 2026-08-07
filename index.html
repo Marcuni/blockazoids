@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="p319">
+<html data-build-version="p320">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -8074,12 +8074,14 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
             },
             enemyBehaviors: {
                 charger: {
-                    chargeCadenceMs: 2700,
+                    cruiseSpeedMultiplier: 0.8,
+                    chargeCadenceMs: 3000,
                     warningMs: 350,
                     chargeSpeedMultiplier: 2.3,
                     chargeDurationMs: 600
                 },
                 pulse: {
+                    cruiseSpeedMultiplier: 0.8,
                     activeMs: 2000,
                     phasedMs: 900,
                     positionFlashIntervalMs: 350,
@@ -8258,7 +8260,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 introCompletionBuild: 'blockazoidsGridCalibrationCompletedBuildV1',
                 telemetry: 'blockazoidsBalanceTelemetry',
                 survivalTelemetry: 'blockazoidsSurvivalLabTelemetryV1',
-                survivalBehaviorTuning: 'blockazoidsSurvivalBehaviorTuningV1',
+                survivalBehaviorTuning: 'blockazoidsSurvivalBehaviorTuningV2',
                 enemyEncounters: 'blockazoidsEnemyEncountersV1'
             }
         });
@@ -15678,6 +15680,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                     movementPolicy: 'size-controls-intensity-behavior-controls-style',
                     dashParityConfiguration: {
                         profile: 'zig-foundation-charge-modifier',
+                        cruiseSpeedMultiplier: charger.cruiseSpeedMultiplier,
                         chargeCadenceMs: charger.chargeCadenceMs,
                         cadenceVariationPercent: 15,
                         warningMs: charger.warningMs,
@@ -15693,15 +15696,17 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                             resultantMagnitude: mapSpeeds((speed) => speed * Math.SQRT2)
                         },
                         dash: {
-                            cruise: { ...sizeSpeeds },
-                            charge: mapSpeeds((speed) => speed * charger.chargeSpeedMultiplier),
+                            cruise: mapSpeeds((speed) => speed * charger.cruiseSpeedMultiplier),
+                            charge: mapSpeeds((speed) => speed * charger.cruiseSpeedMultiplier * charger.chargeSpeedMultiplier),
+                            cruiseSpeedMultiplier: charger.cruiseSpeedMultiplier,
                             chargeCadenceMs: charger.chargeCadenceMs,
                             cadenceVariationPercent: 15,
                             warningMs: charger.warningMs,
                             chargeDurationMs: charger.chargeDurationMs
                         },
                         echo: {
-                            movement: { ...sizeSpeeds },
+                            movement: mapSpeeds((speed) => speed * pulse.cruiseSpeedMultiplier),
+                            cruiseSpeedMultiplier: pulse.cruiseSpeedMultiplier,
                             activeMs: pulse.activeMs,
                             phasedMs: pulse.phasedMs,
                             positionFlashIntervalMs: pulse.positionFlashIntervalMs
@@ -17503,7 +17508,8 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 this.assert('Medium movement tier is faster than large', Number(authoredBaseSpeeds.medium) > Number(authoredBaseSpeeds.large));
                 this.assert('Authored size tiers preserve the approved 3 / 2 / 1.5 baseline', authoredBaseSpeeds.small === 3 && authoredBaseSpeeds.medium === 2 && authoredBaseSpeeds.large === 1.5);
                 const dash = config.enemyBehaviors.charger;
-                this.assert('DASH modifier tuning is centralized and limited', Object.keys(dash).sort().join(',') === 'chargeCadenceMs,chargeDurationMs,chargeSpeedMultiplier,warningMs' && dash.chargeCadenceMs === 2700 && dash.warningMs === 350 && dash.chargeSpeedMultiplier === 2.3 && dash.chargeDurationMs === 600);
+                this.assert('DASH modifier tuning is centralized and limited', Object.keys(dash).sort().join(',') === 'chargeCadenceMs,chargeDurationMs,chargeSpeedMultiplier,cruiseSpeedMultiplier,warningMs' && dash.cruiseSpeedMultiplier === 0.8 && dash.chargeCadenceMs === 3000 && dash.warningMs === 350 && dash.chargeSpeedMultiplier === 2.3 && dash.chargeDurationMs === 600);
+                this.assert('ECHO cruise speed is authored relative to ZIG', config.enemyBehaviors.pulse.cruiseSpeedMultiplier === 0.8);
                 this.assert('Default sector size sequence is deterministic', JSON.stringify(defaultSizeSequence) === JSON.stringify(expectedDefaultSizeSequence));
                 const defaultSizeCounts = countSizes(defaultSizeSequence);
                 this.assert('Default sector size sequence preserves 1 small, 6 medium, and 1 large', defaultSizeCounts.small === 1 && defaultSizeCounts.medium === 6 && defaultSizeCounts.large === 1);
@@ -27339,14 +27345,22 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 };
             }
 
-            getSharedSpeedMultiplier() {
+            getDeveloperSpeedScale() {
                 return this.enemy.game.behaviorTuningSystem ? this.enemy.game.behaviorTuningSystem.getSharedSpeedMultiplier() : 1;
+            }
+
+            getBehaviorCruiseSpeedMultiplier() {
+                return 1;
+            }
+
+            getMovementSpeedMultiplier() {
+                return this.getDeveloperSpeedScale() * this.getBehaviorCruiseSpeedMultiplier();
             }
 
             initializeZigMovement() {
                 const enemy = this.enemy;
                 const direction = this.getInitialDirection();
-                const componentSpeed = enemy.speed * this.getSharedSpeedMultiplier();
+                const componentSpeed = enemy.speed * this.getMovementSpeedMultiplier();
                 enemy.dx = direction.x * componentSpeed;
                 enemy.dy = direction.y * componentSpeed;
             }
@@ -27354,7 +27368,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
             normalizeToZigSpeed(fallbackDirection = null) {
                 const enemy = this.enemy;
                 enemy.normalizeVelocityMagnitude(
-                    enemy.speed * this.getSharedSpeedMultiplier() * Math.SQRT2,
+                    enemy.speed * this.getMovementSpeedMultiplier() * Math.SQRT2,
                     fallbackDirection || { x: enemy.dx, y: enemy.dy }
                 );
             }
@@ -27423,6 +27437,10 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 return GAME_CONFIG.palette.green;
             }
 
+            getBehaviorCruiseSpeedMultiplier() {
+                return Number(this.tuning.cruiseSpeedMultiplier) || 1;
+            }
+
             getCadenceVariation() {
                 const enemy = this.enemy;
                 const isSurvival = !!(enemy.game && enemy.game.gameMode && enemy.game.gameMode.isSurvivalRun());
@@ -27476,7 +27494,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 this.stateEndsAt = now + this.tuning.chargeDurationMs;
                 this.chargeStartedAt = now;
                 this.chargeDistancePx = 0;
-                const chargeSpeed = enemy.speed * this.getSharedSpeedMultiplier() * this.tuning.chargeSpeedMultiplier;
+                const chargeSpeed = enemy.speed * this.getMovementSpeedMultiplier() * this.tuning.chargeSpeedMultiplier;
                 enemy.dx = targetX / magnitude * chargeSpeed;
                 enemy.dy = targetY / magnitude * chargeSpeed;
                 this.setVisualState(this.state, now);
@@ -27511,7 +27529,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
 
             onBoundaryCollision() {
                 if (this.state === 'charge') {
-                    this.enemy.normalizeVelocityMagnitude(this.enemy.speed * this.getSharedSpeedMultiplier() * this.tuning.chargeSpeedMultiplier, { x: this.enemy.dx, y: this.enemy.dy });
+                    this.enemy.normalizeVelocityMagnitude(this.enemy.speed * this.getMovementSpeedMultiplier() * this.tuning.chargeSpeedMultiplier, { x: this.enemy.dx, y: this.enemy.dy });
                     return;
                 }
                 if (this.state === 'warning') return;
@@ -27526,7 +27544,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 }
                 if (this.state === 'charge') {
                     this.enemy.normalizeVelocityMagnitude(
-                        this.enemy.speed * this.getSharedSpeedMultiplier() * this.tuning.chargeSpeedMultiplier,
+                        this.enemy.speed * this.getMovementSpeedMultiplier() * this.tuning.chargeSpeedMultiplier,
                         normal || { x: this.enemy.dx, y: this.enemy.dy }
                     );
                     this.enemy.game.telemetrySystem.noteSurvivalDashEvent('block-collision', { enemy: this.enemy });
@@ -27542,7 +27560,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                     return;
                 }
                 if (this.state === 'charge') {
-                    this.enemy.normalizeVelocityMagnitude(this.enemy.speed * this.getSharedSpeedMultiplier() * this.tuning.chargeSpeedMultiplier);
+                    this.enemy.normalizeVelocityMagnitude(this.enemy.speed * this.getMovementSpeedMultiplier() * this.tuning.chargeSpeedMultiplier);
                     return;
                 }
                 super.applyLiveSharedSpeedChange();
@@ -27603,6 +27621,10 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
 
             getVisualColor() {
                 return GAME_CONFIG.palette.blue;
+            }
+
+            getBehaviorCruiseSpeedMultiplier() {
+                return Number(this.tuning.cruiseSpeedMultiplier) || 1;
             }
 
             setVisualState(nextState, timestamp = performance.now(), pulseTransition = false) {
@@ -31199,13 +31221,13 @@ startGridlockBeat(delaySeconds = 0) {
                 assert('Small Block-A-Zoids remain faster than medium', game.getEnemySpeed('small') > game.getEnemySpeed('medium'));
                 assert('Medium Block-A-Zoids remain faster than large', game.getEnemySpeed('medium') > game.getEnemySpeed('large'));
                 const dashParity = GAME_CONFIG.enemyBehaviors.charger;
-                assert('DASH uses only the four authored modifier values', Object.keys(dashParity).sort().join(',') === 'chargeCadenceMs,chargeDurationMs,chargeSpeedMultiplier,warningMs' && dashParity.chargeCadenceMs === 2700 && dashParity.warningMs === 350 && dashParity.chargeSpeedMultiplier === 2.3 && dashParity.chargeDurationMs === 600);
+                assert('DASH uses the authored ZIG-relative cruise and charge modifiers', Object.keys(dashParity).sort().join(',') === 'chargeCadenceMs,chargeDurationMs,chargeSpeedMultiplier,cruiseSpeedMultiplier,warningMs' && dashParity.cruiseSpeedMultiplier === 0.8 && dashParity.chargeCadenceMs === 3000 && dashParity.warningMs === 350 && dashParity.chargeSpeedMultiplier === 2.3 && dashParity.chargeDurationMs === 600);
                 assert('DASH charge profile applies proportionally to all sizes', ['small', 'medium', 'large'].every((size) => Math.abs((game.getEnemySpeed(size) * dashParity.chargeSpeedMultiplier) - (game.getEnemySpeed(size) * 2.3)) < 0.000001));
                 const zigFoundationSource = ZigMovementFoundation.toString();
-                assert('ZIG movement profile remains authoritative with one developer tuning scale', zigFoundationSource.includes('componentSpeed = enemy.speed * this.getSharedSpeedMultiplier()') && zigFoundationSource.includes('enemy.speed * this.getSharedSpeedMultiplier() * Math.SQRT2'));
+                assert('ZIG movement profile remains authoritative while identities apply one relative cruise multiplier', zigFoundationSource.includes('componentSpeed = enemy.speed * this.getMovementSpeedMultiplier()') && zigFoundationSource.includes('enemy.speed * this.getMovementSpeedMultiplier() * Math.SQRT2') && zigFoundationSource.includes('getBehaviorCruiseSpeedMultiplier'));
                 assert('DASH and ECHO inherit the ZIG movement foundation', ChargerBehavior.prototype instanceof ZigMovementFoundation && PulseBlockBehavior.prototype instanceof ZigMovementFoundation);
                 assert('DASH has no directional-line telegraph or recovery state', !CanvasPlayfieldRenderer.prototype.drawCharger.toString().includes('drawChargerTargetLine') && !ChargerBehavior.toString().includes('recovery'));
-                assert('ECHO exposes only active and phased gameplay durations', GAME_CONFIG.enemyBehaviors.pulse.activeMs === 2000 && GAME_CONFIG.enemyBehaviors.pulse.phasedMs === 900 && !Object.prototype.hasOwnProperty.call(GAME_CONFIG.enemyBehaviors.pulse, 'speedMultiplier') && PulseBlockBehavior.prototype.beginPhased.toString().includes('this.tuning.phasedMs'));
+                assert('ECHO uses the authored 0.8 ZIG-relative cruise speed with active and phased timing', GAME_CONFIG.enemyBehaviors.pulse.cruiseSpeedMultiplier === 0.8 && GAME_CONFIG.enemyBehaviors.pulse.activeMs === 2000 && GAME_CONFIG.enemyBehaviors.pulse.phasedMs === 900 && PulseBlockBehavior.prototype.beginPhased.toString().includes('this.tuning.phasedMs'));
                 assert('Top HUD announcement timing is shared', GAME_CONFIG.visualTiming.topHudAnnouncement.textMs === 2000 && GAME_CONFIG.visualTiming.topHudAnnouncement.pointsMs === 1000 && !UI.prototype.flashGridlockMessage.toString().includes('points > 0 ?'));
                 const hudScoreElement = game.ui.scoreElement;
                 const originalHudClassName = hudScoreElement ? hudScoreElement.className : '';
@@ -31373,7 +31395,7 @@ startGridlockBeat(delaySeconds = 0) {
                     const sizeBase = sector?.difficultySnapshot?.effectiveMovementSpeeds?.sizeBase || {};
                     assert('Difficulty snapshot proves distinct size movement tiers', sizeBase.small > sizeBase.medium && sizeBase.medium > sizeBase.large && sector?.difficultySnapshot?.effectiveMovementSpeeds?.sizeIndependent === false);
                     const dashSnapshot = sector?.difficultySnapshot?.dashParityConfiguration || {};
-                    assert('Difficulty snapshot records the DASH modifier configuration', dashSnapshot.chargeCadenceMs === 2700 && dashSnapshot.warningMs === 350 && dashSnapshot.chargeSpeedMultiplier === 2.3 && dashSnapshot.chargeDurationMs === 600);
+                    assert('Difficulty snapshot records the DASH modifier configuration', dashSnapshot.cruiseSpeedMultiplier === 0.8 && dashSnapshot.chargeCadenceMs === 3000 && dashSnapshot.warningMs === 350 && dashSnapshot.chargeSpeedMultiplier === 2.3 && dashSnapshot.chargeDurationMs === 600);
                     assert('Difficulty snapshot proves ZIG, DASH cruise, and ECHO share size-tier movement', sector?.difficultySnapshot?.effectiveMovementSpeeds?.zig?.perAxis?.small > sector?.difficultySnapshot?.effectiveMovementSpeeds?.zig?.perAxis?.medium && sector?.difficultySnapshot?.effectiveMovementSpeeds?.dash?.cruise?.medium === sector?.difficultySnapshot?.effectiveMovementSpeeds?.zig?.perAxis?.medium && sector?.difficultySnapshot?.effectiveMovementSpeeds?.echo?.movement?.medium === sector?.difficultySnapshot?.effectiveMovementSpeeds?.zig?.perAxis?.medium);
                     assert('Difficulty snapshot records the uniform proportional geometry policy', sector?.difficultySnapshot?.playfieldGeometry?.presentationPolicy === 'uniform-proportional-design-space' && sector?.difficultySnapshot?.playfieldGeometry?.profileMasterPlayfieldSize === 875 && sector?.difficultySnapshot?.playfieldGeometry?.renderedWidthPx === Number(game.PLAYFIELD_SIZE.toFixed(4)) && sector?.difficultySnapshot?.playfieldGeometry?.renderedGameplaySizesPx?.orb === game.ORB_SIZE);
 
