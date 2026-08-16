@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Zorblox under the OFL.
 
 -->
-<html data-build-version="p006">
+<html data-build-version="p007">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Zorblox</title>
@@ -8383,6 +8383,11 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                     Object.freeze({ key: 'all-three', label: 'All Three', behaviorType: 'drifter', behaviorPlan: Object.freeze(['drifter','charger','pulse','drifter','charger','pulse','drifter','charger']) })
                 ]),
                 defaultSurvivalSwarm: 'zig',
+                // Temporary campaign composition lab. While enabled, Campaign keeps each
+                // authored sector's crystal route and behavior mix, but resolves shared
+                // speed/spawn/size pressure through one Sector 5 reference. Disable this
+                // after combination testing to restore the authored sector escalation.
+                campaignCompositionBalanceTest: Object.freeze({ enabled: true, balanceSector: 5 }),
                 // Survival is a controlled behavior lab. Every run references the same
                 // authored Sector 5 balance and deterministic peripheral spawn plan.
                 survivalBalanceSector: 5,
@@ -9693,9 +9698,13 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
             }
 
             getBalanceSector(campaignSector = 1) {
-                return this.isSurvivalRun()
-                    ? this.getSurvivalBalanceSector()
-                    : GameRules.clampCampaignSector(campaignSector);
+                if (this.isSurvivalRun()) return this.getSurvivalBalanceSector();
+                const campaignTest = this.config.gameModes?.campaignCompositionBalanceTest;
+                if (campaignTest?.enabled) {
+                    const configured = Number(campaignTest.balanceSector) || 5;
+                    return GameRules.clampCampaignSector(configured);
+                }
+                return GameRules.clampCampaignSector(campaignSector);
             }
 
             getSurvivalSpawnCellSequence() {
