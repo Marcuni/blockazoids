@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="p335">
+<html data-build-version="p336">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -7177,6 +7177,33 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
     background-image: none !important;
 }
 
+
+        /* p336 thermal optimization: keep the approved CRT sweep look while avoiding filter-based opacity compositing. */
+        #gameContainer.crt-enabled.crt-fx-sweep.crt-sweep-low:not(.monitor-ui-suspended):not(.monitor-paused) .playfield-crt-sweep {
+            filter: none;
+            opacity: 0.133;
+            animation-duration: 10.5s;
+        }
+        #gameContainer.crt-enabled.crt-fx-sweep.crt-sweep-medium:not(.monitor-ui-suspended):not(.monitor-paused) .playfield-crt-sweep {
+            filter: none;
+            opacity: 0.20;
+            animation-duration: 8.4s;
+        }
+        #gameContainer.crt-enabled.crt-fx-sweep.crt-sweep-high:not(.monitor-ui-suspended):not(.monitor-paused) .playfield-crt-sweep {
+            filter: none;
+            opacity: 0.15;
+            animation-duration: 10.5s;
+        }
+        #gameContainer.crt-enabled.crt-fx-sweep.crt-signal-medium:not(.monitor-ui-suspended):not(.monitor-paused) .playfield-crt-sweep {
+            filter: none;
+            opacity: 0.48;
+            animation-duration: 5.4s;
+        }
+        #gameContainer.crt-enabled.crt-fx-sweep.crt-signal-high:not(.monitor-ui-suspended):not(.monitor-paused) .playfield-crt-sweep {
+            filter: none;
+            opacity: 0.20;
+            animation-duration: 9s;
+        }
 </style>
 </head>
 <body>
@@ -7816,7 +7843,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
         const BUILD_METADATA = window.BLOCKAZOIDS_BUILD = Object.freeze({
             version: BUILD_ID,
             label: BUILD_VERSION,
-            architecturePhase: 'major-havoc-orb-sequential-sparkle',
+            architecturePhase: 'monitor-thermal-optimized-webgl',
             sourceBaseline: 'p287',
             behaviorPolicy: 'single-design-space-scale-authoritative-state-no-parallel-systems'
         });
@@ -19821,6 +19848,8 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 this.activeCosmicZapEffects = new Set();
                 this.campaignRestoreLines = [];
                 this.campaignRestoreCells = [];
+                this.monitorEffectMaxPixelRatio = 2;
+                this.standardMaxPixelRatio = 3;
 
                 // Canvas blur appears brighter than equivalent layered CSS shadows. The shared
                 // playfield scale trims all gameplay glow sources evenly while the regular-object
@@ -19867,6 +19896,20 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 return { whiteMix, glowBlur };
             }
 
+            isMonitorPostProcessingActive() {
+                const container = this.game && this.game.container;
+                if (!container || !GAME_FEATURE_FLAGS.webglDistortion) return false;
+                return container.classList.contains('monitor-crt') || container.classList.contains('monitor-vector');
+            }
+
+            resolvePresentationPixelRatio(requestedRatio) {
+                const normalized = Math.max(1, Number(requestedRatio) || Number(window.devicePixelRatio) || 1);
+                const maxRatio = this.isMonitorPostProcessingActive()
+                    ? this.monitorEffectMaxPixelRatio
+                    : this.standardMaxPixelRatio;
+                return Math.min(maxRatio, normalized);
+            }
+
             attachOrb(orb) {
                 const element = super.attachOrb(orb);
                 if (!orb.visualEffectStartTimes) orb.visualEffectStartTimes = new Map();
@@ -19877,7 +19920,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 const width = Math.max(1, Number(layout.width) || this.game?.PLAYFIELD_SIZE || this.canvas.clientWidth || 1);
                 const height = Math.max(1, Number(layout.height) || this.game?.PLAYFIELD_SIZE || this.canvas.clientHeight || width);
                 const requestedRatio = Number(layout.pixelRatio) || Number(window.devicePixelRatio) || 1;
-                const pixelRatio = Math.min(3, Math.max(1, requestedRatio));
+                const pixelRatio = this.resolvePresentationPixelRatio(requestedRatio);
                 const bufferWidth = Math.max(1, Math.round(width * pixelRatio));
                 const bufferHeight = Math.max(1, Math.round(height * pixelRatio));
 
@@ -21884,8 +21927,13 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
             renderFrame(game = this.game, timestamp = performance.now()) {
                 if (!game) return;
                 const expectedSize = Math.max(1, Number(game.PLAYFIELD_SIZE) || this.canvas.clientWidth || 1);
-                if (Math.abs(this.cssWidth - expectedSize) > 0.25 || Math.abs(this.cssHeight - expectedSize) > 0.25) {
-                    this.resize({ width: expectedSize, height: expectedSize });
+                const expectedPixelRatio = this.resolvePresentationPixelRatio(Number(window.devicePixelRatio) || 1);
+                if (
+                    Math.abs(this.cssWidth - expectedSize) > 0.25 ||
+                    Math.abs(this.cssHeight - expectedSize) > 0.25 ||
+                    Math.abs(this.pixelRatio - expectedPixelRatio) > 0.01
+                ) {
+                    this.resize({ width: expectedSize, height: expectedSize, pixelRatio: expectedPixelRatio });
                 }
 
                 this.clear();
@@ -21936,6 +21984,10 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 this.hasFrame = false;
                 this.lastWidth = 0;
                 this.lastHeight = 0;
+                this.textureWidth = 0;
+                this.textureHeight = 0;
+                this.lastRenderTimestamp = 0;
+                this.minRenderIntervalMs = 1000 / 60;
 
                 if (!sourceCanvas || !outputCanvas || !GAME_FEATURE_FLAGS.webglDistortion) {
                     this.syncPresentation();
@@ -21983,7 +22035,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                         preserveDrawingBuffer: false,
                         premultipliedAlpha: false,
                         desynchronized: true,
-                        powerPreference: 'high-performance'
+                        powerPreference: 'low-power'
                     }) || this.outputCanvas.getContext('experimental-webgl');
 
                     if (!gl) throw new Error('WebGL is unavailable.');
@@ -22094,6 +22146,9 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                     this.hasFrame = false;
                     this.lastWidth = 0;
                     this.lastHeight = 0;
+                    this.textureWidth = 0;
+                    this.textureHeight = 0;
+                    this.lastRenderTimestamp = 0;
                     this.syncPresentation();
                 } catch (error) {
                     console.warn('WebGL playfield distortion disabled:', error);
@@ -22112,7 +22167,10 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
 
             shouldRender() {
                 if (!this.available || !GAME_FEATURE_FLAGS.webglDistortion || !this.game || !this.game.container) return false;
+                if (typeof document !== 'undefined' && document.hidden) return false;
                 if (this.game.container.classList.contains('monitor-ui-suspended')) return false;
+                if (this.game.container.classList.contains('monitor-paused')) return false;
+                if (!this.outputCanvas || !this.sourceCanvas) return false;
                 return this.getMode() !== 'off';
             }
 
@@ -22125,7 +22183,19 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
 
             invalidate() {
                 this.hasFrame = false;
+                this.lastRenderTimestamp = 0;
                 this.syncPresentation();
+            }
+
+            ensureTextureStorage(width, height) {
+                if (!this.gl || !this.texture) return;
+                if (width === this.textureWidth && height === this.textureHeight) return;
+                const gl = this.gl;
+                gl.bindTexture(gl.TEXTURE_2D, this.texture);
+                gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+                this.textureWidth = width;
+                this.textureHeight = height;
+                this.hasFrame = false;
             }
 
             resizeIfNeeded() {
@@ -22145,11 +22215,12 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                     this.lastHeight = height;
                     this.gl.viewport(0, 0, width, height);
                 }
+                this.ensureTextureStorage(width, height);
 
-                return { cssHeight };
+                return { cssHeight, width, height };
             }
 
-            render() {
+            render(timestamp = performance.now()) {
                 if (!this.shouldRender()) {
                     this.syncPresentation();
                     return;
@@ -22157,6 +22228,12 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
 
                 try {
                     const gl = this.gl;
+                    const frameTimestamp = Number.isFinite(Number(timestamp)) ? Number(timestamp) : performance.now();
+                    if (this.hasFrame && this.lastRenderTimestamp > 0 && (frameTimestamp - this.lastRenderTimestamp) < this.minRenderIntervalMs) {
+                        this.syncPresentation();
+                        return;
+                    }
+
                     const mode = this.getMode();
                     const layout = this.resizeIfNeeded();
                     const sharedGeometry = MONITOR_SHARED_FOUNDATION.geometry;
@@ -22169,7 +22246,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
 
                     gl.activeTexture(gl.TEXTURE0);
                     gl.bindTexture(gl.TEXTURE_2D, this.texture);
-                    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, this.sourceCanvas);
+                    gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, gl.RGBA, gl.UNSIGNED_BYTE, this.sourceCanvas);
                     gl.uniform1i(this.locations.source, 0);
                     gl.uniform1f(this.locations.strength, strength);
                     gl.uniform1f(this.locations.crtMode, mode === 'crt' ? 1 : 0);
@@ -22178,6 +22255,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
 
                     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
                     this.hasFrame = true;
+                    this.lastRenderTimestamp = frameTimestamp;
                     this.syncPresentation();
                 } catch (error) {
                     console.warn('WebGL playfield distortion frame failed:', error);
