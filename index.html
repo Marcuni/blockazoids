@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Block-A-Zoids under the OFL.
 
 -->
-<html data-build-version="p334">
+<html data-build-version="p335">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Block-A-Zoids</title>
@@ -4889,28 +4889,35 @@ Font License Notices
             animation: attractMajorHavocPenTrace 0.62s linear var(--mh-trace-delay, 0s) forwards;
         }
 
-        /* Final logo stays monochrome and vector-clean. ORB is emphasized structurally,
-           not with a different color: O/R/B receive a smaller secondary contour and one
-           restrained white intensity pulse after the pen trace completes. */
-        #enemyIdentityCard[data-card="cast-intro"] .mh-logo-orb-inner {
-            fill: none;
-            stroke: var(--game-white);
-            stroke-width: 2.1px;
-            stroke-linejoin: round;
-            stroke-linecap: round;
-            stroke-dasharray: 1050;
-            stroke-dashoffset: 1050;
-            vector-effect: non-scaling-stroke;
-            opacity: 0;
-            filter: drop-shadow(0 0 1px rgba(255,255,255,0.48));
-            transform: scale(0.87);
-            animation: attractMajorHavocPenTrace 0.34s linear var(--mh-orb-delay, 0s) forwards;
-        }
-
-        #enemyIdentityCard[data-card="cast-intro"] .mh-logo-orb-emphasis {
+        /* All seven letters finish identically. ORB is called out only after the cast
+           demonstration completes: O, then R, then B receive a brief white sparkle and
+           immediately return to the exact same final outline as the other letters. */
+        #enemyIdentityCard[data-card="cast-intro"] .mh-logo-orb-letter {
             transform-box: fill-box;
             transform-origin: center;
-            animation: attractMajorHavocOrbPulse 0.34s ease-in-out 2.78s 1;
+            transition: filter 80ms ease-out, stroke-width 80ms ease-out, transform 80ms ease-out;
+        }
+
+        #enemyIdentityCard[data-card="cast-intro"] .mh-logo-orb-letter.orb-sparkle-active {
+            filter: brightness(1.7) drop-shadow(0 0 6px rgba(255,255,255,0.92));
+            stroke-width: 7px;
+            transform: scale(1.035);
+        }
+
+        #enemyIdentityCard[data-card="cast-intro"] .mh-logo-orb-sparkle {
+            fill: none;
+            stroke: var(--game-white);
+            stroke-width: 4px;
+            stroke-linecap: round;
+            vector-effect: non-scaling-stroke;
+            opacity: 0;
+            transform-box: fill-box;
+            transform-origin: center;
+            pointer-events: none;
+        }
+
+        #enemyIdentityCard[data-card="cast-intro"] .mh-logo-orb-sparkle.orb-sparkle-active {
+            animation: attractMajorHavocOrbStarSparkle 0.20s ease-out 1;
         }
 
         #enemyIdentityCard[data-card="cast-intro"] .mh-logo-complete-pulse {
@@ -4923,9 +4930,10 @@ Font License Notices
             100% { stroke-dashoffset: 0; opacity: 1; }
         }
 
-        @keyframes attractMajorHavocOrbPulse {
-            0%, 100% { filter: drop-shadow(0 0 0 rgba(255,255,255,0)); }
-            50% { filter: drop-shadow(0 0 4px rgba(255,255,255,0.72)); }
+        @keyframes attractMajorHavocOrbStarSparkle {
+            0% { opacity: 0; transform: scale(0.25) rotate(0deg); }
+            35% { opacity: 1; transform: scale(1) rotate(18deg); }
+            100% { opacity: 0; transform: scale(1.55) rotate(34deg); }
         }
 
         @keyframes attractMajorHavocLogoPulse {
@@ -5042,8 +5050,8 @@ Font License Notices
         @media (prefers-reduced-motion: reduce) {
             #enemyIdentityCard[data-card="cast-intro"] .attract-major-havoc-logo,
             #enemyIdentityCard[data-card="cast-intro"] .mh-logo-letter-outline,
-            #enemyIdentityCard[data-card="cast-intro"] .mh-logo-orb-inner,
-            #enemyIdentityCard[data-card="cast-intro"] .mh-logo-orb-emphasis,
+            #enemyIdentityCard[data-card="cast-intro"] .mh-logo-orb-letter,
+            #enemyIdentityCard[data-card="cast-intro"] .mh-logo-orb-sparkle,
             #enemyIdentityCard[data-card="cast-intro"] .mh-logo-complete-pulse {
                 animation: none !important;
                 transform: none !important;
@@ -7808,7 +7816,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
         const BUILD_METADATA = window.BLOCKAZOIDS_BUILD = Object.freeze({
             version: BUILD_ID,
             label: BUILD_VERSION,
-            architecturePhase: 'major-havoc-white-outline-orb-emphasis',
+            architecturePhase: 'major-havoc-orb-sequential-sparkle',
             sourceBaseline: 'p287',
             behaviorPolicy: 'single-design-space-scale-authoritative-state-no-parallel-systems'
         });
@@ -13180,6 +13188,11 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 // The behavior cast begins only after that four-stage title sequence completes.
                 const titleSettleS = 3.86;
                 const titleScene = this.enemyIdentityCard.querySelector('.attract-major-havoc-scene');
+                const orbSparkleLetters = titleScene ? [...titleScene.querySelectorAll('.mh-logo-orb-letter')] : [];
+                const orbSparkleStars = titleScene ? [...titleScene.querySelectorAll('.mh-logo-orb-sparkle')] : [];
+                const orbSparkleStepMs = 230;
+                const orbSparkleDurationMs = 200;
+                let orbSparkleStartedAt = null;
 
                 // The cast demonstration uses the real ZIG/DASH/ECHO behavior classes and the
                 // real effective tuning/presentation systems. Only the lane and hidden DASH target
@@ -13402,6 +13415,21 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                     this.enemyIdentityCard.classList.toggle('cast-demo-active', settled);
                 };
 
+                const updateOrbSparkles = now => {
+                    const castComplete = entries.every(entry => settleStates.get(entry.key) === true);
+                    if (castComplete && orbSparkleStartedAt === null) orbSparkleStartedAt = now;
+                    if (orbSparkleStartedAt === null) return;
+                    const sparkleElapsed = now - orbSparkleStartedAt;
+                    orbSparkleLetters.forEach((letter, index) => {
+                        const local = sparkleElapsed - index * orbSparkleStepMs;
+                        letter.classList.toggle('orb-sparkle-active', local >= 0 && local < orbSparkleDurationMs);
+                    });
+                    orbSparkleStars.forEach((star, index) => {
+                        const local = sparkleElapsed - index * orbSparkleStepMs;
+                        star.classList.toggle('orb-sparkle-active', local >= 0 && local < orbSparkleDurationMs);
+                    });
+                };
+
                 const animate = now => {
                     if (token !== this.attractModeSystem.attractEnemyCardSimulationToken ||
                         !this.enemyIdentityCard || !this.enemyIdentityCard.classList.contains('visible') ||
@@ -13438,6 +13466,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                             applyAuthoritativePresentation(entry, actor, now, stageRect);
                             this.enemyIdentityCard.classList.toggle(`cast-row-${entry.key}-revealed`, settleStates.get(entry.key) === true);
                         });
+                        updateOrbSparkles(now);
                     }
 
                     this.attractModeSystem.attractEnemyCardFrame = requestAnimationFrame(animate);
@@ -13514,7 +13543,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                     this.enemyIdentityCard.setAttribute('aria-label', 'Arkom presents.');
                 } else if (isCastIntro) {
                     if (this.enemyIdentityCardName) {
-                        this.enemyIdentityCardName.innerHTML = '<span class="attract-major-havoc-scene" aria-hidden="true"><svg class="attract-major-havoc-logo" viewBox="0 0 1000 260" preserveAspectRatio="xMidYMid meet"><g class="mh-logo-complete-pulse" transform="translate(500 130) rotate(-6) skewX(-12) translate(-500 -130)"><text class="mh-logo-letter mh-logo-letter-outline" x="145" y="180" text-anchor="middle" style="--mh-trace-delay:0.08s">Z</text><text class="mh-logo-letter mh-logo-letter-outline" x="270" y="180" text-anchor="middle" style="--mh-trace-delay:0.40s">O</text><g class="mh-logo-orb-emphasis"><text class="mh-logo-letter mh-logo-orb-inner" x="270" y="180" text-anchor="middle" style="--mh-orb-delay:0.92s">O</text><text class="mh-logo-letter mh-logo-orb-inner" x="397" y="180" text-anchor="middle" style="--mh-orb-delay:1.24s">R</text><text class="mh-logo-letter mh-logo-orb-inner" x="523" y="180" text-anchor="middle" style="--mh-orb-delay:1.56s">B</text></g><text class="mh-logo-letter mh-logo-letter-outline" x="397" y="180" text-anchor="middle" style="--mh-trace-delay:0.72s">R</text><text class="mh-logo-letter mh-logo-letter-outline" x="523" y="180" text-anchor="middle" style="--mh-trace-delay:1.04s">B</text><text class="mh-logo-letter mh-logo-letter-outline" x="630" y="180" text-anchor="middle" style="--mh-trace-delay:1.36s">L</text><text class="mh-logo-letter mh-logo-letter-outline" x="745" y="180" text-anchor="middle" style="--mh-trace-delay:1.68s">O</text><text class="mh-logo-letter mh-logo-letter-outline" x="865" y="180" text-anchor="middle" style="--mh-trace-delay:2.00s">X</text></g></svg></span>';
+                        this.enemyIdentityCardName.innerHTML = '<span class="attract-major-havoc-scene" aria-hidden="true"><svg class="attract-major-havoc-logo" viewBox="0 0 1000 260" preserveAspectRatio="xMidYMid meet"><g class="mh-logo-complete-pulse" transform="translate(500 130) rotate(-6) skewX(-12) translate(-500 -130)"><text class="mh-logo-letter mh-logo-letter-outline" x="145" y="180" text-anchor="middle" style="--mh-trace-delay:0.08s">Z</text><text class="mh-logo-letter mh-logo-letter-outline mh-logo-orb-letter" data-orb-sparkle-index="0" x="270" y="180" text-anchor="middle" style="--mh-trace-delay:0.40s">O</text><text class="mh-logo-letter mh-logo-letter-outline mh-logo-orb-letter" data-orb-sparkle-index="1" x="397" y="180" text-anchor="middle" style="--mh-trace-delay:0.72s">R</text><text class="mh-logo-letter mh-logo-letter-outline mh-logo-orb-letter" data-orb-sparkle-index="2" x="523" y="180" text-anchor="middle" style="--mh-trace-delay:1.04s">B</text><text class="mh-logo-letter mh-logo-letter-outline" x="630" y="180" text-anchor="middle" style="--mh-trace-delay:1.36s">L</text><text class="mh-logo-letter mh-logo-letter-outline" x="745" y="180" text-anchor="middle" style="--mh-trace-delay:1.68s">O</text><text class="mh-logo-letter mh-logo-letter-outline" x="865" y="180" text-anchor="middle" style="--mh-trace-delay:2.00s">X</text><g class="mh-logo-orb-sparkles"><path class="mh-logo-orb-sparkle" data-orb-sparkle-index="0" d="M315 72 L315 102 M300 87 L330 87 M305 77 L325 97 M325 77 L305 97"/><path class="mh-logo-orb-sparkle" data-orb-sparkle-index="1" d="M442 72 L442 102 M427 87 L457 87 M432 77 L452 97 M452 77 L432 97"/><path class="mh-logo-orb-sparkle" data-orb-sparkle-index="2" d="M568 72 L568 102 M553 87 L583 87 M558 77 L578 97 M578 77 L558 97"/></g></g></svg></span>';
                     }
                     if (this.enemyIdentityCardClass) this.enemyIdentityCardClass.textContent = '';
                     if (this.enemyIdentityCardPersonality) this.enemyIdentityCardPersonality.innerHTML = '<div class="attract-cast-list"><div class="attract-cast-row" data-row="zig"><span class="attract-cast-copy"><span class="attract-cast-name">ZIG</span><span class="attract-cast-class">“DRIFTER”</span></span></div><div class="attract-cast-row" data-row="dash"><span class="attract-cast-copy"><span class="attract-cast-name">DASH</span><span class="attract-cast-class">“CHARGER”</span></span></div><div class="attract-cast-row" data-row="echo"><span class="attract-cast-copy"><span class="attract-cast-name">ECHO</span><span class="attract-cast-class">“PHASER”</span></span></div></div>';
