@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Zorblox under the OFL.
 
 -->
-<html data-build-version="p004">
+<html data-build-version="p006">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Zorblox</title>
@@ -4898,16 +4898,18 @@ Font License Notices
            active letter briefly fills white, receives a strong vector glow, then returns to the
            same outline-only resting state. */
         #enemyIdentityCard[data-card="cast-intro"] .mh-logo-letter {
-            transition: fill 42ms linear, filter 50ms ease-out, stroke-width 50ms ease-out;
+            transition: fill 28ms linear, filter 34ms ease-out, stroke-width 34ms ease-out;
         }
 
         #enemyIdentityCard[data-card="cast-intro"] .mh-logo-letter.logo-letter-accent-active {
             fill: var(--game-white);
             filter:
-                brightness(2.55)
-                drop-shadow(0 0 6px rgba(255,255,255,1))
-                drop-shadow(0 0 13px rgba(255,255,255,0.82));
-            stroke-width: 7px;
+                brightness(3.35)
+                drop-shadow(0 0 5px rgba(255,255,255,1))
+                drop-shadow(0 0 11px rgba(255,255,255,1))
+                drop-shadow(0 0 22px rgba(255,255,255,0.94))
+                drop-shadow(0 0 34px rgba(255,255,255,0.62));
+            stroke-width: 8.5px;
         }
 
         #enemyIdentityCard[data-card="cast-intro"] .mh-logo-letter-sparkle {
@@ -7834,7 +7836,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
         const BUILD_METADATA = window.ZORBLOX_BUILD = Object.freeze({
             version: BUILD_ID,
             label: BUILD_VERSION,
-            architecturePhase: 'zorblox-p004-shared-letter-accent-sequences',
+            architecturePhase: 'zorblox-p006-cached-monitor-frame-on-resume-countdown',
             sourceBaseline: 'p287',
             behaviorPolicy: 'single-design-space-scale-authoritative-state-no-parallel-systems'
         });
@@ -13244,8 +13246,8 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 const titleAccentLetters = titleScene ? [...titleScene.querySelectorAll('.mh-logo-letter')] : [];
                 const orbAccentLetters = titleScene ? [...titleScene.querySelectorAll('.mh-logo-letter[data-orb-accent-index]')] : [];
                 const orbAccentStars = titleScene ? [...titleScene.querySelectorAll('.mh-logo-letter-sparkle[data-orb-accent-index]')] : [];
-                const letterAccentStepMs = 130;
-                const letterAccentDurationMs = 155;
+                const letterAccentStepMs = 170;
+                const letterAccentDurationMs = 225;
                 const titleAccentStartedAt = startedAt + 2700;
                 const titleAccentEndAt = titleAccentStartedAt
                     + Math.max(0, titleAccentLetters.length - 1) * letterAccentStepMs
@@ -14276,6 +14278,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 if (!this.container) return;
                 this.container.classList.toggle('monitor-paused', !!paused);
                 if (paused && this.vectorTrail) this.vectorTrail.clear();
+                if (this.webglDistortion) this.webglDistortion.syncPresentation();
             },
 
             setMonitorUiSuspended(suspended) {
@@ -22205,11 +22208,21 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 return this.getMode() !== 'off';
             }
 
+            shouldPresentCachedFrame() {
+                if (!this.available || !this.hasFrame || !this.game || !this.game.container) return false;
+                if (this.game.container.classList.contains('monitor-ui-suspended')) return false;
+                if (!this.outputCanvas || !this.sourceCanvas) return false;
+                return this.getMode() !== 'off';
+            }
+
             syncPresentation() {
                 const container = this.game && this.game.container;
                 if (!container) return;
                 container.classList.toggle('webgl-distortion-ready', !!this.available);
-                container.classList.toggle('webgl-distortion-active', !!(this.available && this.hasFrame && this.shouldRender()));
+                // Presentation ownership is intentionally separate from render eligibility.
+                // During the resume countdown, monitor-paused blocks new texture uploads/shader
+                // work but the last completed warped monitor frame remains visible.
+                container.classList.toggle('webgl-distortion-active', this.shouldPresentCachedFrame());
             }
 
             invalidate() {
