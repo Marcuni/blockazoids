@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Zorblox under the OFL.
 
 -->
-<html data-build-version="p001">
+<html data-build-version="p002">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Zorblox</title>
@@ -7845,15 +7845,15 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
         const BUILD_METADATA = window.ZORBLOX_BUILD = Object.freeze({
             version: BUILD_ID,
             label: BUILD_VERSION,
-            architecturePhase: 'zorblox-p001-canonical-brand-migration',
+            architecturePhase: 'zorblox-p002-storage-migration-validation-fix',
             sourceBaseline: 'p287',
             behaviorPolicy: 'single-design-space-scale-authoritative-state-no-parallel-systems'
         });
 
 
 
-        // p248 canonical vocabulary. Storage keys remain unchanged for backward compatibility;
-        // all active source symbols use the current game-design terminology below.
+        // Canonical ZORBLOX vocabulary. Product storage is migrated once into the ZORBLOX
+        // namespace; active source symbols and persistent keys use current game terminology.
         const GAME_TERMINOLOGY = window.ZORBLOX_TERMINOLOGY = Object.freeze({
             progressionUnit: 'sector',
             avatar: 'Orb',
@@ -8008,7 +8008,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                     primarySource: 'src/js/platform/95-browser-storage-service.js',
                     supportingSources: ['src/js/services/96-settings-system.js', 'src/js/state/83-high-score-system.js', 'src/js/state/84-campaign-system.js'],
                     owners: ['BrowserStorageService', 'SettingsSystem', 'HighScoreSystem', 'CampaignSystem'],
-                    note: 'Existing storage-key strings are compatibility contracts and must not be renamed without migration.'
+                    note: 'ZORBLOX owns the canonical storage namespace. Earlier product keys are migrated once, then removed after the canonical value is safely preserved.'
                 },
                 developerToolsAndTelemetry: {
                     primarySource: 'src/js/development/80-developer-tools-system.js',
@@ -8071,7 +8071,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 'Provide the complete src directory, docs directory, build.py, build-manifest.json, assets, and a known-good numbered HTML.',
                 'Provide font-license files separately; font binaries are not embedded in this developer package.',
                 'Record the expected browser and iPhone test sizes.',
-                'Keep existing storage keys and telemetry schema notes with the source.',
+                'Keep storage migration rules and telemetry schema notes with the source.',
                 'Require a clean deterministic build and regression pass before accepting a handoff change.'
             ]
         });
@@ -9172,16 +9172,28 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                     const legacyPrefix = atob('YmxvY2them9pZHM=');
                     const canonicalPrefix = 'zorblox';
                     const storage = window.localStorage;
-                    const pending = [];
+                    const migrations = [];
+
+                    // Snapshot first because removing localStorage entries mutates index ordering.
                     for (let index = 0; index < storage.length; index++) {
-                        const key = storage.key(index);
-                        if (!key || !key.startsWith(legacyPrefix)) continue;
-                        const canonicalKey = canonicalPrefix + key.slice(legacyPrefix.length);
-                        if (storage.getItem(canonicalKey) !== null) continue;
-                        pending.push([canonicalKey, storage.getItem(key)]);
+                        const legacyKey = storage.key(index);
+                        if (!legacyKey || !legacyKey.startsWith(legacyPrefix)) continue;
+                        migrations.push({
+                            legacyKey,
+                            canonicalKey: canonicalPrefix + legacyKey.slice(legacyPrefix.length),
+                            legacyValue: storage.getItem(legacyKey)
+                        });
                     }
-                    pending.forEach(([key, value]) => {
-                        if (value !== null) storage.setItem(key, value);
+
+                    migrations.forEach(({ legacyKey, canonicalKey, legacyValue }) => {
+                        // Existing ZORBLOX data is authoritative. Otherwise preserve the old value
+                        // before retiring its legacy key.
+                        if (storage.getItem(canonicalKey) === null && legacyValue !== null) {
+                            storage.setItem(canonicalKey, legacyValue);
+                        }
+                        if (storage.getItem(canonicalKey) !== null || legacyValue === null) {
+                            storage.removeItem(legacyKey);
+                        }
                     });
                 } catch (_) {}
             }
@@ -18313,7 +18325,12 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 this.assert('Shared monitor layers use monitor terminology', !html.includes('playfield-' + 'crt-layer') && html.includes('playfield-monitor-layer'));
                 this.assert('Shared monitor lifecycle uses monitor terminology', typeof MonitorEffectsSystem.prototype.setMonitorPaused === 'function' && typeof MonitorEffectsSystem.prototype.setMonitorUiSuspended === 'function');
                 this.assert('Full-surface controls are no longer labeled prototype', GAME_FEATURE_FLAGS.fullSurfaceGesturesEnabled === true && typeof FULL_SURFACE_GESTURES_ENABLED === 'boolean');
-                this.assert('Legacy storage keys remain available', GAME_TERMINOLOGY.compatibilityPolicy === 'preserve-existing-storage-keys' && typeof GAME_CONFIG.storage.crtEnabled === 'string');
+                this.assert(
+                    'Legacy product storage migrates into the canonical ZORBLOX namespace',
+                    GAME_TERMINOLOGY.compatibilityPolicy === 'migrate-legacy-storage-namespace-once' &&
+                        typeof BrowserStorageService.prototype.migrateLegacyProductStorageNamespace === 'function' &&
+                        Object.values(GAME_CONFIG.storage).filter((value) => typeof value === 'string').every((key) => key.startsWith('zorblox'))
+                );
             }
 
             validateDeveloperDocumentation() {
