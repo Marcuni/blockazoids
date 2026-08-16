@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Zorblox under the OFL.
 
 -->
-<html data-build-version="p007">
+<html data-build-version="p008">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Zorblox</title>
@@ -7836,7 +7836,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
         const BUILD_METADATA = window.ZORBLOX_BUILD = Object.freeze({
             version: BUILD_ID,
             label: BUILD_VERSION,
-            architecturePhase: 'zorblox-p006-cached-monitor-frame-on-resume-countdown',
+            architecturePhase: 'zorblox-p008-fixed-pressure-composition-lab',
             sourceBaseline: 'p287',
             behaviorPolicy: 'single-design-space-scale-authoritative-state-no-parallel-systems'
         });
@@ -8247,7 +8247,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                     dormantVisual: {
                         positionFlashDutyCycle: 0.14,
                         bodyAlpha: 0.003,
-                        borderAlpha: 0.01,
+                        borderAlpha: 0.10,
                         flashBodyAlpha: 0.025,
                         flashBorderAlpha: 0.16,
                         glowBlur: 0.5,
@@ -8384,10 +8384,31 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 ]),
                 defaultSurvivalSwarm: 'zig',
                 // Temporary campaign composition lab. While enabled, Campaign keeps each
-                // authored sector's crystal route and behavior mix, but resolves shared
-                // speed/spawn/size pressure through one Sector 5 reference. Disable this
-                // after combination testing to restore the authored sector escalation.
-                campaignCompositionBalanceTest: Object.freeze({ enabled: true, balanceSector: 5 }),
+                // authored sector's crystal route while resolving shared speed/spawn/size pressure
+                // through one Sector 5 reference. The test behavior plans deliberately exercise
+                // all seven swarm structures without mutating the authored campaign data below.
+                // Disable this one object after combination testing to restore the normal campaign.
+                campaignCompositionBalanceTest: Object.freeze({
+                    enabled: true,
+                    balanceSector: 5,
+                    behaviorPlanBySector: Object.freeze({
+                        1: Object.freeze(['drifter','drifter','drifter','drifter','drifter','drifter','drifter','drifter']),
+                        2: Object.freeze(['drifter','charger','drifter','charger','drifter','charger','drifter','charger']),
+                        3: Object.freeze(['charger','charger','charger','charger','charger','charger','charger','charger']),
+                        4: Object.freeze(['drifter','charger','drifter','charger','drifter','charger','drifter','charger']),
+                        5: Object.freeze(['drifter','pulse','drifter','pulse','drifter','pulse','drifter','pulse']),
+                        6: Object.freeze(['pulse','pulse','pulse','pulse','pulse','pulse','pulse','pulse']),
+                        7: Object.freeze(['drifter','pulse','drifter','pulse','drifter','pulse','drifter','pulse']),
+                        8: Object.freeze(['charger','pulse','charger','pulse','charger','pulse','charger','pulse']),
+                        9: Object.freeze(['drifter','charger','pulse','drifter','charger','pulse','drifter','charger']),
+                        10: Object.freeze(['drifter','drifter','drifter','drifter','drifter','drifter','drifter','drifter']),
+                        11: Object.freeze(['charger','charger','charger','charger','charger','charger','charger','charger']),
+                        12: Object.freeze(['pulse','pulse','pulse','pulse','pulse','pulse','pulse','pulse']),
+                        13: Object.freeze(['drifter','charger','drifter','charger','drifter','charger','drifter','charger']),
+                        14: Object.freeze(['charger','pulse','charger','pulse','charger','pulse','charger','pulse']),
+                        15: Object.freeze(['drifter','charger','pulse','drifter','charger','pulse','drifter','charger'])
+                    })
+                }),
                 // Survival is a controlled behavior lab. Every run references the same
                 // authored Sector 5 balance and deterministic peripheral spawn plan.
                 survivalBalanceSector: 5,
@@ -10435,7 +10456,14 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
             }
 
             getEnemyBehaviorPlan(sectorNumber = this.currentSector, fallbackCount = 0) {
-                const sector = this.getSector(sectorNumber);
+                const normalizedSector = this.normalizeCampaignSector(sectorNumber);
+                const campaignTest = this.config.gameModes?.campaignCompositionBalanceTest;
+                const testPlan = campaignTest?.enabled
+                    ? campaignTest.behaviorPlanBySector?.[normalizedSector]
+                    : null;
+                if (Array.isArray(testPlan) && testPlan.length > 0) return testPlan;
+
+                const sector = this.getSector(normalizedSector);
                 const plan = sector ? sector.enemyBehaviorPlan : null;
                 if (Array.isArray(plan) && plan.length > 0) return plan;
                 return Array(Math.max(0, Math.floor(Number(fallbackCount) || 0))).fill(ENEMY_BEHAVIOR_TYPES.DRIFTER);
@@ -17784,7 +17812,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 this.assert('No-Zap rejection cue cooldown is configured once', config.audioTiming.noZapCueRepeatCooldownMs === 500);
                 this.assert('No-Zap WAV asset is embedded in the audio registry', /^data:audio\/wav;base64,/.test(AUDIO_ASSETS.noZapDoubleDownBlipWav));
                 this.assert('ECHO phased duration is configured at 0.9 seconds', config.enemyBehaviors.pulse.phasedMs === 900);
-                this.assert('ECHO dormant visibility is near-invisible by configuration', config.enemyBehaviors.pulse.dormantVisual.bodyAlpha <= 0.005 && config.enemyBehaviors.pulse.dormantVisual.borderAlpha <= 0.02 && config.enemyBehaviors.pulse.dormantVisual.traceOpacity <= 0.10);
+                this.assert('ECHO dormant body stays near-invisible with a faint border floor', config.enemyBehaviors.pulse.dormantVisual.bodyAlpha <= 0.005 && config.enemyBehaviors.pulse.dormantVisual.borderAlpha >= 0.08 && config.enemyBehaviors.pulse.dormantVisual.borderAlpha <= 0.12 && config.enemyBehaviors.pulse.dormantVisual.traceOpacity <= 0.10);
 
                 const sectors = data.sectors;
                 this.assert('Campaign contains sectors', sectors.length > 0);
