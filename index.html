@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Zorblox under the OFL.
 
 -->
-<html data-build-version="p008">
+<html data-build-version="p009">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Zorblox</title>
@@ -5985,6 +5985,7 @@ Font License Notices
         /* Launch uses the same gap token, giving Starting Sector and Difficulty clear separation. */
 
 /* p294 developer-only behavior tuning panel. It reuses existing Settings stepper language; Survival shows the selected identity, while Campaign exposes all identity modifiers through the same authoritative override layer. */
+/* p009 balance test: DASH cruise defaults to 0.70x ZIG; DASH and ECHO cruise multipliers are exposed in Developer tuning. */
 #survivalBehaviorTuningPanel {
     display: none;
     width: min(270px, 92%);
@@ -7499,6 +7500,9 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                             </div>
                         </div>
                         <div id="survivalTuningDashGroup" class="survival-tuning-group">
+                            <div class="settings-stepper" role="group" aria-label="Dash cruise speed relative to Zig">
+                                <div class="settings-stepper-title">Cruise Speed</div><div class="settings-stepper-row"><button class="settings-stepper-arrow" type="button" data-survival-tuning="dashCruiseSpeedMultiplier" data-direction="-1">◀</button><div class="settings-stepper-value" data-survival-tuning-value="dashCruiseSpeedMultiplier">0.70×</div><button class="settings-stepper-arrow" type="button" data-survival-tuning="dashCruiseSpeedMultiplier" data-direction="1">▶</button></div>
+                            </div>
                             <div class="settings-stepper" role="group" aria-label="Dash charge cadence">
                                 <div class="settings-stepper-title">Charge Cadence</div><div class="settings-stepper-row"><button class="settings-stepper-arrow" type="button" data-survival-tuning="dashChargeCadenceMs" data-direction="-1">◀</button><div class="settings-stepper-value" data-survival-tuning-value="dashChargeCadenceMs">2.70 s</div><button class="settings-stepper-arrow" type="button" data-survival-tuning="dashChargeCadenceMs" data-direction="1">▶</button></div>
                             </div>
@@ -7513,6 +7517,9 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                             </div>
                         </div>
                         <div id="survivalTuningEchoGroup" class="survival-tuning-group">
+                            <div class="settings-stepper" role="group" aria-label="Echo cruise speed relative to Zig">
+                                <div class="settings-stepper-title">Cruise Speed</div><div class="settings-stepper-row"><button class="settings-stepper-arrow" type="button" data-survival-tuning="echoCruiseSpeedMultiplier" data-direction="-1">◀</button><div class="settings-stepper-value" data-survival-tuning-value="echoCruiseSpeedMultiplier">0.80×</div><button class="settings-stepper-arrow" type="button" data-survival-tuning="echoCruiseSpeedMultiplier" data-direction="1">▶</button></div>
+                            </div>
                             <div class="settings-stepper" role="group" aria-label="Echo active duration">
                                 <div class="settings-stepper-title">Active Duration</div><div class="settings-stepper-row"><button class="settings-stepper-arrow" type="button" data-survival-tuning="echoActiveMs" data-direction="-1">◀</button><div class="settings-stepper-value" data-survival-tuning-value="echoActiveMs">2.00 s</div><button class="settings-stepper-arrow" type="button" data-survival-tuning="echoActiveMs" data-direction="1">▶</button></div>
                             </div>
@@ -7836,7 +7843,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
         const BUILD_METADATA = window.ZORBLOX_BUILD = Object.freeze({
             version: BUILD_ID,
             label: BUILD_VERSION,
-            architecturePhase: 'zorblox-p008-fixed-pressure-composition-lab',
+            architecturePhase: 'zorblox-p009-fixed-pressure-composition-cruise-tuning-lab',
             sourceBaseline: 'p287',
             behaviorPolicy: 'single-design-space-scale-authoritative-state-no-parallel-systems'
         });
@@ -8233,7 +8240,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
             },
             enemyBehaviors: {
                 charger: {
-                    cruiseSpeedMultiplier: 0.8,
+                    cruiseSpeedMultiplier: 0.7,
                     chargeCadenceMs: 3000,
                     warningMs: 350,
                     chargeSpeedMultiplier: 2.3,
@@ -9761,15 +9768,17 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 const echo = config.enemyBehaviors.pulse;
                 this.defaults = Object.freeze({
                     shared: Object.freeze({ speedMultiplier: 1 }),
-                    dash: Object.freeze({ chargeCadenceMs: dash.chargeCadenceMs, warningMs: dash.warningMs, chargeSpeedMultiplier: dash.chargeSpeedMultiplier, chargeDurationMs: dash.chargeDurationMs }),
-                    echo: Object.freeze({ activeMs: echo.activeMs, phasedMs: echo.phasedMs })
+                    dash: Object.freeze({ cruiseSpeedMultiplier: dash.cruiseSpeedMultiplier, chargeCadenceMs: dash.chargeCadenceMs, warningMs: dash.warningMs, chargeSpeedMultiplier: dash.chargeSpeedMultiplier, chargeDurationMs: dash.chargeDurationMs }),
+                    echo: Object.freeze({ cruiseSpeedMultiplier: echo.cruiseSpeedMultiplier, activeMs: echo.activeMs, phasedMs: echo.phasedMs })
                 });
                 this.definitions = Object.freeze({
                     sharedSpeedMultiplier: Object.freeze({ path: ['shared', 'speedMultiplier'], min: 0.5, max: 2, step: 0.05, format: value => `${value.toFixed(2)}×` }),
+                    dashCruiseSpeedMultiplier: Object.freeze({ path: ['dash', 'cruiseSpeedMultiplier'], min: 0.5, max: 1.2, step: 0.05, format: value => `${value.toFixed(2)}×` }),
                     dashChargeCadenceMs: Object.freeze({ path: ['dash', 'chargeCadenceMs'], min: 1000, max: 6000, step: 100, format: value => `${(value / 1000).toFixed(2)} s` }),
                     dashWarningMs: Object.freeze({ path: ['dash', 'warningMs'], min: 100, max: 1000, step: 50, format: value => `${Math.round(value)} ms` }),
                     dashChargeSpeedMultiplier: Object.freeze({ path: ['dash', 'chargeSpeedMultiplier'], min: 1.1, max: 4, step: 0.1, format: value => `${value.toFixed(2)}×` }),
                     dashChargeDurationMs: Object.freeze({ path: ['dash', 'chargeDurationMs'], min: 200, max: 1500, step: 50, format: value => `${Math.round(value)} ms` }),
+                    echoCruiseSpeedMultiplier: Object.freeze({ path: ['echo', 'cruiseSpeedMultiplier'], min: 0.5, max: 1.2, step: 0.05, format: value => `${value.toFixed(2)}×` }),
                     echoActiveMs: Object.freeze({ path: ['echo', 'activeMs'], min: 500, max: 5000, step: 100, format: value => `${(value / 1000).toFixed(2)} s` }),
                     echoPhasedMs: Object.freeze({ path: ['echo', 'phasedMs'], min: 200, max: 3000, step: 100, format: value => `${(value / 1000).toFixed(2)} s` })
                 });
@@ -17836,7 +17845,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 this.assert('Medium movement tier is faster than large', Number(authoredBaseSpeeds.medium) > Number(authoredBaseSpeeds.large));
                 this.assert('Authored size tiers preserve the approved 3 / 2 / 1.5 baseline', authoredBaseSpeeds.small === 3 && authoredBaseSpeeds.medium === 2 && authoredBaseSpeeds.large === 1.5);
                 const dash = config.enemyBehaviors.charger;
-                this.assert('DASH modifier tuning is centralized and limited', Object.keys(dash).sort().join(',') === 'chargeCadenceMs,chargeDurationMs,chargeSpeedMultiplier,cruiseSpeedMultiplier,warningMs' && dash.cruiseSpeedMultiplier === 0.8 && dash.chargeCadenceMs === 3000 && dash.warningMs === 350 && dash.chargeSpeedMultiplier === 2.3 && dash.chargeDurationMs === 600);
+                this.assert('DASH modifier tuning is centralized and limited', Object.keys(dash).sort().join(',') === 'chargeCadenceMs,chargeDurationMs,chargeSpeedMultiplier,cruiseSpeedMultiplier,warningMs' && dash.cruiseSpeedMultiplier === 0.7 && dash.chargeCadenceMs === 3000 && dash.warningMs === 350 && dash.chargeSpeedMultiplier === 2.3 && dash.chargeDurationMs === 600);
                 this.assert('ECHO cruise speed is authored relative to ZIG', config.enemyBehaviors.pulse.cruiseSpeedMultiplier === 0.8);
                 this.assert('Default sector size sequence is deterministic', JSON.stringify(defaultSizeSequence) === JSON.stringify(expectedDefaultSizeSequence));
                 const defaultSizeCounts = countSizes(defaultSizeSequence);
@@ -18178,7 +18187,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 this.assert('Survival pause remains available and freezes behavior clocks', UI.prototype.updateStartPauseButton.toString().includes('survivalPauseAvailable') && Game.prototype.pauseGameplay.toString().includes('isSurvivalRun') && Game.prototype.resumeLiveAction.toString().includes('shiftPausedTime'));
                 this.assert('Survival tuning changes remain isolated and recorded', TelemetrySystem.implementations.noteSurvivalTuningChange.toString().includes('parameterChanges') && TelemetrySystem.implementations.finishSurvivalTelemetryRun.toString().includes('endingTuning'));
                 this.assert('Developer behavior tuning feeds Campaign and Survival through one override layer', SurvivalBehaviorTuningSystem.prototype.isRuntimeOverrideActive.toString().includes('isDeveloperTuningContext') && SurvivalBehaviorTuningSystem.prototype.getDashTuning.toString().includes('this.values.dash') && TelemetrySystem.implementations.captureTelemetryParameters.toString().includes('developerBehaviorTuning'));
-                this.assert('Developer behavior tuning preserves complete behavior defaults', SurvivalBehaviorTuningSystem.prototype.getEchoTuning.toString().includes('this.config.enemyBehaviors.pulse') && SurvivalBehaviorTuningSystem.prototype.getEchoTuning.toString().includes('...this.values.echo'));
+                this.assert('Developer behavior tuning preserves complete behavior defaults', SurvivalBehaviorTuningSystem.prototype.getEchoTuning.toString().includes('this.config.enemyBehaviors.pulse') && SurvivalBehaviorTuningSystem.prototype.getEchoTuning.toString().includes('...this.values.echo') && !!document.querySelector('[data-survival-tuning="dashCruiseSpeedMultiplier"]') && !!document.querySelector('[data-survival-tuning="echoCruiseSpeedMultiplier"]'));
                 this.assert('Mixed Survival swarms expose every included behavior tuning group', SurvivalBehaviorTuningSystem.prototype.refreshUI.toString().includes('getActiveBehaviorPlan') && SurvivalBehaviorTuningSystem.prototype.refreshUI.toString().includes('includesDash') && SurvivalBehaviorTuningSystem.prototype.refreshUI.toString().includes('includesEcho'));
                 this.assert('Survival overtime cannot exceed the eight-enemy active-or-materializing cap', Game.prototype.spawnOvertimeEnemy.toString().includes('this.enemies.length + pendingSpawnCount >= this.gridlockEnemyThreshold'));
                 this.assert('Campaign telemetry records developer tuning changes', telemetryOwner.hasImplementation('noteCampaignTuningChange') && TelemetrySystem.implementations.noteCampaignTuningChange.toString().includes('developerParameterChanges'));
@@ -31612,7 +31621,7 @@ startGridlockBeat(delaySeconds = 0) {
                 assert('Small enemies remain faster than medium', game.getEnemySpeed('small') > game.getEnemySpeed('medium'));
                 assert('Medium enemies remain faster than large', game.getEnemySpeed('medium') > game.getEnemySpeed('large'));
                 const dashParity = GAME_CONFIG.enemyBehaviors.charger;
-                assert('DASH uses the authored ZIG-relative cruise and charge modifiers', Object.keys(dashParity).sort().join(',') === 'chargeCadenceMs,chargeDurationMs,chargeSpeedMultiplier,cruiseSpeedMultiplier,warningMs' && dashParity.cruiseSpeedMultiplier === 0.8 && dashParity.chargeCadenceMs === 3000 && dashParity.warningMs === 350 && dashParity.chargeSpeedMultiplier === 2.3 && dashParity.chargeDurationMs === 600);
+                assert('DASH uses the authored ZIG-relative cruise and charge modifiers', Object.keys(dashParity).sort().join(',') === 'chargeCadenceMs,chargeDurationMs,chargeSpeedMultiplier,cruiseSpeedMultiplier,warningMs' && dashParity.cruiseSpeedMultiplier === 0.7 && dashParity.chargeCadenceMs === 3000 && dashParity.warningMs === 350 && dashParity.chargeSpeedMultiplier === 2.3 && dashParity.chargeDurationMs === 600);
                 assert('DASH charge profile applies proportionally to all sizes', ['small', 'medium', 'large'].every((size) => Math.abs((game.getEnemySpeed(size) * dashParity.chargeSpeedMultiplier) - (game.getEnemySpeed(size) * 2.3)) < 0.000001));
                 const zigFoundationSource = ZigMovementFoundation.toString();
                 assert('ZIG movement profile remains authoritative while identities apply one relative cruise multiplier', zigFoundationSource.includes('componentSpeed = enemy.speed * this.getMovementSpeedMultiplier()') && zigFoundationSource.includes('enemy.speed * this.getMovementSpeedMultiplier() * Math.SQRT2') && zigFoundationSource.includes('getBehaviorCruiseSpeedMultiplier'));
@@ -31786,8 +31795,8 @@ startGridlockBeat(delaySeconds = 0) {
                     const sizeBase = sector?.difficultySnapshot?.effectiveMovementSpeeds?.sizeBase || {};
                     assert('Difficulty snapshot proves distinct size movement tiers', sizeBase.small > sizeBase.medium && sizeBase.medium > sizeBase.large && sector?.difficultySnapshot?.effectiveMovementSpeeds?.sizeIndependent === false);
                     const dashSnapshot = sector?.difficultySnapshot?.dashParityConfiguration || {};
-                    assert('Difficulty snapshot records the DASH modifier configuration', dashSnapshot.cruiseSpeedMultiplier === 0.8 && dashSnapshot.chargeCadenceMs === 3000 && dashSnapshot.warningMs === 350 && dashSnapshot.chargeSpeedMultiplier === 2.3 && dashSnapshot.chargeDurationMs === 600);
-                    assert('Difficulty snapshot proves ZIG, DASH cruise, and ECHO share size-tier movement', sector?.difficultySnapshot?.effectiveMovementSpeeds?.zig?.perAxis?.small > sector?.difficultySnapshot?.effectiveMovementSpeeds?.zig?.perAxis?.medium && sector?.difficultySnapshot?.effectiveMovementSpeeds?.dash?.cruise?.medium === sector?.difficultySnapshot?.effectiveMovementSpeeds?.zig?.perAxis?.medium && sector?.difficultySnapshot?.effectiveMovementSpeeds?.echo?.movement?.medium === sector?.difficultySnapshot?.effectiveMovementSpeeds?.zig?.perAxis?.medium);
+                    assert('Difficulty snapshot records the DASH modifier configuration', dashSnapshot.cruiseSpeedMultiplier === 0.7 && dashSnapshot.chargeCadenceMs === 3000 && dashSnapshot.warningMs === 350 && dashSnapshot.chargeSpeedMultiplier === 2.3 && dashSnapshot.chargeDurationMs === 600);
+                    assert('Difficulty snapshot proves DASH and ECHO preserve authored ZIG-relative cruise ratios', sector?.difficultySnapshot?.effectiveMovementSpeeds?.zig?.perAxis?.small > sector?.difficultySnapshot?.effectiveMovementSpeeds?.zig?.perAxis?.medium && Math.abs((sector?.difficultySnapshot?.effectiveMovementSpeeds?.dash?.cruise?.medium / sector?.difficultySnapshot?.effectiveMovementSpeeds?.zig?.perAxis?.medium) - 0.7) < 0.000001 && Math.abs((sector?.difficultySnapshot?.effectiveMovementSpeeds?.echo?.movement?.medium / sector?.difficultySnapshot?.effectiveMovementSpeeds?.zig?.perAxis?.medium) - 0.8) < 0.000001);
                     assert('Difficulty snapshot records the uniform proportional geometry policy', sector?.difficultySnapshot?.playfieldGeometry?.presentationPolicy === 'uniform-proportional-design-space' && sector?.difficultySnapshot?.playfieldGeometry?.profileMasterPlayfieldSize === 875 && sector?.difficultySnapshot?.playfieldGeometry?.renderedWidthPx === Number(game.PLAYFIELD_SIZE.toFixed(4)) && sector?.difficultySnapshot?.playfieldGeometry?.renderedGameplaySizesPx?.orb === game.ORB_SIZE);
 
                     game.applySectorParameters({ queueOrigin: 'cosmic-zap-replacement', spawnCategory: 'normal' });
