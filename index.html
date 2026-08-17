@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Zorblox under the OFL.
 
 -->
-<html data-build-version="p010">
+<html data-build-version="p011">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Zorblox</title>
@@ -5985,7 +5985,7 @@ Font License Notices
         /* Launch uses the same gap token, giving Starting Sector and Difficulty clear separation. */
 
 /* p294 developer-only behavior tuning panel. It reuses existing Settings stepper language; Survival shows the selected identity, while Campaign exposes all identity modifiers through the same authoritative override layer. */
-/* p010 balance test: Shared ZIG speed defaults to 0.90x, DASH cruise defaults to 0.80x ZIG, and DASH/ECHO cruise multipliers remain exposed in Developer tuning. */
+/* p011 balance test: production Shared ZIG speed is 0.90x globally; Developer tuning mirrors current production defaults on entry. DASH and ECHO cruise multipliers remain exposed. */
 #survivalBehaviorTuningPanel {
     display: none;
     width: min(270px, 92%);
@@ -7843,7 +7843,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
         const BUILD_METADATA = window.ZORBLOX_BUILD = Object.freeze({
             version: BUILD_ID,
             label: BUILD_VERSION,
-            architecturePhase: 'zorblox-p010-shared-zig-title-tuning-lab',
+            architecturePhase: 'zorblox-p011-production-speed-dev-parity-lab',
             sourceBaseline: 'p287',
             behaviorPolicy: 'single-design-space-scale-authoritative-state-no-parallel-systems'
         });
@@ -8218,6 +8218,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
             },
             enemyMovement: {
                 baseSpeeds: ENEMY_SIZE_BASE_SPEEDS,
+                sharedSpeedMultiplier: 0.9,
                 sectorSpeedBoost: 0.03
             },
             enemySpawning: {
@@ -9767,7 +9768,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 const dash = config.enemyBehaviors.charger;
                 const echo = config.enemyBehaviors.pulse;
                 this.defaults = Object.freeze({
-                    shared: Object.freeze({ speedMultiplier: 0.9 }),
+                    shared: Object.freeze({ speedMultiplier: Number(config.enemyMovement?.sharedSpeedMultiplier) || 1 }),
                     dash: Object.freeze({ cruiseSpeedMultiplier: dash.cruiseSpeedMultiplier, chargeCadenceMs: dash.chargeCadenceMs, warningMs: dash.warningMs, chargeSpeedMultiplier: dash.chargeSpeedMultiplier, chargeDurationMs: dash.chargeDurationMs }),
                     echo: Object.freeze({ cruiseSpeedMultiplier: echo.cruiseSpeedMultiplier, activeMs: echo.activeMs, phasedMs: echo.phasedMs })
                 });
@@ -9824,7 +9825,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
             }
 
             getSharedSpeedMultiplier() {
-                return this.isRuntimeOverrideActive() ? this.values.shared.speedMultiplier : 1;
+                return this.isRuntimeOverrideActive() ? this.values.shared.speedMultiplier : (Number(this.config.enemyMovement?.sharedSpeedMultiplier) || 1);
             }
 
             getDashTuning() {
@@ -14634,7 +14635,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 this.telemetrySystem.telemetryEnabled = true;
                 this.diagnosticsSystem.startPerformanceTelemetry();
                 this.developerTools.updateSectorSelectUnlockState();
-                if (this.behaviorTuningSystem) this.behaviorTuningSystem.applyLiveTuningToEnemies();
+                if (this.behaviorTuningSystem) this.behaviorTuningSystem.resetDefaults();
                 this.telemetrySystem.setTelemetryStatus('Developer Mode: On. Telemetry recording enabled.');
                 if (this.marqueePreviewLabel) {
                     this.marqueePreviewLabel.textContent = 'DEVELOPER MODE';
@@ -31626,7 +31627,7 @@ startGridlockBeat(delaySeconds = 0) {
                 const zigFoundationSource = ZigMovementFoundation.toString();
                 assert('ZIG movement profile remains authoritative while identities apply one relative cruise multiplier', zigFoundationSource.includes('componentSpeed = enemy.speed * this.getMovementSpeedMultiplier()') && zigFoundationSource.includes('enemy.speed * this.getMovementSpeedMultiplier() * Math.SQRT2') && zigFoundationSource.includes('getBehaviorCruiseSpeedMultiplier'));
                 assert('DASH and ECHO inherit the ZIG movement foundation', ChargerBehavior.prototype instanceof ZigMovementFoundation && PulseBlockBehavior.prototype instanceof ZigMovementFoundation);
-                assert('Developer shared ZIG speed default is 0.9x for survival tuning', game.behaviorTuningSystem && game.behaviorTuningSystem.defaults.shared.speedMultiplier === 0.9);
+                assert('Production shared ZIG speed is 0.9x and Developer tuning mirrors it', GAME_CONFIG.enemyMovement.sharedSpeedMultiplier === 0.9 && game.behaviorTuningSystem && game.behaviorTuningSystem.defaults.shared.speedMultiplier === GAME_CONFIG.enemyMovement.sharedSpeedMultiplier);
                 assert('DASH has no directional-line telegraph or recovery state', !CanvasPlayfieldRenderer.prototype.drawCharger.toString().includes('drawChargerTargetLine') && !ChargerBehavior.toString().includes('recovery'));
                 assert('ECHO uses the authored 0.8 ZIG-relative cruise speed with active and phased timing', GAME_CONFIG.enemyBehaviors.pulse.cruiseSpeedMultiplier === 0.8 && GAME_CONFIG.enemyBehaviors.pulse.activeMs === 2000 && GAME_CONFIG.enemyBehaviors.pulse.phasedMs === 900 && PulseBlockBehavior.prototype.beginPhased.toString().includes('this.tuning.phasedMs'));
                 assert('Top HUD announcement timing is shared', GAME_CONFIG.visualTiming.topHudAnnouncement.textMs === 2000 && GAME_CONFIG.visualTiming.topHudAnnouncement.pointsMs === 1000 && !UI.prototype.flashGridlockMessage.toString().includes('points > 0 ?'));
