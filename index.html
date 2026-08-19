@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Zorblox under the OFL.
 
 -->
-<html data-build-version="p023">
+<html data-build-version="p024">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Zorblox</title>
@@ -7755,7 +7755,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
         const BUILD_METADATA = window.ZORBLOX_BUILD = Object.freeze({
             version: BUILD_ID,
             label: BUILD_VERSION,
-            architecturePhase: 'zorblox-p023-crystal-freeze-fix',
+            architecturePhase: 'zorblox-p024-vector-frame-consistency-pass',
             sourceBaseline: 'p287',
             behaviorPolicy: 'single-design-space-scale-authoritative-state-no-parallel-systems'
         });
@@ -7995,6 +7995,8 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
             motionShake: true,
             spawnWarnings: true,
             visualEffects: true,
+            // p024: motion trails remain visually disabled; their sampling/update path is now also
+            // skipped entirely so the disabled effect has zero per-enemy/per-frame overhead.
             vectorPhosphorTrails: false,
             webglDistortion: true,
             gridlockVisualEffects: true,
@@ -14990,6 +14992,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                     const metrics = diagnostics.computePerformanceMetrics(diagnostics.performanceSectorSamples);
                     diagnostics.performanceLastSectorSummary = metrics ? { sector: diagnostics.performanceTrackedSector, ...metrics } : null;
                     diagnostics.performanceSectorSamples = [];
+                    diagnostics.updatePerformanceSummaryPanel();
                 };
 
                 const tick = (timestamp) => {
@@ -15042,7 +15045,10 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                     if (timestamp - diagnostics.performanceTelemetryLastRender >= 500) {
                         diagnostics.performanceTelemetryLastRender = timestamp;
                         diagnostics.updatePerformanceTelemetryHud();
-                        diagnostics.updatePerformanceSummaryPanel();
+                        // The full sector/session summary performs percentile sorting. It is useful
+                        // after play, not during action, so defer it until gameplay is paused/ended.
+                        // Sampling remains continuous and exact.
+                        if (!liveGameplay) diagnostics.updatePerformanceSummaryPanel();
                     }
                     diagnostics.performanceTelemetryRafId = requestAnimationFrame(tick);
                 };
@@ -17616,6 +17622,10 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 this.campaignRestoreCells = [];
                 this.monitorEffectMaxPixelRatio = 2;
                 this.standardMaxPixelRatio = 3;
+                // Performance-only caches. These do not change presentation values; they avoid
+                // reparsing static palette colors and repeated monitor class queries inside a frame.
+                this.parsedCanvasColorCache = new Map();
+                this.frameMonitorState = null;
 
                 // Canvas blur appears brighter than equivalent layered CSS shadows. The shared
                 // playfield scale trims all gameplay glow sources evenly while the regular-object
@@ -17632,7 +17642,36 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 return this.scalePlayfieldGlow(value) * this.regularGlowScale;
             }
 
+            beginMonitorFrameState(game) {
+                const container = game && game.container;
+                if (!container) {
+                    this.frameMonitorState = { game, crtEnabled: false, suspended: false, mode: 'off', objectRgbEnabled: false, gridRgbEnabled: false, highGridRgb: false, enemyFilterVisuals: ENEMY_FILTER_VISUALS.off };
+                    return this.frameMonitorState;
+                }
+                const classList = container.classList;
+                const crtEnabled = classList.contains('crt-enabled');
+                const suspended = classList.contains('monitor-ui-suspended');
+                const mode = classList.contains('monitor-crt') ? 'crt' : (classList.contains('monitor-vector') ? 'vector' : 'off');
+                const active = crtEnabled && !suspended;
+                this.frameMonitorState = {
+                    game,
+                    crtEnabled,
+                    suspended,
+                    mode,
+                    objectRgbEnabled: active && classList.contains('crt-fx-object-rgb'),
+                    gridRgbEnabled: active && classList.contains('crt-fx-grid-rgb'),
+                    highGridRgb: active && classList.contains('crt-fx-grid-rgb') && classList.contains('crt-grid-rgb-high'),
+                    enemyFilterVisuals: active ? (mode === 'crt' ? ENEMY_FILTER_VISUALS.crt : (mode === 'vector' ? ENEMY_FILTER_VISUALS.vector : ENEMY_FILTER_VISUALS.off)) : ENEMY_FILTER_VISUALS.off
+                };
+                return this.frameMonitorState;
+            }
+
+            endMonitorFrameState() {
+                this.frameMonitorState = null;
+            }
+
             getEnemyFilterVisuals(game) {
+                if (this.frameMonitorState && this.frameMonitorState.game === game) return this.frameMonitorState.enemyFilterVisuals;
                 const container = game && game.container;
                 if (!container || !container.classList.contains('crt-enabled') || container.classList.contains('monitor-ui-suspended')) {
                     return ENEMY_FILTER_VISUALS.off;
@@ -18197,6 +18236,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
             }
 
             enemyTrailsNeedAnimation(game = this.game) {
+                if (!GAME_FEATURE_FLAGS.vectorPhosphorTrails) return false;
                 const trail = game && game.vectorTrail;
                 return !!(trail && Array.isArray(trail.enemyPool) && trail.enemyPool.some(ghost =>
                     ghost && ghost.active && (
@@ -18284,13 +18324,14 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 const height = this.cssHeight;
                 const gridSize = Math.max(1, Number(game?.GRID_SIZE) || width / 10);
                 const container = game?.container;
-                const rgbGridEnabled = !!(
+                const frameMonitorState = this.frameMonitorState && this.frameMonitorState.game === game ? this.frameMonitorState : null;
+                const rgbGridEnabled = frameMonitorState ? frameMonitorState.gridRgbEnabled : !!(
                     container &&
                     container.classList.contains('crt-enabled') &&
                     container.classList.contains('crt-fx-grid-rgb') &&
                     !container.classList.contains('monitor-ui-suspended')
                 );
-                const highRgb = rgbGridEnabled && container.classList.contains('crt-grid-rgb-high');
+                const highRgb = frameMonitorState ? frameMonitorState.highGridRgb : (rgbGridEnabled && container.classList.contains('crt-grid-rgb-high'));
 
                 context.save();
                 context.fillStyle = String(rgbGridEnabled ? (highRgb ? '#000b10' : '#000609') : '#000');
@@ -18335,6 +18376,8 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
 
             parseCanvasColor(color) {
                 const value = String(color || '#fff').trim().toLowerCase();
+                const cached = this.parsedCanvasColorCache && this.parsedCanvasColorCache.get(value);
+                if (cached) return cached;
                 const named = {
                     red: this.getPaletteColor('red'),
                     green: this.getPaletteColor('green'),
@@ -18342,31 +18385,39 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                     white: this.getPaletteColor('white')
                 };
                 const normalized = named[value] || value;
+                let parsed = null;
                 const shortHex = normalized.match(/^#([0-9a-f]{3})$/i);
                 if (shortHex) {
                     const digits = shortHex[1];
-                    return {
+                    parsed = {
                         r: Number.parseInt(digits[0] + digits[0], 16),
                         g: Number.parseInt(digits[1] + digits[1], 16),
                         b: Number.parseInt(digits[2] + digits[2], 16)
                     };
                 }
-                const fullHex = normalized.match(/^#([0-9a-f]{6})$/i);
-                if (fullHex) {
-                    const digits = fullHex[1];
-                    return {
-                        r: Number.parseInt(digits.slice(0, 2), 16),
-                        g: Number.parseInt(digits.slice(2, 4), 16),
-                        b: Number.parseInt(digits.slice(4, 6), 16)
-                    };
+                if (!parsed) {
+                    const fullHex = normalized.match(/^#([0-9a-f]{6})$/i);
+                    if (fullHex) {
+                        const digits = fullHex[1];
+                        parsed = {
+                            r: Number.parseInt(digits.slice(0, 2), 16),
+                            g: Number.parseInt(digits.slice(2, 4), 16),
+                            b: Number.parseInt(digits.slice(4, 6), 16)
+                        };
+                    }
                 }
-                return { r: 255, g: 255, b: 255 };
+                if (!parsed) parsed = { r: 255, g: 255, b: 255 };
+                if (this.parsedCanvasColorCache) this.parsedCanvasColorCache.set(value, parsed);
+                return parsed;
             }
 
             mixCanvasColor(baseColor, whiteMix = 0, brightness = 1) {
-                const base = this.parseCanvasColor(baseColor);
                 const mix = this.clamp01(whiteMix);
                 const brighten = Math.max(0, Number(brightness) || 1);
+                // Most live ZIG/DASH frames use the authored base color unchanged. Avoid regex
+                // parsing/string reconstruction on that hot path; the visual result is identical.
+                if (mix <= 0.000001 && Math.abs(brighten - 1) <= 0.000001) return String(baseColor || '#fff');
+                const base = this.parseCanvasColor(baseColor);
                 const channel = value => Math.max(0, Math.min(255, Math.round((value * (1 - mix) + 255 * mix) * brighten)));
                 return `rgb(${channel(base.r)}, ${channel(base.g)}, ${channel(base.b)})`;
             }
@@ -18638,6 +18689,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
             }
 
             drawOrbTrail(game, timestamp) {
+                if (!GAME_FEATURE_FLAGS.vectorPhosphorTrails) return;
                 const trail = game && game.vectorTrail;
                 if (!trail || !Array.isArray(trail.orbPool)) return;
                 if (typeof trail.isEnabled === 'function' && !trail.isEnabled()) return;
@@ -18664,6 +18716,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
             }
 
             drawEnemyTrail(game, timestamp) {
+                if (!GAME_FEATURE_FLAGS.vectorPhosphorTrails) return;
                 const trail = game && game.vectorTrail;
                 if (!trail || !Array.isArray(trail.enemyPool)) return;
                 if (typeof trail.isEnabled === 'function' && !trail.isEnabled()) return;
@@ -18760,11 +18813,12 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 const baseColor = enemy.baseColor || GAME_CONFIG.palette.red;
                 const context = this.context;
                 const container = game && game.container;
-                const crtActive = !!(
+                const frameMonitorState = this.frameMonitorState && this.frameMonitorState.game === game ? this.frameMonitorState : null;
+                const crtActive = frameMonitorState ? (frameMonitorState.crtEnabled && !frameMonitorState.suspended) : !!(
                     container && container.classList.contains('crt-enabled') &&
                     !container.classList.contains('monitor-ui-suspended')
                 );
-                const objectRgbEnabled = !!(
+                const objectRgbEnabled = frameMonitorState ? frameMonitorState.objectRgbEnabled : !!(
                     crtActive && container.classList.contains('crt-fx-object-rgb')
                 );
                 const monitorPresentation = this.resolveEnemyMonitorPresentation(game, presentation);
@@ -18826,8 +18880,9 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 const baseColor = enemy.baseColor || GAME_CONFIG.palette.green;
                 const context = this.context;
                 const container = game && game.container;
-                const crtActive = !!(container && container.classList.contains('crt-enabled') && !container.classList.contains('monitor-ui-suspended'));
-                const objectRgbEnabled = !!(crtActive && container.classList.contains('crt-fx-object-rgb'));
+                const frameMonitorState = this.frameMonitorState && this.frameMonitorState.game === game ? this.frameMonitorState : null;
+                const crtActive = frameMonitorState ? (frameMonitorState.crtEnabled && !frameMonitorState.suspended) : !!(container && container.classList.contains('crt-enabled') && !container.classList.contains('monitor-ui-suspended'));
+                const objectRgbEnabled = frameMonitorState ? frameMonitorState.objectRgbEnabled : !!(crtActive && container.classList.contains('crt-fx-object-rgb'));
                 const monitorPresentation = this.resolveEnemyMonitorPresentation(game, presentation);
                 const effectiveWhiteMix = monitorPresentation.whiteMix;
                 const bloomBlur = monitorPresentation.glowBlur;
@@ -18951,8 +19006,9 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 const baseColor = enemy.baseColor || GAME_CONFIG.palette.blue;
                 const context = this.context;
                 const container = game && game.container;
-                const crtActive = !!(container && container.classList.contains('crt-enabled') && !container.classList.contains('monitor-ui-suspended'));
-                const objectRgbEnabled = !!(crtActive && container.classList.contains('crt-fx-object-rgb'));
+                const frameMonitorState = this.frameMonitorState && this.frameMonitorState.game === game ? this.frameMonitorState : null;
+                const crtActive = frameMonitorState ? (frameMonitorState.crtEnabled && !frameMonitorState.suspended) : !!(container && container.classList.contains('crt-enabled') && !container.classList.contains('monitor-ui-suspended'));
+                const objectRgbEnabled = frameMonitorState ? frameMonitorState.objectRgbEnabled : !!(crtActive && container.classList.contains('crt-fx-object-rgb'));
                 const monitorPresentation = this.resolveEnemyMonitorPresentation(game, presentation);
                 const effectiveWhiteMix = monitorPresentation.whiteMix;
                 const bloomBlur = monitorPresentation.glowBlur;
@@ -19704,6 +19760,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                     this.resize({ width: expectedSize, height: expectedSize, pixelRatio: expectedPixelRatio });
                 }
 
+                this.beginMonitorFrameState(game);
                 this.clear();
                 const shakeOffset = this.getCosmicZapShakeOffset(timestamp);
                 this.context.save();
@@ -19715,7 +19772,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 this.drawConnectionLines(game);
                 this.drawCrystals(game, timestamp);
                 this.drawTutorialCrystalValueLabels(game, timestamp);
-                if (game.vectorTrail) game.vectorTrail.update(timestamp);
+                if (GAME_FEATURE_FLAGS.vectorPhosphorTrails && game.vectorTrail) game.vectorTrail.update(timestamp);
                 this.drawOrbTrail(game, timestamp);
                 this.drawOrb(game.orb, timestamp);
                 this.drawPrismRelic(this.activePrismRelic || game.gridlockSystem.prismRelic, game, timestamp);
@@ -19731,6 +19788,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 this.drawTutorialCrystalValuePopups(game, timestamp);
 
                 this.context.restore();
+                this.endMonitorFrameState();
                 this.ensureOrbEffectFrame();
                 if (game.webglDistortion) game.webglDistortion.render(timestamp);
             }
@@ -24939,7 +24997,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 this.y = constrainedTarget.y;
 
                 const movedDistance = Math.hypot(this.x - previousX, this.y - previousY);
-                if (this.game.vectorTrail) {
+                if (GAME_FEATURE_FLAGS.vectorPhosphorTrails && this.game.vectorTrail) {
                     this.game.vectorTrail.recordOrbMotion(previousX, previousY, this.x, this.y, this.size, movedDistance, now);
                 }
                 if (movedDistance > 0.01) {
@@ -25879,7 +25937,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 this.behavior.update(deltaTime, timestamp);
                 this.resolvePlayfieldBounds();
                 
-                if (this.game.vectorTrail) {
+                if (GAME_FEATURE_FLAGS.vectorPhosphorTrails && this.game.vectorTrail) {
                     const movedDistance = Math.hypot(this.x - previousX, this.y - previousY);
                     this.game.vectorTrail.recordEnemyMotion(this, previousX, previousY, movedDistance, timestamp);
                 }
