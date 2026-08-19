@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Zorblox under the OFL.
 
 -->
-<html data-build-version="p029">
+<html data-build-version="p030">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Zorblox</title>
@@ -7083,6 +7083,20 @@ html body #skinShell.survival-mode-selected > #radarColorIndicator {
 }
 
 
+
+/* p030 Vector curvature A/B test.
+   Keep all Vector glow/tint/vignette presentation, but remove the curved aperture,
+   contour and WebGL warp. CRT retains the production monitor geometry unchanged. */
+#playfieldShell.monitor-vector > #gameContainer:not(.monitor-ui-suspended) > .monitor-pixel-layer {
+    -webkit-mask-image: none !important;
+    mask-image: none !important;
+}
+#playfieldShell.monitor-vector > .playfield-webgl-curvature-border {
+    display: none !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
+}
+
 /* Source: src/styles/41-crt-canvas-grid-authority.css */
 /* p246: CanvasPlayfieldRenderer is the only RGB-grid renderer. The cabinet
    container must never paint a second square CSS grid behind the curved output. */
@@ -7755,7 +7769,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
         const BUILD_METADATA = window.ZORBLOX_BUILD = Object.freeze({
             version: BUILD_ID,
             label: BUILD_VERSION,
-            architecturePhase: 'zorblox-p029-blox-shadowblur-ab-test',
+            architecturePhase: 'zorblox-p030-vector-curvature-off-ab-test',
             sourceBaseline: 'p287',
             behaviorPolicy: 'single-design-space-scale-authoritative-state-no-parallel-systems'
         });
@@ -7764,11 +7778,6 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
 
         // Canonical ZORBLOX vocabulary. Product storage is migrated once into the ZORBLOX
         // namespace; active source symbols and persistent keys use current game terminology.
-        // p029 temporary performance A/B: remove only Canvas shadowBlur from Blox rendering.
-        // Crystals, playfield, CRT/Vector presentation, explosions, spawn warnings, Prisms, and
-        // every gameplay parameter remain unchanged.
-        const BLOX_SHADOW_BLUR_AB_TEST_DISABLED = true;
-
         const GAME_TERMINOLOGY = window.ZORBLOX_TERMINOLOGY = Object.freeze({
             progressionUnit: 'sector',
             avatar: 'Orb',
@@ -8015,7 +8024,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
 
 
 /* Source: src/js/config/20-monitor-and-visual-presets.js */
-        // p020 comparison test: motion-specific monitor presentation is disabled.
+        // p030 comparison test: Vector curvature/aperture is disabled; CRT curvature remains production.
         // Vector phosphor motion trails and the CRT rolling sweep are off; curvature, scanlines,
         // mask/tube geometry, glow/bloom, and static monitor treatments remain unchanged.
         // Orb-facing monitor modes share one Vector-approved screen foundation.
@@ -8054,7 +8063,8 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                     gridRgb: 'off',
                     objectRgb: 'off'
                 }),
-                fixedFeatures: Object.freeze({})
+                // p030 A/B: Vector is intentionally flat. CRT keeps production curvature.
+                fixedFeatures: Object.freeze({ curvature: false })
             }),
             crt: Object.freeze({
                 label: 'CRT',
@@ -18803,7 +18813,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 context.strokeStyle = '#fff';
                 context.lineWidth = 1;
                 context.shadowColor = effectiveWhiteMix > 0.45 ? '#fff' : baseColor;
-                context.shadowBlur = BLOX_SHADOW_BLUR_AB_TEST_DISABLED ? 0 : this.scalePlayfieldGlow(bloomBlur);
+                context.shadowBlur = this.scalePlayfieldGlow(bloomBlur);
                 context.fillRect(-size / 2, -size / 2, size, size);
                 context.strokeRect(-size / 2 + 0.5, -size / 2 + 0.5, Math.max(0, size - 1), Math.max(0, size - 1));
                 context.restore();
@@ -18864,7 +18874,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 context.strokeStyle = '#fff';
                 context.lineWidth = 1;
                 context.shadowColor = effectiveWhiteMix > 0.45 ? '#fff' : baseColor;
-                context.shadowBlur = BLOX_SHADOW_BLUR_AB_TEST_DISABLED ? 0 : this.scalePlayfieldGlow(bloomBlur);
+                context.shadowBlur = this.scalePlayfieldGlow(bloomBlur);
                 context.fillRect(-size / 2, -size / 2, size, size);
                 context.strokeRect(-size / 2 + 0.5, -size / 2 + 0.5, Math.max(0, size - 1), Math.max(0, size - 1));
                 context.restore();
@@ -18943,7 +18953,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 context.strokeStyle = gradient;
                 context.lineWidth = 1;
                 context.shadowColor = 'rgba(75,165,255,0.52)';
-                context.shadowBlur = BLOX_SHADOW_BLUR_AB_TEST_DISABLED ? 0 : this.scalePlayfieldGlow(1);
+                context.shadowBlur = this.scalePlayfieldGlow(1);
                 context.beginPath();
                 context.moveTo(-1, 0);
                 context.lineTo(length, 0);
@@ -18991,7 +19001,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 context.globalAlpha *= presentation.bodyAlpha;
                 context.fillStyle = fillColor;
                 context.shadowColor = effectiveWhiteMix > 0.45 ? '#fff' : baseColor;
-                context.shadowBlur = BLOX_SHADOW_BLUR_AB_TEST_DISABLED ? 0 : this.scalePlayfieldGlow(bloomBlur);
+                context.shadowBlur = this.scalePlayfieldGlow(bloomBlur);
                 context.fillRect(-size / 2, -size / 2, size, size);
                 context.restore();
 
@@ -19000,7 +19010,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 context.strokeStyle = effectiveWhiteMix > 0.72 ? '#fff' : 'rgba(195,225,255,1)';
                 context.lineWidth = 1;
                 context.shadowColor = effectiveWhiteMix > 0.45 ? '#fff' : baseColor;
-                context.shadowBlur = BLOX_SHADOW_BLUR_AB_TEST_DISABLED ? 0 : this.scalePlayfieldGlow(bloomBlur);
+                context.shadowBlur = this.scalePlayfieldGlow(bloomBlur);
                 context.strokeRect(-size / 2 + 0.5, -size / 2 + 0.5, Math.max(0, size - 1), Math.max(0, size - 1));
                 context.restore();
 
@@ -19010,7 +19020,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                     context.strokeStyle = 'rgba(150,205,255,1)';
                     context.lineWidth = 1;
                     context.shadowColor = 'rgba(70,150,255,0.72)';
-                    context.shadowBlur = BLOX_SHADOW_BLUR_AB_TEST_DISABLED ? 0 : this.scalePlayfieldGlow(6);
+                    context.shadowBlur = this.scalePlayfieldGlow(6);
                     context.strokeRect(-size / 2 - 1.5, -size / 2 - 1.5, size + 3, size + 3);
                     context.restore();
                 }
@@ -19950,14 +19960,16 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 if (this.game.container.classList.contains('monitor-ui-suspended')) return false;
                 if (this.game.container.classList.contains('monitor-paused')) return false;
                 if (!this.outputCanvas || !this.sourceCanvas) return false;
-                return this.getMode() !== 'off';
+                // p030 A/B: skip the full-frame Canvas→WebGL curvature pass in Vector mode.
+                return this.getMode() === 'crt';
             }
 
             shouldPresentCachedFrame() {
                 if (!this.available || !this.hasFrame || !this.game || !this.game.container) return false;
                 if (this.game.container.classList.contains('monitor-ui-suspended')) return false;
                 if (!this.outputCanvas || !this.sourceCanvas) return false;
-                return this.getMode() !== 'off';
+                // Vector presents the authoritative 2D canvas directly in this test.
+                return this.getMode() === 'crt';
             }
 
             syncPresentation() {
