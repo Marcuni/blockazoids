@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Zorblox under the OFL.
 
 -->
-<html data-build-version="p031">
+<html data-build-version="p032">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Zorblox</title>
@@ -7755,7 +7755,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
         const BUILD_METADATA = window.ZORBLOX_BUILD = Object.freeze({
             version: BUILD_ID,
             label: BUILD_VERSION,
-            architecturePhase: 'zorblox-p031-production-monitor-cleanup',
+            architecturePhase: 'zorblox-p032-tapered-sector-speed-curve',
             sourceBaseline: 'p287',
             behaviorPolicy: 'single-design-space-scale-authoritative-state-no-parallel-systems'
         });
@@ -8132,7 +8132,24 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
             enemyMovement: {
                 baseSpeeds: ENEMY_SIZE_BASE_SPEEDS,
                 sharedSpeedMultiplier: 1.0,
-                sectorSpeedBoost: 0.03
+                // Additive speed increase when advancing from one sector to the next.
+                // The increment tapers non-linearly so raw speed stops dominating late sectors.
+                sectorSpeedStepBoosts: Object.freeze([
+                    0.030, // S1 -> S2
+                    0.029, // S2 -> S3
+                    0.028, // S3 -> S4
+                    0.027, // S4 -> S5
+                    0.026, // S5 -> S6
+                    0.024, // S6 -> S7
+                    0.022, // S7 -> S8
+                    0.020, // S8 -> S9
+                    0.018, // S9 -> S10
+                    0.016, // S10 -> S11
+                    0.014, // S11 -> S12
+                    0.011, // S12 -> S13
+                    0.008, // S13 -> S14
+                    0.006  // S14 -> S15
+                ])
             },
             enemySpawning: {
                 baseDelaySeconds: 5,
@@ -9054,9 +9071,19 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 return Math.min(this.getCampaignLength(), Math.max(1, numericSector));
             }
 
-            static getEnemySpeedMultiplier(level, difficultyMode = 'Normal') {
+            static getSectorSpeedBoost(level) {
                 const balancedSector = this.clampCampaignSector(level);
-                const sectorBoost = (balancedSector - 1) * GAME_CONFIG.enemyMovement.sectorSpeedBoost;
+                const steps = GAME_CONFIG.enemyMovement.sectorSpeedStepBoosts || [];
+                const stepCount = Math.min(Math.max(0, balancedSector - 1), steps.length);
+                let boost = 0;
+                for (let index = 0; index < stepCount; index += 1) {
+                    boost += Number(steps[index]) || 0;
+                }
+                return boost;
+            }
+
+            static getEnemySpeedMultiplier(level, difficultyMode = 'Normal') {
+                const sectorBoost = this.getSectorSpeedBoost(level);
                 return (1 + sectorBoost) * this.getDifficultyProfile(difficultyMode).speedMultiplier;
             }
 
@@ -24294,7 +24321,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 else if (enemy.behaviorType === ENEMY_BEHAVIOR_TYPES.PULSE) telemetryCategory = reactivationAgeMs !== null && reactivationAgeMs <= 450 ? 'pulse-reactivation-overlap' : 'pulse-active';
 
                 const balanceSector = this.gameMode.getBalanceSector(this.campaign.currentSector);
-                const sectorBoost = Math.max(0, balanceSector - 1) * GAME_CONFIG.enemyMovement.sectorSpeedBoost;
+                const sectorBoost = GameRules.getSectorSpeedBoost(balanceSector);
 
                 const zapBoost = 0;
                 const difficultyMultiplier = this.getDifficultyConfig().speedMultiplier;
