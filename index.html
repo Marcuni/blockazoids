@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Zorblox under the OFL.
 
 -->
-<html data-build-version="p026">
+<html data-build-version="p027">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Zorblox</title>
@@ -7755,7 +7755,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
         const BUILD_METADATA = window.ZORBLOX_BUILD = Object.freeze({
             version: BUILD_ID,
             label: BUILD_VERSION,
-            architecturePhase: 'zorblox-p026-frame-consistency-allocation-pass',
+            architecturePhase: 'zorblox-p027-vector-static-layer-pass',
             sourceBaseline: 'p287',
             behaviorPolicy: 'single-design-space-scale-authoritative-state-no-parallel-systems'
         });
@@ -7986,7 +7986,8 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
             ]
         });
 
-/* p026 frame consistency: reduce live-gameplay allocation churn without changing visuals or gameplay. */
+/* p027 Vector frame consistency: cache the static playfield layer between crystal-state
+   changes and render all active Blox in one pass. Presentation and gameplay values are unchanged. */
 /* Source: src/js/config/10-feature-flags.js */
         // Central diagnostic feature flags. Change values here before loading the page to isolate systems.
         const GAME_FEATURE_FLAGS = window.ZORBLOX_FEATURE_FLAGS = {
@@ -17691,6 +17692,14 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 this.parsedCanvasColorCache = new Map();
                 this.frameMonitorState = null;
 
+                // p027: most of the 80-crystal playfield is visually static between pickups.
+                // Keep that material in a private Canvas layer and rebuild it only when the
+                // crystal/line/monitor state changes. Dynamic selectable crystals stay live.
+                this.staticSceneCanvas = document.createElement('canvas');
+                this.staticSceneContext = this.staticSceneCanvas.getContext('2d');
+                this.staticSceneCacheKey = '';
+                this.staticSceneValid = false;
+
                 // Canvas blur appears brighter than equivalent layered CSS shadows. The shared
                 // playfield scale trims all gameplay glow sources evenly while the regular-object
                 // calibration preserves the established object/effect hierarchy.
@@ -17803,6 +17812,15 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 if (this.canvas.height !== bufferHeight) this.canvas.height = bufferHeight;
                 this.context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
                 this.context.imageSmoothingEnabled = true;
+
+                if (this.staticSceneCanvas && this.staticSceneContext) {
+                    if (this.staticSceneCanvas.width !== bufferWidth) this.staticSceneCanvas.width = bufferWidth;
+                    if (this.staticSceneCanvas.height !== bufferHeight) this.staticSceneCanvas.height = bufferHeight;
+                    this.staticSceneContext.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+                    this.staticSceneContext.imageSmoothingEnabled = true;
+                    this.staticSceneCacheKey = '';
+                    this.staticSceneValid = false;
+                }
             }
 
             setOrbVisible(orb, visible) {
@@ -18486,6 +18504,103 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 return `rgb(${channel(base.r)}, ${channel(base.g)}, ${channel(base.b)})`;
             }
 
+            crystalsHaveIntroAnimation(game, timestamp) {
+                if (!game || !Array.isArray(game.crystalSystem.crystals)) return false;
+                for (let index = 0; index < game.crystalSystem.crystals.length; index += 1) {
+                    const crystal = game.crystalSystem.crystals[index];
+                    if (crystal && this.getCrystalIntroPresentation(crystal, game, timestamp).active) return true;
+                }
+                return false;
+            }
+
+            getStaticSceneCacheKey(game) {
+                if (!game || !Array.isArray(game.crystalSystem.crystals)) return '';
+                const frameState = this.frameMonitorState && this.frameMonitorState.game === game
+                    ? this.frameMonitorState
+                    : this.beginMonitorFrameState(game);
+                let selectableSignature = '';
+                for (let index = 0; index < game.crystalSystem.crystals.length; index += 1) {
+                    const crystal = game.crystalSystem.crystals[index];
+                    if (!crystal || !crystal.isSelectable) continue;
+                    selectableSignature += `${Math.round(Number(crystal.x) || 0)},${Math.round(Number(crystal.y) || 0)},${String(crystal.color || '')};`;
+                }
+                const completedCount = Array.isArray(game.crystalSystem.completedGridCells)
+                    ? game.crystalSystem.completedGridCells.length
+                    : 0;
+                const lineCount = Array.isArray(game.crystalSystem.lines)
+                    ? game.crystalSystem.lines.length
+                    : 0;
+                return [
+                    this.canvas.width,
+                    this.canvas.height,
+                    this.pixelRatio.toFixed(2),
+                    frameState.mode,
+                    frameState.crtEnabled ? 1 : 0,
+                    frameState.suspended ? 1 : 0,
+                    frameState.objectRgbEnabled ? 1 : 0,
+                    frameState.gridRgbEnabled ? 1 : 0,
+                    frameState.highGridRgb ? 1 : 0,
+                    game.crystalSystem.crystals.length,
+                    completedCount,
+                    lineCount,
+                    selectableSignature
+                ].join('|');
+            }
+
+            rebuildStaticScene(game, cacheKey) {
+                if (!this.staticSceneContext || !this.staticSceneCanvas) return false;
+                const mainContext = this.context;
+                const staticContext = this.staticSceneContext;
+                staticContext.save();
+                staticContext.setTransform(1, 0, 0, 1, 0, 0);
+                staticContext.clearRect(0, 0, this.staticSceneCanvas.width, this.staticSceneCanvas.height);
+                staticContext.restore();
+                staticContext.setTransform(this.pixelRatio, 0, 0, this.pixelRatio, 0, 0);
+                staticContext.imageSmoothingEnabled = true;
+
+                this.context = staticContext;
+                try {
+                    this.drawProductionGrid(game);
+                    this.drawCompletedGridCells(game);
+                    this.drawConnectionLines(game);
+                    const crystals = game.crystalSystem.crystals;
+                    for (let index = 0; index < crystals.length; index += 1) {
+                        const crystal = crystals[index];
+                        if (!crystal || crystal.isSelectable) continue;
+                        this.drawCrystal(crystal, game, performance.now());
+                    }
+                } finally {
+                    this.context = mainContext;
+                }
+
+                this.staticSceneCacheKey = cacheKey;
+                this.staticSceneValid = true;
+                return true;
+            }
+
+            drawStaticScene(game, timestamp) {
+                if (!game || !this.staticSceneCanvas || !this.staticSceneContext) return false;
+                if (game.runtimeState && game.runtimeState.tutorialActive) return false;
+                if (game.flow && game.flow.is(GAME_FLOW_STATES.ATTRACT)) return false;
+                if (this.crystalsHaveIntroAnimation(game, timestamp)) return false;
+
+                const cacheKey = this.getStaticSceneCacheKey(game);
+                if (!cacheKey) return false;
+                if (!this.staticSceneValid || this.staticSceneCacheKey !== cacheKey) {
+                    if (!this.rebuildStaticScene(game, cacheKey)) return false;
+                }
+
+                this.context.drawImage(this.staticSceneCanvas, 0, 0, this.cssWidth, this.cssHeight);
+
+                // Only the selectable/blinking crystals need per-frame animation.
+                const crystals = game.crystalSystem.crystals;
+                for (let index = 0; index < crystals.length; index += 1) {
+                    const crystal = crystals[index];
+                    if (crystal && crystal.isSelectable) this.drawCrystal(crystal, game, timestamp);
+                }
+                return true;
+            }
+
             attractSquaresNeedAnimation(game) {
                 return !!(
                     game &&
@@ -18600,7 +18715,8 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 const fillColor = this.mixCanvasColor(baseColor, presentation.whiteMix, presentation.brightness);
                 const context = this.context;
                 const container = game?.container;
-                const objectRgbEnabled = !!(
+                const frameMonitorState = this.frameMonitorState && this.frameMonitorState.game === game ? this.frameMonitorState : null;
+                const objectRgbEnabled = frameMonitorState ? frameMonitorState.objectRgbEnabled : !!(
                     container &&
                     container.classList.contains('crt-enabled') &&
                     container.classList.contains('crt-fx-object-rgb') &&
@@ -19132,6 +19248,21 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
             drawPulses(game, timestamp) {
                 if (!game || !Array.isArray(game.enemies)) return;
                 for (let index = 0; index < game.enemies.length; index += 1) this.drawPulse(game.enemies[index], game, timestamp);
+            }
+
+            drawEnemies(game, timestamp) {
+                if (!game || !Array.isArray(game.enemies)) return;
+                for (let index = 0; index < game.enemies.length; index += 1) {
+                    const enemy = game.enemies[index];
+                    if (!enemy || !enemy.isVisible) continue;
+                    if (enemy.behaviorType === ENEMY_BEHAVIOR_TYPES.DRIFTER) {
+                        this.drawDrifter(enemy, game, timestamp);
+                    } else if (enemy.behaviorType === ENEMY_BEHAVIOR_TYPES.CHARGER) {
+                        this.drawCharger(enemy, game, timestamp);
+                    } else if (enemy.behaviorType === ENEMY_BEHAVIOR_TYPES.PULSE) {
+                        this.drawPulse(enemy, game, timestamp);
+                    }
+                }
             }
 
             getSpawnWarningOpacity(warning, game, timestamp) {
@@ -19832,20 +19963,23 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 this.context.save();
                 this.context.translate(shakeOffset.x, shakeOffset.y);
                 const campaignCompletionActive = this.drawCampaignCompletionBase(game, timestamp);
-                if (!campaignCompletionActive) this.drawProductionGrid(game);
-                this.drawAttractSquares(game, timestamp);
-                this.drawCompletedGridCells(game);
-                this.drawConnectionLines(game);
-                this.drawCrystals(game, timestamp);
+                const usedStaticScene = !campaignCompletionActive && this.drawStaticScene(game, timestamp);
+                if (!usedStaticScene) {
+                    if (!campaignCompletionActive) this.drawProductionGrid(game);
+                    this.drawAttractSquares(game, timestamp);
+                    this.drawCompletedGridCells(game);
+                    this.drawConnectionLines(game);
+                    this.drawCrystals(game, timestamp);
+                } else {
+                    this.drawAttractSquares(game, timestamp);
+                }
                 this.drawTutorialCrystalValueLabels(game, timestamp);
                 if (GAME_FEATURE_FLAGS.vectorPhosphorTrails && game.vectorTrail) game.vectorTrail.update(timestamp);
                 this.drawOrbTrail(game, timestamp);
                 this.drawOrb(game.orb, timestamp);
                 this.drawPrismRelic(this.activePrismRelic || game.gridlockSystem.prismRelic, game, timestamp);
                 this.drawEnemyTrail(game, timestamp);
-                this.drawDrifters(game, timestamp);
-                this.drawChargers(game, timestamp);
-                this.drawPulses(game, timestamp);
+                this.drawEnemies(game, timestamp);
                 this.drawSpawnWarnings(game, timestamp);
                 this.drawExplosions(timestamp);
                 this.drawCosmicZapEffects(timestamp);
