@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Zorblox under the OFL.
 
 -->
-<html data-build-version="p027">
+<html data-build-version="p029">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Zorblox</title>
@@ -7755,7 +7755,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
         const BUILD_METADATA = window.ZORBLOX_BUILD = Object.freeze({
             version: BUILD_ID,
             label: BUILD_VERSION,
-            architecturePhase: 'zorblox-p027-vector-static-layer-pass',
+            architecturePhase: 'zorblox-p029-blox-shadowblur-ab-test',
             sourceBaseline: 'p287',
             behaviorPolicy: 'single-design-space-scale-authoritative-state-no-parallel-systems'
         });
@@ -7764,6 +7764,11 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
 
         // Canonical ZORBLOX vocabulary. Product storage is migrated once into the ZORBLOX
         // namespace; active source symbols and persistent keys use current game terminology.
+        // p029 temporary performance A/B: remove only Canvas shadowBlur from Blox rendering.
+        // Crystals, playfield, CRT/Vector presentation, explosions, spawn warnings, Prisms, and
+        // every gameplay parameter remain unchanged.
+        const BLOX_SHADOW_BLUR_AB_TEST_DISABLED = true;
+
         const GAME_TERMINOLOGY = window.ZORBLOX_TERMINOLOGY = Object.freeze({
             progressionUnit: 'sector',
             avatar: 'Orb',
@@ -7986,8 +7991,6 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
             ]
         });
 
-/* p027 Vector frame consistency: cache the static playfield layer between crystal-state
-   changes and render all active Blox in one pass. Presentation and gameplay values are unchanged. */
 /* Source: src/js/config/10-feature-flags.js */
         // Central diagnostic feature flags. Change values here before loading the page to isolate systems.
         const GAME_FEATURE_FLAGS = window.ZORBLOX_FEATURE_FLAGS = {
@@ -7997,8 +8000,6 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
             motionShake: true,
             spawnWarnings: true,
             visualEffects: true,
-            // p024: motion trails remain visually disabled; their sampling/update path is now also
-            // skipped entirely so the disabled effect has zero per-enemy/per-frame overhead.
             vectorPhosphorTrails: false,
             webglDistortion: true,
             gridlockVisualEffects: true,
@@ -11974,8 +11975,6 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 this.game = game;
                 this.config = config;
                 this.maxEnemyResolutionIterations = 5;
-                this.gameOverOutcome = Object.freeze({ outcome: 'game-over' });
-                this.clearOutcomes = Array.from({ length: 25 }, (_, crystalsCollected) => Object.freeze({ outcome: 'clear', crystalsCollected }));
             }
 
             requireGame() {
@@ -11985,9 +11984,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
 
             updateEnemies(deltaTime, timestamp = performance.now()) {
                 const game = this.requireGame();
-                for (let index = 0; index < game.enemies.length; index += 1) {
-                    game.enemies[index].update(deltaTime, timestamp);
-                }
+                game.enemies.forEach((enemy) => enemy.update(deltaTime, timestamp));
 
                 let collisionOccurred = true;
                 let iteration = 0;
@@ -12014,27 +12011,18 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 let tMin = 0;
                 let tMax = 1;
 
-                if (Math.abs(dx) < 0.000001) {
-                    if (segment.x1 < left || segment.x1 > right) return null;
-                } else {
-                    let t1 = (left - segment.x1) / dx;
-                    let t2 = (right - segment.x1) / dx;
-                    if (t1 > t2) { const swap = t1; t1 = t2; t2 = swap; }
-                    if (t1 > tMin) tMin = t1;
-                    if (t2 < tMax) tMax = t2;
-                    if (tMin > tMax) return null;
-                }
+                const clipAxis = (start, delta, min, max) => {
+                    if (Math.abs(delta) < 0.000001) return start >= min && start <= max;
+                    let t1 = (min - start) / delta;
+                    let t2 = (max - start) / delta;
+                    if (t1 > t2) [t1, t2] = [t2, t1];
+                    tMin = Math.max(tMin, t1);
+                    tMax = Math.min(tMax, t2);
+                    return tMin <= tMax;
+                };
 
-                if (Math.abs(dy) < 0.000001) {
-                    if (segment.y1 < top || segment.y1 > bottom) return null;
-                } else {
-                    let t1 = (top - segment.y1) / dy;
-                    let t2 = (bottom - segment.y1) / dy;
-                    if (t1 > t2) { const swap = t1; t1 = t2; t2 = swap; }
-                    if (t1 > tMin) tMin = t1;
-                    if (t2 < tMax) tMax = t2;
-                    if (tMin > tMax) return null;
-                }
+                if (!clipAxis(segment.x1, dx, left, right)) return null;
+                if (!clipAxis(segment.y1, dy, top, bottom)) return null;
                 return Math.max(0, Math.min(1, tMin));
             }
 
@@ -12056,12 +12044,12 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 const bottom = object.y + object.size;
                 let bestScore = null;
 
-                for (let index = 0; index < segments.length; index += 1) {
-                    const hitTime = this.getSegmentRectHitTime(segments[index], left, top, right, bottom);
-                    if (hitTime === null) continue;
+                segments.forEach((segment, index) => {
+                    const hitTime = this.getSegmentRectHitTime(segment, left, top, right, bottom);
+                    if (hitTime === null) return;
                     const score = index + hitTime;
                     if (bestScore === null || score < bestScore) bestScore = score;
-                }
+                });
 
                 if (bestScore !== null) return bestScore;
                 return overlapsNow ? segments.length + 1 : null;
@@ -12069,7 +12057,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
 
             check() {
                 const game = this.requireGame();
-                if (game.runtimeState.isGameOver) return this.gameOverOutcome;
+                if (game.runtimeState.isGameOver) return Object.freeze({ outcome: 'game-over' });
                 const movementSegments = game.orb.consumeMovementSegments
                     ? game.orb.consumeMovementSegments()
                     : [];
@@ -12099,24 +12087,22 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 let crystalsCollected = 0;
                 while (true) {
                     const currentColor = game.crystalSystem.colorOrder[game.crystalSystem.currentColorIndex];
-                    let nextIndex = -1;
-                    let nextCrystal = null;
-                    let nextScore = Infinity;
-                    for (let index = 0; index < game.crystalSystem.crystals.length; index += 1) {
+                    const candidates = [];
+                    for (let index = 0; index < game.crystalSystem.crystals.length; index++) {
                         const crystal = game.crystalSystem.crystals[index];
                         if (crystal.color !== currentColor || !crystal.isSelectable) continue;
                         const score = this.getOrbPathHitScore(crystal, movementSegments, game.orb);
-                        if (score === null || score + 0.000001 < minimumPathScore || score >= nextScore) continue;
-                        nextIndex = index;
-                        nextCrystal = crystal;
-                        nextScore = score;
+                        if (score === null || score + 0.000001 < minimumPathScore) continue;
+                        candidates.push({ index, crystal, score });
                     }
-                    if (nextIndex < 0 || !nextCrystal) break;
-                    minimumPathScore = nextScore;
-                    if (game.collectCrystalAtIndex(nextIndex, nextCrystal)) crystalsCollected += 1;
+                    if (!candidates.length) break;
+                    candidates.sort((first, second) => first.score - second.score);
+                    const next = candidates[0];
+                    minimumPathScore = next.score;
+                    if (game.collectCrystalAtIndex(next.index, next.crystal)) crystalsCollected += 1;
                 }
 
-                return crystalsCollected < this.clearOutcomes.length ? this.clearOutcomes[crystalsCollected] : Object.freeze({ outcome: 'clear', crystalsCollected });
+                return Object.freeze({ outcome: 'clear', crystalsCollected });
             }
 
             snapshot() {
@@ -14912,7 +14898,6 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
         class DiagnosticsSystem {
             static ownedFields = Object.freeze([
                 'performanceTelemetrySamples',
-                'performanceTelemetrySampleCursor',
                 'performanceTelemetryLastTimestamp',
                 'performanceTelemetryLastRender',
                 'performanceTelemetryRafId',
@@ -14925,7 +14910,6 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
             constructor(game) {
                 this.game = game;
                 this.performanceTelemetrySamples = [];
-                this.performanceTelemetrySampleCursor = 0;
                 this.performanceTelemetryLastTimestamp = 0;
                 this.performanceTelemetryLastRender = 0;
                 this.performanceTelemetryRafId = null;
@@ -14965,53 +14949,17 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
 
         DiagnosticsSystem.implementations = Object.freeze({
             computePerformanceMetrics: function(samples = []) {
-                if (!Array.isArray(samples) || !samples.length) return null;
-                let total = 0;
-                let validCount = 0;
-                let droppedCount = 0;
-                for (let index = 0; index < samples.length; index += 1) {
-                    const value = samples[index];
-                    if (!Number.isFinite(value) || value <= 0 || value >= 1000) continue;
-                    total += value;
-                    validCount += 1;
-                    if (value > 20) droppedCount += 1;
-                }
-                if (!validCount) return null;
-                const averageMs = total / validCount;
+                const valid = (Array.isArray(samples) ? samples : []).filter(value => Number.isFinite(value) && value > 0 && value < 1000);
+                if (!valid.length) return null;
+                const total = valid.reduce((sum, value) => sum + value, 0);
+                const averageMs = total / valid.length;
                 const averageFps = averageMs > 0 ? 1000 / averageMs : 0;
-                const lowCount = Math.max(1, Math.ceil(validCount * 0.01));
-                let slowest = null;
-                if (validCount <= 1000) {
-                    slowest = [];
-                    for (let index = 0; index < samples.length; index += 1) {
-                        const value = samples[index];
-                        if (!Number.isFinite(value) || value <= 0 || value >= 1000) continue;
-                        let insertAt = slowest.length;
-                        while (insertAt > 0 && slowest[insertAt - 1] < value) insertAt -= 1;
-                        if (insertAt < lowCount) {
-                            slowest.splice(insertAt, 0, value);
-                            if (slowest.length > lowCount) slowest.pop();
-                        } else if (slowest.length < lowCount) {
-                            slowest.push(value);
-                        }
-                    }
-                } else {
-                    slowest = new Array(validCount);
-                    let writeIndex = 0;
-                    for (let index = 0; index < samples.length; index += 1) {
-                        const value = samples[index];
-                        if (!Number.isFinite(value) || value <= 0 || value >= 1000) continue;
-                        slowest[writeIndex++] = value;
-                    }
-                    slowest.sort((a, b) => b - a);
-                    slowest.length = lowCount;
-                }
-                let lowFpsTotal = 0;
-                for (let index = 0; index < slowest.length; index += 1) lowFpsTotal += 1000 / slowest[index];
-                const onePercentLowFps = lowFpsTotal / Math.max(1, slowest.length);
-                const droppedPercent = (droppedCount / validCount) * 100;
+                const slowest = valid.slice().sort((a, b) => b - a);
+                const lowCount = Math.max(1, Math.ceil(slowest.length * 0.01));
+                const onePercentLowFps = slowest.slice(0, lowCount).reduce((sum, value) => sum + (1000 / value), 0) / lowCount;
+                const droppedPercent = (valid.filter(value => value > 20).length / valid.length) * 100;
                 return {
-                    frameCount: validCount,
+                    frameCount: valid.length,
                     averageMs,
                     averageFps,
                     onePercentLowFps,
@@ -15022,7 +14970,6 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
             resetPerformanceMetrics: function() {
                 const diagnostics = this.diagnosticsSystem;
                 diagnostics.performanceTelemetrySamples = [];
-                diagnostics.performanceTelemetrySampleCursor = 0;
                 diagnostics.performanceSessionSamples = [];
                 diagnostics.performanceSectorSamples = [];
                 diagnostics.performanceTrackedSector = null;
@@ -15039,7 +14986,6 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 const sampleWindow = 180;
                 const maxSessionSamples = 120000;
                 this.diagnosticsSystem.performanceTelemetrySamples = [];
-                this.diagnosticsSystem.performanceTelemetrySampleCursor = 0;
                 this.diagnosticsSystem.performanceTelemetryLastTimestamp = 0;
                 this.diagnosticsSystem.performanceTelemetryLastRender = 0;
 
@@ -15049,7 +14995,6 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                     const metrics = diagnostics.computePerformanceMetrics(diagnostics.performanceSectorSamples);
                     diagnostics.performanceLastSectorSummary = metrics ? { sector: diagnostics.performanceTrackedSector, ...metrics } : null;
                     diagnostics.performanceSectorSamples = [];
-                    diagnostics.updatePerformanceSummaryPanel();
                 };
 
                 const tick = (timestamp) => {
@@ -15058,7 +15003,6 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                         if (diagnostics.performanceSectorSamples.length) finalizeTrackedSector();
                         diagnostics.performanceTelemetryRafId = null;
                         diagnostics.performanceTelemetrySamples = [];
-                        diagnostics.performanceTelemetrySampleCursor = 0;
                         diagnostics.performanceTelemetryLastTimestamp = 0;
                         diagnostics.updatePerformanceTelemetryHud();
                         diagnostics.updatePerformanceSummaryPanel();
@@ -15072,11 +15016,9 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                     if (diagnostics.performanceTelemetryLastTimestamp > 0) {
                         const delta = timestamp - diagnostics.performanceTelemetryLastTimestamp;
                         if (delta > 0 && delta < 1000) {
-                            if (diagnostics.performanceTelemetrySamples.length < sampleWindow) {
-                                diagnostics.performanceTelemetrySamples.push(delta);
-                            } else {
-                                diagnostics.performanceTelemetrySamples[diagnostics.performanceTelemetrySampleCursor] = delta;
-                                diagnostics.performanceTelemetrySampleCursor = (diagnostics.performanceTelemetrySampleCursor + 1) % sampleWindow;
+                            diagnostics.performanceTelemetrySamples.push(delta);
+                            if (diagnostics.performanceTelemetrySamples.length > sampleWindow) {
+                                diagnostics.performanceTelemetrySamples.splice(0, diagnostics.performanceTelemetrySamples.length - sampleWindow);
                             }
 
                             if (liveGameplay) {
@@ -15105,10 +15047,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                     if (timestamp - diagnostics.performanceTelemetryLastRender >= 500) {
                         diagnostics.performanceTelemetryLastRender = timestamp;
                         diagnostics.updatePerformanceTelemetryHud();
-                        // The full sector/session summary performs percentile sorting. It is useful
-                        // after play, not during action, so defer it until gameplay is paused/ended.
-                        // Sampling remains continuous and exact.
-                        if (!liveGameplay) diagnostics.updatePerformanceSummaryPanel();
+                        diagnostics.updatePerformanceSummaryPanel();
                     }
                     diagnostics.performanceTelemetryRafId = requestAnimationFrame(tick);
                 };
@@ -15927,7 +15866,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 this.assert('Retired telemetry compatibility keeps only non-recording gameplay helpers', telemetryOwner.hasImplementation('getCurrentSpeedMultiplier') && telemetryOwner.hasImplementation('formatTelemetryDuration'));
                 this.assert('TelemetrySystem snapshot is read-only', Object.isFrozen(telemetryOwner.snapshot()));
                 const diagnosticsOwner = new DiagnosticsSystem({});
-                this.assert('DiagnosticsSystem owns runtime diagnostic command surface', DiagnosticsSystem.ownedFields.length === 9 && diagnosticsOwner.hasImplementation('validateStateInvariants') && diagnosticsOwner.hasImplementation('buildDeveloperStateSnapshot'));
+                this.assert('DiagnosticsSystem owns runtime diagnostic command surface', DiagnosticsSystem.ownedFields.length === 8 && diagnosticsOwner.hasImplementation('validateStateInvariants') && diagnosticsOwner.hasImplementation('buildDeveloperStateSnapshot'));
                 this.assert('DiagnosticsSystem snapshot is read-only', Object.isFrozen(diagnosticsOwner.snapshot()));
 
                 this.assert('Legacy Game state proxy helper removed', typeof installOwnedStateProxy === 'undefined');
@@ -16760,6 +16699,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
 
                 if (game.menuButtons && game.scoringPanel && game.storyPanel && game.settingsPanel) game.screenManager.showMainMenuButtons();
                 game.screenManager.setSectorSelectVisible(false);
+
                 game.screenManager.setOverlayVisible(false);
                 if (game.audio) game.audio.startBackgroundMusic(game.campaign.currentSector);
             }
@@ -17687,18 +17627,6 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 this.campaignRestoreCells = [];
                 this.monitorEffectMaxPixelRatio = 2;
                 this.standardMaxPixelRatio = 3;
-                // Performance-only caches. These do not change presentation values; they avoid
-                // reparsing static palette colors and repeated monitor class queries inside a frame.
-                this.parsedCanvasColorCache = new Map();
-                this.frameMonitorState = null;
-
-                // p027: most of the 80-crystal playfield is visually static between pickups.
-                // Keep that material in a private Canvas layer and rebuild it only when the
-                // crystal/line/monitor state changes. Dynamic selectable crystals stay live.
-                this.staticSceneCanvas = document.createElement('canvas');
-                this.staticSceneContext = this.staticSceneCanvas.getContext('2d');
-                this.staticSceneCacheKey = '';
-                this.staticSceneValid = false;
 
                 // Canvas blur appears brighter than equivalent layered CSS shadows. The shared
                 // playfield scale trims all gameplay glow sources evenly while the regular-object
@@ -17715,36 +17643,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 return this.scalePlayfieldGlow(value) * this.regularGlowScale;
             }
 
-            beginMonitorFrameState(game) {
-                const container = game && game.container;
-                if (!container) {
-                    this.frameMonitorState = { game, crtEnabled: false, suspended: false, mode: 'off', objectRgbEnabled: false, gridRgbEnabled: false, highGridRgb: false, enemyFilterVisuals: ENEMY_FILTER_VISUALS.off };
-                    return this.frameMonitorState;
-                }
-                const classList = container.classList;
-                const crtEnabled = classList.contains('crt-enabled');
-                const suspended = classList.contains('monitor-ui-suspended');
-                const mode = classList.contains('monitor-crt') ? 'crt' : (classList.contains('monitor-vector') ? 'vector' : 'off');
-                const active = crtEnabled && !suspended;
-                this.frameMonitorState = {
-                    game,
-                    crtEnabled,
-                    suspended,
-                    mode,
-                    objectRgbEnabled: active && classList.contains('crt-fx-object-rgb'),
-                    gridRgbEnabled: active && classList.contains('crt-fx-grid-rgb'),
-                    highGridRgb: active && classList.contains('crt-fx-grid-rgb') && classList.contains('crt-grid-rgb-high'),
-                    enemyFilterVisuals: active ? (mode === 'crt' ? ENEMY_FILTER_VISUALS.crt : (mode === 'vector' ? ENEMY_FILTER_VISUALS.vector : ENEMY_FILTER_VISUALS.off)) : ENEMY_FILTER_VISUALS.off
-                };
-                return this.frameMonitorState;
-            }
-
-            endMonitorFrameState() {
-                this.frameMonitorState = null;
-            }
-
             getEnemyFilterVisuals(game) {
-                if (this.frameMonitorState && this.frameMonitorState.game === game) return this.frameMonitorState.enemyFilterVisuals;
                 const container = game && game.container;
                 if (!container || !container.classList.contains('crt-enabled') || container.classList.contains('monitor-ui-suspended')) {
                     return ENEMY_FILTER_VISUALS.off;
@@ -17812,15 +17711,6 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 if (this.canvas.height !== bufferHeight) this.canvas.height = bufferHeight;
                 this.context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
                 this.context.imageSmoothingEnabled = true;
-
-                if (this.staticSceneCanvas && this.staticSceneContext) {
-                    if (this.staticSceneCanvas.width !== bufferWidth) this.staticSceneCanvas.width = bufferWidth;
-                    if (this.staticSceneCanvas.height !== bufferHeight) this.staticSceneCanvas.height = bufferHeight;
-                    this.staticSceneContext.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
-                    this.staticSceneContext.imageSmoothingEnabled = true;
-                    this.staticSceneCacheKey = '';
-                    this.staticSceneValid = false;
-                }
             }
 
             setOrbVisible(orb, visible) {
@@ -18318,7 +18208,6 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
             }
 
             enemyTrailsNeedAnimation(game = this.game) {
-                if (!GAME_FEATURE_FLAGS.vectorPhosphorTrails) return false;
                 const trail = game && game.vectorTrail;
                 return !!(trail && Array.isArray(trail.enemyPool) && trail.enemyPool.some(ghost =>
                     ghost && ghost.active && (
@@ -18406,14 +18295,13 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 const height = this.cssHeight;
                 const gridSize = Math.max(1, Number(game?.GRID_SIZE) || width / 10);
                 const container = game?.container;
-                const frameMonitorState = this.frameMonitorState && this.frameMonitorState.game === game ? this.frameMonitorState : null;
-                const rgbGridEnabled = frameMonitorState ? frameMonitorState.gridRgbEnabled : !!(
+                const rgbGridEnabled = !!(
                     container &&
                     container.classList.contains('crt-enabled') &&
                     container.classList.contains('crt-fx-grid-rgb') &&
                     !container.classList.contains('monitor-ui-suspended')
                 );
-                const highRgb = frameMonitorState ? frameMonitorState.highGridRgb : (rgbGridEnabled && container.classList.contains('crt-grid-rgb-high'));
+                const highRgb = rgbGridEnabled && container.classList.contains('crt-grid-rgb-high');
 
                 context.save();
                 context.fillStyle = String(rgbGridEnabled ? (highRgb ? '#000b10' : '#000609') : '#000');
@@ -18458,8 +18346,6 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
 
             parseCanvasColor(color) {
                 const value = String(color || '#fff').trim().toLowerCase();
-                const cached = this.parsedCanvasColorCache && this.parsedCanvasColorCache.get(value);
-                if (cached) return cached;
                 const named = {
                     red: this.getPaletteColor('red'),
                     green: this.getPaletteColor('green'),
@@ -18467,138 +18353,33 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                     white: this.getPaletteColor('white')
                 };
                 const normalized = named[value] || value;
-                let parsed = null;
                 const shortHex = normalized.match(/^#([0-9a-f]{3})$/i);
                 if (shortHex) {
                     const digits = shortHex[1];
-                    parsed = {
+                    return {
                         r: Number.parseInt(digits[0] + digits[0], 16),
                         g: Number.parseInt(digits[1] + digits[1], 16),
                         b: Number.parseInt(digits[2] + digits[2], 16)
                     };
                 }
-                if (!parsed) {
-                    const fullHex = normalized.match(/^#([0-9a-f]{6})$/i);
-                    if (fullHex) {
-                        const digits = fullHex[1];
-                        parsed = {
-                            r: Number.parseInt(digits.slice(0, 2), 16),
-                            g: Number.parseInt(digits.slice(2, 4), 16),
-                            b: Number.parseInt(digits.slice(4, 6), 16)
-                        };
-                    }
+                const fullHex = normalized.match(/^#([0-9a-f]{6})$/i);
+                if (fullHex) {
+                    const digits = fullHex[1];
+                    return {
+                        r: Number.parseInt(digits.slice(0, 2), 16),
+                        g: Number.parseInt(digits.slice(2, 4), 16),
+                        b: Number.parseInt(digits.slice(4, 6), 16)
+                    };
                 }
-                if (!parsed) parsed = { r: 255, g: 255, b: 255 };
-                if (this.parsedCanvasColorCache) this.parsedCanvasColorCache.set(value, parsed);
-                return parsed;
+                return { r: 255, g: 255, b: 255 };
             }
 
             mixCanvasColor(baseColor, whiteMix = 0, brightness = 1) {
+                const base = this.parseCanvasColor(baseColor);
                 const mix = this.clamp01(whiteMix);
                 const brighten = Math.max(0, Number(brightness) || 1);
-                // Most live ZIG/DASH frames use the authored base color unchanged. Avoid regex
-                // parsing/string reconstruction on that hot path; the visual result is identical.
-                if (mix <= 0.000001 && Math.abs(brighten - 1) <= 0.000001) return String(baseColor || '#fff');
-                const base = this.parseCanvasColor(baseColor);
                 const channel = value => Math.max(0, Math.min(255, Math.round((value * (1 - mix) + 255 * mix) * brighten)));
                 return `rgb(${channel(base.r)}, ${channel(base.g)}, ${channel(base.b)})`;
-            }
-
-            crystalsHaveIntroAnimation(game, timestamp) {
-                if (!game || !Array.isArray(game.crystalSystem.crystals)) return false;
-                for (let index = 0; index < game.crystalSystem.crystals.length; index += 1) {
-                    const crystal = game.crystalSystem.crystals[index];
-                    if (crystal && this.getCrystalIntroPresentation(crystal, game, timestamp).active) return true;
-                }
-                return false;
-            }
-
-            getStaticSceneCacheKey(game) {
-                if (!game || !Array.isArray(game.crystalSystem.crystals)) return '';
-                const frameState = this.frameMonitorState && this.frameMonitorState.game === game
-                    ? this.frameMonitorState
-                    : this.beginMonitorFrameState(game);
-                let selectableSignature = '';
-                for (let index = 0; index < game.crystalSystem.crystals.length; index += 1) {
-                    const crystal = game.crystalSystem.crystals[index];
-                    if (!crystal || !crystal.isSelectable) continue;
-                    selectableSignature += `${Math.round(Number(crystal.x) || 0)},${Math.round(Number(crystal.y) || 0)},${String(crystal.color || '')};`;
-                }
-                const completedCount = Array.isArray(game.crystalSystem.completedGridCells)
-                    ? game.crystalSystem.completedGridCells.length
-                    : 0;
-                const lineCount = Array.isArray(game.crystalSystem.lines)
-                    ? game.crystalSystem.lines.length
-                    : 0;
-                return [
-                    this.canvas.width,
-                    this.canvas.height,
-                    this.pixelRatio.toFixed(2),
-                    frameState.mode,
-                    frameState.crtEnabled ? 1 : 0,
-                    frameState.suspended ? 1 : 0,
-                    frameState.objectRgbEnabled ? 1 : 0,
-                    frameState.gridRgbEnabled ? 1 : 0,
-                    frameState.highGridRgb ? 1 : 0,
-                    game.crystalSystem.crystals.length,
-                    completedCount,
-                    lineCount,
-                    selectableSignature
-                ].join('|');
-            }
-
-            rebuildStaticScene(game, cacheKey) {
-                if (!this.staticSceneContext || !this.staticSceneCanvas) return false;
-                const mainContext = this.context;
-                const staticContext = this.staticSceneContext;
-                staticContext.save();
-                staticContext.setTransform(1, 0, 0, 1, 0, 0);
-                staticContext.clearRect(0, 0, this.staticSceneCanvas.width, this.staticSceneCanvas.height);
-                staticContext.restore();
-                staticContext.setTransform(this.pixelRatio, 0, 0, this.pixelRatio, 0, 0);
-                staticContext.imageSmoothingEnabled = true;
-
-                this.context = staticContext;
-                try {
-                    this.drawProductionGrid(game);
-                    this.drawCompletedGridCells(game);
-                    this.drawConnectionLines(game);
-                    const crystals = game.crystalSystem.crystals;
-                    for (let index = 0; index < crystals.length; index += 1) {
-                        const crystal = crystals[index];
-                        if (!crystal || crystal.isSelectable) continue;
-                        this.drawCrystal(crystal, game, performance.now());
-                    }
-                } finally {
-                    this.context = mainContext;
-                }
-
-                this.staticSceneCacheKey = cacheKey;
-                this.staticSceneValid = true;
-                return true;
-            }
-
-            drawStaticScene(game, timestamp) {
-                if (!game || !this.staticSceneCanvas || !this.staticSceneContext) return false;
-                if (game.runtimeState && game.runtimeState.tutorialActive) return false;
-                if (game.flow && game.flow.is(GAME_FLOW_STATES.ATTRACT)) return false;
-                if (this.crystalsHaveIntroAnimation(game, timestamp)) return false;
-
-                const cacheKey = this.getStaticSceneCacheKey(game);
-                if (!cacheKey) return false;
-                if (!this.staticSceneValid || this.staticSceneCacheKey !== cacheKey) {
-                    if (!this.rebuildStaticScene(game, cacheKey)) return false;
-                }
-
-                this.context.drawImage(this.staticSceneCanvas, 0, 0, this.cssWidth, this.cssHeight);
-
-                // Only the selectable/blinking crystals need per-frame animation.
-                const crystals = game.crystalSystem.crystals;
-                for (let index = 0; index < crystals.length; index += 1) {
-                    const crystal = crystals[index];
-                    if (crystal && crystal.isSelectable) this.drawCrystal(crystal, game, timestamp);
-                }
-                return true;
             }
 
             attractSquaresNeedAnimation(game) {
@@ -18715,8 +18496,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 const fillColor = this.mixCanvasColor(baseColor, presentation.whiteMix, presentation.brightness);
                 const context = this.context;
                 const container = game?.container;
-                const frameMonitorState = this.frameMonitorState && this.frameMonitorState.game === game ? this.frameMonitorState : null;
-                const objectRgbEnabled = frameMonitorState ? frameMonitorState.objectRgbEnabled : !!(
+                const objectRgbEnabled = !!(
                     container &&
                     container.classList.contains('crt-enabled') &&
                     container.classList.contains('crt-fx-object-rgb') &&
@@ -18768,9 +18548,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
 
             drawCrystals(game, timestamp) {
                 if (!game || !Array.isArray(game.crystalSystem.crystals)) return;
-                for (let index = 0; index < game.crystalSystem.crystals.length; index += 1) {
-                    this.drawCrystal(game.crystalSystem.crystals[index], game, timestamp);
-                }
+                game.crystalSystem.crystals.forEach(crystal => this.drawCrystal(crystal, game, timestamp));
             }
 
             drawTutorialCrystalValueLabels(game, timestamp) {
@@ -18871,7 +18649,6 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
             }
 
             drawOrbTrail(game, timestamp) {
-                if (!GAME_FEATURE_FLAGS.vectorPhosphorTrails) return;
                 const trail = game && game.vectorTrail;
                 if (!trail || !Array.isArray(trail.orbPool)) return;
                 if (typeof trail.isEnabled === 'function' && !trail.isEnabled()) return;
@@ -18898,7 +18675,6 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
             }
 
             drawEnemyTrail(game, timestamp) {
-                if (!GAME_FEATURE_FLAGS.vectorPhosphorTrails) return;
                 const trail = game && game.vectorTrail;
                 if (!trail || !Array.isArray(trail.enemyPool)) return;
                 if (typeof trail.isEnabled === 'function' && !trail.isEnabled()) return;
@@ -18995,12 +18771,11 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 const baseColor = enemy.baseColor || GAME_CONFIG.palette.red;
                 const context = this.context;
                 const container = game && game.container;
-                const frameMonitorState = this.frameMonitorState && this.frameMonitorState.game === game ? this.frameMonitorState : null;
-                const crtActive = frameMonitorState ? (frameMonitorState.crtEnabled && !frameMonitorState.suspended) : !!(
+                const crtActive = !!(
                     container && container.classList.contains('crt-enabled') &&
                     !container.classList.contains('monitor-ui-suspended')
                 );
-                const objectRgbEnabled = frameMonitorState ? frameMonitorState.objectRgbEnabled : !!(
+                const objectRgbEnabled = !!(
                     crtActive && container.classList.contains('crt-fx-object-rgb')
                 );
                 const monitorPresentation = this.resolveEnemyMonitorPresentation(game, presentation);
@@ -19028,7 +18803,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 context.strokeStyle = '#fff';
                 context.lineWidth = 1;
                 context.shadowColor = effectiveWhiteMix > 0.45 ? '#fff' : baseColor;
-                context.shadowBlur = this.scalePlayfieldGlow(bloomBlur);
+                context.shadowBlur = BLOX_SHADOW_BLUR_AB_TEST_DISABLED ? 0 : this.scalePlayfieldGlow(bloomBlur);
                 context.fillRect(-size / 2, -size / 2, size, size);
                 context.strokeRect(-size / 2 + 0.5, -size / 2 + 0.5, Math.max(0, size - 1), Math.max(0, size - 1));
                 context.restore();
@@ -19036,7 +18811,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
 
             drawDrifters(game, timestamp) {
                 if (!game || !Array.isArray(game.enemies)) return;
-                for (let index = 0; index < game.enemies.length; index += 1) this.drawDrifter(game.enemies[index], game, timestamp);
+                game.enemies.forEach(enemy => this.drawDrifter(enemy, game, timestamp));
             }
 
             getChargerPresentation(enemy, timestamp) {
@@ -19062,9 +18837,8 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 const baseColor = enemy.baseColor || GAME_CONFIG.palette.green;
                 const context = this.context;
                 const container = game && game.container;
-                const frameMonitorState = this.frameMonitorState && this.frameMonitorState.game === game ? this.frameMonitorState : null;
-                const crtActive = frameMonitorState ? (frameMonitorState.crtEnabled && !frameMonitorState.suspended) : !!(container && container.classList.contains('crt-enabled') && !container.classList.contains('monitor-ui-suspended'));
-                const objectRgbEnabled = frameMonitorState ? frameMonitorState.objectRgbEnabled : !!(crtActive && container.classList.contains('crt-fx-object-rgb'));
+                const crtActive = !!(container && container.classList.contains('crt-enabled') && !container.classList.contains('monitor-ui-suspended'));
+                const objectRgbEnabled = !!(crtActive && container.classList.contains('crt-fx-object-rgb'));
                 const monitorPresentation = this.resolveEnemyMonitorPresentation(game, presentation);
                 const effectiveWhiteMix = monitorPresentation.whiteMix;
                 const bloomBlur = monitorPresentation.glowBlur;
@@ -19090,7 +18864,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 context.strokeStyle = '#fff';
                 context.lineWidth = 1;
                 context.shadowColor = effectiveWhiteMix > 0.45 ? '#fff' : baseColor;
-                context.shadowBlur = this.scalePlayfieldGlow(bloomBlur);
+                context.shadowBlur = BLOX_SHADOW_BLUR_AB_TEST_DISABLED ? 0 : this.scalePlayfieldGlow(bloomBlur);
                 context.fillRect(-size / 2, -size / 2, size, size);
                 context.strokeRect(-size / 2 + 0.5, -size / 2 + 0.5, Math.max(0, size - 1), Math.max(0, size - 1));
                 context.restore();
@@ -19098,7 +18872,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
 
             drawChargers(game, timestamp) {
                 if (!game || !Array.isArray(game.enemies)) return;
-                for (let index = 0; index < game.enemies.length; index += 1) this.drawCharger(game.enemies[index], game, timestamp);
+                game.enemies.forEach(enemy => this.drawCharger(enemy, game, timestamp));
             }
 
             getPulsePresentation(enemy, timestamp) {
@@ -19169,7 +18943,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 context.strokeStyle = gradient;
                 context.lineWidth = 1;
                 context.shadowColor = 'rgba(75,165,255,0.52)';
-                context.shadowBlur = this.scalePlayfieldGlow(1);
+                context.shadowBlur = BLOX_SHADOW_BLUR_AB_TEST_DISABLED ? 0 : this.scalePlayfieldGlow(1);
                 context.beginPath();
                 context.moveTo(-1, 0);
                 context.lineTo(length, 0);
@@ -19188,9 +18962,8 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 const baseColor = enemy.baseColor || GAME_CONFIG.palette.blue;
                 const context = this.context;
                 const container = game && game.container;
-                const frameMonitorState = this.frameMonitorState && this.frameMonitorState.game === game ? this.frameMonitorState : null;
-                const crtActive = frameMonitorState ? (frameMonitorState.crtEnabled && !frameMonitorState.suspended) : !!(container && container.classList.contains('crt-enabled') && !container.classList.contains('monitor-ui-suspended'));
-                const objectRgbEnabled = frameMonitorState ? frameMonitorState.objectRgbEnabled : !!(crtActive && container.classList.contains('crt-fx-object-rgb'));
+                const crtActive = !!(container && container.classList.contains('crt-enabled') && !container.classList.contains('monitor-ui-suspended'));
+                const objectRgbEnabled = !!(crtActive && container.classList.contains('crt-fx-object-rgb'));
                 const monitorPresentation = this.resolveEnemyMonitorPresentation(game, presentation);
                 const effectiveWhiteMix = monitorPresentation.whiteMix;
                 const bloomBlur = monitorPresentation.glowBlur;
@@ -19218,7 +18991,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 context.globalAlpha *= presentation.bodyAlpha;
                 context.fillStyle = fillColor;
                 context.shadowColor = effectiveWhiteMix > 0.45 ? '#fff' : baseColor;
-                context.shadowBlur = this.scalePlayfieldGlow(bloomBlur);
+                context.shadowBlur = BLOX_SHADOW_BLUR_AB_TEST_DISABLED ? 0 : this.scalePlayfieldGlow(bloomBlur);
                 context.fillRect(-size / 2, -size / 2, size, size);
                 context.restore();
 
@@ -19227,7 +19000,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 context.strokeStyle = effectiveWhiteMix > 0.72 ? '#fff' : 'rgba(195,225,255,1)';
                 context.lineWidth = 1;
                 context.shadowColor = effectiveWhiteMix > 0.45 ? '#fff' : baseColor;
-                context.shadowBlur = this.scalePlayfieldGlow(bloomBlur);
+                context.shadowBlur = BLOX_SHADOW_BLUR_AB_TEST_DISABLED ? 0 : this.scalePlayfieldGlow(bloomBlur);
                 context.strokeRect(-size / 2 + 0.5, -size / 2 + 0.5, Math.max(0, size - 1), Math.max(0, size - 1));
                 context.restore();
 
@@ -19237,7 +19010,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                     context.strokeStyle = 'rgba(150,205,255,1)';
                     context.lineWidth = 1;
                     context.shadowColor = 'rgba(70,150,255,0.72)';
-                    context.shadowBlur = this.scalePlayfieldGlow(6);
+                    context.shadowBlur = BLOX_SHADOW_BLUR_AB_TEST_DISABLED ? 0 : this.scalePlayfieldGlow(6);
                     context.strokeRect(-size / 2 - 1.5, -size / 2 - 1.5, size + 3, size + 3);
                     context.restore();
                 }
@@ -19247,22 +19020,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
 
             drawPulses(game, timestamp) {
                 if (!game || !Array.isArray(game.enemies)) return;
-                for (let index = 0; index < game.enemies.length; index += 1) this.drawPulse(game.enemies[index], game, timestamp);
-            }
-
-            drawEnemies(game, timestamp) {
-                if (!game || !Array.isArray(game.enemies)) return;
-                for (let index = 0; index < game.enemies.length; index += 1) {
-                    const enemy = game.enemies[index];
-                    if (!enemy || !enemy.isVisible) continue;
-                    if (enemy.behaviorType === ENEMY_BEHAVIOR_TYPES.DRIFTER) {
-                        this.drawDrifter(enemy, game, timestamp);
-                    } else if (enemy.behaviorType === ENEMY_BEHAVIOR_TYPES.CHARGER) {
-                        this.drawCharger(enemy, game, timestamp);
-                    } else if (enemy.behaviorType === ENEMY_BEHAVIOR_TYPES.PULSE) {
-                        this.drawPulse(enemy, game, timestamp);
-                    }
-                }
+                game.enemies.forEach(enemy => this.drawPulse(enemy, game, timestamp));
             }
 
             getSpawnWarningOpacity(warning, game, timestamp) {
@@ -19474,7 +19232,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
 
             drawExplosions(timestamp) {
                 if (!this.activeExplosions || this.activeExplosions.size === 0) return;
-                for (const explosion of this.activeExplosions) this.drawExplosion(explosion, timestamp);
+                [...this.activeExplosions].forEach(explosion => this.drawExplosion(explosion, timestamp));
             }
 
             getCosmicZapShakeOffset(timestamp) {
@@ -19564,12 +19322,12 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
 
             drawCosmicZapEffects(timestamp) {
                 if (!this.visualEffectsEnabled() || !this.activeCosmicZapEffects || this.activeCosmicZapEffects.size === 0) return;
-                for (const effect of this.activeCosmicZapEffects) {
-                    if (!effect || effect.isActive === false) continue;
+                [...this.activeCosmicZapEffects].forEach(effect => {
+                    if (!effect || effect.isActive === false) return;
                     if (effect.type === 'line') this.drawCosmicZapLine(effect, timestamp);
                     else if (effect.type === 'ring') this.drawCosmicZapRing(effect, timestamp);
                     else if (effect.type === 'spark') this.drawCosmicZapSpark(effect, timestamp);
-                }
+                });
             }
 
             sampleColorKeyframes(progress, frames) {
@@ -19957,29 +19715,25 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                     this.resize({ width: expectedSize, height: expectedSize, pixelRatio: expectedPixelRatio });
                 }
 
-                this.beginMonitorFrameState(game);
                 this.clear();
                 const shakeOffset = this.getCosmicZapShakeOffset(timestamp);
                 this.context.save();
                 this.context.translate(shakeOffset.x, shakeOffset.y);
                 const campaignCompletionActive = this.drawCampaignCompletionBase(game, timestamp);
-                const usedStaticScene = !campaignCompletionActive && this.drawStaticScene(game, timestamp);
-                if (!usedStaticScene) {
-                    if (!campaignCompletionActive) this.drawProductionGrid(game);
-                    this.drawAttractSquares(game, timestamp);
-                    this.drawCompletedGridCells(game);
-                    this.drawConnectionLines(game);
-                    this.drawCrystals(game, timestamp);
-                } else {
-                    this.drawAttractSquares(game, timestamp);
-                }
+                if (!campaignCompletionActive) this.drawProductionGrid(game);
+                this.drawAttractSquares(game, timestamp);
+                this.drawCompletedGridCells(game);
+                this.drawConnectionLines(game);
+                this.drawCrystals(game, timestamp);
                 this.drawTutorialCrystalValueLabels(game, timestamp);
-                if (GAME_FEATURE_FLAGS.vectorPhosphorTrails && game.vectorTrail) game.vectorTrail.update(timestamp);
+                if (game.vectorTrail) game.vectorTrail.update(timestamp);
                 this.drawOrbTrail(game, timestamp);
                 this.drawOrb(game.orb, timestamp);
                 this.drawPrismRelic(this.activePrismRelic || game.gridlockSystem.prismRelic, game, timestamp);
                 this.drawEnemyTrail(game, timestamp);
-                this.drawEnemies(game, timestamp);
+                this.drawDrifters(game, timestamp);
+                this.drawChargers(game, timestamp);
+                this.drawPulses(game, timestamp);
                 this.drawSpawnWarnings(game, timestamp);
                 this.drawExplosions(timestamp);
                 this.drawCosmicZapEffects(timestamp);
@@ -19988,7 +19742,6 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 this.drawTutorialCrystalValuePopups(game, timestamp);
 
                 this.context.restore();
-                this.endMonitorFrameState();
                 this.ensureOrbEffectFrame();
                 if (game.webglDistortion) game.webglDistortion.render(timestamp);
             }
@@ -21430,7 +21183,6 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 this.perfSessionDrop = document.getElementById('perfSessionDrop');
                 this.resetPerformanceButton = document.getElementById('resetPerformanceButton');
                 this.diagnosticsSystem.performanceTelemetrySamples = [];
-                this.diagnosticsSystem.performanceTelemetrySampleCursor = 0;
                 this.diagnosticsSystem.performanceTelemetryLastTimestamp = 0;
                 this.diagnosticsSystem.performanceTelemetryLastRender = 0;
                 this.diagnosticsSystem.performanceTelemetryRafId = null;
@@ -23743,14 +23495,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 this.collisionSystem.updateEnemies(deltaTime, timestamp); // Update enemy simulation positions
                 this.collisionSystem.check(); // Check for collisions
                 this.completeSector(); // Check if level is complete
-                if (this.explosions.length) {
-                    let writeIndex = 0;
-                    for (let index = 0; index < this.explosions.length; index += 1) {
-                        const explosion = this.explosions[index];
-                        if (explosion.update()) this.explosions[writeIndex++] = explosion;
-                    }
-                    this.explosions.length = writeIndex;
-                }
+                this.explosions = this.explosions.filter(exp => exp.update()); // Update and filter explosions
             }
 
             // Main game loop: simulation first, then exactly one playfield presentation pass.
@@ -25205,7 +24950,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 this.y = constrainedTarget.y;
 
                 const movedDistance = Math.hypot(this.x - previousX, this.y - previousY);
-                if (GAME_FEATURE_FLAGS.vectorPhosphorTrails && this.game.vectorTrail) {
+                if (this.game.vectorTrail) {
                     this.game.vectorTrail.recordOrbMotion(previousX, previousY, this.x, this.y, this.size, movedDistance, now);
                 }
                 if (movedDistance > 0.01) {
@@ -26145,7 +25890,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 this.behavior.update(deltaTime, timestamp);
                 this.resolvePlayfieldBounds();
                 
-                if (GAME_FEATURE_FLAGS.vectorPhosphorTrails && this.game.vectorTrail) {
+                if (this.game.vectorTrail) {
                     const movedDistance = Math.hypot(this.x - previousX, this.y - previousY);
                     this.game.vectorTrail.recordEnemyMotion(this, previousX, previousY, movedDistance, timestamp);
                 }
