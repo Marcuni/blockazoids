@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Zorblox under the OFL.
 
 -->
-<html data-build-version="p030">
+<html data-build-version="p031">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Zorblox</title>
@@ -4176,7 +4176,7 @@ Font License Notices
         }
 
 
-        /* Trackpad Prototype p010 — pooled Vector phosphor motion trails (retained in p011).
+        /* Production Vector phosphor motion trails.
            These are true positional afterimages, not a box-shadow transition:
            - Orb: 48ms lifetime, 11% starting opacity, sampled no faster than every 24ms
            - ZORBLOX: 42ms lifetime, 5.5% starting opacity, sampled no faster than every 38ms
@@ -7083,20 +7083,6 @@ html body #skinShell.survival-mode-selected > #radarColorIndicator {
 }
 
 
-
-/* p030 Vector curvature A/B test.
-   Keep all Vector glow/tint/vignette presentation, but remove the curved aperture,
-   contour and WebGL warp. CRT retains the production monitor geometry unchanged. */
-#playfieldShell.monitor-vector > #gameContainer:not(.monitor-ui-suspended) > .monitor-pixel-layer {
-    -webkit-mask-image: none !important;
-    mask-image: none !important;
-}
-#playfieldShell.monitor-vector > .playfield-webgl-curvature-border {
-    display: none !important;
-    opacity: 0 !important;
-    visibility: hidden !important;
-}
-
 /* Source: src/styles/41-crt-canvas-grid-authority.css */
 /* p246: CanvasPlayfieldRenderer is the only RGB-grid renderer. The cabinet
    container must never paint a second square CSS grid behind the curved output. */
@@ -7769,7 +7755,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
         const BUILD_METADATA = window.ZORBLOX_BUILD = Object.freeze({
             version: BUILD_ID,
             label: BUILD_VERSION,
-            architecturePhase: 'zorblox-p030-vector-curvature-off-ab-test',
+            architecturePhase: 'zorblox-p031-production-monitor-cleanup',
             sourceBaseline: 'p287',
             behaviorPolicy: 'single-design-space-scale-authoritative-state-no-parallel-systems'
         });
@@ -8009,7 +7995,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
             motionShake: true,
             spawnWarnings: true,
             visualEffects: true,
-            vectorPhosphorTrails: false,
+            vectorPhosphorTrails: true,
             webglDistortion: true,
             gridlockVisualEffects: true,
             telemetry: true,
@@ -8024,9 +8010,6 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
 
 
 /* Source: src/js/config/20-monitor-and-visual-presets.js */
-        // p030 comparison test: Vector curvature/aperture is disabled; CRT curvature remains production.
-        // Vector phosphor motion trails and the CRT rolling sweep are off; curvature, scanlines,
-        // mask/tube geometry, glow/bloom, and static monitor treatments remain unchanged.
         // Orb-facing monitor modes share one Vector-approved screen foundation.
         // Each profile declares only what is genuinely unique to that display technology.
         const MONITOR_MODE_ORDER = Object.freeze(['off', 'crt', 'vector']);
@@ -8063,8 +8046,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                     gridRgb: 'off',
                     objectRgb: 'off'
                 }),
-                // p030 A/B: Vector is intentionally flat. CRT keeps production curvature.
-                fixedFeatures: Object.freeze({ curvature: false })
+                fixedFeatures: Object.freeze({})
             }),
             crt: Object.freeze({
                 label: 'CRT',
@@ -8072,7 +8054,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 effectLevels: Object.freeze({
                     scanlines: 'current',
                     bloom: 'off',
-                    sweep: 'off',
+                    sweep: 'current',
                     gridRgb: 'current',
                     objectRgb: 'off'
                 }),
@@ -19960,16 +19942,14 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 if (this.game.container.classList.contains('monitor-ui-suspended')) return false;
                 if (this.game.container.classList.contains('monitor-paused')) return false;
                 if (!this.outputCanvas || !this.sourceCanvas) return false;
-                // p030 A/B: skip the full-frame Canvas→WebGL curvature pass in Vector mode.
-                return this.getMode() === 'crt';
+                return this.getMode() !== 'off';
             }
 
             shouldPresentCachedFrame() {
                 if (!this.available || !this.hasFrame || !this.game || !this.game.container) return false;
                 if (this.game.container.classList.contains('monitor-ui-suspended')) return false;
                 if (!this.outputCanvas || !this.sourceCanvas) return false;
-                // Vector presents the authoritative 2D canvas directly in this test.
-                return this.getMode() === 'crt';
+                return this.getMode() !== 'off';
             }
 
             syncPresentation() {
