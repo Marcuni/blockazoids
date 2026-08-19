@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Zorblox under the OFL.
 
 -->
-<html data-build-version="p016">
+<html data-build-version="p017">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Zorblox</title>
@@ -7336,7 +7336,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                             <li>Survive Gridlock for 30 seconds and the white Prism appears first.</li>
                             <li>Super Gridlock adds one ZORBLOX. Red, green, and blue Prisms appear later in sequence.</li>
                             <li>Prism points are earned only when the Orb physically touches the Prism.</li>
-                            <li>A Cosmic Zap forfeits any visible Prism, preserves completed milestones, and resumes at the next unresolved event when Gridlock returns.</li>
+                            <li>A Cosmic Zap stuns active ZORBLOX for 3 seconds without removing them or resetting Gridlock.</li>
                         </ul>
                         <div class="scoring-row"><span>Unused Cosmic Zap</span><span data-config-value="scoring.unusedCosmicZapBonus" data-config-suffix="/ea"></span></div>
                         <div class="scoring-row"><span>Perfect Sector <span class="scoring-label-note">(no Zap)</span></span><span data-config-value="scoring.perfectSectorBonus"></span></div>
@@ -7351,7 +7351,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                         <p>They don’t need to be fast. They just need you to be slow.</p>
                         <p>The Orb is the Grid’s final command core. Guided by you, it gathers scattered Prism Crystals, reconnects damaged pathways, and restores each sector before the swarm gets there first.</p>
                         <p>During Gridlock, lost Prism Relics may briefly emerge — fragments of the Grid’s original memory. Recovering them is optional. Surviving is not.</p>
-                        <p>Cosmic Zaps are emergency discharges, powerful enough to erase every active ZORBLOX on the board. Scarce enough that you’ll want to save them for the moment you’re sure you need them. You won’t be sure.</p>
+                        <p>Cosmic Zaps are emergency discharges that stun every active ZORBLOX for 3 seconds. The Blox stay on the board, shake while stunned, and restart together on the final cue. Scarce enough that you’ll want to save them for the moment you’re sure you need them. You won’t be sure.</p>
                         <p>Restore all <span data-campaign-count-word></span> sectors and the Grid enters Final Gridlock — an endless survival state that continues until the Orb is destroyed.</p>
                         <p class="story-final-question">Are you still reading this?!? …Go play the game!</p>
                     </section>
@@ -7754,7 +7754,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
         const BUILD_METADATA = window.ZORBLOX_BUILD = Object.freeze({
             version: BUILD_ID,
             label: BUILD_VERSION,
-            architecturePhase: 'zorblox-p016-echo-phase-visibility-test',
+            architecturePhase: 'zorblox-p017-zap-stun-baseline-test',
             sourceBaseline: 'p287',
             behaviorPolicy: 'single-design-space-scale-authoritative-state-no-parallel-systems'
         });
@@ -7970,7 +7970,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 'Attract mode interruption by Play',
                 'Sector start, pause, resume, completion, restoration, and next-sector entry',
                 'Death, Game Over, return to attract mode, and restart',
-                'Gridlock, Cosmic Zap interruption, Prism milestone progression, and collectible reward outcomes',
+                'Gridlock, Cosmic Zap stun state, Prism milestone progression, and collectible reward outcomes',
                 'Campaign completion and Final Gridlock',
                 'High-score, settings, tutorial, and sector-unlock persistence',
                 'Off, CRT, and Vector monitor modes including resize and pause',
@@ -8086,15 +8086,14 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
         // balancing and content edits do not require changes inside lifecycle or gameplay logic.
 
 /* Source: src/js/config/30-game-config.js */
-        // p015 campaign test: Normal uses Easy's 0.92x movement-speed baseline while preserving Normal
-        // spawn timing and 3-Zap capacity; sector ramp and identity/size pairings remain unchanged.
-        // p258 balance baseline: visual size determines the movement intensity tier, while
-        // behavior determines movement style. These authored design-space speeds are the single
-        // source of truth for every responsive runtime and telemetry projection.
+        // p017 balance baseline: the movement speed that p016 Normal used is now the production
+        // baseline for every difficulty. Difficulty temporarily changes Zap capacity only; the
+        // shared sector speed/spawn ramp remains authoritative for all three modes.
+        // Visual size determines movement intensity, while behavior determines movement style.
         const ENEMY_SIZE_BASE_SPEEDS = Object.freeze({
-            small: 3,
-            medium: 2,
-            large: 1.5
+            small: 2.76,
+            medium: 1.84,
+            large: 1.38
         });
         const DEFAULT_SECTOR_ENEMY_SIZE_SEQUENCE = Object.freeze([
             'large', 'medium', 'medium', 'medium', 'medium', 'medium', 'medium', 'small'
@@ -8184,13 +8183,18 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
             campaign: {
                 baseBlinkingCrystalCount: 3
             },
+            cosmicZap: {
+                stunDurationMs: 3000,
+                stunBeepOffsetsMs: Object.freeze([750, 1500, 2250]),
+                restartGraceMs: 250
+            },
             difficulty: {
                 options: ['Easy', 'Normal', 'Hard'],
                 profiles: {
-                    // Final resource capacities are explicit. No base-plus-offset calculation is hidden.
-                    Easy: { speedMultiplier: 0.92, spawnDelayAdjustmentSeconds: 0.6, cosmicZaps: 4 },
-                    Normal: { speedMultiplier: 0.92, spawnDelayAdjustmentSeconds: 0, cosmicZaps: 3 },
-                    Hard: { speedMultiplier: 1.12, spawnDelayAdjustmentSeconds: -0.45, cosmicZaps: 2 }
+                    // During core-balance testing, difficulty changes Zap capacity only.
+                    Easy: { speedMultiplier: 1, spawnDelayAdjustmentSeconds: 0, cosmicZaps: 4 },
+                    Normal: { speedMultiplier: 1, spawnDelayAdjustmentSeconds: 0, cosmicZaps: 3 },
+                    Hard: { speedMultiplier: 1, spawnDelayAdjustmentSeconds: 0, cosmicZaps: 2 }
                 }
             },
             tutorial: {
@@ -8376,7 +8380,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 "movement": "SWIPE ANYWHERE TO MOVE",
                 "crystal": "COLLECT CRYSTALS",
                 "enemy": "AVOID\nTHE BLOCKS",
-                "zap": "DOUBLE TAP TO COSMIC ZAP",
+                "zap": "DOUBLE TAP TO STUN THE ZORBLOX",
                 "complete": "STARTING GAME"
             },
             // Each campaign sector owns its name, pattern, and enemy plan in one record.
@@ -10407,6 +10411,8 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 this.protectionUntil = 0;
                 this.inputCooldownMs = config.input.cosmicZapCooldownMs;
                 this.protectionMs = config.input.cosmicZapProtectionMs;
+                this.stunDurationMs = Math.max(0, Number(config.cosmicZap && config.cosmicZap.stunDurationMs) || 3000);
+                this.stunUntil = 0;
             }
 
             normalizeCount(value) {
@@ -10423,6 +10429,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 this.usesThisSector = 0;
                 this.lastTriggerTime = 0;
                 this.protectionUntil = 0;
+                this.stunUntil = 0;
                 return this.remaining;
             }
 
@@ -10457,6 +10464,29 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 return (Number(now) || 0) < this.protectionUntil;
             }
 
+            beginStun(now = performance.now()) {
+                const timestamp = Number(now) || 0;
+                this.stunUntil = timestamp + this.stunDurationMs;
+                return this.stunUntil;
+            }
+
+            isStunActive(now = performance.now()) {
+                return (Number(now) || 0) < this.stunUntil;
+            }
+
+            completeStun(now = performance.now()) {
+                const timestamp = Number(now) || 0;
+                if (timestamp + 1 < this.stunUntil) return false;
+                this.stunUntil = 0;
+                return true;
+            }
+
+            grantProtection(durationMs = 0, now = performance.now()) {
+                const timestamp = Number(now) || 0;
+                this.protectionUntil = Math.max(this.protectionUntil, timestamp + Math.max(0, Number(durationMs) || 0));
+                return this.protectionUntil;
+            }
+
             requireNeutralReset(now = performance.now()) {
                 const timestamp = Number(now) || 0;
                 this.lastTriggerTime = timestamp;
@@ -10469,6 +10499,8 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                     usesThisSector: this.usesThisSector,
                     lastTriggerTime: this.lastTriggerTime,
                     protectionUntil: this.protectionUntil,
+                    stunUntil: this.stunUntil,
+                    stunDurationMs: this.stunDurationMs,
                     inputCooldownMs: this.inputCooldownMs,
                     protectionMs: this.protectionMs
                 });
@@ -12794,24 +12826,19 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 const now = performance.now();
                 if (now - this.cosmicZapSystem.lastTriggerTime < this.cosmicZapSystem.inputCooldownMs) return;
                 if (!this.cosmicZapSystem.armTrigger(now)) return;
-                const clearedEnemies = this.enemies.slice();
+                const stunnedEnemies = this.enemies.slice();
                 this.cosmicZapSystem.setRemaining(0);
                 this.runtimeState.patchTutorial({ tutorialZapTargetsReady: false });
                 this.requireShakeNeutralReset();
                 this.playCosmicZapUseAudio(this.cosmicZapSystem.remaining);
                 this.monitorEffectsSystem.triggerMonitorEvent('zap');
-                this.playCosmicZapDischarge(clearedEnemies);
-                clearedEnemies.forEach(enemy => {
-                    this.playfieldRenderer.setEnemyDissolving(enemy, true);
-                    this.scheduler.scheduleTimeout('visual-effects', this.visualEffectsSystem.nextVisualEffectTaskName('enemy-dissolve'), () => this.playfieldRenderer.removeEnemy(enemy), 170);
-                });
-                this.enemies = [];
-                this.tutorialSystem.tutorialEnemy = null;
+                this.playCosmicZapDischarge(stunnedEnemies);
+                this.beginCosmicZapStun(stunnedEnemies, now);
                 this.syncMotionListenerState();
                 this.ui.updateCosmicZapIndicators();
                 this.tutorialSystem.scheduleTutorialStepTimer(() => {
                     if (this.runtimeState.tutorialActive && this.runtimeState.tutorialStep === 'zap') this.tutorialSystem.completeOneTimeIntro();
-                }, 650);
+                }, GAME_CONFIG.cosmicZap.stunDurationMs + 350);
             },
 
             completeOneTimeIntro() {
@@ -16497,21 +16524,23 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 });
                         },
 
-            noteTelemetryCosmicZap: function(clearedEnemies = []) {
+            noteTelemetryCosmicZap: function(stunnedEnemies = []) {
                 if (!this.telemetrySystem.currentTelemetrySector || this.telemetrySystem.currentTelemetrySector.endedAt) return;
                 const elapsed = this.telemetrySystem.telemetrySectorElapsedMs();
-                const clearedList = Array.isArray(clearedEnemies) ? clearedEnemies : [];
-                const clearedCount = clearedList.length || (Number.isFinite(clearedEnemies) ? clearedEnemies : 0);
+                const stunnedList = Array.isArray(stunnedEnemies) ? stunnedEnemies : [];
+                const stunnedCount = stunnedList.length || (Number.isFinite(stunnedEnemies) ? stunnedEnemies : 0);
                 const colorState = this.telemetrySystem.getCurrentColorTelemetryState();
                 const firstZapThisSector = (this.telemetrySystem.currentTelemetrySector.cosmicZapsUsed || 0) === 0;
                 const timeSinceGridlockMs = this.telemetrySystem.currentTelemetrySector.gridlockReached && this.telemetrySystem.currentTelemetrySector.gridlockTimeMs !== null ? Math.max(0, elapsed - this.telemetrySystem.currentTelemetrySector.gridlockTimeMs) : null;
                 this.telemetrySystem.currentTelemetrySector.cosmicZapsUsed++;
-                this.telemetrySystem.currentTelemetrySector.maxActiveEnemies = Math.max(this.telemetrySystem.currentTelemetrySector.maxActiveEnemies, clearedCount);
+                this.telemetrySystem.currentTelemetrySector.maxActiveEnemies = Math.max(this.telemetrySystem.currentTelemetrySector.maxActiveEnemies, stunnedCount);
                 this.telemetrySystem.currentTelemetrySector.cosmicZapEvents.push({
                     sectorTimeMs: elapsed,
-                    activeEnemies: clearedCount,
-                    enemiesCleared: clearedCount,
-                    clearedBySize: clearedList.reduce((counts, enemy) => {
+                    activeEnemies: stunnedCount,
+                    enemiesCleared: 0,
+                    enemiesStunned: stunnedCount,
+                    stunDurationMs: GAME_CONFIG.cosmicZap.stunDurationMs,
+                    stunnedBySize: stunnedList.reduce((counts, enemy) => {
                         const type = enemy && enemy.type ? enemy.type : 'unknown';
                         counts[type] = (counts[type] || 0) + 1;
                         return counts;
@@ -16534,7 +16563,8 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                     timeFromGridlockToZapMs: timeSinceGridlockMs,
                     relicVisible: !!this.gridlockSystem.prismRelic,
                     relicCuePending: this.gridlockSystem.isPrismMilestoneCountdownActive(),
-                    relicAttemptCanceled: !this.gridlockSystem.prismRelicRecoveredThisSector && (this.gridlockSystem.gridlockActive || !!this.gridlockSystem.prismRelic || this.gridlockSystem.isPrismMilestoneCountdownActive()),
+                    relicAttemptCanceled: false,
+                    relicStatePreserved: !!(this.gridlockSystem.gridlockActive || this.gridlockSystem.prismRelic || this.gridlockSystem.isPrismMilestoneCountdownActive()),
                     firstZapThisSector,
                     perfectNoZapLostByThisZap: firstZapThisSector,
                     cosmicZapsLeftBeforeUse: this.cosmicZapSystem.remaining
@@ -16544,8 +16574,8 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 }
                 this.telemetrySystem.currentTelemetrySector.activeEnemyCountTimeline.push({
                     sectorTimeMs: elapsed,
-                    activeCount: 0,
-                    reason: 'cosmic-zap'
+                    activeCount: this.enemies.length,
+                    reason: 'cosmic-zap-stun'
                 });
                         },
 
@@ -17512,6 +17542,9 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                     this.assert(`Difficulty spawn delay is valid: ${mode}`, GameRules.getSpawnDelay(1, mode) >= spawning.minimumDelaySeconds);
                     this.assert(`Difficulty speed ladder is valid: ${mode}`, GameRules.getEnemySpeedMultiplier(GameRules.getCampaignLength(), mode) > 0);
                 });
+                this.assert('Difficulty modes share speed and spawn pressure during core-balance testing', difficultyOptions.every((mode) => profiles[mode].speedMultiplier === 1 && profiles[mode].spawnDelayAdjustmentSeconds === 0));
+                this.assert('Difficulty modes differ only by Zap capacity during core-balance testing', profiles.Easy.cosmicZaps === 4 && profiles.Normal.cosmicZaps === 3 && profiles.Hard.cosmicZaps === 2);
+                this.assert('Cosmic Zap stun duration is three seconds', config.cosmicZap.stunDurationMs === 3000 && Array.isArray(config.cosmicZap.stunBeepOffsetsMs) && config.cosmicZap.stunBeepOffsetsMs.length === 3);
 
                 this.assert('Playfield design size is positive', Number.isFinite(config.playfield.designSize) && config.playfield.designSize > 0);
                 this.assert('Playfield grid count is integral', Number.isInteger(config.playfield.gridCellsPerSide) && config.playfield.gridCellsPerSide > 1);
@@ -17604,7 +17637,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 this.assert('ZORBLOX size movement tiers are configured', ['small', 'medium', 'large'].every((size) => Number.isFinite(Number(authoredBaseSpeeds[size])) && Number(authoredBaseSpeeds[size]) > 0));
                 this.assert('Small movement tier is faster than medium', Number(authoredBaseSpeeds.small) > Number(authoredBaseSpeeds.medium));
                 this.assert('Medium movement tier is faster than large', Number(authoredBaseSpeeds.medium) > Number(authoredBaseSpeeds.large));
-                this.assert('Authored size tiers preserve the approved 3 / 2 / 1.5 baseline', authoredBaseSpeeds.small === 3 && authoredBaseSpeeds.medium === 2 && authoredBaseSpeeds.large === 1.5);
+                this.assert('Authored size tiers preserve the p016 Normal movement baseline', authoredBaseSpeeds.small === 2.76 && authoredBaseSpeeds.medium === 1.84 && authoredBaseSpeeds.large === 1.38);
                 const dash = config.enemyBehaviors.charger;
                 this.assert('DASH production parameters are centralized and limited', Object.keys(dash).sort().join(',') === 'chargeCadenceMs,chargeDurationMs,chargeSpeedMultiplier,cruiseSpeedMultiplier,warningMs' && dash.cruiseSpeedMultiplier === 0.8 && dash.chargeCadenceMs === 3000 && dash.warningMs === 350 && dash.chargeSpeedMultiplier === 2.0 && dash.chargeDurationMs === 600);
                 this.assert('ECHO cruise speed is authored relative to ZIG', config.enemyBehaviors.pulse.cruiseSpeedMultiplier === 0.8);
@@ -20776,6 +20809,8 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 let whiteMix = 0;
                 let glowBlur = ENEMY_STANDARD_VISUALS.normalGlowBlur;
                 let collisionElapsedMs = null;
+                let stunOffsetX = 0;
+                let stunOffsetY = 0;
 
                 if (enemy && enemy.isVisible) {
                     const spawnAge = Math.max(0, timestamp - (enemy.visibilityChangedAt || timestamp));
@@ -20811,7 +20846,15 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                     whiteMix = Math.max(whiteMix, collisionVisuals.whiteMix * pulse);
                 }
 
-                return { opacity, scale, rotation, whiteMix, glowBlur, collisionElapsedMs };
+                if (enemy && typeof enemy.isStunned === 'function' && enemy.isStunned(timestamp)) {
+                    const size = Math.max(1, Number(enemy.size) || 20);
+                    const amplitude = Math.max(0.8, Math.min(2.0, size * 0.04));
+                    const phase = timestamp * 0.105 + (Number(enemy.materializedAt) || 0) * 0.017;
+                    stunOffsetX = Math.sin(phase) * amplitude;
+                    stunOffsetY = Math.cos(phase * 1.31) * amplitude * 0.68;
+                }
+
+                return { opacity, scale, rotation, whiteMix, glowBlur, collisionElapsedMs, stunOffsetX, stunOffsetY };
             }
 
             drawDrifter(enemy, game, timestamp) {
@@ -20820,8 +20863,8 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 if (presentation.opacity <= 0.001 || presentation.scale <= 0.001) return;
 
                 const size = Math.max(1, Number(enemy.size) || Number(game.ORB_SIZE) || 20);
-                const centerX = (Number(enemy.x) || 0) + size / 2;
-                const centerY = (Number(enemy.y) || 0) + size / 2;
+                const centerX = (Number(enemy.x) || 0) + size / 2 + (Number(presentation.stunOffsetX) || 0);
+                const centerY = (Number(enemy.y) || 0) + size / 2 + (Number(presentation.stunOffsetY) || 0);
                 const baseColor = enemy.baseColor || GAME_CONFIG.palette.red;
                 const context = this.context;
                 const container = game && game.container;
@@ -20886,8 +20929,8 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 if (presentation.opacity <= 0.001 || presentation.scale <= 0.001) return;
 
                 const size = Math.max(1, Number(enemy.size) || Number(game.ORB_SIZE) || 20);
-                const centerX = (Number(enemy.x) || 0) + size / 2;
-                const centerY = (Number(enemy.y) || 0) + size / 2;
+                const centerX = (Number(enemy.x) || 0) + size / 2 + (Number(presentation.stunOffsetX) || 0);
+                const centerY = (Number(enemy.y) || 0) + size / 2 + (Number(presentation.stunOffsetY) || 0);
                 const baseColor = enemy.baseColor || GAME_CONFIG.palette.green;
                 const context = this.context;
                 const container = game && game.container;
@@ -20981,8 +21024,8 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
             drawPulseDirectionalTrace(enemy, presentation) {
                 if (!enemy || presentation.state !== 'phased' || presentation.traceOpacity <= 0) return;
                 const size = Math.max(1, Number(enemy.size) || 1);
-                const centerX = (Number(enemy.x) || 0) + size / 2;
-                const centerY = (Number(enemy.y) || 0) + size / 2;
+                const centerX = (Number(enemy.x) || 0) + size / 2 + (Number(presentation.stunOffsetX) || 0);
+                const centerY = (Number(enemy.y) || 0) + size / 2 + (Number(presentation.stunOffsetY) || 0);
                 const angle = (Number(enemy.motionAngleDeg) || 0) * Math.PI / 180 + Math.PI;
                 const length = Math.max(1, Number(presentation.traceLength) || 1);
                 const context = this.context;
@@ -21011,8 +21054,8 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 if (presentation.opacity <= 0.001 || presentation.scale <= 0.001) return;
 
                 const size = Math.max(1, Number(enemy.size) || Number(game.ORB_SIZE) || 20);
-                const centerX = (Number(enemy.x) || 0) + size / 2;
-                const centerY = (Number(enemy.y) || 0) + size / 2;
+                const centerX = (Number(enemy.x) || 0) + size / 2 + (Number(presentation.stunOffsetX) || 0);
+                const centerY = (Number(enemy.y) || 0) + size / 2 + (Number(presentation.stunOffsetY) || 0);
                 const baseColor = enemy.baseColor || GAME_CONFIG.palette.blue;
                 const context = this.context;
                 const container = game && game.container;
@@ -25537,8 +25580,8 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                     }
                 });
                 // The deterministic request is committed only when materialization completes.
-                // Pauses, backgrounding, or Cosmic Zap interruption can therefore restart the
-                // same warning without skipping a size or changing the authored behavior pairing.
+                // Pauses or backgrounding can restart the same warning without skipping a size or
+                // changing the authored behavior pairing; Cosmic Zap stun no longer clears warnings.
                 return warningStarted;
             }
 
@@ -26320,7 +26363,39 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 });
             }
 
-            // Handle Cosmic Zap discharge with instant protection, danger clearing, and target overload feedback.
+            scheduleCosmicZapStunCues(stunUntil, startedAt = performance.now()) {
+                const durationMs = Math.max(0, Number(stunUntil) - (Number(startedAt) || 0));
+                const beepOffsets = Array.from(GAME_CONFIG.cosmicZap.stunBeepOffsetsMs || []);
+                beepOffsets.forEach((offsetMs, index) => {
+                    this.scheduler.scheduleTimeout('visual-effects', `cosmic-zap-stun-beep-${index + 1}`, () => {
+                        if (this.cosmicZapSystem.isStunActive()) this.audio.playCosmicZapStunBeep(false);
+                    }, Math.max(0, Number(offsetMs) || 0));
+                });
+                this.scheduler.scheduleTimeout('visual-effects', 'cosmic-zap-stun-release', () => {
+                    const now = performance.now();
+                    if (this.cosmicZapSystem.stunUntil > now + 1) return;
+                    this.enemies.forEach(enemy => {
+                        if (enemy && typeof enemy.releaseStun === 'function') enemy.releaseStun(now + 1);
+                    });
+                    this.cosmicZapSystem.completeStun(now + 1);
+                    this.cosmicZapSystem.grantProtection(GAME_CONFIG.cosmicZap.restartGraceMs, now);
+                    this.audio.playCosmicZapStunBeep(true);
+                    this.frameCoordinator.requestPlayfieldRender();
+                }, durationMs);
+            }
+
+            beginCosmicZapStun(enemies = [], now = performance.now()) {
+                const targets = Array.isArray(enemies) ? enemies : [];
+                const stunUntil = this.cosmicZapSystem.beginStun(now);
+                targets.forEach(enemy => {
+                    if (enemy && typeof enemy.applyStun === 'function') enemy.applyStun(stunUntil, now);
+                });
+                this.scheduleCosmicZapStunCues(stunUntil, now);
+                return stunUntil;
+            }
+
+            // Cosmic Zap now pauses danger instead of deleting it. The current discharge animation
+            // remains intact, while every active Blox freezes in place for the shared stun window.
             handleCosmicZap(source = 'unknown') {
                 if (this.runtimeState.tutorialActive) {
                     this.tutorialSystem.handleTutorialCosmicZap();
@@ -26330,8 +26405,8 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 if (this.cosmicZapSystem.remaining > 0 && this.runtimeState.active && !this.runtimeState.isPaused && !this.runtimeState.isGameOver) {
                     const now = performance.now();
                     if (now - this.cosmicZapSystem.lastTriggerTime < this.cosmicZapSystem.inputCooldownMs) return;
-                    const clearedEnemies = this.enemies.slice();
-                    this.telemetrySystem.noteTelemetryCosmicZap(clearedEnemies);
+                    const stunnedEnemies = this.enemies.slice();
+                    this.telemetrySystem.noteTelemetryCosmicZap(stunnedEnemies);
 
                     const zapUse = this.cosmicZapSystem.consume(now);
                     if (!zapUse.consumed) return;
@@ -26340,34 +26415,13 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                     this.ui.updateCosmicZapIndicators();
                     this.playCosmicZapUseAudio(zapUse.remaining);
                     this.monitorEffectsSystem.triggerMonitorEvent('zap');
-                    this.playCosmicZapDischarge(clearedEnemies);
+                    this.playCosmicZapDischarge(stunnedEnemies);
+                    this.beginCosmicZapStun(stunnedEnemies, now);
                     this.playfieldRenderer.restartCosmicZapShake(280);
-
-                    if (this.enemies.length > 0) {
-                        this.enemies.forEach(enemy => {
-                            this.playfieldRenderer.setEnemyDissolving(enemy, true);
-                            this.scheduler.scheduleTimeout('visual-effects', this.visualEffectsSystem.nextVisualEffectTaskName('enemy-dissolve'), () => this.playfieldRenderer.removeEnemy(enemy), 170);
-                        });
-                        this.enemies = [];
-                    }
-                    this.enemySpawnSystem.clearPendingWarnings(true);
-
-                    // Cosmic Zaps forfeit a visible Prism, stop the active milestone countdown,
-                    // and preserve every completed or collected per-sector milestone.
-                    if (this.gridlockSystem.gridlockActive || this.gridlockSystem.prismRelic || this.gridlockSystem.milestoneCountdownActive || this.gridlockSystem.milestoneWaitingForMaterialization) {
-                        this.interruptGridlockMilestoneSequence('cosmic-zap');
-                    }
-                    this.clearGridlockCueTimer();
-                    this.setGridlockState({ gridlockActive: false });
-                    this.resetOvertimeState({ preserveSectorRewardProgress: true });
-                    if (this.audio) {
-                        this.audio.stopBackgroundMusic();
-                        this.audio.startBackgroundMusic(this.campaign.currentSector);
-                    }
-
-                    this.applySectorParameters({ queueOrigin: 'cosmic-zap-replacement', spawnCategory: 'normal' });
-                    this.enemySpawnSystem.enemySpawnElapsedMs = Math.max(0, (this.spawnDelay - 1) * 1000);
                     this.scheduler.scheduleTimeout('visual-effects', 'cosmic-zap-shake', () => this.playfieldRenderer.setCosmicZapShake(false), 300);
+
+                    // Spawning, Gridlock milestones, Prism state, and the existing swarm remain live.
+                    // New Blox materialized during the stun inherit the remaining stun window.
                     this.updateCrystalHighlight();
                 }
             }
@@ -27904,6 +27958,8 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 
                 this.dx = 0;
                 this.dy = 0;
+                this.stunnedUntil = 0;
+                this.stunStartedAt = 0;
                 this.spawnContext = spawnContext && typeof spawnContext === 'object' ? { ...spawnContext } : null;
                 this.enemyCollisionTimes = new WeakMap();
                 const behaviorResolution = EnemyBehaviorRegistry.create(behaviorType, this);
@@ -27934,6 +27990,9 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 this.vectorTrailSampleAt = 0;
                 this.game.playfieldRenderer.createEnemy(this);
                 if (this.behavior && typeof this.behavior.onElementReady === 'function') this.behavior.onElementReady();
+                if (game.cosmicZapSystem && game.cosmicZapSystem.isStunActive(this.materializedAt)) {
+                    this.applyStun(game.cosmicZapSystem.stunUntil, this.materializedAt);
+                }
                 this.game.scheduler.scheduleTimeout('visual-effects', `${this.visualEffectKey}-spawn`, () => { // Fade in animation
                     this.game.playfieldRenderer.setEnemyVisible(this, true);
                 }, 50);
@@ -27955,12 +28014,45 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 return this.behavior.getVisualColor() || null;
             }
 
+            isStunned(timestamp = performance.now()) {
+                return this.stunnedUntil > (Number(timestamp) || 0);
+            }
+
+            applyStun(stunUntil, timestamp = performance.now()) {
+                const now = Number(timestamp) || 0;
+                const until = Math.max(now, Number(stunUntil) || now);
+                if (until <= now) return false;
+                if (!this.isStunned(now)) this.stunStartedAt = now;
+                this.stunnedUntil = Math.max(this.stunnedUntil, until);
+                this.game.frameCoordinator.requestPlayfieldRender();
+                return true;
+            }
+
+            releaseStun(timestamp = performance.now()) {
+                const now = Number(timestamp) || 0;
+                if (!this.stunnedUntil || now + 1 < this.stunnedUntil) return false;
+                const pausedDurationMs = Math.max(0, this.stunnedUntil - this.stunStartedAt);
+                if (this.behavior && typeof this.behavior.shiftPausedTime === 'function') {
+                    this.behavior.shiftPausedTime(pausedDurationMs);
+                }
+                if (Number.isFinite(this.visualStateChangedAt)) this.visualStateChangedAt += pausedDurationMs;
+                if (Number.isFinite(this.phaseTransitionPulseStartedAt) && this.phaseTransitionPulseStartedAt > 0) {
+                    this.phaseTransitionPulseStartedAt += pausedDurationMs;
+                }
+                this.stunnedUntil = 0;
+                this.stunStartedAt = 0;
+                this.game.frameCoordinator.requestPlayfieldRender();
+                return true;
+            }
+
             isDangerousToOrb() {
+                if (this.isStunned()) return false;
                 if (!this.behavior || typeof this.behavior.isDangerousToOrb !== 'function') return true;
                 return this.behavior.isDangerousToOrb() !== false;
             }
 
             ignoresEnemyCollisions() {
+                if (this.isStunned()) return true;
                 return !!(this.behavior && typeof this.behavior.ignoresEnemyCollisions === 'function' && this.behavior.ignoresEnemyCollisions());
             }
 
@@ -27992,6 +28084,11 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
             update(deltaTime, timestamp = performance.now()) {
                 const previousX = this.x;
                 const previousY = this.y;
+                if (this.isStunned(timestamp)) {
+                    this.game.frameCoordinator.playfieldRenderDirty = true;
+                    return;
+                }
+                if (this.stunnedUntil > 0) this.releaseStun(timestamp);
                 this.behavior.update(deltaTime, timestamp);
                 this.resolvePlayfieldBounds();
                 
@@ -29639,6 +29736,37 @@ startGridlockBeat(delaySeconds = 0) {
                 });
             }
 
+            // Countdown cue while Cosmic Zap paralysis is active. The final cue is deliberately
+            // different so movement restart is audible even when the player is not watching every Blox.
+            playCosmicZapStunBeep(isRestart = false) {
+                this.ensureAudio();
+                if (!this.ctx) return false;
+                const now = this.ctx.currentTime;
+                const oscillator = this.createAudioNode('createOscillator');
+                const gain = this.createAudioNode('createGain');
+                const filter = this.createAudioNode('createBiquadFilter');
+                if (!oscillator || !gain || !filter) return false;
+
+                oscillator.type = isRestart ? 'triangle' : 'square';
+                const startFrequency = isRestart ? 520 : 880;
+                const endFrequency = isRestart ? 1180 : 760;
+                oscillator.frequency.setValueAtTime(startFrequency, now);
+                oscillator.frequency.exponentialRampToValueAtTime(endFrequency, now + (isRestart ? 0.18 : 0.10));
+                filter.type = 'bandpass';
+                filter.frequency.setValueAtTime(isRestart ? 980 : 920, now);
+                filter.Q.setValueAtTime(isRestart ? 2.1 : 3.4, now);
+                gain.gain.setValueAtTime(0.001, now);
+                gain.gain.linearRampToValueAtTime(isRestart ? 0.075 : 0.052, now + 0.01);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + (isRestart ? 0.24 : 0.14));
+
+                oscillator.connect(filter);
+                filter.connect(gain);
+                this.connectOutput(gain);
+                oscillator.start(now);
+                oscillator.stop(now + (isRestart ? 0.26 : 0.16));
+                return true;
+            }
+
             // Play explosion sound
             playExplosionSound() {
                 this.ensureAudio();
@@ -30622,6 +30750,7 @@ startGridlockBeat(delaySeconds = 0) {
             playPrismRelicAppear: 5500,
             playNoZapCue: 1400,
             playCosmicZapSound: 6500,
+            playCosmicZapStunBeep: 1200,
             playExplosionSound: 6000,
             playExplosion: 6500,
             playUnlockPiccoloArpeggio: 10000,
@@ -31325,7 +31454,7 @@ startGridlockBeat(delaySeconds = 0) {
                 assert('Telemetry remains event-based without a frame logger', !Object.values(TelemetrySystem.implementations).some((implementation) => implementation.toString().includes('requestAnimationFrame')));
                 assert('Telemetry pressure analysis is owned by TelemetrySystem', game.telemetrySystem.hasImplementation('buildSectorPressureReport') && game.telemetrySystem.hasImplementation('noteTelemetryEnemyMaterialized'));
                 const configuredBaseSpeeds = GAME_CONFIG.enemyMovement.baseSpeeds;
-                assert('ZORBLOX movement uses deterministic size difficulty tiers', configuredBaseSpeeds.small === 3 && configuredBaseSpeeds.medium === 2 && configuredBaseSpeeds.large === 1.5);
+                assert('ZORBLOX movement uses deterministic size difficulty tiers', configuredBaseSpeeds.small === 2.76 && configuredBaseSpeeds.medium === 1.84 && configuredBaseSpeeds.large === 1.38);
                 assert('Small enemies remain faster than medium', game.getEnemySpeed('small') > game.getEnemySpeed('medium'));
                 assert('Medium enemies remain faster than large', game.getEnemySpeed('medium') > game.getEnemySpeed('large'));
                 const dashParity = GAME_CONFIG.enemyBehaviors.charger;
@@ -31335,6 +31464,8 @@ startGridlockBeat(delaySeconds = 0) {
                 assert('ZIG movement profile remains authoritative while identities apply one relative cruise multiplier', zigFoundationSource.includes('componentSpeed = enemy.speed * this.getMovementSpeedMultiplier()') && zigFoundationSource.includes('enemy.speed * this.getMovementSpeedMultiplier() * Math.SQRT2') && zigFoundationSource.includes('getBehaviorCruiseSpeedMultiplier'));
                 assert('DASH and ECHO inherit the ZIG movement foundation', ChargerBehavior.prototype instanceof ZigMovementFoundation && PulseBlockBehavior.prototype instanceof ZigMovementFoundation);
                 assert('Production shared ZIG speed is 1.0x', GAME_CONFIG.enemyMovement.sharedSpeedMultiplier === 1.0);
+                assert('Cosmic Zap freezes rather than clears active Blox', Game.prototype.handleCosmicZap.toString().includes('beginCosmicZapStun') && !Game.prototype.handleCosmicZap.toString().includes('this.enemies = []') && Enemy.prototype.update.toString().includes('this.isStunned(timestamp)'));
+                assert('Cosmic Zap restart has dedicated audio cue', typeof AudioManager.prototype.playCosmicZapStunBeep === 'function' && Game.prototype.scheduleCosmicZapStunCues.toString().includes('playCosmicZapStunBeep(true)'));
                 assert('Campaign composition lab fixed-pressure override is disabled', GAME_CONFIG.gameModes.campaignCompositionBalanceTest?.enabled === false);
                 assert('Campaign balance sector follows the authored sector again', game.gameMode.getBalanceSector(1) === 1 && game.gameMode.getBalanceSector(15) === 15);
                 assert('DASH has no directional-line telegraph or recovery state', !CanvasPlayfieldRenderer.prototype.drawCharger.toString().includes('drawChargerTargetLine') && !ChargerBehavior.toString().includes('recovery'));
