@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Zorblox under the OFL.
 
 -->
-<html data-build-version="p018">
+<html data-build-version="p019">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Zorblox</title>
@@ -7336,7 +7336,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                             <li>Survive Gridlock for 30 seconds and the white Prism appears first.</li>
                             <li>Super Gridlock adds one ZORBLOX. Red, green, and blue Prisms appear later in sequence.</li>
                             <li>Prism points are earned only when the Orb physically touches the Prism.</li>
-                            <li>A Cosmic Zap stuns active ZORBLOX for 3 seconds without removing them or resetting Gridlock.</li>
+                            <li>A Cosmic Zap stuns active ZORBLOX for 3 seconds without removing them or resetting Gridlock. Stunned Blox remain solid obstacles.</li>
                         </ul>
                         <div class="scoring-row"><span>Unused Cosmic Zap</span><span data-config-value="scoring.unusedCosmicZapBonus" data-config-suffix="/ea"></span></div>
                         <div class="scoring-row"><span>Perfect Sector <span class="scoring-label-note">(no Zap)</span></span><span data-config-value="scoring.perfectSectorBonus"></span></div>
@@ -7351,7 +7351,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                         <p>They don’t need to be fast. They just need you to be slow.</p>
                         <p>The Orb is the Grid’s final command core. Guided by you, it gathers scattered Prism Crystals, reconnects damaged pathways, and restores each sector before the swarm gets there first.</p>
                         <p>During Gridlock, lost Prism Relics may briefly emerge — fragments of the Grid’s original memory. Recovering them is optional. Surviving is not.</p>
-                        <p>Cosmic Zaps are emergency discharges that stun every active ZORBLOX for 3 seconds. The Blox stay on the board, shake while stunned, and restart together on the final cue. Scarce enough that you’ll want to save them for the moment you’re sure you need them. You won’t be sure.</p>
+                        <p>Cosmic Zaps are emergency discharges that stun every active ZORBLOX for 3 seconds. The Blox stay on the board, remain solid to the Orb, shake while stunned, and restart together on the final cue. Crystals remain collectible during the stun. Scarce enough that you’ll want to save them for the moment you’re sure you need them. You won’t be sure.</p>
                         <p>Restore all <span data-campaign-count-word></span> sectors and the Grid enters Final Gridlock — an endless survival state that continues until the Orb is destroyed.</p>
                         <p class="story-final-question">Are you still reading this?!? …Go play the game!</p>
                     </section>
@@ -7754,7 +7754,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
         const BUILD_METADATA = window.ZORBLOX_BUILD = Object.freeze({
             version: BUILD_ID,
             label: BUILD_VERSION,
-            architecturePhase: 'zorblox-p018-zap-stun-baseline-validator-fix',
+            architecturePhase: 'zorblox-p019-solid-stun-test',
             sourceBaseline: 'p287',
             behaviorPolicy: 'single-design-space-scale-authoritative-state-no-parallel-systems'
         });
@@ -8186,7 +8186,8 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
             cosmicZap: {
                 stunDurationMs: 3000,
                 stunBeepOffsetsMs: Object.freeze([750, 1500, 2250]),
-                restartGraceMs: 250
+                restartGraceMs: 250,
+                blocksOrbMovementWhileStunned: true
             },
             difficulty: {
                 options: ['Easy', 'Normal', 'Hard'],
@@ -9007,7 +9008,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 scoring: 'All score awards and crystal values',
                 enemyBehaviors: 'Behavior-specific timing and movement',
                 campaign: 'Campaign-wide rules not owned by individual sectors',
-                cosmicZap: 'Cosmic Zap stun duration, countdown cues, and restart safety',
+                cosmicZap: 'Cosmic Zap stun duration, solid-obstacle rule, countdown cues, and restart safety',
                 gameModes: 'Campaign and Survival mode selection, Sector 5 lab profile, and Survival swarm definitions',
                 difficulty: 'Explicit difficulty profiles and resource capacities',
                 tutorial: 'Tutorial thresholds and delays',
@@ -17546,6 +17547,7 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 this.assert('Difficulty modes share speed and spawn pressure during core-balance testing', difficultyOptions.every((mode) => profiles[mode].speedMultiplier === 1 && profiles[mode].spawnDelayAdjustmentSeconds === 0));
                 this.assert('Difficulty modes differ only by Zap capacity during core-balance testing', profiles.Easy.cosmicZaps === 4 && profiles.Normal.cosmicZaps === 3 && profiles.Hard.cosmicZaps === 2);
                 this.assert('Cosmic Zap stun duration is three seconds', config.cosmicZap.stunDurationMs === 3000 && Array.isArray(config.cosmicZap.stunBeepOffsetsMs) && config.cosmicZap.stunBeepOffsetsMs.length === 3);
+                this.assert('Stunned Blox remain solid to Orb movement', config.cosmicZap.blocksOrbMovementWhileStunned === true && Orb.prototype.constrainMovementAgainstStunnedBlox.toString().includes('earliestHit'));
 
                 this.assert('Playfield design size is positive', Number.isFinite(config.playfield.designSize) && config.playfield.designSize > 0);
                 this.assert('Playfield grid count is integral', Number.isInteger(config.playfield.gridCellsPerSide) && config.playfield.gridCellsPerSide > 1);
@@ -27110,6 +27112,62 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                        point.y <= this.y + this.size + padding;
             }
 
+            // Cosmic Zap freezes Blox without making them pass-through scenery. Treat each
+            // stunned Blox as an expanded movement obstacle for the Orb's top-left point and
+            // stop the drag at the first swept contact. No direction or position is altered
+            // on the Blox themselves; this only constrains Orb movement during the stun.
+            constrainMovementAgainstStunnedBlox(previousX, previousY, targetX, targetY, timestamp = performance.now()) {
+                if (!GAME_CONFIG.cosmicZap.blocksOrbMovementWhileStunned) return { x: targetX, y: targetY };
+                const enemies = Array.isArray(this.game.enemies) ? this.game.enemies : [];
+                const stunned = enemies.filter(enemy => enemy && typeof enemy.isStunned === 'function' && enemy.isStunned(timestamp));
+                if (!stunned.length) return { x: targetX, y: targetY };
+
+                const dx = targetX - previousX;
+                const dy = targetY - previousY;
+                const distance = Math.hypot(dx, dy);
+                if (distance <= 0.000001) return { x: targetX, y: targetY };
+
+                let earliestHit = 1;
+                const epsilonT = Math.min(0.02, 0.35 / distance);
+
+                const segmentEntryTime = (left, top, right, bottom) => {
+                    const startsInside = previousX > left && previousX < right && previousY > top && previousY < bottom;
+                    if (startsInside) return null;
+
+                    let tMin = 0;
+                    let tMax = 1;
+                    const clip = (origin, delta, minValue, maxValue) => {
+                        if (Math.abs(delta) < 0.000001) return origin >= minValue && origin <= maxValue;
+                        const t1 = (minValue - origin) / delta;
+                        const t2 = (maxValue - origin) / delta;
+                        const near = Math.min(t1, t2);
+                        const far = Math.max(t1, t2);
+                        tMin = Math.max(tMin, near);
+                        tMax = Math.min(tMax, far);
+                        return tMin <= tMax;
+                    };
+                    if (!clip(previousX, dx, left, right)) return null;
+                    if (!clip(previousY, dy, top, bottom)) return null;
+                    return tMin >= 0 && tMin <= 1 ? tMin : null;
+                };
+
+                stunned.forEach(enemy => {
+                    const left = enemy.x - this.size;
+                    const top = enemy.y - this.size;
+                    const right = enemy.x + enemy.size;
+                    const bottom = enemy.y + enemy.size;
+                    const hit = segmentEntryTime(left, top, right, bottom);
+                    if (hit !== null && hit < earliestHit) earliestHit = hit;
+                });
+
+                if (earliestHit >= 1) return { x: targetX, y: targetY };
+                const allowedT = Math.max(0, earliestHit - epsilonT);
+                return {
+                    x: previousX + dx * allowedT,
+                    y: previousY + dy * allowedT
+                };
+            }
+
             moveToPoint(point, keepTouchOffset = false) {
                 const targetCenterX = keepTouchOffset ? point.x - this.touchDragOffsetX : point.x;
                 const targetCenterY = keepTouchOffset ? point.y - this.touchDragOffsetY : point.y;
@@ -27117,10 +27175,19 @@ ${pressureLines.length ? pressureLines.join('\n') : 'No completed regular full-r
                 const previousY = this.y;
                 const now = performance.now();
 
-                this.x = Math.max(0, Math.min(this.game.PLAYFIELD_SIZE - this.size,
+                const unclampedTargetX = Math.max(0, Math.min(this.game.PLAYFIELD_SIZE - this.size,
                     targetCenterX - this.size / 2));
-                this.y = Math.max(0, Math.min(this.game.PLAYFIELD_SIZE - this.size,
+                const unclampedTargetY = Math.max(0, Math.min(this.game.PLAYFIELD_SIZE - this.size,
                     targetCenterY - this.size / 2));
+                const constrainedTarget = this.constrainMovementAgainstStunnedBlox(
+                    previousX,
+                    previousY,
+                    unclampedTargetX,
+                    unclampedTargetY,
+                    now
+                );
+                this.x = constrainedTarget.x;
+                this.y = constrainedTarget.y;
 
                 const movedDistance = Math.hypot(this.x - previousX, this.y - previousY);
                 if (this.game.vectorTrail) {
