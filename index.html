@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Zorblox under the OFL.
 
 -->
-<html data-build-version="p025">
+<html data-build-version="p026">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Zorblox</title>
@@ -7755,7 +7755,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
         const BUILD_METADATA = window.ZORBLOX_BUILD = Object.freeze({
             version: BUILD_ID,
             label: BUILD_VERSION,
-            architecturePhase: 'zorblox-p025-curvature-resume-state-fix',
+            architecturePhase: 'zorblox-p026-frame-consistency-allocation-pass',
             sourceBaseline: 'p287',
             behaviorPolicy: 'single-design-space-scale-authoritative-state-no-parallel-systems'
         });
@@ -7986,6 +7986,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
             ]
         });
 
+/* p026 frame consistency: reduce live-gameplay allocation churn without changing visuals or gameplay. */
 /* Source: src/js/config/10-feature-flags.js */
         // Central diagnostic feature flags. Change values here before loading the page to isolate systems.
         const GAME_FEATURE_FLAGS = window.ZORBLOX_FEATURE_FLAGS = {
@@ -11972,6 +11973,8 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 this.game = game;
                 this.config = config;
                 this.maxEnemyResolutionIterations = 5;
+                this.gameOverOutcome = Object.freeze({ outcome: 'game-over' });
+                this.clearOutcomes = Array.from({ length: 25 }, (_, crystalsCollected) => Object.freeze({ outcome: 'clear', crystalsCollected }));
             }
 
             requireGame() {
@@ -11981,7 +11984,9 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
 
             updateEnemies(deltaTime, timestamp = performance.now()) {
                 const game = this.requireGame();
-                game.enemies.forEach((enemy) => enemy.update(deltaTime, timestamp));
+                for (let index = 0; index < game.enemies.length; index += 1) {
+                    game.enemies[index].update(deltaTime, timestamp);
+                }
 
                 let collisionOccurred = true;
                 let iteration = 0;
@@ -12008,18 +12013,27 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 let tMin = 0;
                 let tMax = 1;
 
-                const clipAxis = (start, delta, min, max) => {
-                    if (Math.abs(delta) < 0.000001) return start >= min && start <= max;
-                    let t1 = (min - start) / delta;
-                    let t2 = (max - start) / delta;
-                    if (t1 > t2) [t1, t2] = [t2, t1];
-                    tMin = Math.max(tMin, t1);
-                    tMax = Math.min(tMax, t2);
-                    return tMin <= tMax;
-                };
+                if (Math.abs(dx) < 0.000001) {
+                    if (segment.x1 < left || segment.x1 > right) return null;
+                } else {
+                    let t1 = (left - segment.x1) / dx;
+                    let t2 = (right - segment.x1) / dx;
+                    if (t1 > t2) { const swap = t1; t1 = t2; t2 = swap; }
+                    if (t1 > tMin) tMin = t1;
+                    if (t2 < tMax) tMax = t2;
+                    if (tMin > tMax) return null;
+                }
 
-                if (!clipAxis(segment.x1, dx, left, right)) return null;
-                if (!clipAxis(segment.y1, dy, top, bottom)) return null;
+                if (Math.abs(dy) < 0.000001) {
+                    if (segment.y1 < top || segment.y1 > bottom) return null;
+                } else {
+                    let t1 = (top - segment.y1) / dy;
+                    let t2 = (bottom - segment.y1) / dy;
+                    if (t1 > t2) { const swap = t1; t1 = t2; t2 = swap; }
+                    if (t1 > tMin) tMin = t1;
+                    if (t2 < tMax) tMax = t2;
+                    if (tMin > tMax) return null;
+                }
                 return Math.max(0, Math.min(1, tMin));
             }
 
@@ -12041,12 +12055,12 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 const bottom = object.y + object.size;
                 let bestScore = null;
 
-                segments.forEach((segment, index) => {
-                    const hitTime = this.getSegmentRectHitTime(segment, left, top, right, bottom);
-                    if (hitTime === null) return;
+                for (let index = 0; index < segments.length; index += 1) {
+                    const hitTime = this.getSegmentRectHitTime(segments[index], left, top, right, bottom);
+                    if (hitTime === null) continue;
                     const score = index + hitTime;
                     if (bestScore === null || score < bestScore) bestScore = score;
-                });
+                }
 
                 if (bestScore !== null) return bestScore;
                 return overlapsNow ? segments.length + 1 : null;
@@ -12054,7 +12068,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
 
             check() {
                 const game = this.requireGame();
-                if (game.runtimeState.isGameOver) return Object.freeze({ outcome: 'game-over' });
+                if (game.runtimeState.isGameOver) return this.gameOverOutcome;
                 const movementSegments = game.orb.consumeMovementSegments
                     ? game.orb.consumeMovementSegments()
                     : [];
@@ -12084,22 +12098,24 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 let crystalsCollected = 0;
                 while (true) {
                     const currentColor = game.crystalSystem.colorOrder[game.crystalSystem.currentColorIndex];
-                    const candidates = [];
-                    for (let index = 0; index < game.crystalSystem.crystals.length; index++) {
+                    let nextIndex = -1;
+                    let nextCrystal = null;
+                    let nextScore = Infinity;
+                    for (let index = 0; index < game.crystalSystem.crystals.length; index += 1) {
                         const crystal = game.crystalSystem.crystals[index];
                         if (crystal.color !== currentColor || !crystal.isSelectable) continue;
                         const score = this.getOrbPathHitScore(crystal, movementSegments, game.orb);
-                        if (score === null || score + 0.000001 < minimumPathScore) continue;
-                        candidates.push({ index, crystal, score });
+                        if (score === null || score + 0.000001 < minimumPathScore || score >= nextScore) continue;
+                        nextIndex = index;
+                        nextCrystal = crystal;
+                        nextScore = score;
                     }
-                    if (!candidates.length) break;
-                    candidates.sort((first, second) => first.score - second.score);
-                    const next = candidates[0];
-                    minimumPathScore = next.score;
-                    if (game.collectCrystalAtIndex(next.index, next.crystal)) crystalsCollected += 1;
+                    if (nextIndex < 0 || !nextCrystal) break;
+                    minimumPathScore = nextScore;
+                    if (game.collectCrystalAtIndex(nextIndex, nextCrystal)) crystalsCollected += 1;
                 }
 
-                return Object.freeze({ outcome: 'clear', crystalsCollected });
+                return crystalsCollected < this.clearOutcomes.length ? this.clearOutcomes[crystalsCollected] : Object.freeze({ outcome: 'clear', crystalsCollected });
             }
 
             snapshot() {
@@ -14895,6 +14911,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
         class DiagnosticsSystem {
             static ownedFields = Object.freeze([
                 'performanceTelemetrySamples',
+                'performanceTelemetrySampleCursor',
                 'performanceTelemetryLastTimestamp',
                 'performanceTelemetryLastRender',
                 'performanceTelemetryRafId',
@@ -14907,6 +14924,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
             constructor(game) {
                 this.game = game;
                 this.performanceTelemetrySamples = [];
+                this.performanceTelemetrySampleCursor = 0;
                 this.performanceTelemetryLastTimestamp = 0;
                 this.performanceTelemetryLastRender = 0;
                 this.performanceTelemetryRafId = null;
@@ -14946,17 +14964,53 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
 
         DiagnosticsSystem.implementations = Object.freeze({
             computePerformanceMetrics: function(samples = []) {
-                const valid = (Array.isArray(samples) ? samples : []).filter(value => Number.isFinite(value) && value > 0 && value < 1000);
-                if (!valid.length) return null;
-                const total = valid.reduce((sum, value) => sum + value, 0);
-                const averageMs = total / valid.length;
+                if (!Array.isArray(samples) || !samples.length) return null;
+                let total = 0;
+                let validCount = 0;
+                let droppedCount = 0;
+                for (let index = 0; index < samples.length; index += 1) {
+                    const value = samples[index];
+                    if (!Number.isFinite(value) || value <= 0 || value >= 1000) continue;
+                    total += value;
+                    validCount += 1;
+                    if (value > 20) droppedCount += 1;
+                }
+                if (!validCount) return null;
+                const averageMs = total / validCount;
                 const averageFps = averageMs > 0 ? 1000 / averageMs : 0;
-                const slowest = valid.slice().sort((a, b) => b - a);
-                const lowCount = Math.max(1, Math.ceil(slowest.length * 0.01));
-                const onePercentLowFps = slowest.slice(0, lowCount).reduce((sum, value) => sum + (1000 / value), 0) / lowCount;
-                const droppedPercent = (valid.filter(value => value > 20).length / valid.length) * 100;
+                const lowCount = Math.max(1, Math.ceil(validCount * 0.01));
+                let slowest = null;
+                if (validCount <= 1000) {
+                    slowest = [];
+                    for (let index = 0; index < samples.length; index += 1) {
+                        const value = samples[index];
+                        if (!Number.isFinite(value) || value <= 0 || value >= 1000) continue;
+                        let insertAt = slowest.length;
+                        while (insertAt > 0 && slowest[insertAt - 1] < value) insertAt -= 1;
+                        if (insertAt < lowCount) {
+                            slowest.splice(insertAt, 0, value);
+                            if (slowest.length > lowCount) slowest.pop();
+                        } else if (slowest.length < lowCount) {
+                            slowest.push(value);
+                        }
+                    }
+                } else {
+                    slowest = new Array(validCount);
+                    let writeIndex = 0;
+                    for (let index = 0; index < samples.length; index += 1) {
+                        const value = samples[index];
+                        if (!Number.isFinite(value) || value <= 0 || value >= 1000) continue;
+                        slowest[writeIndex++] = value;
+                    }
+                    slowest.sort((a, b) => b - a);
+                    slowest.length = lowCount;
+                }
+                let lowFpsTotal = 0;
+                for (let index = 0; index < slowest.length; index += 1) lowFpsTotal += 1000 / slowest[index];
+                const onePercentLowFps = lowFpsTotal / Math.max(1, slowest.length);
+                const droppedPercent = (droppedCount / validCount) * 100;
                 return {
-                    frameCount: valid.length,
+                    frameCount: validCount,
                     averageMs,
                     averageFps,
                     onePercentLowFps,
@@ -14967,6 +15021,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
             resetPerformanceMetrics: function() {
                 const diagnostics = this.diagnosticsSystem;
                 diagnostics.performanceTelemetrySamples = [];
+                diagnostics.performanceTelemetrySampleCursor = 0;
                 diagnostics.performanceSessionSamples = [];
                 diagnostics.performanceSectorSamples = [];
                 diagnostics.performanceTrackedSector = null;
@@ -14983,6 +15038,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 const sampleWindow = 180;
                 const maxSessionSamples = 120000;
                 this.diagnosticsSystem.performanceTelemetrySamples = [];
+                this.diagnosticsSystem.performanceTelemetrySampleCursor = 0;
                 this.diagnosticsSystem.performanceTelemetryLastTimestamp = 0;
                 this.diagnosticsSystem.performanceTelemetryLastRender = 0;
 
@@ -15001,6 +15057,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                         if (diagnostics.performanceSectorSamples.length) finalizeTrackedSector();
                         diagnostics.performanceTelemetryRafId = null;
                         diagnostics.performanceTelemetrySamples = [];
+                        diagnostics.performanceTelemetrySampleCursor = 0;
                         diagnostics.performanceTelemetryLastTimestamp = 0;
                         diagnostics.updatePerformanceTelemetryHud();
                         diagnostics.updatePerformanceSummaryPanel();
@@ -15014,9 +15071,11 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                     if (diagnostics.performanceTelemetryLastTimestamp > 0) {
                         const delta = timestamp - diagnostics.performanceTelemetryLastTimestamp;
                         if (delta > 0 && delta < 1000) {
-                            diagnostics.performanceTelemetrySamples.push(delta);
-                            if (diagnostics.performanceTelemetrySamples.length > sampleWindow) {
-                                diagnostics.performanceTelemetrySamples.splice(0, diagnostics.performanceTelemetrySamples.length - sampleWindow);
+                            if (diagnostics.performanceTelemetrySamples.length < sampleWindow) {
+                                diagnostics.performanceTelemetrySamples.push(delta);
+                            } else {
+                                diagnostics.performanceTelemetrySamples[diagnostics.performanceTelemetrySampleCursor] = delta;
+                                diagnostics.performanceTelemetrySampleCursor = (diagnostics.performanceTelemetrySampleCursor + 1) % sampleWindow;
                             }
 
                             if (liveGameplay) {
@@ -15867,7 +15926,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 this.assert('Retired telemetry compatibility keeps only non-recording gameplay helpers', telemetryOwner.hasImplementation('getCurrentSpeedMultiplier') && telemetryOwner.hasImplementation('formatTelemetryDuration'));
                 this.assert('TelemetrySystem snapshot is read-only', Object.isFrozen(telemetryOwner.snapshot()));
                 const diagnosticsOwner = new DiagnosticsSystem({});
-                this.assert('DiagnosticsSystem owns runtime diagnostic command surface', DiagnosticsSystem.ownedFields.length === 8 && diagnosticsOwner.hasImplementation('validateStateInvariants') && diagnosticsOwner.hasImplementation('buildDeveloperStateSnapshot'));
+                this.assert('DiagnosticsSystem owns runtime diagnostic command surface', DiagnosticsSystem.ownedFields.length === 9 && diagnosticsOwner.hasImplementation('validateStateInvariants') && diagnosticsOwner.hasImplementation('buildDeveloperStateSnapshot'));
                 this.assert('DiagnosticsSystem snapshot is read-only', Object.isFrozen(diagnosticsOwner.snapshot()));
 
                 this.assert('Legacy Game state proxy helper removed', typeof installOwnedStateProxy === 'undefined');
@@ -18593,7 +18652,9 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
 
             drawCrystals(game, timestamp) {
                 if (!game || !Array.isArray(game.crystalSystem.crystals)) return;
-                game.crystalSystem.crystals.forEach(crystal => this.drawCrystal(crystal, game, timestamp));
+                for (let index = 0; index < game.crystalSystem.crystals.length; index += 1) {
+                    this.drawCrystal(game.crystalSystem.crystals[index], game, timestamp);
+                }
             }
 
             drawTutorialCrystalValueLabels(game, timestamp) {
@@ -18859,7 +18920,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
 
             drawDrifters(game, timestamp) {
                 if (!game || !Array.isArray(game.enemies)) return;
-                game.enemies.forEach(enemy => this.drawDrifter(enemy, game, timestamp));
+                for (let index = 0; index < game.enemies.length; index += 1) this.drawDrifter(game.enemies[index], game, timestamp);
             }
 
             getChargerPresentation(enemy, timestamp) {
@@ -18921,7 +18982,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
 
             drawChargers(game, timestamp) {
                 if (!game || !Array.isArray(game.enemies)) return;
-                game.enemies.forEach(enemy => this.drawCharger(enemy, game, timestamp));
+                for (let index = 0; index < game.enemies.length; index += 1) this.drawCharger(game.enemies[index], game, timestamp);
             }
 
             getPulsePresentation(enemy, timestamp) {
@@ -19070,7 +19131,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
 
             drawPulses(game, timestamp) {
                 if (!game || !Array.isArray(game.enemies)) return;
-                game.enemies.forEach(enemy => this.drawPulse(enemy, game, timestamp));
+                for (let index = 0; index < game.enemies.length; index += 1) this.drawPulse(game.enemies[index], game, timestamp);
             }
 
             getSpawnWarningOpacity(warning, game, timestamp) {
@@ -19282,7 +19343,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
 
             drawExplosions(timestamp) {
                 if (!this.activeExplosions || this.activeExplosions.size === 0) return;
-                [...this.activeExplosions].forEach(explosion => this.drawExplosion(explosion, timestamp));
+                for (const explosion of this.activeExplosions) this.drawExplosion(explosion, timestamp);
             }
 
             getCosmicZapShakeOffset(timestamp) {
@@ -19372,12 +19433,12 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
 
             drawCosmicZapEffects(timestamp) {
                 if (!this.visualEffectsEnabled() || !this.activeCosmicZapEffects || this.activeCosmicZapEffects.size === 0) return;
-                [...this.activeCosmicZapEffects].forEach(effect => {
-                    if (!effect || effect.isActive === false) return;
+                for (const effect of this.activeCosmicZapEffects) {
+                    if (!effect || effect.isActive === false) continue;
                     if (effect.type === 'line') this.drawCosmicZapLine(effect, timestamp);
                     else if (effect.type === 'ring') this.drawCosmicZapRing(effect, timestamp);
                     else if (effect.type === 'spark') this.drawCosmicZapSpark(effect, timestamp);
-                });
+                }
             }
 
             sampleColorKeyframes(progress, frames) {
@@ -21235,6 +21296,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 this.perfSessionDrop = document.getElementById('perfSessionDrop');
                 this.resetPerformanceButton = document.getElementById('resetPerformanceButton');
                 this.diagnosticsSystem.performanceTelemetrySamples = [];
+                this.diagnosticsSystem.performanceTelemetrySampleCursor = 0;
                 this.diagnosticsSystem.performanceTelemetryLastTimestamp = 0;
                 this.diagnosticsSystem.performanceTelemetryLastRender = 0;
                 this.diagnosticsSystem.performanceTelemetryRafId = null;
@@ -23547,7 +23609,14 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 this.collisionSystem.updateEnemies(deltaTime, timestamp); // Update enemy simulation positions
                 this.collisionSystem.check(); // Check for collisions
                 this.completeSector(); // Check if level is complete
-                this.explosions = this.explosions.filter(exp => exp.update()); // Update and filter explosions
+                if (this.explosions.length) {
+                    let writeIndex = 0;
+                    for (let index = 0; index < this.explosions.length; index += 1) {
+                        const explosion = this.explosions[index];
+                        if (explosion.update()) this.explosions[writeIndex++] = explosion;
+                    }
+                    this.explosions.length = writeIndex;
+                }
             }
 
             // Main game loop: simulation first, then exactly one playfield presentation pass.
