@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Zorblox under the OFL.
 
 -->
-<html data-build-version="p022">
+<html data-build-version="p023">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Zorblox</title>
@@ -7120,7 +7120,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
         }
 
 
-        /* p022: performance-only developer diagnostics; temporary Blox-balance telemetry removed. */
+        /* p023: performance-only developer diagnostics; stale retired balance-event calls removed from gameplay. */
         #telemetryPanel .performance-summary {
             width: 100%;
             box-sizing: border-box;
@@ -7755,7 +7755,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
         const BUILD_METADATA = window.ZORBLOX_BUILD = Object.freeze({
             version: BUILD_ID,
             label: BUILD_VERSION,
-            architecturePhase: 'zorblox-p022-performance-cleanup',
+            architecturePhase: 'zorblox-p023-crystal-freeze-fix',
             sourceBaseline: 'p287',
             behaviorPolicy: 'single-design-space-scale-authoritative-state-no-parallel-systems'
         });
@@ -11460,7 +11460,6 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 pending.forEach((item) => {
                     if (item.timeoutId) game.scheduler.cancelTask(item.timeoutId);
                     if (item.warning) item.warning.remove();
-                    this.safeTelemetryCall('noteTelemetrySpawnWarningCanceled', item.spawnRequest, item);
                 });
                 return pending.length;
             }
@@ -11667,14 +11666,6 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                     expectedSpawnIntervalMs: Number.isFinite(expectedSpawnIntervalMs) ? Number(expectedSpawnIntervalMs) : null,
                     telemetryId: null
                 }));
-                this.safeTelemetryCall('noteTelemetryQueueGenerated', this.spawnQueue, {
-                    queueGenerationId,
-                    queueGeneration,
-                    spawnBatchId,
-                    queueOrigin,
-                    creationReason: queueOrigin,
-                    spawnCategory
-                });
                 return this.spawnQueue;
             }
 
@@ -11817,13 +11808,6 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                     : null;
                 game.enemies.push(enemy);
                 this.recordMaterializedEnemy(enemy);
-                this.safeTelemetryCall('noteTelemetryEnemyMaterialized', request, enemy, location, warningContext, {
-                    previousMaterializationSectorTimeMs: this.lastMaterializationSectorTimeMs,
-                    pendingWarningCount: this.pendingSpawnWarnings.length,
-                    remainingQueueCount: warningContext && Number.isFinite(warningContext.remainingQueueCount)
-                        ? warningContext.remainingQueueCount
-                        : this.spawnQueue.length
-                });
                 const materializedSectorTimeMs = telemetryRecording && game.telemetrySystem && typeof game.telemetrySystem.telemetrySectorElapsedMs === 'function'
                     ? game.telemetrySystem.telemetrySectorElapsedMs()
                     : null;
@@ -11883,7 +11867,6 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                     pendingWarningCountAtStart: this.pendingSpawnWarnings.length,
                     location
                 };
-                this.safeTelemetryCall('noteTelemetrySpawnWarningStarted', normalizedRequest, location, warningContext);
 
                 if (!GAME_FEATURE_FLAGS.spawnWarnings) {
                     this.materializeEnemy(normalizedRequest, location, options.onSpawn, warningContext);
@@ -11914,7 +11897,6 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
 
                         if (!game.flow.isLiveAction()) {
                             if (options.requeueOnCancel !== false) this.spawnQueue.unshift(normalizedRequest);
-                            this.safeTelemetryCall('noteTelemetrySpawnWarningCanceled', normalizedRequest, pending, 'not-live-action');
                             return;
                         }
 
@@ -16754,7 +16736,6 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 const game = this.game;
                 game.screenManager.updatePauseGridMenu();
                 game.ui.updateAll();
-                if (game.gridlockSystem.gridlockActive) game.telemetrySystem.noteTelemetryGridlockExit('sector-complete');
                 game.forfeitGridlockPrismsAtSectorEnd('sector-complete');
                 game.cancelGameplayScheduling();
                 game.releaseWakeLock();
@@ -16861,52 +16842,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 game.audio.stopBackgroundMusic(); // Stop music
 
                 if (!game.gameMode.isSurvivalRun()) {
-                    if (game.gridlockSystem.gridlockActive) game.telemetrySystem.noteTelemetryGridlockExit('death');
                     game.forfeitGridlockPrismsAtSectorEnd('death');
-                    game.telemetrySystem.finishTelemetrySector('death', {
-                    death: {
-                        x: Math.round(game.orb.x + game.orb.size / 2),
-                        y: Math.round(game.orb.y + game.orb.size / 2),
-                        sectorTimeMs: game.telemetrySystem.telemetrySectorElapsedMs() || game.sectorElapsedMs,
-                        activeEnemies: game.enemies.length,
-                        remainingCrystals: game.crystalSystem.crystals.length,
-                        remainingCrystalsByColor: game.telemetrySystem.getRemainingCrystalsByColor(),
-                        currentColor: game.crystalSystem.colorOrder[game.crystalSystem.currentColorIndex] || null,
-                        enemyTelemetryId: deathDetails.deathCause ? deathDetails.deathCause.telemetryId || null : null,
-                        enemyQueuePosition: deathDetails.deathCause && Number.isFinite(deathDetails.deathCause.queuePosition) ? deathDetails.deathCause.queuePosition : null,
-                        enemySpawnCategory: deathDetails.deathCause ? deathDetails.deathCause.spawnCategory || null : null,
-                        enemyQueueOrigin: deathDetails.deathCause ? deathDetails.deathCause.queueOrigin || null : null,
-                        enemyQueueGenerationId: deathDetails.deathCause ? deathDetails.deathCause.queueGenerationId || null : null,
-                        enemyQueueGeneration: deathDetails.deathCause && Number.isFinite(deathDetails.deathCause.queueGeneration) ? deathDetails.deathCause.queueGeneration : null,
-                        enemySpawnBatchId: deathDetails.deathCause ? deathDetails.deathCause.spawnBatchId || null : null,
-                        enemyCreationReason: deathDetails.deathCause ? deathDetails.deathCause.creationReason || null : null,
-                        enemySize: deathDetails.deathEnemySize || null,
-                        enemyIdentity: deathDetails.deathCause || null,
-                        enemyIdentityKey: deathDetails.deathCause ? deathDetails.deathCause.identityKey : null,
-                        enemyDisplayName: deathDetails.deathCause ? deathDetails.deathCause.displayName : null,
-                        enemyClassName: deathDetails.deathCause ? deathDetails.deathCause.className : null,
-                        enemyBehaviorType: deathDetails.deathCause ? deathDetails.deathCause.behaviorType : null,
-                        enemyBehaviorState: deathDetails.deathCause ? deathDetails.deathCause.behaviorState : null,
-                        deathCategory: deathDetails.deathCause ? deathDetails.deathCause.telemetryCategory : null,
-                        effectiveSpeedAtCollision: deathDetails.deathCause ? deathDetails.deathCause.effectiveVelocity : null,
-                        configuredBaseSpeedAtCollision: deathDetails.deathCause ? deathDetails.deathCause.baseSpeed : null,
-                        behaviorSpeedMultiplierAtCollision: deathDetails.deathCause ? deathDetails.deathCause.specialMovementMultiplier : null,
-                        combinedSpeedMultiplierAtCollision: deathDetails.deathCause ? deathDetails.deathCause.combinedSpeedMultiplier : null,
-                        materializationAgeMs: deathDetails.deathCause ? deathDetails.deathCause.materializationAgeMs : null,
-                        orbPosition: deathDetails.deathCause ? deathDetails.deathCause.orbPosition || null : null,
-                        enemyPosition: deathDetails.deathCause ? deathDetails.deathCause.enemyPosition || null : null,
-                        inGridlock: !!game.gridlockSystem.gridlockActive,
-                        secondsSinceGridlockStarted: game.telemetrySystem.currentTelemetrySector && game.telemetrySystem.currentTelemetrySector.gridlockReached ? Math.round((game.telemetrySystem.telemetrySectorElapsedMs() - game.telemetrySystem.currentTelemetrySector.gridlockTimeMs) / 1000) : null,
-                        lastCrystalPickup: game.telemetrySystem.getLastCrystalPickupTelemetry(),
-                        timeSinceLastCrystalPickupMs: game.telemetrySystem.currentTelemetrySector && game.telemetrySystem.currentTelemetrySector.lastCrystalPickupMs !== null ? Math.max(0, game.telemetrySystem.telemetrySectorElapsedMs() - game.telemetrySystem.currentTelemetrySector.lastCrystalPickupMs) : null,
-                        nextBlinkingCrystals: game.telemetrySystem.getTelemetryBlinkingCrystalOptions(),
-                        nearestEnemyDistanceFromOrbPx: game.telemetrySystem.getNearestEnemyDistanceFromOrb(),
-                        prismRelicVisible: !!game.gridlockSystem.prismRelic,
-                        prismRelicCuePending: game.gridlockSystem.isPrismMilestoneCountdownActive(),
-                        gridlockRelicAttemptNumber: game.gridlockSystem.gridlockRelicAttemptNumber
-                    }
-                });
-                    game.telemetrySystem.finishTelemetryRun('death');
                     game.saveRunRecordIfCurrentHighScore();
                 } else {
                     game.forfeitGridlockPrismsAtSectorEnd('survival-death');
@@ -22800,7 +22736,6 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 this.resetRestartConfirmationState();
                 if (!this.gameMode.isSurvivalRun()) {
                     this.highScoreSystem.saveCurrentRunPaceProfileIfRecord(this.scoreSystem.value, this.runSession);
-                    if (this.telemetrySystem.currentTelemetryRun && !this.telemetrySystem.currentTelemetryRun.endedAt) this.telemetrySystem.finishTelemetryRun('restart');
                 }
                 this.audio.resume();
                 this.audio.stopBackgroundMusic();
@@ -23116,15 +23051,6 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 if (this.runtimeState.finalGridlockActive) return false;
                 const milestone = this.gridlockSystem.beginMilestoneCountdown();
                 if (!milestone) return false;
-                this.telemetrySystem.noteTelemetryGridlockSequenceEvent('countdown-start', {
-                    reason,
-                    milestoneId: milestone.id,
-                    milestoneType: milestone.type,
-                    color: milestone.color || null,
-                    pointValue: Number(milestone.points) || 0,
-                    countdownDurationMs: GAME_CONFIG.gridlock.milestoneIntervalMs,
-                    gridlockEntry: this.gridlockSystem.gridlockEntryCount
-                });
                 return true;
             }
 
@@ -23153,7 +23079,6 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                     this.playfieldRenderer.removePrismRelic(relic);
                     return false;
                 }
-                this.telemetrySystem.noteTelemetryPrismRelicAppeared(relic);
                 if (this.ui && this.ui.flashPrismOpportunity) this.ui.flashPrismOpportunity(milestone.label);
                 this.audio.playPrismRelicAppear();
                 this.audio.startPrismRelicHum();
@@ -23170,7 +23095,6 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 const relic = this.gridlockSystem.prismRelic;
                 if (!relic) return null;
                 const sectorTimeMs = this.getGridlockSequenceTimeMs();
-                this.telemetrySystem.noteTelemetryPrismRelicCanceled(reason || status, relic, status);
                 const resolved = this.gridlockSystem.resolveVisiblePrism(status, reason, sectorTimeMs);
                 if (resolved) {
                     this.playfieldRenderer.removePrismRelic(resolved);
@@ -23188,14 +23112,6 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 const sectorTimeMs = this.getGridlockSequenceTimeMs();
                 const pending = this.gridlockSystem.forfeitPendingPrism(reason, sectorTimeMs);
                 if (pending) {
-                    this.telemetrySystem.noteTelemetryGridlockSequenceEvent('prism-forfeited', {
-                        milestoneId: pending.id,
-                        milestoneType: pending.type,
-                        color: pending.color,
-                        pointValue: pending.points,
-                        forfeitureReason: reason,
-                        pendingBeforeAppearance: true
-                    });
                 }
             }
 
@@ -23206,20 +23122,6 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 const hadCountdown = this.gridlockSystem.milestoneCountdownActive;
                 const wasWaiting = this.gridlockSystem.milestoneWaitingForMaterialization;
                 this.gridlockSystem.interruptMilestoneCountdown();
-                this.telemetrySystem.noteTelemetryGridlockSequenceEvent('countdown-interrupted', {
-                    reason,
-                    milestoneId: current ? current.id : null,
-                    milestoneType: current ? current.type : null,
-                    color: current ? current.color || null : null,
-                    pointValue: current ? Number(current.points) || 0 : 0,
-                    countdownWasActive: hadCountdown,
-                    materializationWasPending: wasWaiting,
-                    cosmicZapCancellation: reason === 'cosmic-zap'
-                });
-                this.telemetrySystem.noteTelemetryGridlockExit(reason, {
-                    milestoneId: current ? current.id : null,
-                    sequenceComplete: this.gridlockSystem.isSequenceComplete()
-                });
                 return true;
             }
 
@@ -23241,11 +23143,6 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                     if (this.ui && this.ui.updateRadarColorIndicator) this.ui.updateRadarColorIndicator();
                     const isReentry = this.gridlockSystem.gridlockEntryCount > 1;
                     const current = this.gridlockSystem.getCurrentMilestone();
-                    this.telemetrySystem.noteTelemetryGridlock({
-                        isReentry,
-                        milestoneId: current ? current.id : null,
-                        gridlockEntry: this.gridlockSystem.gridlockEntryCount
-                    });
                     if (!this.runtimeState.finalGridlockActive) {
                         this.monitorEffectsSystem.triggerMonitorEvent('gridlock');
                         if (this.ui && this.ui.flashGridlockAlert) this.ui.flashGridlockAlert();
@@ -23350,13 +23247,6 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 if (this.gridlockSystem.prismRelic) this.resolveVisiblePrismRelic('expired', 'next-gridlock-event');
                 const sectorTimeMs = this.getGridlockSequenceTimeMs();
                 if (!this.gridlockSystem.markMilestoneTriggered(milestone.id, sectorTimeMs)) return false;
-                this.telemetrySystem.noteTelemetryGridlockSequenceEvent('milestone-triggered', {
-                    milestoneId: milestone.id,
-                    milestoneType: milestone.type,
-                    color: milestone.color || null,
-                    pointValue: Number(milestone.points) || 0,
-                    ordinal: milestone.ordinal || null
-                });
 
                 if (milestone.type === 'prism') {
                     if (!this.spawnPrismRelic(milestone)) {
@@ -23367,12 +23257,6 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 }
 
                 this.gridlockSystem.markEnemyMilestoneWaiting(milestone.id);
-                this.telemetrySystem.noteTelemetryGridlockSequenceEvent('overtime-enemy-milestone', {
-                    milestoneId: milestone.id,
-                    milestoneType: milestone.type,
-                    ordinal: milestone.ordinal,
-                    phase: 'warning-started'
-                });
                 if (!this.spawnOvertimeEnemy({ milestoneId: milestone.id })) {
                     this.gridlockSystem.revertTriggeredMilestoneForRetry(milestone.id, 5000);
                     return false;
@@ -23384,13 +23268,6 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 const sectorTimeMs = this.getGridlockSequenceTimeMs();
                 if (!this.gridlockSystem.markEnemyMilestoneMaterialized(milestoneId, sectorTimeMs)) return false;
                 const milestone = this.gridlockSystem.getMilestoneDefinition(milestoneId);
-                this.telemetrySystem.noteTelemetryGridlockSequenceEvent('overtime-enemy-materialized', {
-                    milestoneId,
-                    milestoneType: 'enemy',
-                    ordinal: milestone ? milestone.ordinal : null,
-                    phase: 'materialized',
-                    overtimeEnemiesAdded: this.gridlockSystem.overtimeEnemiesAdded
-                });
                 if (this.ui && this.ui.flashSuperGridlockAlert) this.ui.flashSuperGridlockAlert();
                 if (this.gridlockSystem.isSequenceComplete()) {
                     this.gridlockSystem.postSequenceOvertimeElapsedMs = 0;
@@ -23472,12 +23349,6 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                         } else if (postSequence) {
                             this.gridlockSystem.postSequenceWarningPending = false;
                             this.gridlockSystem.postSequenceOvertimeElapsedMs = 0;
-                            this.telemetrySystem.noteTelemetryGridlockSequenceEvent('post-sequence-overtime-enemy', {
-                                milestoneId: null,
-                                milestoneType: 'enemy',
-                                overtimeEnemiesAdded: progress.overtimeEnemiesAdded,
-                                pointValue: 0
-                            });
                         }
                     }
                 });
@@ -23505,7 +23376,6 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 const relic = this.gridlockSystem.prismRelic;
                 if (!relic) return false;
                 const sectorTimeMs = this.getGridlockSequenceTimeMs();
-                this.telemetrySystem.noteTelemetryPrismRelicCollected(relic);
                 const resolved = this.gridlockSystem.resolveVisiblePrism('collected', 'orb-contact', sectorTimeMs);
                 if (!resolved) return false;
                 this.playfieldRenderer.removePrismRelic(resolved);
@@ -23671,15 +23541,6 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 if (perfectSectorBonus > 0) this.runSession.markPerfectSector(completedSector);
                 const totalBonus = unusedCosmicZapBonus + perfectSectorBonus;
                 const bonusLines = this.buildSectorBonusLines(unusedCosmicZapBonus, perfectSectorBonus);
-                this.telemetrySystem.finishTelemetrySector('completed', {
-                    totalBonus,
-                    unusedCosmicZapBonus,
-                    survivalistBonus: 0,
-                    gridlockBonus: gridlockBonusEarned,
-                    superGridlockBonus: superGridlockBonusEarned,
-                    perfectSectorBonus,
-                    prismRelicBonus: gridlockBonusEarned
-            });
 
                 const restorationSequence = this.runGridRestoreSequence(completedSector, transitionToken, { bonusLines, totalBonus });
                 this.diagnosticsSystem.validateStateInvariants('completeSector');
@@ -23843,10 +23704,6 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
             completePracticeRunAfterRestore(transitionToken = this.sectorTransitionToken) {
                 if (transitionToken !== this.sectorTransitionToken || this.runtimeState.isGameOver || this.runSession.isEndingEligible()) return false;
                 this.highScoreSystem.saveCurrentRunPaceProfileIfRecord(this.scoreSystem.value, this.runSession);
-                if (this.telemetrySystem.currentTelemetryRun && !this.telemetrySystem.currentTelemetryRun.endedAt) {
-                    this.telemetrySystem.currentTelemetryRun.endingEntered = false;
-                    this.telemetrySystem.currentTelemetryRun.endingBlockedReason = 'sector-select-run';
-                }
                 this.cancelTransitionGroup('sector-select-complete');
                 this.cancelGameplayScheduling();
                 this.releaseWakeLock();
@@ -23923,12 +23780,10 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 this.visualEffectsSystem.playCrystalCollectionEffect(crystal);
                 this.playfieldRenderer.removeCrystal(crystal);
                 this.addScore(collection.points);
-                this.telemetrySystem.noteTelemetryCrystalCollected(crystal, collection.position);
                 this.audio.playCollect();
 
                 if (collection.completedColor) {
                     this.addScore(GAME_CONFIG.scoring.colorCompleteBonus);
-                    this.telemetrySystem.noteTelemetryColorComplete();
                     this.crystalSystem.advanceColor();
                 }
 
@@ -24307,7 +24162,6 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                     const now = performance.now();
                     if (now - this.cosmicZapSystem.lastTriggerTime < this.cosmicZapSystem.inputCooldownMs) return;
                     const stunnedEnemies = this.enemies.slice();
-                    this.telemetrySystem.noteTelemetryCosmicZap(stunnedEnemies);
 
                     const zapUse = this.cosmicZapSystem.consume(now);
                     if (!zapUse.consumed) return;
