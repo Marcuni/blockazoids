@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Zorblox under the OFL.
 
 -->
-<html data-build-version="p034">
+<html data-build-version="p035">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Zorblox</title>
@@ -7755,7 +7755,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
         const BUILD_METADATA = window.ZORBLOX_BUILD = Object.freeze({
             version: BUILD_ID,
             label: BUILD_VERSION,
-            architecturePhase: 'zorblox-p034-sector11-two-large-dev-invincibility',
+            architecturePhase: 'zorblox-p035-dash-charge-curve',
             sourceBaseline: 'p287',
             behaviorPolicy: 'single-design-space-scale-authoritative-state-no-parallel-systems'
         });
@@ -8174,7 +8174,26 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                     cruiseSpeedMultiplier: 0.8,
                     chargeCadenceMs: 3000,
                     warningMs: 350,
-                    chargeSpeedMultiplier: 2.0,
+                    // Sector-relative DASH charge ratio. Overall Blox speed still rises with
+                    // the campaign; this curve prevents DASH charge velocity from scaling
+                    // disproportionately at late-sector speeds.
+                    chargeSpeedMultipliersBySector: Object.freeze([
+                        2.000, // S1
+                        1.990, // S2
+                        1.980, // S3
+                        1.965, // S4
+                        1.950, // S5
+                        1.935, // S6
+                        1.920, // S7
+                        1.905, // S8
+                        1.890, // S9
+                        1.875, // S10
+                        1.860, // S11
+                        1.845, // S12
+                        1.830, // S13
+                        1.815, // S14
+                        1.800  // S15
+                    ]),
                     chargeDurationMs: 600
                 },
                 pulse: {
@@ -8769,13 +8788,13 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                     ],
                     "enemySizePlan": [
                         "large",
-                        "large",
                         "medium",
                         "medium",
                         "medium",
                         "medium",
                         "medium",
-                        "medium"
+                        "medium",
+                        "small"
                     ],
                     "enemyBehaviorPlan": [
                         "charger",
@@ -9085,6 +9104,14 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
             static getEnemySpeedMultiplier(level, difficultyMode = 'Normal') {
                 const sectorBoost = this.getSectorSpeedBoost(level);
                 return (1 + sectorBoost) * this.getDifficultyProfile(difficultyMode).speedMultiplier;
+            }
+
+            static getDashChargeSpeedMultiplier(level) {
+                const balancedSector = this.clampCampaignSector(level);
+                const curve = GAME_CONFIG.enemyBehaviors.charger.chargeSpeedMultipliersBySector || [];
+                const fallback = Number(curve[0]) || 2;
+                const value = Number(curve[balancedSector - 1]);
+                return Number.isFinite(value) && value > 0 ? value : fallback;
             }
 
             static getResponsiveGameplayMetrics(playfieldScale = 1) {
@@ -15601,7 +15628,10 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 this.assert('Medium movement tier is faster than large', Number(authoredBaseSpeeds.medium) > Number(authoredBaseSpeeds.large));
                 this.assert('Authored size tiers preserve the p016 Normal movement baseline', authoredBaseSpeeds.small === 2.76 && authoredBaseSpeeds.medium === 1.84 && authoredBaseSpeeds.large === 1.38);
                 const dash = config.enemyBehaviors.charger;
-                this.assert('DASH production parameters are centralized and limited', Object.keys(dash).sort().join(',') === 'chargeCadenceMs,chargeDurationMs,chargeSpeedMultiplier,cruiseSpeedMultiplier,warningMs' && dash.cruiseSpeedMultiplier === 0.8 && dash.chargeCadenceMs === 3000 && dash.warningMs === 350 && dash.chargeSpeedMultiplier === 2.0 && dash.chargeDurationMs === 600);
+                const dashChargeCurve = Array.from(dash.chargeSpeedMultipliersBySector || []);
+                this.assert('DASH production parameters are centralized and limited', Object.keys(dash).sort().join(',') === 'chargeCadenceMs,chargeDurationMs,chargeSpeedMultipliersBySector,cruiseSpeedMultiplier,warningMs' && dash.cruiseSpeedMultiplier === 0.8 && dash.chargeCadenceMs === 3000 && dash.warningMs === 350 && dash.chargeDurationMs === 600);
+                this.assert('DASH charge curve covers the full campaign', dashChargeCurve.length === sectors.length && dashChargeCurve.every((value) => Number.isFinite(Number(value)) && Number(value) > 0));
+                this.assert('DASH charge curve tapers from 2.00x to 1.80x', Math.abs(dashChargeCurve[0] - 2.0) < 0.000001 && Math.abs(dashChargeCurve[10] - 1.86) < 0.000001 && Math.abs(dashChargeCurve[dashChargeCurve.length - 1] - 1.8) < 0.000001 && dashChargeCurve.every((value, index) => index === 0 || value <= dashChargeCurve[index - 1]));
                 this.assert('ECHO cruise speed is authored relative to ZIG', config.enemyBehaviors.pulse.cruiseSpeedMultiplier === 0.8);
                 this.assert('Default sector size sequence is deterministic', JSON.stringify(defaultSizeSequence) === JSON.stringify(expectedDefaultSizeSequence));
                 const defaultSizeCounts = countSizes(defaultSizeSequence);
@@ -15623,11 +15653,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                     this.assert(`Sector ${index + 1} size plan size`, Array.isArray(sector.enemySizePlan) && sector.enemySizePlan.length === spawning.gridlockEnemyThreshold, `${sector.enemySizePlan?.length || 0}/${spawning.gridlockEnemyThreshold}`);
                     this.assert(`Sector ${index + 1} size plan values`, sector.enemySizePlan.every((size) => validSizes.has(size)));
                     const sectorSizeCounts = countSizes(sector.enemySizePlan);
-                    const isSector11DashMastery = Number(sector.id) === 11;
-                    const expectedDistribution = isSector11DashMastery
-                        ? (sectorSizeCounts.small === 0 && sectorSizeCounts.medium === 6 && sectorSizeCounts.large === 2)
-                        : (sectorSizeCounts.small === 1 && sectorSizeCounts.medium === 6 && sectorSizeCounts.large === 1);
-                    this.assert(`Sector ${index + 1} size distribution`, expectedDistribution, JSON.stringify(sectorSizeCounts));
+                    this.assert(`Sector ${index + 1} size distribution`, sectorSizeCounts.small === 1 && sectorSizeCounts.medium === 6 && sectorSizeCounts.large === 1, JSON.stringify(sectorSizeCounts));
                 });
 
                 this.assert('Color order has unique entries', new Set(data.colorOrder).size === data.colorOrder.length);
@@ -24304,7 +24330,10 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 if (!enemy) return 1;
                 if (enemy.behaviorType === ENEMY_BEHAVIOR_TYPES.CHARGER) {
                     const state = enemy.behavior && enemy.behavior.state ? enemy.behavior.state : 'cruise';
-                    if (state === 'charge') return GAME_CONFIG.enemyBehaviors.charger.chargeSpeedMultiplier;
+                    if (state === 'charge') {
+                        const balanceSector = this.gameMode.getBalanceSector(this.campaign.currentSector);
+                        return GameRules.getDashChargeSpeedMultiplier(balanceSector);
+                    }
                     if (state === 'warning') return 0;
                 }
                 return 1;
@@ -25462,6 +25491,15 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 return Number(this.tuning.cruiseSpeedMultiplier) || 1;
             }
 
+            getChargeSpeedMultiplier() {
+                const game = this.enemy && this.enemy.game;
+                if (game && game.gameMode && typeof game.gameMode.getBalanceSector === 'function' && game.campaign) {
+                    return GameRules.getDashChargeSpeedMultiplier(game.gameMode.getBalanceSector(game.campaign.currentSector));
+                }
+                const curve = this.tuning.chargeSpeedMultipliersBySector || [];
+                return Number(curve[0]) || 2;
+            }
+
             getCadenceVariation() {
                 const enemy = this.enemy;
                 const isSurvival = !!(enemy.game && enemy.game.gameMode && enemy.game.gameMode.isSurvivalRun());
@@ -25514,7 +25552,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 this.stateEndsAt = now + this.tuning.chargeDurationMs;
                 this.chargeStartedAt = now;
                 this.chargeDistancePx = 0;
-                const chargeSpeed = enemy.speed * this.getMovementSpeedMultiplier() * this.tuning.chargeSpeedMultiplier;
+                const chargeSpeed = enemy.speed * this.getMovementSpeedMultiplier() * this.getChargeSpeedMultiplier();
                 enemy.dx = targetX / magnitude * chargeSpeed;
                 enemy.dy = targetY / magnitude * chargeSpeed;
                 this.setVisualState(this.state, now);
@@ -25542,7 +25580,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
 
             onBoundaryCollision() {
                 if (this.state === 'charge') {
-                    this.enemy.normalizeVelocityMagnitude(this.enemy.speed * this.getMovementSpeedMultiplier() * this.tuning.chargeSpeedMultiplier, { x: this.enemy.dx, y: this.enemy.dy });
+                    this.enemy.normalizeVelocityMagnitude(this.enemy.speed * this.getMovementSpeedMultiplier() * this.getChargeSpeedMultiplier(), { x: this.enemy.dx, y: this.enemy.dy });
                     return;
                 }
                 if (this.state === 'warning') return;
@@ -25557,7 +25595,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 }
                 if (this.state === 'charge') {
                     this.enemy.normalizeVelocityMagnitude(
-                        this.enemy.speed * this.getMovementSpeedMultiplier() * this.tuning.chargeSpeedMultiplier,
+                        this.enemy.speed * this.getMovementSpeedMultiplier() * this.getChargeSpeedMultiplier(),
                         normal || { x: this.enemy.dx, y: this.enemy.dy }
                     );
                     return;
@@ -29278,8 +29316,10 @@ startGridlockBeat(delaySeconds = 0) {
                 assert('Small enemies remain faster than medium', game.getEnemySpeed('small') > game.getEnemySpeed('medium'));
                 assert('Medium enemies remain faster than large', game.getEnemySpeed('medium') > game.getEnemySpeed('large'));
                 const dashParity = GAME_CONFIG.enemyBehaviors.charger;
-                assert('DASH uses the authored ZIG-relative cruise and charge modifiers', Object.keys(dashParity).sort().join(',') === 'chargeCadenceMs,chargeDurationMs,chargeSpeedMultiplier,cruiseSpeedMultiplier,warningMs' && dashParity.cruiseSpeedMultiplier === 0.8 && dashParity.chargeCadenceMs === 3000 && dashParity.warningMs === 350 && dashParity.chargeSpeedMultiplier === 2.0 && dashParity.chargeDurationMs === 600);
-                assert('DASH charge profile applies proportionally to all sizes', ['small', 'medium', 'large'].every((size) => Math.abs((game.getEnemySpeed(size) * dashParity.chargeSpeedMultiplier) - (game.getEnemySpeed(size) * 2.0)) < 0.000001));
+                const dashChargeCurve = Array.from(dashParity.chargeSpeedMultipliersBySector || []);
+                assert('DASH uses the authored ZIG-relative cruise and sector charge curve', Object.keys(dashParity).sort().join(',') === 'chargeCadenceMs,chargeDurationMs,chargeSpeedMultipliersBySector,cruiseSpeedMultiplier,warningMs' && dashParity.cruiseSpeedMultiplier === 0.8 && dashParity.chargeCadenceMs === 3000 && dashParity.warningMs === 350 && dashParity.chargeDurationMs === 600 && dashChargeCurve.length === GAME_DATA.sectors.length);
+                assert('DASH charge curve starts at 2.00x, reaches 1.86x at Sector 11, and ends at 1.80x', Math.abs(GameRules.getDashChargeSpeedMultiplier(1) - 2.0) < 0.000001 && Math.abs(GameRules.getDashChargeSpeedMultiplier(11) - 1.86) < 0.000001 && Math.abs(GameRules.getDashChargeSpeedMultiplier(15) - 1.8) < 0.000001);
+                assert('DASH Sector 1 charge profile applies proportionally to all sizes', ['small', 'medium', 'large'].every((size) => Math.abs((game.getEnemySpeed(size) * GameRules.getDashChargeSpeedMultiplier(1)) - (game.getEnemySpeed(size) * 2.0)) < 0.000001));
                 const zigFoundationSource = ZigMovementFoundation.toString();
                 assert('ZIG movement profile remains authoritative while identities apply one relative cruise multiplier', zigFoundationSource.includes('componentSpeed = enemy.speed * this.getMovementSpeedMultiplier()') && zigFoundationSource.includes('enemy.speed * this.getMovementSpeedMultiplier() * Math.SQRT2') && zigFoundationSource.includes('getBehaviorCruiseSpeedMultiplier'));
                 assert('DASH and ECHO inherit the ZIG movement foundation', ChargerBehavior.prototype instanceof ZigMovementFoundation && PulseBlockBehavior.prototype instanceof ZigMovementFoundation);
@@ -29307,14 +29347,11 @@ startGridlockBeat(delaySeconds = 0) {
                 const sharedRunValues = game.highScoreScreen.getRunValues({ relics: 2, perfectSectors: 3, highestSector: 16, gameTimeMs: 9000 }, { requireStoredRecord: false });
                 assert('Campaign results reuse the record summary projection', sharedRunValues.relics === 2 && sharedRunValues.perfects === 3 && sharedRunValues.sector === 16 && sharedRunValues.time !== '—');
                 const expectedSizeDistribution = { large: 1, medium: 6, small: 1 };
-                assert('Authored Sector size distributions preserve the controlled baseline with the intentional Sector 11 DASH mastery exception', GAME_DATA.sectors.every((sector) => {
+                assert('Every authored Sector preserves the controlled 1 Large / 6 Medium / 1 Small distribution', GAME_DATA.sectors.every((sector) => {
                     const counts = sector.enemySizePlan.reduce((result, size) => {
                         if (Object.prototype.hasOwnProperty.call(result, size)) result[size] += 1;
                         return result;
                     }, { large: 0, medium: 0, small: 0 });
-                    if (Number(sector.id) === 11) {
-                        return counts.large === 2 && counts.medium === 6 && counts.small === 0;
-                    }
                     return counts.large === expectedSizeDistribution.large && counts.medium === expectedSizeDistribution.medium && counts.small === expectedSizeDistribution.small;
                 }));
                 assert('No spawn category randomly selects visual size', !EnemySpawnSystem.prototype.createSectorQueue.toString().includes('Math.random') && !EnemySpawnSystem.prototype.peekDeterministicSizeRequest.toString().includes('Math.random'));
