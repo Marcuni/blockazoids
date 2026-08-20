@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Zorblox under the OFL.
 
 -->
-<html data-build-version="p032">
+<html data-build-version="p033">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Zorblox</title>
@@ -7755,7 +7755,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
         const BUILD_METADATA = window.ZORBLOX_BUILD = Object.freeze({
             version: BUILD_ID,
             label: BUILD_VERSION,
-            architecturePhase: 'zorblox-p032-tapered-sector-speed-curve',
+            architecturePhase: 'zorblox-p033-sector11-dash-size-test',
             sourceBaseline: 'p287',
             behaviorPolicy: 'single-design-space-scale-authoritative-state-no-parallel-systems'
         });
@@ -8775,7 +8775,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                         "medium",
                         "medium",
                         "medium",
-                        "small"
+                        "medium"
                     ],
                     "enemyBehaviorPlan": [
                         "charger",
@@ -15623,7 +15623,11 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                     this.assert(`Sector ${index + 1} size plan size`, Array.isArray(sector.enemySizePlan) && sector.enemySizePlan.length === spawning.gridlockEnemyThreshold, `${sector.enemySizePlan?.length || 0}/${spawning.gridlockEnemyThreshold}`);
                     this.assert(`Sector ${index + 1} size plan values`, sector.enemySizePlan.every((size) => validSizes.has(size)));
                     const sectorSizeCounts = countSizes(sector.enemySizePlan);
-                    this.assert(`Sector ${index + 1} size distribution`, sectorSizeCounts.small === 1 && sectorSizeCounts.medium === 6 && sectorSizeCounts.large === 1, JSON.stringify(sectorSizeCounts));
+                    const isSector11DashMastery = Number(sector.id) === 11;
+                    const expectedDistribution = isSector11DashMastery
+                        ? (sectorSizeCounts.small === 0 && sectorSizeCounts.medium === 7 && sectorSizeCounts.large === 1)
+                        : (sectorSizeCounts.small === 1 && sectorSizeCounts.medium === 6 && sectorSizeCounts.large === 1);
+                    this.assert(`Sector ${index + 1} size distribution`, expectedDistribution, JSON.stringify(sectorSizeCounts));
                 });
 
                 this.assert('Color order has unique entries', new Set(data.colorOrder).size === data.colorOrder.length);
@@ -29303,11 +29307,14 @@ startGridlockBeat(delaySeconds = 0) {
                 const sharedRunValues = game.highScoreScreen.getRunValues({ relics: 2, perfectSectors: 3, highestSector: 16, gameTimeMs: 9000 }, { requireStoredRecord: false });
                 assert('Campaign results reuse the record summary projection', sharedRunValues.relics === 2 && sharedRunValues.perfects === 3 && sharedRunValues.sector === 16 && sharedRunValues.time !== '—');
                 const expectedSizeDistribution = { large: 1, medium: 6, small: 1 };
-                assert('Every authored Sector preserves the controlled 1 Large / 6 Medium / 1 Small distribution', GAME_DATA.sectors.every((sector) => {
+                assert('Authored Sector size distributions preserve the controlled baseline with the intentional Sector 11 DASH mastery exception', GAME_DATA.sectors.every((sector) => {
                     const counts = sector.enemySizePlan.reduce((result, size) => {
                         if (Object.prototype.hasOwnProperty.call(result, size)) result[size] += 1;
                         return result;
                     }, { large: 0, medium: 0, small: 0 });
+                    if (Number(sector.id) === 11) {
+                        return counts.large === 1 && counts.medium === 7 && counts.small === 0;
+                    }
                     return counts.large === expectedSizeDistribution.large && counts.medium === expectedSizeDistribution.medium && counts.small === expectedSizeDistribution.small;
                 }));
                 assert('No spawn category randomly selects visual size', !EnemySpawnSystem.prototype.createSectorQueue.toString().includes('Math.random') && !EnemySpawnSystem.prototype.peekDeterministicSizeRequest.toString().includes('Math.random'));
