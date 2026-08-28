@@ -10,7 +10,7 @@ Font License Notices
 - Orbitron: Copyright 2018 The Orbitron Project Authors (https://github.com/theleagueof/orbitron), with Reserved Font Name ‘Orbitron’. Designed originally by Matt McInerney. Licensed under the SIL Open Font License, Version 1.1. Keep OFL.txt with the distributed font files. The Orbitron license applies only to the font software and does not place Zorblox under the OFL.
 
 -->
-<html data-build-version="p037">
+<html data-build-version="p038">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Zorblox</title>
@@ -6266,6 +6266,14 @@ Font License Notices
     margin: 0 auto;
 }
 
+#difficultySectorSettingControl {
+    display: none;
+}
+
+#difficultySectorSettingControl.visible {
+    display: block;
+}
+
 /* Survival reuses the Final Gridlock playfield, but its only live value is time. */
 html body #skinShell.survival-mode-selected > #sectorProgressPanel,
 html body #skinShell.survival-mode-selected > #cosmicZapHud,
@@ -7501,6 +7509,14 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                             <button id="sectorIncreaseButton" class="settings-stepper-arrow" type="button" aria-label="Next sector">▶</button>
                         </div>
                     </div>
+                    <div id="difficultySectorSettingControl" class="settings-stepper launch-setup-stepper" role="group" aria-label="Difficulty Sector" aria-hidden="true">
+                        <div class="settings-stepper-title">Difficulty Sector</div>
+                        <div class="settings-stepper-row">
+                            <button id="difficultySectorDecreaseButton" class="settings-stepper-arrow" type="button" aria-label="Previous difficulty sector">◀</button>
+                            <div id="settingsDifficultySectorValue" class="settings-stepper-value">MATCH</div>
+                            <button id="difficultySectorIncreaseButton" class="settings-stepper-arrow" type="button" aria-label="Next difficulty sector">▶</button>
+                        </div>
+                    </div>
                     <div id="difficultySettingControl" class="settings-stepper launch-setup-stepper" role="group" aria-label="Difficulty">
                         <div class="settings-stepper-title">Difficulty</div>
                         <div class="settings-stepper-row">
@@ -7755,7 +7771,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
         const BUILD_METADATA = window.ZORBLOX_BUILD = Object.freeze({
             version: BUILD_ID,
             label: BUILD_VERSION,
-            architecturePhase: 'zorblox-p037-dash-charge-curve-further',
+            architecturePhase: 'zorblox-p038-dev-sector-difficulty',
             sourceBaseline: 'p287',
             behaviorPolicy: 'single-design-space-scale-authoritative-state-no-parallel-systems'
         });
@@ -9707,6 +9723,9 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 this.selectedSwarmType = this.loadSwarmType();
                 this.activeMode = this.selectedMode;
                 this.activeSwarmType = this.selectedSwarmType;
+                // Developer campaign testing only. null = MATCH authored sector difficulty.
+                // This is intentionally not persisted, so every fresh load starts production-equivalent.
+                this.campaignDifficultySectorOverride = null;
             }
 
             read(key, fallback = null) {
@@ -9831,8 +9850,36 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 return GameRules.clampCampaignSector(configured);
             }
 
+            normalizeCampaignDifficultySectorOverride(value) {
+                if (value === null || value === undefined || String(value).trim().toLowerCase() === 'match') return null;
+                const numeric = Math.floor(Number(value));
+                return Number.isFinite(numeric) ? GameRules.clampCampaignSector(numeric) : null;
+            }
+
+            getCampaignDifficultySectorOverride() {
+                return this.campaignDifficultySectorOverride;
+            }
+
+            setCampaignDifficultySectorOverride(value) {
+                this.campaignDifficultySectorOverride = this.normalizeCampaignDifficultySectorOverride(value);
+                return this.campaignDifficultySectorOverride;
+            }
+
+            adjustCampaignDifficultySectorOverride(direction) {
+                const maximum = GameRules.getCampaignLength();
+                const options = [null, ...Array.from({ length: maximum }, (_, index) => index + 1)];
+                const current = this.getCampaignDifficultySectorOverride();
+                const currentIndex = Math.max(0, options.findIndex((value) => value === current));
+                const step = direction < 0 ? -1 : 1;
+                const nextIndex = (currentIndex + step + options.length) % options.length;
+                return this.setCampaignDifficultySectorOverride(options[nextIndex]);
+            }
+
             getBalanceSector(campaignSector = 1) {
                 if (this.isSurvivalRun()) return this.getSurvivalBalanceSector();
+                if (this.campaignDifficultySectorOverride !== null) {
+                    return GameRules.clampCampaignSector(this.campaignDifficultySectorOverride);
+                }
                 const campaignTest = this.config.gameModes?.campaignCompositionBalanceTest;
                 if (campaignTest?.enabled) {
                     const configured = Number(campaignTest.balanceSector) || 5;
@@ -9856,6 +9903,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                     activeSwarmType: this.activeSwarmType,
                     activeSwarmLabel: this.getActiveSwarmLabel(),
                     survivalRun: this.isSurvivalRun(),
+                    campaignDifficultySectorOverride: this.getCampaignDifficultySectorOverride(),
                     balanceSector: this.getBalanceSector(1)
                 });
             }
@@ -14515,6 +14563,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 this.developerTools.updateDeveloperSettingsVisibility();
                 if (this.sectorSelectGrid) this.sectorSelectScreen.build();
                 this.updateSettingsSectorLabel();
+                this.updateDifficultySectorTestControl();
                 this.telemetrySystem.updateTelemetrySummary();
                 this.screenManager.updatePauseGridMenu();
                 if (this.ui && this.ui.updateHudMenuButton) this.ui.updateHudMenuButton();
@@ -20520,6 +20569,22 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                         game.adjustSelectedStartSector(1);
                     });
                 }
+                if (game.difficultySectorDecreaseButton) {
+                    game.difficultySectorDecreaseButton.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        game.playUiClick();
+                        game.adjustCampaignDifficultySector(-1);
+                    });
+                }
+                if (game.difficultySectorIncreaseButton) {
+                    game.difficultySectorIncreaseButton.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        game.playUiClick();
+                        game.adjustCampaignDifficultySector(1);
+                    });
+                }
                 if (game.difficultyDecreaseButton) {
                     game.difficultyDecreaseButton.addEventListener('click', (e) => {
                         e.preventDefault();
@@ -20814,6 +20879,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                     game.settingsButton, game.sectorSelectButton, game.soundToggleButton, game.musicToggleButton,
                     game.monitorToggleButton, game.trackingSpeedDecreaseButton, game.trackingSpeedIncreaseButton,
                     game.difficultyButton, game.gameModeDecreaseButton, game.gameModeIncreaseButton, game.sectorDecreaseButton, game.sectorIncreaseButton,
+                    game.difficultySectorDecreaseButton, game.difficultySectorIncreaseButton,
                     game.difficultyDecreaseButton, game.difficultyIncreaseButton, game.resetHighScoreButton,
                     game.resetTutorialButton, game.copyStateSnapshotButton,
                     game.pauseLaunchSetupButton, game.devSectorSelectHudButton, game.howToButton,
@@ -21199,6 +21265,10 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 this.sectorDecreaseButton = document.getElementById('sectorDecreaseButton');
                 this.sectorIncreaseButton = document.getElementById('sectorIncreaseButton');
                 this.settingsSectorValue = document.getElementById('settingsSectorValue');
+                this.difficultySectorSettingControl = document.getElementById('difficultySectorSettingControl');
+                this.difficultySectorDecreaseButton = document.getElementById('difficultySectorDecreaseButton');
+                this.difficultySectorIncreaseButton = document.getElementById('difficultySectorIncreaseButton');
+                this.settingsDifficultySectorValue = document.getElementById('settingsDifficultySectorValue');
                 this.difficultyDecreaseButton = document.getElementById('difficultyDecreaseButton');
                 this.difficultyIncreaseButton = document.getElementById('difficultyIncreaseButton');
                 this.settingsDifficultyValue = document.getElementById('settingsDifficultyValue');
@@ -22355,6 +22425,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 this.gameMode.adjustSelectedMode(direction);
                 this.updateGameModeLabel();
                 this.updateSettingsSectorLabel();
+                this.updateDifficultySectorTestControl();
                 if (this.ui) this.ui.updateAll();
             }
 
@@ -22382,6 +22453,46 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 this.updateSettingsSectorLabel();
             }
 
+            adjustCampaignDifficultySector(direction) {
+                if (!this.developerTools.developerModeEnabled || !this.gameMode.isCampaignSelected() || !this.canChangeSectorSelection()) {
+                    this.updateDifficultySectorTestControl();
+                    return;
+                }
+                this.gameMode.adjustCampaignDifficultySectorOverride(direction);
+                this.updateDifficultySectorTestControl();
+            }
+
+            updateDifficultySectorTestControl() {
+                const control = this.difficultySectorSettingControl;
+                if (!control) return;
+
+                const isCampaign = this.gameMode.isCampaignSelected();
+                const visible = !!(this.developerTools.developerModeEnabled && isCampaign);
+                control.classList.toggle('visible', visible);
+                control.setAttribute('aria-hidden', visible ? 'false' : 'true');
+
+                const override = this.gameMode.getCampaignDifficultySectorOverride();
+                if (this.settingsDifficultySectorValue) {
+                    this.settingsDifficultySectorValue.textContent = override === null ? 'MATCH' : `${override}`;
+                    this.settingsDifficultySectorValue.setAttribute(
+                        'aria-label',
+                        override === null ? 'Difficulty Sector: Match sector setup' : `Difficulty Sector: ${override}`
+                    );
+                }
+
+                const endOption = this.campaign.getEndOptionValue();
+                const selectedSetup = Number(this.campaign.selectedStartSector || 1);
+                const endSelected = isCampaign && this.developerTools.developerModeEnabled && selectedSetup === endOption;
+                const enabled = visible && !endSelected && this.canChangeSectorSelection();
+                control.classList.toggle('locked', !enabled);
+
+                [this.difficultySectorDecreaseButton, this.difficultySectorIncreaseButton].forEach((button) => {
+                    if (!button) return;
+                    button.disabled = !enabled;
+                    button.setAttribute('aria-disabled', enabled ? 'false' : 'true');
+                });
+            }
+
 
 
             updateSettingsSectorLabel() {
@@ -22401,6 +22512,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                         button.setAttribute('aria-label', button === this.sectorDecreaseButton ? 'Previous swarm type' : 'Next swarm type');
                     });
                     this.updateSectorSelectButtonLockState();
+                    this.updateDifficultySectorTestControl();
                     return;
                 }
 
@@ -22422,6 +22534,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 });
 
                 this.updateSectorSelectButtonLockState();
+                this.updateDifficultySectorTestControl();
             }
 
             updateSectorSelectButtonLockState() {
@@ -29327,7 +29440,7 @@ startGridlockBeat(delaySeconds = 0) {
                 assert('Cosmic Zap freezes rather than clears active Blox', Game.prototype.handleCosmicZap.toString().includes('beginCosmicZapStun') && !Game.prototype.handleCosmicZap.toString().includes('this.enemies = []') && Enemy.prototype.update.toString().includes('this.isStunned(timestamp)'));
                 assert('Cosmic Zap restart has dedicated audio cue', typeof AudioManager.prototype.playCosmicZapStunBeep === 'function' && Game.prototype.scheduleCosmicZapStunCues.toString().includes('playCosmicZapStunBeep(true)'));
                 assert('Campaign composition lab fixed-pressure override is disabled', GAME_CONFIG.gameModes.campaignCompositionBalanceTest?.enabled === false);
-                assert('Campaign balance sector follows the authored sector again', game.gameMode.getBalanceSector(1) === 1 && game.gameMode.getBalanceSector(15) === 15);
+                assert('Campaign difficulty-sector test defaults to MATCH and routes through the authoritative balance-sector resolver', game.gameMode.getCampaignDifficultySectorOverride() === null && GameModeSystem.prototype.getBalanceSector.toString().includes('campaignDifficultySectorOverride') && typeof GameModeSystem.prototype.adjustCampaignDifficultySectorOverride === 'function');
                 assert('DASH has no directional-line telegraph or recovery state', !CanvasPlayfieldRenderer.prototype.drawCharger.toString().includes('drawChargerTargetLine') && !ChargerBehavior.toString().includes('recovery'));
                 assert('ECHO uses the authored 0.8 ZIG-relative cruise speed with active and phased timing', GAME_CONFIG.enemyBehaviors.pulse.cruiseSpeedMultiplier === 0.8 && GAME_CONFIG.enemyBehaviors.pulse.activeMs === 2000 && GAME_CONFIG.enemyBehaviors.pulse.phasedMs === 900 && PulseBlockBehavior.prototype.beginPhased.toString().includes('this.tuning.phasedMs'));
                 assert('Top HUD announcement timing is shared', GAME_CONFIG.visualTiming.topHudAnnouncement.textMs === 2000 && GAME_CONFIG.visualTiming.topHudAnnouncement.pointsMs === 1000 && !UI.prototype.flashGridlockMessage.toString().includes('points > 0 ?'));
