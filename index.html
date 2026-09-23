@@ -3779,6 +3779,13 @@ Font License Notices
             width: min(300px, 94%);
             margin: 4px auto 10px;
         }
+        .developer-balance-panel { width:min(420px,96%); margin:12px auto; text-align:left; }
+        .developer-balance-note { font-size:11px; opacity:.72; line-height:1.35; margin:6px 0 10px; }
+        .developer-balance-grid { display:grid; grid-template-columns:minmax(0,1fr) 92px; gap:6px 10px; align-items:center; }
+        .developer-balance-grid label { font-size:12px; }
+        .developer-balance-grid input { width:100%; box-sizing:border-box; font:inherit; font-size:16px; color:#fff; background:#080808; border:1px solid rgba(255,255,255,.55); padding:7px 6px; }
+        .developer-balance-group { margin:12px 0 6px; padding-top:8px; border-top:1px solid rgba(255,255,255,.22); font-size:12px; font-weight:700; letter-spacing:.08em; }
+        .developer-balance-actions { display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin-top:12px; }
         #settingsPanel.developer-expanded {
             overflow-y: auto;
             justify-content: flex-start;
@@ -5950,7 +5957,7 @@ Font License Notices
 
         /* Launch uses the same gap token, giving Starting Sector and Difficulty clear separation. */
 
-/* p012: Blox movement parameters are production-owned only. Developer behavior tuning controls, storage, runtime overrides, and reset plumbing have been removed. */
+/* Balance ownership: production defaults remain centralized in GAME_CONFIG; Developer Mode may layer temporary, non-persistent runtime overrides through GAME_BALANCE_RUNTIME. */
 .survival-benchmark {
     margin-top: 12px;
     padding: 9px 8px;
@@ -7488,6 +7495,14 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                     <button id="resetPerformanceButton" class="menu-button settings-toggle" type="button">Reset Performance Data</button>
                     <button id="copyStateSnapshotButton" class="menu-button settings-toggle" type="button">Copy State Snapshot</button>
                     <button id="invincibilityToggleButton" class="menu-button settings-toggle" type="button">DEV Invincibility: OFF</button>
+                    <div id="developerBalancePanel" class="developer-balance-panel">
+                        <div class="crt-dev-heading developer-subheading">GAME BALANCE / TUNING</div>
+                        <div class="developer-balance-note">Production values are shown on entry. Changes are temporary Developer Mode overrides and are not saved. Reset restores production values. Existing Blox may need a restart/new spawn for movement changes to fully apply.</div>
+                        <div id="developerBalanceControls" class="developer-balance-grid"></div>
+                        <div class="developer-balance-actions">
+                            <button id="resetDeveloperBalanceButton" class="menu-button settings-toggle" type="button">Reset Balance Overrides</button>
+                        </div>
+                    </div>
                 </div>
             </div>
             <div id="launchSetupPanel" class="menu-panel">
@@ -8107,6 +8122,13 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
         // baseline for every difficulty. Difficulty temporarily changes Zap capacity only; the
         // shared sector speed/spawn ramp remains authoritative for all three modes.
         // Visual size determines movement intensity, while behavior determines movement style.
+        // ============================================================================
+        // GAME BALANCE / TUNING
+        // Authoritative production defaults live in GAME_CONFIG below. Developer Mode
+        // never mutates this frozen configuration: it layers temporary runtime overrides
+        // through GAME_BALANCE_RUNTIME. This keeps production rules deterministic while
+        // allowing rapid balance iteration from the in-game Developer panel.
+        // ============================================================================
         const ENEMY_SIZE_BASE_SPEEDS = Object.freeze({
             small: 2.76,
             medium: 1.84,
@@ -9086,6 +9108,16 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
         // timers, audio, rendering, storage, or mutable run state.
 
 /* Source: src/js/rules/80-game-rules.js */
+        // Temporary developer-only balance overlay. No persistence by design.
+        // Paths correspond to GAME_CONFIG leaves, keeping tuning ownership centralized.
+        const GAME_BALANCE_RUNTIME = (() => {
+            const overrides = new Map();
+            const get = (path, fallback) => overrides.has(path) ? overrides.get(path) : fallback;
+            const set = (path, value) => { if (Number.isFinite(Number(value))) overrides.set(path, Number(value)); };
+            const reset = () => overrides.clear();
+            return Object.freeze({ get, set, reset, has: path => overrides.has(path) });
+        })();
+
         class GameRules {
             static getDifficultyProfile(mode = 'Normal') {
                 const profiles = GAME_CONFIG.difficulty.profiles;
@@ -9108,7 +9140,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
 
             static getSectorSpeedBoost(level) {
                 const balancedSector = this.clampCampaignSector(level);
-                const steps = GAME_CONFIG.enemyMovement.sectorSpeedStepBoosts || [];
+                const steps = (GAME_CONFIG.enemyMovement.sectorSpeedStepBoosts || []).map((v, i) => GAME_BALANCE_RUNTIME.get(`enemyMovement.sectorSpeedStepBoosts.${i}`, v));
                 const stepCount = Math.min(Math.max(0, balancedSector - 1), steps.length);
                 let boost = 0;
                 for (let index = 0; index < stepCount; index += 1) {
@@ -9119,12 +9151,12 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
 
             static getEnemySpeedMultiplier(level, difficultyMode = 'Normal') {
                 const sectorBoost = this.getSectorSpeedBoost(level);
-                return (1 + sectorBoost) * this.getDifficultyProfile(difficultyMode).speedMultiplier;
+                return (1 + sectorBoost) * GAME_BALANCE_RUNTIME.get(`difficulty.${difficultyMode}.speedMultiplier`, this.getDifficultyProfile(difficultyMode).speedMultiplier);
             }
 
             static getDashChargeSpeedMultiplier(level) {
                 const balancedSector = this.clampCampaignSector(level);
-                const curve = GAME_CONFIG.enemyBehaviors.charger.chargeSpeedMultipliersBySector || [];
+                const curve = (GAME_CONFIG.enemyBehaviors.charger.chargeSpeedMultipliersBySector || []).map((v, i) => GAME_BALANCE_RUNTIME.get(`charger.chargeSpeedMultipliersBySector.${i}`, v));
                 const fallback = Number(curve[0]) || 2;
                 const value = Number(curve[balancedSector - 1]);
                 return Number.isFinite(value) && value > 0 ? value : fallback;
@@ -9167,15 +9199,15 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 const balancedSector = this.clampCampaignSector(level);
                 const profile = this.getDifficultyProfile(difficultyMode);
                 return Math.max(
-                    spawning.minimumDelaySeconds,
-                    spawning.baseDelaySeconds -
-                        (balancedSector - 1) * spawning.sectorDelayReductionSeconds +
-                        profile.spawnDelayAdjustmentSeconds
+                    GAME_BALANCE_RUNTIME.get('enemySpawning.minimumDelaySeconds', spawning.minimumDelaySeconds),
+                    GAME_BALANCE_RUNTIME.get('enemySpawning.baseDelaySeconds', spawning.baseDelaySeconds) -
+                        (balancedSector - 1) * GAME_BALANCE_RUNTIME.get('enemySpawning.sectorDelayReductionSeconds', spawning.sectorDelayReductionSeconds) +
+                        GAME_BALANCE_RUNTIME.get(`difficulty.${difficultyMode}.spawnDelayAdjustmentSeconds`, profile.spawnDelayAdjustmentSeconds)
                 );
             }
 
             static getCosmicZapCapacity(difficultyMode = 'Normal') {
-                return Math.max(1, Math.floor(Number(this.getDifficultyProfile(difficultyMode).cosmicZaps) || 1));
+                return Math.max(1, Math.floor(GAME_BALANCE_RUNTIME.get(`difficulty.${difficultyMode}.cosmicZaps`, Number(this.getDifficultyProfile(difficultyMode).cosmicZaps) || 1)));
             }
 
             static getMaximumCosmicZapCapacity() {
@@ -14505,6 +14537,8 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
             updateInvincibilityToggleLabel(...args) { return DeveloperToolsSystem.implementations.updateInvincibilityToggleLabel.apply(this.game, args); }
             toggleInvincibility(...args) { return DeveloperToolsSystem.implementations.toggleInvincibility.apply(this.game, args); }
             handleInvincibleCollision(...args) { return DeveloperToolsSystem.implementations.handleInvincibleCollision.apply(this.game, args); }
+            buildBalanceTuningControls(...args) { return DeveloperToolsSystem.implementations.buildBalanceTuningControls.apply(this.game, args); }
+            resetBalanceTuning(...args) { return DeveloperToolsSystem.implementations.resetBalanceTuning.apply(this.game, args); }
 
             snapshot() {
                 return Object.freeze({
@@ -14518,6 +14552,46 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
         }
 
         DeveloperToolsSystem.implementations = Object.freeze({
+            buildBalanceTuningControls: function() {
+                const host = this.developerBalanceControls;
+                if (!host) return;
+                host.replaceChildren();
+                const specs = [];
+                const add = (group, label, path, value, step, min=0) => specs.push({group,label,path,value,step,min});
+                add('GLOBAL MOVEMENT','Master Blox Speed','enemyMovement.sharedSpeedMultiplier',GAME_CONFIG.enemyMovement.sharedSpeedMultiplier,0.01,0.1);
+                Object.entries(GAME_CONFIG.enemyMovement.baseSpeeds).forEach(([k,v]) => add('BLOX SIZE SPEED',`${k.toUpperCase()} Base Speed`,`enemyMovement.baseSpeeds.${k}`,v,0.01,0.01));
+                GAME_CONFIG.enemyMovement.sectorSpeedStepBoosts.forEach((v,i)=>add('SECTOR SPEED CURVE',`S${i+1} → S${i+2}`,`enemyMovement.sectorSpeedStepBoosts.${i}`,v,0.001,0));
+                add('SPAWNING','Base Spawn Delay (s)','enemySpawning.baseDelaySeconds',GAME_CONFIG.enemySpawning.baseDelaySeconds,0.05,0.1);
+                add('SPAWNING','Minimum Spawn Delay (s)','enemySpawning.minimumDelaySeconds',GAME_CONFIG.enemySpawning.minimumDelaySeconds,0.05,0.1);
+                add('SPAWNING','Sector Delay Reduction (s)','enemySpawning.sectorDelayReductionSeconds',GAME_CONFIG.enemySpawning.sectorDelayReductionSeconds,0.01,0);
+                const dash=GAME_CONFIG.enemyBehaviors.charger;
+                add('DASH','Cruise Multiplier','charger.cruiseSpeedMultiplier',dash.cruiseSpeedMultiplier,0.01,0.1);
+                add('DASH','Charge Cadence (ms)','charger.chargeCadenceMs',dash.chargeCadenceMs,50,100);
+                add('DASH','Warning (ms)','charger.warningMs',dash.warningMs,25,0);
+                add('DASH','Charge Duration (ms)','charger.chargeDurationMs',dash.chargeDurationMs,25,50);
+                dash.chargeSpeedMultipliersBySector.forEach((v,i)=>add('DASH CHARGE CURVE',`Sector ${i+1}`,`charger.chargeSpeedMultipliersBySector.${i}`,v,0.025,0.1));
+                const echo=GAME_CONFIG.enemyBehaviors.pulse;
+                add('ECHO','Cruise Multiplier','pulse.cruiseSpeedMultiplier',echo.cruiseSpeedMultiplier,0.01,0.1);
+                add('ECHO','Active Time (ms)','pulse.activeMs',echo.activeMs,50,100);
+                add('ECHO','Phased Time (ms)','pulse.phasedMs',echo.phasedMs,50,100);
+                add('ECHO','Position Flash (ms)','pulse.positionFlashIntervalMs',echo.positionFlashIntervalMs,25,50);
+                GAME_CONFIG.difficulty.options.forEach(mode=>{ const d=GAME_CONFIG.difficulty.profiles[mode]; add(`DIFFICULTY — ${mode.toUpperCase()}`,'Speed Multiplier',`difficulty.${mode}.speedMultiplier`,d.speedMultiplier,0.01,0.1); add(`DIFFICULTY — ${mode.toUpperCase()}`,'Spawn Delay Adjust (s)',`difficulty.${mode}.spawnDelayAdjustmentSeconds`,d.spawnDelayAdjustmentSeconds,0.05,-5); add(`DIFFICULTY — ${mode.toUpperCase()}`,'Cosmic Zaps',`difficulty.${mode}.cosmicZaps`,d.cosmicZaps,1,1); });
+                let group='';
+                specs.forEach(spec=>{
+                    if(spec.group!==group){ group=spec.group; const h=document.createElement('div'); h.className='developer-balance-group'; h.textContent=group; host.appendChild(h); const spacer=document.createElement('span'); spacer.setAttribute('aria-hidden','true'); host.appendChild(spacer); }
+                    const label=document.createElement('label'); const input=document.createElement('input');
+                    input.type='number'; input.step=String(spec.step); input.min=String(spec.min); input.value=String(GAME_BALANCE_RUNTIME.get(spec.path,spec.value)); input.dataset.balancePath=spec.path; input.dataset.productionValue=String(spec.value);
+                    label.textContent=spec.label; label.htmlFor=`dev-balance-${spec.path.replace(/[^a-z0-9]+/gi,'-')}`; input.id=label.htmlFor;
+                    input.addEventListener('change',()=>{ let value=Number(input.value); if(!Number.isFinite(value)){ value=spec.value; input.value=String(value); } value=Math.max(spec.min,value); if(spec.path.endsWith('.cosmicZaps')) value=Math.round(value); input.value=String(value); GAME_BALANCE_RUNTIME.set(spec.path,value); if(spec.path.startsWith('enemySpawning.') || spec.path.includes('spawnDelayAdjustmentSeconds')) this.spawnDelay=GameRules.getSpawnDelay(this.gameMode.getBalanceSector(this.level),this.settings.difficultyMode); this.telemetrySystem.setTelemetryStatus(`Balance override: ${spec.label} = ${value}`); });
+                    host.append(label,input);
+                });
+            },
+            resetBalanceTuning: function() {
+                GAME_BALANCE_RUNTIME.reset();
+                this.developerTools.buildBalanceTuningControls();
+                this.spawnDelay=GameRules.getSpawnDelay(this.gameMode.getBalanceSector(this.level),this.settings.difficultyMode);
+                this.telemetrySystem.setTelemetryStatus('Balance tuning restored to production defaults.');
+            },
             recordSettingsUnlockTap: function() {
                 const now = performance.now();
                 const lastTap = this.developerTools.settingsUnlockLastTapMs || 0;
@@ -14598,6 +14672,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                     this.developerTools.updateInvincibilityToggleLabel();
                     this.developerTools.updateSkinFrameLabel();
                     this.developerTools.updateSkinFrameTuningLabels();
+                    this.developerTools.buildBalanceTuningControls();
                 }
                         },
 
@@ -20639,6 +20714,12 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                         game.developerTools.toggleInvincibility();
                     });
                 }
+                if (game.resetDeveloperBalanceButton) {
+                    game.resetDeveloperBalanceButton.addEventListener('click', (e) => {
+                        e.preventDefault(); e.stopPropagation(); game.playUiClick();
+                        game.developerTools.resetBalanceTuning();
+                    });
+                }
                 if (game.skinFrameDecreaseButton) {
                     game.skinFrameDecreaseButton.addEventListener('click', (e) => {
                         e.preventDefault();
@@ -21278,6 +21359,8 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
                 this.resetTutorialButton = document.getElementById('resetTutorialButton');
                 this.developerModeLabel = document.getElementById('developerModeLabel');
                 this.telemetryPanel = document.getElementById('telemetryPanel');
+                this.developerBalanceControls = document.getElementById('developerBalanceControls');
+                this.resetDeveloperBalanceButton = document.getElementById('resetDeveloperBalanceButton');
                 this.copyStateSnapshotButton = document.getElementById('copyStateSnapshotButton');
                 this.crtPerformanceHud = document.getElementById('crtPerformanceHud');
                 this.crtPerfFps = document.getElementById('crtPerfFps');
@@ -22044,7 +22127,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
             // owning or duplicating the base-speed table.
             getEnemySpeed(type) {
                 const normalizedType = Object.prototype.hasOwnProperty.call(this.BASE_SPEEDS, type) ? type : 'medium';
-                return this.BASE_SPEEDS[normalizedType] * this.telemetrySystem.getCurrentSpeedMultiplier();
+                return GAME_BALANCE_RUNTIME.get(`enemyMovement.baseSpeeds.${normalizedType}`, this.BASE_SPEEDS[normalizedType]) * this.telemetrySystem.getCurrentSpeedMultiplier();
             }
             // Try to keep the screen awake during active gameplay.
             async requestWakeLock() {
@@ -25512,7 +25595,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
             }
 
             getSharedSpeedScale() {
-                return Number(GAME_CONFIG.enemyMovement.sharedSpeedMultiplier) || 1;
+                return GAME_BALANCE_RUNTIME.get('enemyMovement.sharedSpeedMultiplier', Number(GAME_CONFIG.enemyMovement.sharedSpeedMultiplier) || 1);
             }
 
             getBehaviorCruiseSpeedMultiplier() {
@@ -25583,7 +25666,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
         class ChargerBehavior extends ZigMovementFoundation {
             constructor(enemy) {
                 super(enemy);
-                this.tuning = enemy.behaviorTuningOverride || GAME_CONFIG.enemyBehaviors.charger;
+                this.tuning = enemy.behaviorTuningOverride || { ...GAME_CONFIG.enemyBehaviors.charger, cruiseSpeedMultiplier: GAME_BALANCE_RUNTIME.get('charger.cruiseSpeedMultiplier', GAME_CONFIG.enemyBehaviors.charger.cruiseSpeedMultiplier), chargeCadenceMs: GAME_BALANCE_RUNTIME.get('charger.chargeCadenceMs', GAME_CONFIG.enemyBehaviors.charger.chargeCadenceMs), warningMs: GAME_BALANCE_RUNTIME.get('charger.warningMs', GAME_CONFIG.enemyBehaviors.charger.warningMs), chargeDurationMs: GAME_BALANCE_RUNTIME.get('charger.chargeDurationMs', GAME_CONFIG.enemyBehaviors.charger.chargeDurationMs) };
                 this.state = 'cruise';
                 this.stateEndsAt = 0;
                 this.chargeCycle = 0;
@@ -25745,7 +25828,7 @@ html body #gameContainer.crt-enabled.crt-fx-grid-rgb:not(.monitor-ui-suspended) 
         class PulseBlockBehavior extends ZigMovementFoundation {
             constructor(enemy) {
                 super(enemy);
-                this.tuning = enemy.behaviorTuningOverride || GAME_CONFIG.enemyBehaviors.pulse;
+                this.tuning = enemy.behaviorTuningOverride || { ...GAME_CONFIG.enemyBehaviors.pulse, cruiseSpeedMultiplier: GAME_BALANCE_RUNTIME.get('pulse.cruiseSpeedMultiplier', GAME_CONFIG.enemyBehaviors.pulse.cruiseSpeedMultiplier), activeMs: GAME_BALANCE_RUNTIME.get('pulse.activeMs', GAME_CONFIG.enemyBehaviors.pulse.activeMs), phasedMs: GAME_BALANCE_RUNTIME.get('pulse.phasedMs', GAME_CONFIG.enemyBehaviors.pulse.phasedMs), positionFlashIntervalMs: GAME_BALANCE_RUNTIME.get('pulse.positionFlashIntervalMs', GAME_CONFIG.enemyBehaviors.pulse.positionFlashIntervalMs) };
                 this.state = 'active';
                 this.stateEndsAt = 0;
                 this.phaseTransitionPulseStartedAt = 0;
